@@ -1,0 +1,32 @@
+﻿using System;
+using SolidWorks.Interop.sldworks;
+
+namespace WAD.Runner.DrawingAutomation.Views;
+
+internal static class ViewFinder
+{
+    /// <summary>
+    /// Walks the drawing view list and returns the view whose name matches (case-insensitive).
+    /// </summary>
+    public static View? FindByName(DrawingDoc drawing, string viewName)
+    {
+        if (drawing is null || string.IsNullOrWhiteSpace(viewName)) return null;
+
+        var v = drawing.GetFirstView() as View; // first is sheet, second is usually the first view
+        while (v is not null)
+        {
+            try
+            {
+                var name = v.GetName2();
+                if (!string.IsNullOrWhiteSpace(name) &&
+                    string.Equals(name.Trim(), viewName.Trim(), StringComparison.OrdinalIgnoreCase))
+                    return v;
+            }
+            catch { /* ignore and continue */ }
+
+            v = v.GetNextView() as View;
+        }
+
+        return null;
+    }
+}

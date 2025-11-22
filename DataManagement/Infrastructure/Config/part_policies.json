@@ -1,0 +1,53 @@
+{
+  "toleranceSketchMap": {
+    "FG": {
+      "FL": "FG_Wed_FL",
+      "W": "FG_Wed_W",
+      "B": "FG_Wed_B"
+    },
+    "PGB": {
+      "FL": "PGB_Wed_FL",
+      "W": "PGB_Wed_W"
+    }
+  },
+
+
+  "overlayScaleMap": {
+    "100": 60.8,
+    "200": 122.7,
+    "300": 183.0,
+    "400": 246.0
+  },
+
+
+  "featureFolders": {
+    "FG": {
+      "Production": {
+        "unsuppress": [ "PGB", "WEDGE", "DRAWING_FEATURES" ],
+        "suppress": [ "OVERLAY_FEATURES", "FG_OVERLAY_FEATURES", "PGB_OVERLAY_FEATURES" ]
+      },
+      "Customer": {
+        "unsuppress": [ "PGB", "WEDGE", "DRAWING_FEATURES" ],
+        "suppress": [ "OVERLAY_FEATURES", "FG_OVERLAY_FEATURES", "PGB_OVERLAY_FEATURES" ]
+      },
+      "Overlay": {
+        "unsuppress": [ "PGB", "WEDGE", "OVERLAY_FEATURES", "FG_OVERLAY_FEATURES" ],
+        "suppress": [ "PGB_OVERLAY_FEATURES", "DRAWING_FEATURES" ]
+      }
+    },
+    "PGB": {
+      "Production": {
+        "unsuppress": [ "PGB" ],
+        "suppress": [ "WEDGE", "OVERLAY_FEATURES", "FG_OVERLAY_FEATURES", "PGB_OVERLAY_FEATURES", "DRAWING_FEATURES" ]
+      },
+      "Customer": {
+        "unsuppress": [ "PGB" ],
+        "suppress": [ "WEDGE", "OVERLAY_FEATURES", "FG_OVERLAY_FEATURES", "PGB_OVERLAY_FEATURES", "DRAWING_FEATURES" ]
+      },
+      "Overlay": {
+        "unsuppress": [ "PGB", "WEDGE", "OVERLAY_FEATURES", "PGB_OVERLAY_FEATURES" ],
+        "suppress": [ "FG_OVERLAY_FEATURES", "DRAWING_FEATURES", "Engraving" ]
+      }
+    }
+  }
+}
