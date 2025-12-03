@@ -200,19 +200,21 @@ public static class DimensionRules
             106.68, 60.0);
 
         PlaceDim(ctx, diag, outList, "VW", Front, DimAxis.Horizontal,
-            30.0, 10.0);
+            5.0, 8.0);
 
         PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
-            30.0, 16.0);
-
+            18.0, 14.0);
+        
         PlaceDim(ctx, diag, outList, "E", Side, DimAxis.Horizontal,
-            132.08 - TL / 2.0 * FSTscale + E / 2.0 * FSTscale, 8.3566 - TD / 2.0 * FSTscale);
+            75, 3.0);
 
         PlaceDim(ctx, diag, outList, "X", Side, DimAxis.Horizontal,
-            132.08 - TL / 2.0 * FSTscale - 5.0, 8.3566 - TD / 2.0 * FSTscale + 10.0);
+            76.2, 14.732);
+        PlaceDim(ctx, diag, outList, "FX", Side, DimAxis.Horizontal,
+           76.2, 14.732);
 
         PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal,
-            T[0] + FSTscale * TD / 2.0, T[1] - FSTscale * TDF / 2.0 - 10.0);
+            152.4, 13.462);
 
         var FAdeg = LayoutMath.TryDdeg(ctx, "FA");
         PlaceDim(ctx, diag, outList, "FA", Side, DimAxis.Horizontal,
@@ -220,7 +222,7 @@ public static class DimensionRules
 
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
-            132.08 + 10,
+            132.08 + 5,
             /*!double.IsNaN(BAdeg) && BAdeg < 6.0 ? 8.3566 - FSTscale * TD / 2.0 + 4.0 :*/ 8.3566 - FSTscale * TD / 2.0 - 4.0);
     }
 

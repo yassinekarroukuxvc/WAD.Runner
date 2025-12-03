@@ -67,12 +67,13 @@ namespace WAD.Runner.DrawingAutomation.Tables
         /// <summary>
         /// Creates a one-column Overlay dimension table at the given position (in millimeters),
         /// using the rows from overlayData.Dimensions.
+        /// No header row, no visible title band.
         /// </summary>
         /// <param name="dimensions">overlayData.Dimensions</param>
         /// <param name="xMm">X position on sheet in millimeters</param>
         /// <param name="yMm">Y position on sheet in millimeters</param>
         /// <param name="widthMm">Column width in millimeters (default ~80mm)</param>
-        /// <param name="header">Header text (default "DIMENSIONS")</param>
+        /// <param name="header">Kept for signature compatibility, not used.</param>
         public bool CreateOverlayDimensionTableAt(
             IReadOnlyList<OverlayDimensionRow> dimensions,
             double xMm,
@@ -86,36 +87,78 @@ namespace WAD.Runner.DrawingAutomation.Tables
             // Convert mm → meters for SolidWorks
             var xM = xMm / 1000.0;
             var yM = yMm / 1000.0;
+
+            // Width is calculated as originally, since you stated this is fine.
             var widthM = widthMm / 1000.0;
 
             // Build text lines from OverlayDimensionRow
             var rows = BuildOverlayDimensionRowStrings(dimensions);
             if (rows.Count == 0) return false;
 
-            var table = CreateOneColumnTable(xM, yM, rows.Count + 1, "OverlayDimensions", widthM);
+            // rows.Count (no +1) → no header row
+            var table = CreateOneColumnTable(xM, yM, rows.Count, "OverlayDimensions", widthM);
             if (table is null) return false;
 
-            // Header
-            table.set_Text(0, 0, header);
-            table.CellTextHorizontalJustification[0, 0] =
-                (int)swTextJustification_e.swTextJustificationLeft;
+            // We don't want a separate title band for this overlay table
+            table.TitleVisible = false;
 
-            // Rows
+            // Rows (all rows are data rows now)
             for (int i = 0; i < rows.Count; i++)
             {
-                table.set_Text(i + 1, 0, rows[i]);
-                table.CellTextHorizontalJustification[i + 1, 0] =
+                table.set_Text(i, 0, rows[i]);
+                table.CellTextHorizontalJustification[i, 0] =
                     (int)swTextJustification_e.swTextJustificationLeft;
             }
 
             // Styling
-            SetTableFontSize(table, 4);
-            TryApplyTypeface(table, "Monospac821 BT", scaleCharHeight: 0.90);
-            SetTableRowHeights(table, rowHeightMm: 0);
+            SetTableFontSize(table, 4, includeTitle: false);
+
+            // No extra scaling, we let SW compute from 4pt
+            TryApplyTypeface(table, "Monospac821 BT", null);
+
+            // Shrink ALL rows, including the first one (no header anymore)
+            SetTableRowHeights(table, rowHeightMm: 0, includeTitle: true);
+            ShrinkTableHeight(table, includeTitle: true);
+
             HideAllTableBorders(table);
             SetTableLayer(table, "annotation");
 
             return true;
+        }
+
+        private void ShrinkTableHeight(TableAnnotation table, bool includeTitle = true)
+        {
+            if (table == null) throw new ArgumentNullException(nameof(table));
+
+            try
+            {
+                int startRow = includeTitle ? 0 : 1;
+
+                // Try gradually shrinking by tiny steps
+                double currentMm = 0.1; // start small
+                for (int iteration = 0; iteration < 5; iteration++)
+                {
+                    var heightM = currentMm / 1000.0;
+
+                    for (int r = startRow; r < table.RowCount; r++)
+                    {
+                        table.SetRowHeight(
+                            r,
+                            heightM,
+                            (int)swTableRowColSizeChangeBehavior_e.swTableRowColChange_TableSizeCanChange);
+                    }
+
+                    _model.GraphicsRedraw2();
+
+                    // Reduce further
+                    currentMm /= 2.0;
+                    if (currentMm < 0.01) break;
+                }
+            }
+            catch
+            {
+                // safe
+            }
         }
 
         public void SetTableLayer(TableAnnotation table, string layerName)
@@ -142,7 +185,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 // Keep safe – you can plug logging here if needed
             }
         }
-
 
         private static void HideAllTableBorders(TableAnnotation table)
         {
@@ -261,6 +303,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                 if (table == null) return null;
 
+                // Sets the column width (colWidthM is typically > 0 here, unless auto-fit is desired)
                 table.SetColumnWidth(
                     0,
                     colWidthM,
@@ -635,6 +678,8 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 int startRow = includeTitle ? 0 : 1;
                 for (int r = startRow; r < table.RowCount; r++)
                 {
+                    // Setting heightM to 0.0 (or tiny) forces the row to adopt the minimum height 
+                    // required for the cell content, eliminating excess padding.
                     table.SetRowHeight(
                         r,
                         heightM,
@@ -648,6 +693,5 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 // keep safe
             }
         }
-
     }
 }

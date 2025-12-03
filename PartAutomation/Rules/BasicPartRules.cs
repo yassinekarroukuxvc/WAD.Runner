@@ -112,4 +112,17 @@ public static class BasicPartRules
         part.SuppressSketch(SwNames.SketchCrmet, suppress: zero);
         Logger.Success("[BasicPartRules] TIP guard applied.");
     }
+    public static void ApplyEngravingToggle(PartEditor part)
+    {
+        Logger.Info("[BasicPartRules] ApplyEngravingToggle → enable engraving for non-overlay drawings");
+
+        // For Production / Customer: engraving ON (unsuppressed)
+        const bool suppress = false;
+
+        Logger.Info($"[BasicPartRules] Engraving sketch '{SwNames.Engraving}' suppress={suppress}");
+        part.SuppressSketch(SwNames.Engraving, suppress: suppress);
+
+        Logger.Success("[BasicPartRules] Engraving toggle applied (non-overlay only).");
+    }
+
 }

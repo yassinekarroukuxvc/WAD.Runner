@@ -128,6 +128,15 @@ namespace WAD.Runner.PartAutomation.SolidWorks
                     continue;
                 }
 
+                if (isOverlay && key.Equals("TL", StringComparison.OrdinalIgnoreCase))
+                {
+                    output.Add($"\"TL\" = {F(30)}mm");
+                    scaleTouched = true;
+                    rewritten++;
+                    continue;
+                }
+
+
                 // Dimension value from domain
                 if (byKey.TryGetValue(key, out var dim))
                 {

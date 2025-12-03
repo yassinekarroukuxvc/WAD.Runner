@@ -67,7 +67,7 @@ public sealed class SecondaryViewPlacementService
                 (x_m, y_m) = ClampToSheet(x_m, y_m, w, h);
 
             // unlock / break alignment (best effort)
-            InteropCompat.TryBreakAlignment(view);
+            //InteropCompat.TryBreakAlignment(view);
             InteropCompat.TryUnlock(view);
 
             view.Position = new[] { x_m, y_m };

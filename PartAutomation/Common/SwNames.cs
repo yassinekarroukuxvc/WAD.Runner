@@ -7,6 +7,7 @@ public static class SwNames
     public const string SketchFgWedW = "FG_Wed_W";
     public const string SketchFgWedVW = "FG_Wed_VW";
     public const string SketchCrmet = "Drawing_CRMET";
+    public const string Engraving = "Engraving";
 
     // Dimensions (full parameter paths)
     public const string DimVrMin = "VR_MIN@FG_Wed_VW";

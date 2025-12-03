@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
+using System.Reflection;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 using WAD.Runner.Application;
@@ -363,6 +364,214 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             catch (Exception ex)
             {
                 Logger.Warn($"SetCustomProperties failed: {ex.Message}");
+            }
+        }
+
+        // ───────────────────────────────────────────────────────────────────────
+        // Overlay calibration helpers
+        // ───────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Draws the overlay calibration square in the sheet format, using the overlay scaling (100X/200X/300X/400X buckets).
+        /// </summary>
+        public void DrawCalibrationBoxOnSheetFormat(double overlayScaling)
+        {
+            if (_drawing is null || _model is null)
+            {
+                Logger.Warn("[CalibrationBox] No drawing is open.");
+                return;
+            }
+
+            var token = NormalizeScalingBucket(overlayScaling);
+
+            // (x, y, width, height) in inches
+            var (xIn, yIn, widthIn, heightIn) = token switch
+            {
+                100 => (2.355, 1.55, 1.68, 1.68),
+                200 => (1.500, 0.705, 3.38, 3.38),
+                300 => (1.755, 0.955, 2.88, 2.89),
+                400 => (2.225, 1.425, 1.94, 1.94),
+                _ => (1.755, 0.955, 2.88, 2.89),
+            };
+
+            const double IN_TO_M = 0.0254;
+
+            // Convert to meters
+            var x1 = xIn * IN_TO_M;
+            var y1 = yIn * IN_TO_M;
+            var x2 = (xIn + widthIn) * IN_TO_M;
+            var y2 = y1;
+            var x3 = x2;
+            var y3 = (yIn + heightIn) * IN_TO_M;
+            var x4 = x1;
+            var y4 = y3;
+
+            try
+            {
+                _drawing.EditTemplate();
+
+                // Use a dedicated layer; rename if you have constants somewhere
+                const string layerName = "calibration_box";
+                EnsureLayerExistsAndVisible(layerName);
+                _drawing.SetCurrentLayer(layerName);
+
+                var sm = _model.SketchManager;
+                sm.InsertSketch(true);
+
+                var l1 = sm.CreateLine(x1, y1, 0, x2, y2, 0);
+                var l2 = sm.CreateLine(x2, y2, 0, x3, y3, 0);
+                var l3 = sm.CreateLine(x3, y3, 0, x4, y4, 0);
+                var l4 = sm.CreateLine(x4, y4, 0, x1, y1, 0);
+
+                sm.InsertSketch(true);
+                _drawing.EditSheet();
+                _model.GraphicsRedraw2();
+
+                if (l1 == null || l2 == null || l3 == null || l4 == null)
+                    Logger.Warn("[CalibrationBox] One or more CreateLine calls returned null.");
+                else
+                    Logger.Info($"[CalibrationBox] {token}X box drawn at ({xIn:0.###}, {yIn:0.###}) in, size {widthIn:0.###}×{heightIn:0.###} in.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[CalibrationBox] Failed to draw calibration box: {ex.Message}");
+                try { _drawing.EditSheet(); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// Inserts the overlay calibration note (e.g. "5µm") in the bottom-right corner of the calibration box.
+        /// </summary>
+        public void InsertCalibrationBoxNoteBottomRight(string calibrationValueMicrons, double overlayScaling)
+        {
+            if (_drawing is null || _model is null)
+            {
+                Logger.Warn("[CalibrationNote] No drawing is open.");
+                return;
+            }
+
+            var token = NormalizeScalingBucket(overlayScaling);
+
+            // These must match the box placement above
+            var (xIn, yIn, wIn, hIn) = token switch
+            {
+                100 => (2.355, 1.55, 1.68, 1.68),
+                200 => (1.500, 0.705, 3.38, 3.38),
+                300 => (1.755, 0.955, 2.88, 2.89),
+                400 => (2.225, 1.425, 1.94, 1.94),
+                _ => (1.755, 0.955, 2.88, 2.89),
+            };
+
+            const double IN_TO_M = 0.0254;
+            const double insetX = 0.08;   // inches from right edge
+            const double insetY = 0.06;   // inches from bottom edge
+            const double charH = 0.0016;  // meters (text height)
+
+            double InToM(double vIn) => vIn * IN_TO_M;
+
+            var posX = InToM(xIn + wIn - insetX);
+            var posY = InToM(yIn + insetY) + charH * 0.75;
+
+            try
+            {
+                _drawing.EditTemplate();
+                const string layerName = "calibration_box";
+                EnsureLayerExistsAndVisible(layerName);
+                _drawing.SetCurrentLayer(layerName);
+
+                var noteObj = _model.InsertNote($"{calibrationValueMicrons}µm");
+                if (noteObj is not Note note)
+                {
+                    Logger.Warn("[CalibrationNote] InsertNote returned null.");
+                    return;
+                }
+
+                if (note.GetAnnotation() is not Annotation ann)
+                {
+                    Logger.Warn("[CalibrationNote] Note.GetAnnotation() returned null.");
+                    return;
+                }
+
+                ann.Layer = layerName;
+                ann.SetPosition2(posX, posY, 0.0);
+
+                var tf = (TextFormat)note.GetTextFormat();
+                tf.CharHeight = charH;
+                tf.TypeFaceName = "Arial";
+                tf.Bold = false;
+                tf.Italic = false;
+                tf.Underline = false;
+
+                try { ann.SetTextFormat(0, false, tf); } catch { }
+                try { note.SetTextJustification((int)swTextJustification_e.swTextJustificationRight); } catch { }
+
+                _model.GraphicsRedraw2();
+                Logger.Info("[CalibrationNote] Calibration note inserted in calibration box.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[CalibrationNote] Failed to insert calibration note: {ex.Message}");
+            }
+            finally
+            {
+                try { _drawing.EditSheet(); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// Normalizes overlayScaling (1.0, 2.0, 300, "300X", ...) into 100/200/300/400.
+        /// </summary>
+        private static int NormalizeScalingBucket(double overlayScaling)
+        {
+            var x = overlayScaling < 10.0
+                ? (int)Math.Round(overlayScaling * 100.0)
+                : (int)Math.Round(overlayScaling);
+
+            return x <= 150 ? 100
+                 : x <= 250 ? 200
+                 : x <= 350 ? 300
+                 : 400;
+        }
+
+        private void EnsureLayerExistsAndVisible(string layerName)
+        {
+            try
+            {
+                if (_model is null) return;
+
+                var lm = (ILayerMgr)_model.GetLayerManager();
+                if (lm is null) return;
+
+                var layer = lm.GetLayer(layerName) as ILayer;
+                if (layer is null)
+                {
+                    try
+                    {
+                        // Handle both AddLayer2 and AddLayer via reflection (version-safe)
+                        var add2 = lm.GetType().GetMethod("AddLayer2", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                        if (add2 != null)
+                        {
+                            add2.Invoke(lm, new object[] { layerName, "", 0 });
+                        }
+                        else
+                        {
+                            var add = lm.GetType().GetMethod("AddLayer", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                            add?.Invoke(lm, new object[] { layerName });
+                        }
+
+                        layer = lm.GetLayer(layerName) as ILayer;
+                    }
+                    catch { }
+                }
+
+                if (layer is not null)
+                {
+                    try { layer.Visible = true; } catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"EnsureLayerExistsAndVisible('{layerName}') failed: {ex.Message}");
             }
         }
 

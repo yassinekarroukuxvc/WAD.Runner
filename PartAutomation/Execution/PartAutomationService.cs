@@ -88,20 +88,29 @@ namespace WAD.Runner.PartAutomation.Execution
             Logger.Info($"[PartAutomationService] ApplyPostRules → drawingType={drawingType}");
 
             var editor = _editor!;
-
-            BasicPartRules.ApplyTipGuard(editor, wedge);
-            BasicPartRules.ApplyVrMinMax(editor, wedge);
-            BasicPartRules.ApplyVwTolDims(editor, wedge);
-            BasicPartRules.ApplyOverlayVwWToggle(editor, wedge, overlay: drawingType == DrawingType.Overlay);
-
             var engraving = wedge.Marking?.Text
                             ?? (wedge.Properties.TryGetValue("Marking", out var s) ? s : null);
 
             Logger.Info($"[PartAutomationService] Engraving text → '{(engraving ?? "(null)")}'");
             editor.SetEngraving(engraving);
 
+            // Engraving toggle:
+            //  - Production + Customer → turn engraving ON
+            //  - Overlay → do nothing (keep whatever suppression state exists)
+            if (drawingType == DrawingType.Production || drawingType == DrawingType.Customer)
+            {
+                BasicPartRules.ApplyEngravingToggle(editor);
+            }
+
+            BasicPartRules.ApplyTipGuard(editor, wedge);
+            BasicPartRules.ApplyVrMinMax(editor, wedge);
+            BasicPartRules.ApplyVwTolDims(editor, wedge);
+            BasicPartRules.ApplyOverlayVwWToggle(editor, wedge, overlay: drawingType == DrawingType.Overlay);
+
+            editor.Rebuild();
             Logger.Success("[PartAutomationService] Post rules applied.");
         }
+
 
         public void RebuildPart()
         {
