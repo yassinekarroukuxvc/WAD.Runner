@@ -57,11 +57,11 @@ public static class ProfilePresets
 
     // You didn’t provide CKVD names for PGB Overlay yet; keep placeholders for now.
     private static ViewNames ForPgbOverlay() => new(
-        Front: "Front_view",
-        Side: "Side_view",
-        Top: "Top_view",
-        Detail: "Detail_view",
-        Section: "Section_view"
+        Front: "Drawing View5",
+        Side: "Drawing View4",
+        Top: "Drawing View3",
+        Detail: "Drawing View1",
+        Section: "Drawing View2"
     );
 
     // Sheet selector helpers (simple + safe).

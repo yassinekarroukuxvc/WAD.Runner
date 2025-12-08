@@ -33,6 +33,7 @@ using WAD.Runner.PartAutomation.Jobs;
 // Drawing Automation
 using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Executors.FG;
+using WAD.Runner.DrawingAutomation.Executors.PGB;
 using WAD.Runner.DrawingAutomation.Common;
 
 // SolidWorks sessions/factory (folder: /Solidworks/Adapters)
@@ -373,41 +374,86 @@ switch (cmd)
             {
                 Func<object?> runPartAutomation = () => partResultPath;
 
-                // pass null so the executor replans AFTER any scaling logic it does internally
-                switch (dtype)
+                // Choose executor by Subclass (FG/PGB) and DrawingType
+                switch (subclass)
                 {
-                    case DrawingType.Customer:
-                        Logger.Info("[run-drawing] Using FG Customer drawing executor…");
-                        FgCustomerDrawingExecutor.Run(
-                            swDraw.App,
-                            run,
-                            drawingData,
-                            runPartAutomation,
-                            plannedDims: null
-                        );
+                    case WedgeSubclass.PGB:
+                        switch (dtype)
+                        {
+                            case DrawingType.Customer:
+                                Logger.Info("[run-drawing] Subclass=PGB, Type=Customer → using FG Customer executor (temporary).");
+                                FgCustomerDrawingExecutor.Run(
+                                    swDraw.App,
+                                    run,
+                                    drawingData,
+                                    runPartAutomation,
+                                    plannedDims: null
+                                );
+                                break;
+
+                            case DrawingType.Overlay:
+                                Logger.Info("[run-drawing] Subclass=PGB, Type=Overlay → using PGB Overlay drawing executor…");
+                                PgbOverlayDrawingExecutor.Run(
+                                    swDraw.App,
+                                    run,
+                                    drawingData,
+                                    runPartAutomation,
+                                    plannedDims: null
+                                );
+                                break;
+
+                            case DrawingType.Production:
+                            default:
+                                Logger.Info("[run-drawing] Subclass=PGB, Type=Production → using PGB Production drawing executor…");
+                                PgbProductionDrawingExecutor.Run(
+                                    swDraw.App,
+                                    run,
+                                    drawingData,
+                                    runPartAutomation,
+                                    plannedDims: null
+                                );
+                                break;
+                        }
                         break;
 
-                    case DrawingType.Overlay:
-                        Logger.Info("[run-drawing] Using FG Overlay drawing executor…");
-                        FgOverlayDrawingExecutor.Run(
-                            swDraw.App,
-                            run,
-                            drawingData,
-                            runPartAutomation,
-                            plannedDims: null
-                        );
-                        break;
-
-                    case DrawingType.Production:
+                    case WedgeSubclass.FG:
                     default:
-                        Logger.Info("[run-drawing] Using FG Production drawing executor…");
-                        FgProductionDrawingExecutor.Run(
-                            swDraw.App,
-                            run,
-                            drawingData,
-                            runPartAutomation,
-                            plannedDims: null
-                        );
+                        switch (dtype)
+                        {
+                            case DrawingType.Customer:
+                                Logger.Info("[run-drawing] Subclass=FG, Type=Customer → using FG Customer drawing executor…");
+                                FgCustomerDrawingExecutor.Run(
+                                    swDraw.App,
+                                    run,
+                                    drawingData,
+                                    runPartAutomation,
+                                    plannedDims: null
+                                );
+                                break;
+
+                            case DrawingType.Overlay:
+                                Logger.Info("[run-drawing] Subclass=FG, Type=Overlay → using FG Overlay drawing executor…");
+                                FgOverlayDrawingExecutor.Run(
+                                    swDraw.App,
+                                    run,
+                                    drawingData,
+                                    runPartAutomation,
+                                    plannedDims: null
+                                );
+                                break;
+
+                            case DrawingType.Production:
+                            default:
+                                Logger.Info("[run-drawing] Subclass=FG, Type=Production → using FG Production drawing executor…");
+                                FgProductionDrawingExecutor.Run(
+                                    swDraw.App,
+                                    run,
+                                    drawingData,
+                                    runPartAutomation,
+                                    plannedDims: null
+                                );
+                                break;
+                        }
                         break;
                 }
             }
@@ -451,7 +497,7 @@ Drawing Automation:
   run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay]
                  Pipeline:
                    Load Wedge/Drawing data → Part phase (own SW session, applies eq/tols/post rules)
-                   → New SW session → FG drawing placement (Production/Customer/Overlay)
+                   → New SW session → FG/PGB drawing placement (Production/Customer/Overlay)
                  Templates:
                    Part          : Resources/Templates/CKVD/CKVD_2023.SLDPRT
                    Drawing (Prod): Resources/Templates/CKVD/CKVD_2023.SLDDRW
@@ -459,8 +505,10 @@ Drawing Automation:
                    Drawing (Ovrl): Resources/Templates/CKVD/OVERLAY_TEMPLATE.SLDDRW
 
 Examples:
-  dotnet run -- run-part --article 3112955 --subclass FG --dtype Production
-  dotnet run -- run-drawing --article 3112955 --subclass FG --dtype Production
+  dotnet run -- run-part --article 3112955 --subclass FG  --dtype Production
+  dotnet run -- run-part --article 3112955 --subclass PGB --dtype Production
+  dotnet run -- run-drawing --article 3112955 --subclass FG  --dtype Production
+  dotnet run -- run-drawing --article 3112955 --subclass PGB --dtype Overlay
   dotnet run -- get-wedge --article 3112955 --subclass FG
   dotnet run -- plan-lite --article 3112955 --subclass FG --dtype Production
 """);

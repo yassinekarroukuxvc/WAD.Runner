@@ -20,7 +20,7 @@ namespace WAD.Runner.PartAutomation.Execution
     public sealed class PartAutomationService : IPartAutomationService
     {
         private SldWorks? _sw;            // provided via Attach
-        private PartEditor? _editor;       // wrapper around ModelDoc2 operations
+        private PartEditor? _editor;      // wrapper around ModelDoc2 operations
 
         /// <summary>Provide a running SolidWorks instance. Must be called before other methods.</summary>
         public void Attach(SldWorks swApp)
@@ -46,7 +46,7 @@ namespace WAD.Runner.PartAutomation.Execution
                 {
                     WedgeSubclass.PGB when drawingType == DrawingType.Overlay => "PGB_OVERLAY",
                     WedgeSubclass.PGB when drawingType == DrawingType.Customer => "PGB_CUSTOMER_DRAWING",
-                    WedgeSubclass.PGB => "PGB_PRODUCTION",
+                    WedgeSubclass.PGB => "PGB_DRAWING",
                     _ when drawingType == DrawingType.Overlay => "FG_OVERLAY",
                     _ when drawingType == DrawingType.Customer => "FG_CUSTOMER_DRAWING",
                     _ => "FG_PRODUCTION_DRAWING"
@@ -85,7 +85,7 @@ namespace WAD.Runner.PartAutomation.Execution
         public void ApplyPostRules(WedgeData wedge, DrawingType drawingType)
         {
             EnsureAttached();
-            Logger.Info($"[PartAutomationService] ApplyPostRules → drawingType={drawingType}");
+            Logger.Info($"[PartAutomationService] ApplyPostRules → subclass={wedge.Subclass}, drawingType={drawingType}");
 
             var editor = _editor!;
             var engraving = wedge.Marking?.Text
@@ -94,9 +94,18 @@ namespace WAD.Runner.PartAutomation.Execution
             Logger.Info($"[PartAutomationService] Engraving text → '{(engraving ?? "(null)")}'");
             editor.SetEngraving(engraving);
 
-            // Engraving toggle:
-            //  - Production + Customer → turn engraving ON
-            //  - Overlay → do nothing (keep whatever suppression state exists)
+            // For now: apply the "standard" BasicPartRules ONLY for FG.
+            if (wedge.Subclass != WedgeSubclass.FG)
+            {
+                Logger.Info("[PartAutomationService] Subclass is not FG; skipping FG-specific post rules for now.");
+                editor.Rebuild();
+                Logger.Success("[PartAutomationService] Post rules applied (engraving only for non-FG).");
+                return;
+            }
+
+            // ── FG-specific post rules ────────────────────────────────────────────
+
+            
             if (drawingType == DrawingType.Production || drawingType == DrawingType.Customer)
             {
                 BasicPartRules.ApplyEngravingToggle(editor);
@@ -110,7 +119,6 @@ namespace WAD.Runner.PartAutomation.Execution
             editor.Rebuild();
             Logger.Success("[PartAutomationService] Post rules applied.");
         }
-
 
         public void RebuildPart()
         {
