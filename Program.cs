@@ -236,15 +236,36 @@ switch (cmd)
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
 
-            // Fixed paths per your request
-            var partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT");
-            var equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CK.txt");
+            // NEW: wedge type selector (CKVD | COB) – default to CKVD
+            var wtype = GetArgValue(args, "--wtype") ?? "CKVD";
+            wtype = wtype.Trim().ToUpperInvariant();
 
-            // Ensure output root exists
+            string partTemplatePath;
+            string equationTemplatePath;
+
+            // Map string → paths + WedgeType enum
+            WedgeType wedgeTypeEnum = WedgeType.CKVD;
+
+            switch (wtype)
+            {
+                case "COB":
+                    partTemplatePath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "COB", "equations.txt");
+                    wedgeTypeEnum = WedgeType.COB;
+                    break;
+
+                case "CKVD":
+                default:
+                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CK.txt");
+                    wedgeTypeEnum = WedgeType.CKVD;
+                    break;
+            }
+
             var outputRoot = Path.Combine("Resources", "Out");
             Directory.CreateDirectory(outputRoot);
 
-            Logger.Info($"[run-part] Article={article}, Subclass={subclass}, Type={dtype}");
+            Logger.Info($"[run-part] Article={article}, Subclass={subclass}, Type={dtype}, WedgeType={wedgeTypeEnum}");
             Logger.Info($"[run-part] Template(Part)='{partTemplatePath}'");
             Logger.Info($"[run-part] Template(Equations)='{equationTemplatePath}'");
             Logger.Info($"[run-part] OutputRoot='{outputRoot}'");
@@ -257,7 +278,6 @@ switch (cmd)
             {
                 using var sw = sessFactory.Create(visible: true);
 
-                // Load WedgeData so orchestrator can EnsureAllEquations + Tolerances + PostRules
                 var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
 
                 var job = new PartJobRequest
@@ -268,8 +288,9 @@ switch (cmd)
                     OutputRoot = outputRoot,
                     PartTemplatePath = partTemplatePath,
                     EquationTemplatePath = equationTemplatePath,
-                    FileBase = null, // derive from article + suffix
-                    WedgeData = wedgeData
+                    FileBase = null,
+                    WedgeData = wedgeData,
+                    WedgeType = wedgeTypeEnum
                 };
 
                 var resultPath = await orchestrator.RunAsync(job, sw.App, CancellationToken.None);
@@ -293,6 +314,44 @@ switch (cmd)
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
 
+
+            var wtype = GetArgValue(args, "--wtype") ?? "CKVD";
+            wtype = wtype.Trim().ToUpperInvariant();
+
+            WedgeType wedgeTypeEnum;
+            string templatePartPath;
+            string templateDrawingPath;
+            string equationTemplatePathForPartPhase;
+
+            switch (wtype)
+            {
+                case "COB":
+                    wedgeTypeEnum = WedgeType.COB;
+                    templatePartPath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
+                    templateDrawingPath = Path.Combine("Resources", "Templates", "COB", "COB_Drawings.SLDDRW");
+                    equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "COB", "equations.txt");
+                    break;
+
+                case "CKVD":
+                default:
+                    wedgeTypeEnum = WedgeType.CKVD;
+                    templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT");
+                    templateDrawingPath = dtype switch
+                    {
+                        DrawingType.Overlay =>
+                            Path.Combine("Resources", "Templates", "CKVD", "OVERLAY_TEMPLATE.SLDDRW"),
+
+                        DrawingType.Production or DrawingType.Customer or _ =>
+                            Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDDRW"),
+                    };
+                    equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "CKVD", "CK.txt");
+                    break;
+            }
+
+            Logger.Info($"[run-drawing] Article={article}, Subclass={subclass}, Type={dtype}, WedgeType={wedgeTypeEnum}");
+            Logger.Info($"[run-drawing] Template(Part)='{templatePartPath}'");
+            Logger.Info($"[run-drawing] Template(Drawing)='{templateDrawingPath}'");
+
             // 1) Load domain data
             var getWedge = host.Services.GetRequiredService<GetWedgeData>();
             var getDrawing = host.Services.GetRequiredService<GetDrawingData>();
@@ -307,22 +366,13 @@ switch (cmd)
             var workDir = Path.Combine(outputRootBase, subclass.ToString(), dtype.ToString(), article);
             Directory.CreateDirectory(workDir);
 
-            // 3) Choose drawing template based on DrawingType
-            var drawingTemplatePath = dtype switch
-            {
-                DrawingType.Overlay =>
-                    Path.Combine("Resources", "Templates", "CKVD", "OVERLAY_TEMPLATE.SLDDRW"),
-
-                // Production + Customer → CKVD_2023.SLDDRW
-                DrawingType.Production or DrawingType.Customer or _ =>
-                    Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDDRW"),
-            };
-
             // 3) Prepare DrawingRun
             var run = new DrawingRun
             {
-                TemplatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT"),
-                TemplateDrawingPath = drawingTemplatePath,
+                WedgeType = wedgeTypeEnum,
+
+                TemplatePartPath = templatePartPath,
+                TemplateDrawingPath = templateDrawingPath,
 
                 ModPartPath = Path.Combine(workDir, $"{article}P.SLDPRT"),
                 ModDrawingPath = Path.Combine(workDir, $"{article}P.SLDDRW"),
@@ -352,10 +402,11 @@ switch (cmd)
                     // IMPORTANT: pass **BASE** root; orchestrator appends structure once
                     OutputRoot = outputRootBase,
 
-                    PartTemplatePath = run.TemplatePartPath,
-                    EquationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CK.txt"),
+                    PartTemplatePath = templatePartPath,
+                    EquationTemplatePath = equationTemplatePathForPartPhase,
                     FileBase = null,
-                    WedgeData = wedgeData
+                    WedgeData = wedgeData,
+                    WedgeType = wedgeTypeEnum
                 };
 
                 partResultPath = await orchestrator.RunAsync(job, swPart.App, CancellationToken.None);
@@ -483,34 +534,46 @@ Diagnostics:
   show-article   --article <num>
 
 Part Automation:
-  run-part       --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay]
-                 Uses:
-                   Part template  : Resources/Templates/CKVD/CKVD_2023.SLDPRT
-                   Equations file : Resources/Templates/CKVD/CK.txt
-                   Output root    : Resources/Out
+  run-part       --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB]
+                 Uses (by wtype):
+                   CKVD:
+                     Part template  : Resources/Templates/CKVD/CKVD_2023.SLDPRT
+                     Equations file : Resources/Templates/CKVD/CK.txt
+                   COB:
+                     Part template  : Resources/Templates/COB/COB_Template.SLDPRT
+                     Equations file : Resources/Templates/COB/equations.txt
+                 Output root    : Resources/Out
                  Pipeline:
                    Load WedgeData → Start SW session → Copy templates → Open part
                    → Activate config → **Write equations.txt from WedgeData** → Import equations
                    → EnsureAllEquationsExist → Apply tolerances → Apply post rules → Rebuild → Save/Close
 
 Drawing Automation:
-  run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay]
+  run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB]
                  Pipeline:
                    Load Wedge/Drawing data → Part phase (own SW session, applies eq/tols/post rules)
                    → New SW session → FG/PGB drawing placement (Production/Customer/Overlay)
-                 Templates:
-                   Part          : Resources/Templates/CKVD/CKVD_2023.SLDPRT
-                   Drawing (Prod): Resources/Templates/CKVD/CKVD_2023.SLDDRW
-                   Drawing (Cust): Resources/Templates/CKVD/CKVD_2023.SLDDRW
-                   Drawing (Ovrl): Resources/Templates/CKVD/OVERLAY_TEMPLATE.SLDDRW
+                 Templates (by wtype):
+                   CKVD:
+                     Part          : Resources/Templates/CKVD/CKVD_2023.SLDPRT
+                     Drawing (Prod): Resources/Templates/CKVD/CKVD_2023.SLDDRW
+                     Drawing (Cust): Resources/Templates/CKVD/CKVD_2023.SLDDRW
+                     Drawing (Ovrl): Resources/Templates/CKVD/OVERLAY_TEMPLATE.SLDDRW
+                   COB:
+                     Part          : Resources/Templates/COB/COB_Template.SLDPRT
+                     Drawing (all) : Resources/Templates/COB/COB_Template.SLDDRW
 
 Examples:
-  dotnet run -- run-part --article 3112955 --subclass FG  --dtype Production
-  dotnet run -- run-part --article 3112955 --subclass PGB --dtype Production
-  dotnet run -- run-drawing --article 3112955 --subclass FG  --dtype Production
-  dotnet run -- run-drawing --article 3112955 --subclass PGB --dtype Overlay
-  dotnet run -- get-wedge --article 3112955 --subclass FG
-  dotnet run -- plan-lite --article 3112955 --subclass FG --dtype Production
+  # CKVD
+  dotnet run -- run-part    --article 3112955 --subclass FG  --dtype Production --wtype CKVD
+  dotnet run -- run-drawing --article 3112955 --subclass FG  --dtype Production --wtype CKVD
+
+  # COB (part + drawing)
+  dotnet run -- run-part    --article 2026200 --subclass FG  --dtype Production --wtype COB
+  dotnet run -- run-drawing --article 2026200 --subclass FG  --dtype Production --wtype COB
+
+  dotnet run -- get-wedge    --article 3112955 --subclass FG
+  dotnet run -- plan-lite    --article 3112955 --subclass FG --dtype Production
 """);
 }
 

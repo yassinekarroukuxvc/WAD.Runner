@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using SolidWorks.Interop.sldworks;
 using WAD.Runner.Application;                       // Logger
 using WAD.Runner.DataManagement.Domain.Dimensions;
-using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DataManagement.Domain.Wedge;      // WedgeData, WedgeSubclass, WedgeType
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.PartAutomation.Interfaces;
 using WAD.Runner.PartAutomation.Rules;
@@ -82,42 +82,47 @@ namespace WAD.Runner.PartAutomation.Execution
             Logger.Success("[PartAutomationService] Tolerances applied.");
         }
 
-        public void ApplyPostRules(WedgeData wedge, DrawingType drawingType)
+        /// <summary>
+        /// Apply wedge-type-specific post rules (CKVD vs COB) plus engraving.
+        /// </summary>
+        public void ApplyPostRules(WedgeType wedgeType, WedgeData wedge, DrawingType drawingType)
         {
             EnsureAttached();
-            Logger.Info($"[PartAutomationService] ApplyPostRules → subclass={wedge.Subclass}, drawingType={drawingType}");
+            Logger.Info($"[PartAutomationService] ApplyPostRules → wedgeType={wedgeType}, subclass={wedge.Subclass}, drawingType={drawingType}");
 
             var editor = _editor!;
+
+            // Common engraving text setup for all wedge types
             var engraving = wedge.Marking?.Text
                             ?? (wedge.Properties.TryGetValue("Marking", out var s) ? s : null);
 
             Logger.Info($"[PartAutomationService] Engraving text → '{(engraving ?? "(null)")}'");
             editor.SetEngraving(engraving);
 
-            // For now: apply the "standard" BasicPartRules ONLY for FG.
-            if (wedge.Subclass != WedgeSubclass.FG)
+            // Delegate to the correct rule set based on wedge type
+            switch (wedgeType)
             {
-                Logger.Info("[PartAutomationService] Subclass is not FG; skipping FG-specific post rules for now.");
-                editor.Rebuild();
-                Logger.Success("[PartAutomationService] Post rules applied (engraving only for non-FG).");
-                return;
+                case WedgeType.CKVD:
+                    Logger.Info("[PartAutomationService] Applying CKVD rules.");
+                    BasicPartRules.ApplyCkvdRules(editor, wedge, drawingType);
+                    break;
+
+                case WedgeType.COB:
+                    Logger.Info("[PartAutomationService] Applying COB rules.");
+                    BasicPartRules.ApplyCobRules(editor, wedge, drawingType);
+                    break;
+
+                default:
+                    Logger.Warn("[PartAutomationService] Unknown wedge type; applying engraving-only fallback.");
+                    // For unknown types: only ensure engraving toggle for non-overlay
+                    if (drawingType == DrawingType.Production || drawingType == DrawingType.Customer)
+                    {
+                        BasicPartRules.ApplyEngravingToggle(editor);
+                    }
+                    editor.Rebuild();
+                    Logger.Success("[PartAutomationService] Post rules applied (fallback).");
+                    break;
             }
-
-            // ── FG-specific post rules ────────────────────────────────────────────
-
-            
-            if (drawingType == DrawingType.Production || drawingType == DrawingType.Customer)
-            {
-                BasicPartRules.ApplyEngravingToggle(editor);
-            }
-
-            BasicPartRules.ApplyTipGuard(editor, wedge);
-            BasicPartRules.ApplyVrMinMax(editor, wedge);
-            BasicPartRules.ApplyVwTolDims(editor, wedge);
-            BasicPartRules.ApplyOverlayVwWToggle(editor, wedge, overlay: drawingType == DrawingType.Overlay);
-
-            editor.Rebuild();
-            Logger.Success("[PartAutomationService] Post rules applied.");
         }
 
         public void RebuildPart()

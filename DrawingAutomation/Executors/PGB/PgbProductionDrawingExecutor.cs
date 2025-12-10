@@ -148,7 +148,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
             Logger.Info("[8/11] Replan dimensions with final scales…");
             var ctx2 = new LayoutContext(run.Wedge, drawingData);
             var diag2 = new PlannerDiagnostics();
-            var dims2 = DimensionRules.Build(ctx2, diag2);
+            var dims2 = DimensionRules.Build(ctx2, diag2, run.WedgeType);
             var plannedDimsReplanned = dims2.Select(d => new AnnotationPositioner.Plan
             {
                 Id = d.Id,

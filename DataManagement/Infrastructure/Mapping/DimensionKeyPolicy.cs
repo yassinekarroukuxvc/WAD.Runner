@@ -18,7 +18,15 @@ public static class DimensionKeyPolicy
             "FA",   // Front angle
             "ISA",  // Included side angle
             "GA",   // Grind angle (example)
-            "VRA"
+            "VRA",
+            "FNA",
+            "HA",
+            "CA",
+            "CBRA",
+            "WA2",
+            "RA2",
+            "RA",
+
         }.ToDictionary(k => k, _ => (byte)1, StringComparer.OrdinalIgnoreCase)
     );
 

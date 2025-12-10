@@ -23,4 +23,5 @@ public sealed class DrawingRun
     // Optional outputs for later steps (export)
     public string? OutputPdfPath { get; init; }
     public string? OutputTiffPath { get; init; }
+    public WedgeType WedgeType { get; init; } = WedgeType.CKVD;
 }

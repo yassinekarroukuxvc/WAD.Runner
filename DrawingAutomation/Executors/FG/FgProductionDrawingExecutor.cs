@@ -7,13 +7,13 @@ using SolidWorks.Interop.sldworks;
 using WAD.Runner.Application;                          // Logger
 using WAD.Runner.DataManagement.Domain.Drawing;       // DrawingData, DrawingType
 using WAD.Runner.DataManagement.Domain.Planning;      // LayoutContext, PlannerDiagnostics, DimensionRules
-using WAD.Runner.DataManagement.Domain.Wedge;         // WedgeSubclass, WedgeData
+using WAD.Runner.DataManagement.Domain.Wedge;         // WedgeSubclass, WedgeData, WedgeType
 using WAD.Runner.DrawingAutomation.Common;            // DrawingExecutorCommon
 using WAD.Runner.DrawingAutomation.SolidWorks;        // DrawingService
 using WAD.Runner.DrawingAutomation.Views;             // ViewPlacementService, SecondaryViewPlacementService, ViewAutoScaleService, BreaklineHandler, AnnotationPositioner, AnnotationCleanupService
 using WAD.Runner.DrawingAutomation.Profiles;          // ProfileRegistry, ProfileHelpers
 using WAD.Runner.DrawingAutomation.Metadata;          // MetadataApplier
-using WAD.Runner.DrawingAutomation.Tables;            // TableService (your minimal table helper)
+using WAD.Runner.DrawingAutomation.Tables;            // TableService
 
 namespace WAD.Runner.DrawingAutomation.Executors.FG
 {
@@ -40,7 +40,20 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
 
             Logger.Info("=== WAD ▶ FG/Production (Placement + Autoscale) ===");
 
-            var profile = ProfileRegistry.Get(run.Wedge.Subclass, drawingData.DrawingType);
+            // 🔹 Decide which profile set to use: CKVD vs COB
+            var wedgeType = run.WedgeType; // new property on DrawingRun
+
+            DrawingProfile profile = wedgeType switch
+            {
+                WedgeType.COB =>
+                    ProfileRegistry.GetCob(run.Wedge.Subclass, drawingData.DrawingType),
+
+                // Default: CKVD behavior (backwards compatible)
+                _ =>
+                    ProfileRegistry.GetCkvd(run.Wedge.Subclass, drawingData.DrawingType)
+            };
+
+            Logger.Info($"[Profile] Using profile '{profile.ProfileName}' for {wedgeType}/{run.Wedge.Subclass}/{drawingData.DrawingType}");
 
             Logger.Info("[1/11] Part Automation…");
             _ = runPartAutomation();
@@ -132,7 +145,9 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             var autoscale = new ViewAutoScaleService(ds);
             var policy = ProfileHelpers.ToAutoScalePolicy(profile.Scale);
             autoscale.ApplyUnifiedScaleFromFront(drawingData, policy, nameMap);
-            Logger.Info($"[Exec] Scales → Front={drawingData.Views["Front"].Scale:0.###}, Side={drawingData.Views["Side"].Scale:0.###}, Top={drawingData.Views["Top"].Scale:0.###}");
+            Logger.Info(
+                $"[Exec] Scales → Front={drawingData.Views["Front"].Scale:0.###}, " +
+                $"Side={drawingData.Views["Side"].Scale:0.###}, Top={drawingData.Views["Top"].Scale:0.###}");
 
             // Some services only set the scale; re-apply placements to lock target positions at new scales
             Logger.Info("[7b/11] Re-apply placements at new scales…");
@@ -146,7 +161,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             Logger.Info("[8/11] Replan dimensions with final scales…");
             var ctx2 = new LayoutContext(run.Wedge, drawingData);
             var diag2 = new PlannerDiagnostics();
-            var dims2 = DimensionRules.Build(ctx2, diag2);
+            var dims2 = DimensionRules.Build(ctx2, diag2, run.WedgeType);
             var plannedDimsReplanned = dims2.Select(d => new AnnotationPositioner.Plan
             {
                 Id = d.Id,
@@ -170,7 +185,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             }
 
             // ---- APPLY METADATA TO DRAWING PROPERTIES -----------------------------
-            // Do this AFTER autoscale/placements so scale token & metadata reflect final state.
             Logger.Info("[10/11] Apply metadata to drawing properties…");
             try
             {
@@ -195,8 +209,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 {
                     var tableSvc = new TableService(swApp, swModel);
 
-                    // These will only create tables if corresponding entries exist in drawingData.Tables
-                    // (e.g., "DimTable", "HowToOrder", "LabelAs", "Polish") and content is available.
                     try
                     {
                         if (drawingData.Tables?.ContainsKey("DimTable") == true)
@@ -210,7 +222,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                     try
                     {
                         if (drawingData.Tables?.ContainsKey("HowToOrder") == true)
-                            // pass wedge first, then draw (new signature)
                             tableSvc.CreateHowToOrderTable(run.Wedge, drawingData, headerText: "HOW TO ORDER", tableId: "HowToOrder");
                     }
                     catch (Exception ex)
@@ -293,8 +304,12 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             {
                 if (ds?.Drawing is not DrawingDoc dd) return null;
                 string actualName = logicalName;
-                if (nameMap != null && nameMap.TryGetValue(logicalName, out var mapped) && !string.IsNullOrWhiteSpace(mapped))
+                if (nameMap != null &&
+                    nameMap.TryGetValue(logicalName, out var mapped) &&
+                    !string.IsNullOrWhiteSpace(mapped))
+                {
                     actualName = mapped;
+                }
 
                 View v = dd.IGetFirstView();
                 if (v == null) return null;
@@ -309,7 +324,10 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                             string.Equals(vn, actualName, StringComparison.OrdinalIgnoreCase))
                             return v;
                     }
-                    catch { }
+                    catch
+                    {
+                    }
+
                     v = v.IGetNextView();
                 }
             }

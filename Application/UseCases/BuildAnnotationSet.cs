@@ -34,7 +34,7 @@ public sealed class BuildAnnotationSet
         // 2. Build context and diagnostics
         var ctx = new LayoutContext(wedge, drawing);
         var diag = new PlannerDiagnostics();
-
+        
         // 3. Build dimensions using our new DimensionRules API
         Logger.Info("[BuildSet] BEFORE DimensionRules.Build");
         var dims = DimensionRules.Build(ctx, diag);

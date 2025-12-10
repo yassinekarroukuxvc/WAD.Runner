@@ -101,7 +101,7 @@ namespace WAD.Runner.PartAutomation.Execution
                 _partService.ApplyLengthTolerances(wedge, tolKeys);
 
                 // 3) post-rules (tip guard, vw/w toggle, vr min/max, etc.)
-                _partService.ApplyPostRules(wedge, job.DrawingType);
+                _partService.ApplyPostRules(job.WedgeType, job.WedgeData, job.DrawingType);
             }
             else
             {

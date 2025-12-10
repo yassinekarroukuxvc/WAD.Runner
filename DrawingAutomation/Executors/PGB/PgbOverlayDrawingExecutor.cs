@@ -259,7 +259,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
             // 8) Plan overlay dimensions
             Logger.Info("[8/9] Plan overlay dimensions (CAD-agnostic)…");
             var diag = new PlannerDiagnostics();
-            var dims = DimensionRules.Build(ctx, diag);
+            var dims = DimensionRules.Build(ctx, diag, run.WedgeType);
 
             var planned = (plannedDims ?? dims.Select(d => new AnnotationPositioner.Plan
             {
