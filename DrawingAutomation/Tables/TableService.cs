@@ -8,12 +8,12 @@ using System.Text.RegularExpressions;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
-using WAD.Runner.DataManagement.Domain.Wedge;      // WedgeData
-using WAD.Runner.DataManagement.Domain.Drawing;    // DrawingData, TableConfig
-using WAD.Runner.DataManagement.Domain.Dimensions; // Dimension, DimensionKey
-using WAD.Runner.DataManagement.Domain.Units;      // Quantity, Tolerance
-using WAD.Runner.DataManagement.Infrastructure.Mapping; // DimensionKeyPolicy
-using WAD.Runner.DrawingAutomation.Overlay;        // OverlayDimensionRow
+using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Dimensions;
+using WAD.Runner.DataManagement.Domain.Units;
+using WAD.Runner.DataManagement.Infrastructure.Mapping;
+using WAD.Runner.DrawingAutomation.Overlay;
 
 namespace WAD.Runner.DrawingAutomation.Tables
 {
@@ -32,35 +32,34 @@ namespace WAD.Runner.DrawingAutomation.Tables
             _drawing = swModel as DrawingDoc ?? throw new InvalidCastException("Active model is not a DrawingDoc.");
         }
 
-        // ---------- PUBLIC, SIMPLE ENTRY POINTS ----------
-
         public bool CreateDimensionTable(WedgeData wedge, DrawingData draw, string tableId = "DimTable", string header = "DIMENSIONS")
         {
             if (!TryGetCfg(draw, tableId, out var cfg)) return false;
 
-            var rows = BuildDimensionRows_Filtered(wedge);  // filtered: non-zero lengths only, no angles
+            var rows = BuildDimensionRows_Filtered(wedge);
             if (rows.Count == 0) return false;
 
-            var widthM = ResolveWidthM(cfg, fallbackM: 0.08);  // default ≈80mm
+            var widthM = ResolveWidthM(cfg, fallbackM: 0.08);
             var posM = ToMeters(cfg.PositionMm);
 
             var table = CreateOneColumnTable(posM.x, posM.y, rows.Count + 1, "Dimensions", widthM);
             if (table is null) return false;
 
-            // Header
             table.set_Text(0, 0, header);
             table.CellTextHorizontalJustification[0, 0] = (int)swTextJustification_e.swTextJustificationLeft;
 
-            // Rows
             for (int i = 0; i < rows.Count; i++)
             {
                 table.set_Text(i + 1, 0, rows[i]);
                 table.CellTextHorizontalJustification[i + 1, 0] = (int)swTextJustification_e.swTextJustificationLeft;
             }
 
-            // Font & style (optional, safe)
             SetTableFontSize(table, 7);
             TryApplyTypeface(table, "Monospac821 BT", scaleCharHeight: 0.90);
+            SetTableRowHeights(table, rowHeightMm: 3.048, includeTitle: true);
+
+            TrimTrailingEmptyRows(table);
+
             return true;
         }
 
@@ -84,25 +83,19 @@ namespace WAD.Runner.DrawingAutomation.Tables
             if (dimensions == null || dimensions.Count == 0)
                 return false;
 
-            // Convert mm → meters for SolidWorks
             var xM = xMm / 1000.0;
             var yM = yMm / 1000.0;
 
-            // Width is calculated as originally, since you stated this is fine.
             var widthM = widthMm / 1000.0;
 
-            // Build text lines from OverlayDimensionRow
             var rows = BuildOverlayDimensionRowStrings(dimensions);
             if (rows.Count == 0) return false;
 
-            // rows.Count (no +1) → no header row
             var table = CreateOneColumnTable(xM, yM, rows.Count, "OverlayDimensions", widthM);
             if (table is null) return false;
 
-            // We don't want a separate title band for this overlay table
             table.TitleVisible = false;
 
-            // Rows (all rows are data rows now)
             for (int i = 0; i < rows.Count; i++)
             {
                 table.set_Text(i, 0, rows[i]);
@@ -110,18 +103,12 @@ namespace WAD.Runner.DrawingAutomation.Tables
                     (int)swTextJustification_e.swTextJustificationLeft;
             }
 
-            // Styling
-            SetTableFontSize(table, 4, includeTitle: false);
-
-            // No extra scaling, we let SW compute from 4pt
+            SetTableFontSize(table, 4);
             TryApplyTypeface(table, "Monospac821 BT", null);
-
-            // Shrink ALL rows, including the first one (no header anymore)
-            SetTableRowHeights(table, rowHeightMm: 0, includeTitle: true);
-            ShrinkTableHeight(table, includeTitle: true);
-
-            HideAllTableBorders(table);
+            SetTableRowHeights(table, rowHeightMm: 2.5, includeTitle: true);
             SetTableLayer(table, "annotation");
+            HideAllTableBorders(table);
+            TrimTrailingEmptyRows(table);
 
             return true;
         }
@@ -134,8 +121,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
             {
                 int startRow = includeTitle ? 0 : 1;
 
-                // Try gradually shrinking by tiny steps
-                double currentMm = 0.1; // start small
+                double currentMm = 0.1;
                 for (int iteration = 0; iteration < 5; iteration++)
                 {
                     var heightM = currentMm / 1000.0;
@@ -150,14 +136,12 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                     _model.GraphicsRedraw2();
 
-                    // Reduce further
                     currentMm /= 2.0;
                     if (currentMm < 0.01) break;
                 }
             }
             catch
             {
-                // safe
             }
         }
 
@@ -171,7 +155,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
             try
             {
-                // Get the underlying annotation and set its layer
                 var ann = table.GetAnnotation() as Annotation;
                 if (ann != null)
                 {
@@ -182,7 +165,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
             }
             catch
             {
-                // Keep safe – you can plug logging here if needed
             }
         }
 
@@ -190,16 +172,13 @@ namespace WAD.Runner.DrawingAutomation.Tables
         {
             if (table == null) throw new ArgumentNullException(nameof(table));
 
-            // "No line" weight
             var none = (int)swLineWeights_e.swLW_NONE;
 
-            // Outer border
             table.BorderLineWeight = none;
-            table.BorderLineWeightCustom = 1;   // 1 = use custom weight
+            table.BorderLineWeightCustom = 1;
 
-            // Inner grid lines
             table.GridLineWeight = none;
-            table.GridLineWeightCustom = 1;     // 1 = use custom weight
+            table.GridLineWeightCustom = 1;
         }
 
         /// <summary>
@@ -211,14 +190,11 @@ namespace WAD.Runner.DrawingAutomation.Tables
         {
             if (!TryGetCfg(draw, tableId, out var cfg)) return false;
 
-            // 1) Try WedgeData.Properties["article_description"]
             var description = TryGetArticleDescription(wedge);
 
-            // 2) Fallback to old metadata if DB description is missing
             List<string> items;
             if (!string.IsNullOrWhiteSpace(description))
             {
-                // Wrap long text into multiple lines for a one-column table
                 items = WrapDescription(description, preferredLineLength: 56);
             }
             else
@@ -231,7 +207,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
             var widthM = ResolveWidthM(cfg, fallbackM: 0.08);
             var posM = ToMeters(cfg.PositionMm);
 
-            // +1 for header line
             var table = CreateOneColumnTable(posM.x, posM.y, items.Count + 1, "HowToOrder", widthM);
             if (table is null) return false;
 
@@ -246,6 +221,10 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
             SetTableFontSize(table, 6);
             TryApplyTypeface(table, "Monospac821 BT", null);
+            SetTableRowHeights(table, rowHeightMm: 3.048, includeTitle: true);
+
+            TrimTrailingEmptyRows(table);
+
             return true;
         }
 
@@ -267,6 +246,9 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 table.set_Text(i, 0, items[i]);
                 table.CellTextHorizontalJustification[i, 0] = (int)swTextJustification_e.swTextJustificationLeft;
             }
+
+            TrimTrailingEmptyRows(table);
+
             return true;
         }
 
@@ -288,28 +270,27 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 table.set_Text(i, 0, items[i]);
                 table.CellTextHorizontalJustification[i, 0] = (int)swTextJustification_e.swTextJustificationLeft;
             }
+
+            TrimTrailingEmptyRows(table);
+
             return true;
         }
-
-        // ---------- INTERNAL HELPERS (ONLY APIS FROM YOUR SNIPPET) ----------
 
         private TableAnnotation? CreateOneColumnTable(double xM, double yM, int rows, string title, double colWidthM)
         {
             try
             {
-                // Insert a 1-column general table at (xM,yM)
                 var table = _drawing.InsertTableAnnotation2(
-                    false, xM, yM, 1, /*template*/"", rows, 1) as TableAnnotation;
+                    false, xM, yM, 1, "", rows, 1) as TableAnnotation;
 
                 if (table == null) return null;
 
-                // Sets the column width (colWidthM is typically > 0 here, unless auto-fit is desired)
                 table.SetColumnWidth(
                     0,
                     colWidthM,
                     (int)swTableRowColSizeChangeBehavior_e.swTableRowColChange_TableSizeCanChange);
 
-                table.GridLineWeight = (int)swLineWeights_e.swLW_NONE; // optional
+                table.GridLineWeight = (int)swLineWeights_e.swLW_NONE;
                 table.Title = title;
                 table.TitleVisible = true;
 
@@ -330,7 +311,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
         private static double ResolveWidthM(TableConfig cfg, double fallbackM)
         {
-            // Prefer SizeMm[0] if present; else Params["widthMm"]; else fallbackM
             if (cfg?.SizeMm is { Length: >= 1 }) return cfg.SizeMm[0] / 1000.0;
             if (cfg?.Params != null && cfg.Params.TryGetValue("widthMm", out var wmm)) return wmm / 1000.0;
             return fallbackM;
@@ -353,18 +333,16 @@ namespace WAD.Runner.DrawingAutomation.Tables
         {
             try
             {
-                // Base format
                 var tf = table.GetTextFormat() as TextFormat;
                 if (tf != null)
                 {
                     tf.TypeFaceName = typeface;
                     if (scaleCharHeight.HasValue && tf.CharHeight > 0)
                         tf.CharHeight *= scaleCharHeight.Value;
-                    table.SetTextFormat(false, tf);   // cells
-                    table.SetTextFormat(true, tf);    // title/header
+                    table.SetTextFormat(false, tf);
+                    table.SetTextFormat(true, tf);
                 }
 
-                // Each cell
                 for (int r = 0; r < table.RowCount; r++)
                 {
                     for (int c = 0; c < table.ColumnCount; c++)
@@ -380,7 +358,9 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                 _model.GraphicsRedraw2();
             }
-            catch { /* keep safe */ }
+            catch
+            {
+            }
         }
 
         private void SetTableFontSize(TableAnnotation table, double fontSizePoints, bool includeTitle = true)
@@ -389,7 +369,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
             {
                 double h = PointsToMeters(fontSizePoints);
 
-                // Base
                 var tf = table.GetTextFormat() as TextFormat;
                 if (tf != null)
                 {
@@ -398,7 +377,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
                     if (includeTitle) table.SetTextFormat(true, tf);
                 }
 
-                // Cells
                 for (int r = 0; r < table.RowCount; r++)
                 {
                     for (int c = 0; c < table.ColumnCount; c++)
@@ -412,15 +390,13 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                 _model.GraphicsRedraw2();
             }
-            catch { /* safe */ }
+            catch
+            {
+            }
         }
 
         private static double PointsToMeters(double pt) => pt * 0.0003527777778;
 
-        // ---------- CONTENT BUILDERS (ONE-COLUMN STRINGS) ----------
-
-        // FILTERED: include only length dimensions with non-zero nominal (skip angles & zeros)
-        // Row format: "TL=.0250 ±.0010 [0.635 ±0.025]"
         private static List<string> BuildDimensionRows_Filtered(WedgeData wedge)
         {
             var rows = new List<string>();
@@ -428,23 +404,22 @@ namespace WAD.Runner.DrawingAutomation.Tables
             foreach (var kv in wedge.Dimensions)
             {
                 var key = kv.Key.Value;
-                if (DimensionKeyPolicy.IsAngle(key)) continue; // exclude angles by key
+                if (DimensionKeyPolicy.IsAngle(key)) continue;
 
                 var d = kv.Value;
 
-                // Only include lengths with non-zero nominal
                 if (!d.Nominal.IsMm) continue;
-                var mm = d.Nominal.AsMm(); // decimal
+                var mm = d.Nominal.AsMm();
                 if (mm == 0m) continue;
 
                 var inch = MmToIn(mm);
-                if (Math.Abs((double)inch) < Eps) continue; // treat as zero in (defensive)
+                if (Math.Abs((double)inch) < Eps) continue;
 
                 var inchStr = TrimLeadingZero(inch.ToString("0.0000", CultureInfo.InvariantCulture));
                 var mmStr = mm.ToString("0.###", CultureInfo.InvariantCulture);
 
-                var tolIn = FormatTolInches(d.Tol, removeLeadingZero: true);  // "±.0010" or ""/ "0"
-                var tolMm = FormatTolMm(d.Tol);                                // "±0.025" or ""/ "0"
+                var tolIn = FormatTolInches(d.Tol, removeLeadingZero: true);
+                var tolMm = FormatTolMm(d.Tol);
 
                 var refFlag = IsZeroTol(d.Tol);
 
@@ -477,8 +452,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
             return lines;
         }
 
-        // ---------- FORMATTING ----------
-
         /// <summary>
         /// Builds display strings for overlay dimension rows.
         /// Requirements:
@@ -495,19 +468,15 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
             foreach (var row in dims)
             {
-                // Length dimensions (mm)
                 if (row.Nominal.IsMm)
                 {
                     var mm = row.Nominal.AsMm();
-
-                    // Format nominal in mm, 4 decimals, no leading zero (".0354" style)
                     var mmStr = TrimLeadingZero(mm.ToString("0.0000", CultureInfo.InvariantCulture));
 
                     string text;
 
                     if (row.IsZeroTolerance)
                     {
-                        // REF: no explicit tolerance, mark the value as reference
                         text = $"{row.Key}={mmStr} (REF)";
                     }
                     else
@@ -517,7 +486,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                         var maxAbsMm = Math.Max(Math.Abs(lowerMm), Math.Abs(upperMm));
 
-                        // If somehow both are zero but IsZeroTolerance is false, still treat as REF
                         if (maxAbsMm == 0m)
                         {
                             text = $"{row.Key}={mmStr} (REF)";
@@ -529,10 +497,8 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         }
                     }
 
-                    // Comment is intentionally NOT appended anymore.
                     result.Add(text);
                 }
-                // Angle dimensions (degrees) – keep them if they ever appear
                 else if (row.Nominal.IsDeg)
                 {
                     var deg = row.Nominal.AsDeg();
@@ -561,12 +527,10 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         }
                     }
 
-                    // Comment is intentionally NOT appended anymore.
                     result.Add(text);
                 }
                 else
                 {
-                    // Unknown unit kind – skip for safety
                     continue;
                 }
             }
@@ -600,12 +564,9 @@ namespace WAD.Runner.DrawingAutomation.Tables
             return $"±{maxAbs:0.###}";
         }
 
-        // ---------- NEW: description helpers ----------
-
         private static string? TryGetArticleDescription(WedgeData wedge)
         {
             if (wedge?.Properties == null) return null;
-            // case-insensitive lookup for "article_description"
             foreach (var kv in wedge.Properties)
             {
                 if (string.Equals(kv.Key, "article_description", StringComparison.OrdinalIgnoreCase))
@@ -639,7 +600,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
                     continue;
                 }
 
-                // Greedy word-wrap at or below preferredLineLength
                 var words = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 var cur = "";
                 foreach (var w in words)
@@ -672,14 +632,11 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
             try
             {
-                // SolidWorks expects meters
                 var heightM = rowHeightMm / 1000.0;
 
                 int startRow = includeTitle ? 0 : 1;
                 for (int r = startRow; r < table.RowCount; r++)
                 {
-                    // Setting heightM to 0.0 (or tiny) forces the row to adopt the minimum height 
-                    // required for the cell content, eliminating excess padding.
                     table.SetRowHeight(
                         r,
                         heightM,
@@ -690,7 +647,47 @@ namespace WAD.Runner.DrawingAutomation.Tables
             }
             catch
             {
-                // keep safe
+            }
+        }
+
+        /// <summary>
+        /// Removes trailing rows that are completely empty (all cells whitespace).
+        /// Defensive against SolidWorks adding an extra row or content pipelines
+        /// accidentally leaving a blank line at the end.
+        /// </summary>
+        private static void TrimTrailingEmptyRows(TableAnnotation table)
+        {
+            if (table == null) return;
+
+            try
+            {
+                for (int r = table.RowCount - 1; r >= 0; r--)
+                {
+                    bool allEmpty = true;
+
+                    for (int c = 0; c < table.ColumnCount; c++)
+                    {
+                        var textObj = table.get_Text(r, c);
+                        var text = textObj as string ?? string.Empty;
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            allEmpty = false;
+                            break;
+                        }
+                    }
+
+                    if (allEmpty)
+                    {
+                        table.DeleteRow(r);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            catch
+            {
             }
         }
     }
