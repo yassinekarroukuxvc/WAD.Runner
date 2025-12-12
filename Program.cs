@@ -67,13 +67,13 @@ var host = Host.CreateDefaultBuilder(args)
 
         // ---- Choose the data source: SQLite instead of Java API ----
         var firma = ctx.Configuration.GetValue<int>("ProAlpha:Firma", 1);
-        var language = ctx.Configuration.GetValue<string>("ProAlpha:Language", "E"); // <-- NEW
+        var language = ctx.Configuration.GetValue<string>("ProAlpha:Language", "E");
 
         services.AddSingleton<IWedgeDataSource>(sp =>
             new SqliteWedgeDataSource(
                 sp.GetRequiredService<ProAlphaRepository>(),
                 firma,
-                language, // <-- pass language so article_description is fetched
+                language,
                 sp.GetService<ILogger<SqliteWedgeDataSource>>()
             )
         );
@@ -125,10 +125,13 @@ switch (cmd)
             var (article, subclass) = ParseArticleAndSubclass(args);
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
-            Logger.Info($"[get-drawing] Article={article}, Subclass={subclass}, Type={dtype}");
+
+            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
+
+            Logger.Info($"[get-drawing] Article={article}, Subclass={subclass}, Type={dtype}, WedgeType={wedgeTypeEnum}");
 
             var usecase = host.Services.GetRequiredService<GetDrawingData>();
-            var data = await usecase.ExecuteAsync(dtype, subclass, article, CancellationToken.None);
+            var data = await usecase.ExecuteAsync(dtype, subclass, wedgeTypeEnum, article, CancellationToken.None);
             Console.WriteLine(JsonSerializer.Serialize(data, jsonOpts));
             Logger.Success("[get-drawing] Done.");
             break;
@@ -137,18 +140,22 @@ switch (cmd)
     case "plan-lite":
         {
             var (article, subclass, dtype) = ParsePlanArgs(args);
-            Logger.Info($"[plan-lite] Article={article}, Subclass={subclass}, Type={dtype}");
+            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
+
+            Logger.Info($"[plan-lite] Article={article}, Subclass={subclass}, Type={dtype}, WedgeType={wedgeTypeEnum}");
 
             var uc = host.Services.GetRequiredService<BuildAnnotationSet>();
             try
             {
-                var (dims, notes, tables, _) = await uc.ExecuteAsync(article, subclass, dtype, CancellationToken.None);
+                var (dims, notes, tables, _) =
+                    await uc.ExecuteAsync(article, subclass, dtype, wedgeTypeEnum, CancellationToken.None);
 
                 var payload = new
                 {
                     Article = article,
                     Subclass = subclass.ToString(),
                     DrawingType = dtype.ToString(),
+                    WedgeType = wedgeTypeEnum.ToString(),
                     Dimensions = dims.Select(d => new
                     {
                         d.Id,
@@ -161,7 +168,12 @@ switch (cmd)
                         Style = d.Style.ToString(),
                         Comment = d.Comment
                     }),
-                    Notes = notes.Select(n => new { n.Id, n.Text, Pos = new { X = n.PositionMm[0], Y = n.PositionMm[1] } }),
+                    Notes = notes.Select(n => new
+                    {
+                        n.Id,
+                        n.Text,
+                        Pos = new { X = n.PositionMm[0], Y = n.PositionMm[1] }
+                    }),
                     Tables = tables.Select(t => new
                     {
                         t.Id,
@@ -190,7 +202,8 @@ switch (cmd)
             var firma = cfg.GetValue<int>("ProAlpha:Firma", 1);
 
             var limitStr = GetArgValue(args, "--limit") ?? "20";
-            _ = int.TryParse(limitStr, out var limit); if (limit <= 0) limit = 20;
+            _ = int.TryParse(limitStr, out var limit);
+            if (limit <= 0) limit = 20;
 
             Logger.Info($"[list-articles] Firma={firma}, Limit={limit}");
             var rows = await repo.GetFirstArticlesAsync(firma, limit, CancellationToken.None);
@@ -223,7 +236,7 @@ switch (cmd)
         {
             var cfg = host.Services.GetRequiredService<IConfiguration>();
             var firma = cfg.GetValue<int>("ProAlpha:Firma", 1);
-            var languageEcho = cfg.GetValue<string>("ProAlpha:Language", "E"); // just to verify at runtime
+            var languageEcho = cfg.GetValue<string>("ProAlpha:Language", "E");
             Logger.Info($"[db-info] Firma={firma}");
             Console.WriteLine($"Database Info (Firma {firma}, Language {languageEcho})");
             Logger.Success("[db-info] Done.");
@@ -236,29 +249,23 @@ switch (cmd)
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
 
-            // NEW: wedge type selector (CKVD | COB) – default to CKVD
-            var wtype = GetArgValue(args, "--wtype") ?? "CKVD";
-            wtype = wtype.Trim().ToUpperInvariant();
+            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
 
             string partTemplatePath;
             string equationTemplatePath;
 
-            // Map string → paths + WedgeType enum
-            WedgeType wedgeTypeEnum = WedgeType.CKVD;
-
-            switch (wtype)
+            // Map WedgeType → paths
+            switch (wedgeTypeEnum)
             {
-                case "COB":
+                case WedgeType.COB:
                     partTemplatePath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
                     equationTemplatePath = Path.Combine("Resources", "Templates", "COB", "equations.txt");
-                    wedgeTypeEnum = WedgeType.COB;
                     break;
 
-                case "CKVD":
+                case WedgeType.CKVD:
                 default:
                     partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT");
                     equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CK.txt");
-                    wedgeTypeEnum = WedgeType.CKVD;
                     break;
             }
 
@@ -314,27 +321,22 @@ switch (cmd)
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
 
+            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
 
-            var wtype = GetArgValue(args, "--wtype") ?? "CKVD";
-            wtype = wtype.Trim().ToUpperInvariant();
-
-            WedgeType wedgeTypeEnum;
             string templatePartPath;
             string templateDrawingPath;
             string equationTemplatePathForPartPhase;
 
-            switch (wtype)
+            switch (wedgeTypeEnum)
             {
-                case "COB":
-                    wedgeTypeEnum = WedgeType.COB;
+                case WedgeType.COB:
                     templatePartPath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
                     templateDrawingPath = Path.Combine("Resources", "Templates", "COB", "COB_Drawings.SLDDRW");
                     equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "COB", "equations.txt");
                     break;
 
-                case "CKVD":
+                case WedgeType.CKVD:
                 default:
-                    wedgeTypeEnum = WedgeType.CKVD;
                     templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT");
                     templateDrawingPath = dtype switch
                     {
@@ -356,7 +358,7 @@ switch (cmd)
             var getWedge = host.Services.GetRequiredService<GetWedgeData>();
             var getDrawing = host.Services.GetRequiredService<GetDrawingData>();
             var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
-            var drawingData = await getDrawing.ExecuteAsync(dtype, subclass, article, CancellationToken.None);
+            var drawingData = await getDrawing.ExecuteAsync(dtype, subclass, wedgeTypeEnum, article, CancellationToken.None);
 
             // 2) Prepare a BASE output root
             var outputRootBase = Path.Combine("Resources", "Out");
@@ -525,8 +527,8 @@ WAD.Runner CLI
 
 Data:
   get-wedge      --article <num> --subclass <FG|PGB>
-  get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay>
-  plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay]
+  get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> [--wtype CKVD|COB]
+  plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB]
 
 Diagnostics:
   db-info        [--limit 20]
@@ -561,7 +563,7 @@ Drawing Automation:
                      Drawing (Ovrl): Resources/Templates/CKVD/OVERLAY_TEMPLATE.SLDDRW
                    COB:
                      Part          : Resources/Templates/COB/COB_Template.SLDPRT
-                     Drawing (all) : Resources/Templates/COB/COB_Template.SLDDRW
+                     Drawing (all) : Resources/Templates/COB/COB_Drawings.SLDDRW
 
 Examples:
   # CKVD
@@ -573,7 +575,7 @@ Examples:
   dotnet run -- run-drawing --article 2026200 --subclass FG  --dtype Production --wtype COB
 
   dotnet run -- get-wedge    --article 3112955 --subclass FG
-  dotnet run -- plan-lite    --article 3112955 --subclass FG --dtype Production
+  dotnet run -- plan-lite    --article 3112955 --subclass FG --dtype Production --wtype CKVD
 """);
 }
 
@@ -595,4 +597,16 @@ static (string article, WedgeSubclass subclass, DrawingType dtype) ParsePlanArgs
     var dtypeStr = GetArgValue(a, "--dtype") ?? "Production";
     if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
     return (article, subclass, dtype);
+}
+
+static WedgeType ParseWedgeTypeEnum(string[] a)
+{
+    var wtype = GetArgValue(a, "--wtype") ?? "CKVD";
+    wtype = wtype.Trim().ToUpperInvariant();
+
+    return wtype switch
+    {
+        "COB" => WedgeType.COB,
+        _ => WedgeType.CKVD
+    };
 }

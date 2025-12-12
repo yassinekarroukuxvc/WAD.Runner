@@ -1,4 +1,5 @@
-﻿using WAD.Runner.Application.Ports;
+﻿using WAD.Runner.Application;
+using WAD.Runner.Application.Ports;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Planning;
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -7,7 +8,7 @@ namespace WAD.Runner.Application.UseCases;
 
 /// <summary>
 /// Builds a CAD-agnostic annotation set (dimensions, notes, tables)
-/// from the domain data sources.  This corresponds to the old
+/// from the domain data sources. This corresponds to the old
 /// “plan-drawing” phase before SolidWorks execution.
 /// </summary>
 public sealed class BuildAnnotationSet
@@ -25,22 +26,30 @@ public sealed class BuildAnnotationSet
                       IReadOnlyList<NoteSpec> Notes,
                       IReadOnlyList<TableSpec> Tables,
                       PlannerDiagnostics Diag)>
-        ExecuteAsync(string article, WedgeSubclass subclass, DrawingType dtype, CancellationToken ct)
+        ExecuteAsync(
+            string article,
+            WedgeSubclass subclass,
+            DrawingType dtype,
+            WedgeType wedgeType,
+            CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(article))
+            throw new ArgumentException("Article is required.", nameof(article));
+
         // 1. Load data from sources
         var wedge = await _wedgeSrc.LoadAsync(article, subclass, ct);
-        var drawing = await _drawSrc.LoadAsync(dtype, subclass, article, ct);
+        var drawing = await _drawSrc.LoadAsync(dtype, subclass, wedgeType, article.Trim(), ct);
 
         // 2. Build context and diagnostics
         var ctx = new LayoutContext(wedge, drawing);
         var diag = new PlannerDiagnostics();
-        
-        // 3. Build dimensions using our new DimensionRules API
+
+        // 3. Build dimensions using DimensionRules
         Logger.Info("[BuildSet] BEFORE DimensionRules.Build");
         var dims = DimensionRules.Build(ctx, diag);
         Logger.Info($"[BuildSet] AFTER  DimensionRules.Build → dims={dims.Count}");
 
-        // 4. Example: derive simple notes (you’ll extend in Step 20)
+        // 4. Example: derive simple notes (you can extend via NoteRules later)
         var notes = new List<NoteSpec>();
         if (drawing.Metadata.TryGetValue("OverlayCalibrationMicron", out var cal)
             && !string.IsNullOrWhiteSpace(cal)

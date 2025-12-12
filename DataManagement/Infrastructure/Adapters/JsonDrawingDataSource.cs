@@ -26,7 +26,12 @@ public sealed class JsonDrawingDataSource : IDrawingDataSource
         _log = log ?? NullLogger<JsonDrawingDataSource>.Instance;
     }
 
-    public async Task<DrawingData> LoadAsync(DrawingType drawingType, WedgeSubclass subclass, string articleNumber, CancellationToken ct)
+    public async Task<DrawingData> LoadAsync(
+        DrawingType drawingType,
+        WedgeSubclass subclass,
+        WedgeType wedgeType,
+        string articleNumber,
+        CancellationToken ct)
     {
         if (!File.Exists(_path))
             throw new FileNotFoundException($"Drawing config not found: {_path}");
@@ -43,16 +48,16 @@ public sealed class JsonDrawingDataSource : IDrawingDataSource
         // 2) DrawingType section
         if (!root.Sections.TryGetValue(drawingType.ToString(), out var section))
             throw new InvalidOperationException($"Missing section for DrawingType='{drawingType}'.");
+
         Merge(bag, section.Common);
 
         // 3) Subclass
         var sub = subclass == WedgeSubclass.FG ? section.FG : section.PGB;
         Merge(bag, sub.Common);
 
-        // 4) Optional WedgeType override based on earlier-provided metadata
-        if (bag.Metadata.TryGetValue("WedgeType", out var wedgeType) &&
-            !string.IsNullOrWhiteSpace(wedgeType) &&
-            section.WedgeTypeOverrides.TryGetValue(wedgeType!, out var wt))
+        // 4) WedgeType override (driven by enum)
+        var wedgeTypeKey = wedgeType.ToString(); // e.g. "CKVD", "COB", "COB_UT_US"
+        if (section.WedgeTypeOverrides.TryGetValue(wedgeTypeKey, out var wt))
         {
             Merge(bag, wt.Common);
         }
@@ -83,7 +88,6 @@ public sealed class JsonDrawingDataSource : IDrawingDataSource
                     dst.Views[name] = view;
                 }
 
-                // Assign directly (no 'with')
                 if (cfg.PositionMm is not null) view.PositionMm = cfg.PositionMm;
                 if (cfg.Scale is not null) view.Scale = cfg.Scale.Value;
 
@@ -126,7 +130,8 @@ public sealed class JsonDrawingDataSource : IDrawingDataSource
     private sealed class ConfigRoot
     {
         public CommonBlock? Defaults { get; init; }
-        public Dictionary<string, DrawingTypeSection> Sections { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, DrawingTypeSection> Sections { get; init; } =
+            new(StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed class DrawingTypeSection
@@ -134,7 +139,8 @@ public sealed class JsonDrawingDataSource : IDrawingDataSource
         public CommonBlock? Common { get; init; }
         public SubclassBlock FG { get; init; } = new();
         public SubclassBlock PGB { get; init; } = new();
-        public Dictionary<string, OverrideBlock> WedgeTypeOverrides { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, OverrideBlock> WedgeTypeOverrides { get; init; } =
+            new(StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed class SubclassBlock

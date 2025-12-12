@@ -12,6 +12,7 @@ public interface IDrawingDataSource
     Task<DrawingData> LoadAsync(
         DrawingType drawingType,
         WedgeSubclass subclass,
+        WedgeType wedgeType,
         string articleNumber,
         CancellationToken ct);
 }
