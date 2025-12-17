@@ -44,6 +44,10 @@ using Sw = SolidWorks.Interop.sldworks;
 using WAD.Runner.SolidWorks.Adapters;
 using WAD.Runner.DrawingAutomation.Views;
 
+// API host
+using WAD.Runner.Api;
+using WAD.Runner.PartAutomation.Common;
+
 Logger.Info("[Boot] Building host…");
 
 var host = Host.CreateDefaultBuilder(args)
@@ -109,6 +113,13 @@ Logger.Info($"[CLI] Command = '{cmd ?? "(none)"}'");
 
 switch (cmd)
 {
+    case "serve-api":
+        {
+            Logger.Info("[serve-api] Starting minimal API host…");
+            await ApiHost.RunAsync(args);
+            break;
+        }
+
     case "get-wedge":
         {
             var (article, subclass) = ParseArticleAndSubclass(args);
@@ -364,11 +375,17 @@ switch (cmd)
             var outputRootBase = Path.Combine("Resources", "Out");
             Directory.CreateDirectory(outputRootBase);
 
-            // Separate working dir for drawing artifacts
-            var workDir = Path.Combine(outputRootBase, subclass.ToString(), dtype.ToString(), article);
-            Directory.CreateDirectory(workDir);
+            // 3) Plan all paths consistently (suffix-aware)
+            var plan = PathPlanner.Build(
+                article: article,
+                subclass: subclass,
+                drawingType: dtype,
+                outputRoot: outputRootBase,
+                fileBase: null);
 
-            // 3) Prepare DrawingRun
+            var modDrawingPath = Path.Combine(plan.WorkDir, $"{plan.FileBase}.SLDDRW");
+
+            // 4) Prepare DrawingRun (use planned names)
             var run = new DrawingRun
             {
                 WedgeType = wedgeTypeEnum,
@@ -376,17 +393,17 @@ switch (cmd)
                 TemplatePartPath = templatePartPath,
                 TemplateDrawingPath = templateDrawingPath,
 
-                ModPartPath = Path.Combine(workDir, $"{article}P.SLDPRT"),
-                ModDrawingPath = Path.Combine(workDir, $"{article}P.SLDDRW"),
-                EquationsPath = Path.Combine(workDir, "equations.txt"),
+                ModPartPath = plan.PartPath,
+                ModDrawingPath = modDrawingPath,
+                EquationsPath = plan.EquationsPath,
 
                 Wedge = wedgeData,
 
-                OutputPdfPath = Path.Combine(workDir, $"{article}P.pdf"),
+                OutputPdfPath = plan.PdfPath,
                 OutputTiffPath = null
             };
 
-            // 4) Part phase in its own SW session
+            // 5) Part phase in its own SW session
             string? partResultPath = null;
             try
             {
@@ -401,12 +418,15 @@ switch (cmd)
                     Subclass = subclass,
                     DrawingType = dtype,
 
-                    // IMPORTANT: pass **BASE** root; orchestrator appends structure once
+                    // IMPORTANT: pass BASE root; orchestrator appends structure once
                     OutputRoot = outputRootBase,
 
                     PartTemplatePath = templatePartPath,
                     EquationTemplatePath = equationTemplatePathForPartPhase,
-                    FileBase = null,
+
+                    // Critical: make PartAutomation use the same suffix the drawing phase expects
+                    FileBase = plan.FileBase,
+
                     WedgeData = wedgeData,
                     WedgeType = wedgeTypeEnum
                 };
@@ -421,13 +441,12 @@ switch (cmd)
                 break;
             }
 
-            // 5) Drawing phase in a fresh SW session
+            // 6) Drawing phase in a fresh SW session
             var sessFactory2 = host.Services.GetRequiredService<ISwSessionFactory>();
             using (var swDraw = sessFactory2.Create(visible: true))
             {
                 Func<object?> runPartAutomation = () => partResultPath;
 
-                // Choose executor by Subclass (FG/PGB) and DrawingType
                 switch (subclass)
                 {
                     case WedgeSubclass.PGB:
@@ -435,36 +454,18 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Customer → using FG Customer executor (temporary).");
-                                FgCustomerDrawingExecutor.Run(
-                                    swDraw.App,
-                                    run,
-                                    drawingData,
-                                    runPartAutomation,
-                                    plannedDims: null
-                                );
+                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Overlay:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Overlay → using PGB Overlay drawing executor…");
-                                PgbOverlayDrawingExecutor.Run(
-                                    swDraw.App,
-                                    run,
-                                    drawingData,
-                                    runPartAutomation,
-                                    plannedDims: null
-                                );
+                                PgbOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Production → using PGB Production drawing executor…");
-                                PgbProductionDrawingExecutor.Run(
-                                    swDraw.App,
-                                    run,
-                                    drawingData,
-                                    runPartAutomation,
-                                    plannedDims: null
-                                );
+                                PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
                                 break;
                         }
                         break;
@@ -475,36 +476,18 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Customer → using FG Customer drawing executor…");
-                                FgCustomerDrawingExecutor.Run(
-                                    swDraw.App,
-                                    run,
-                                    drawingData,
-                                    runPartAutomation,
-                                    plannedDims: null
-                                );
+                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Overlay:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Overlay → using FG Overlay drawing executor…");
-                                FgOverlayDrawingExecutor.Run(
-                                    swDraw.App,
-                                    run,
-                                    drawingData,
-                                    runPartAutomation,
-                                    plannedDims: null
-                                );
+                                FgOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Production → using FG Production drawing executor…");
-                                FgProductionDrawingExecutor.Run(
-                                    swDraw.App,
-                                    run,
-                                    drawingData,
-                                    runPartAutomation,
-                                    plannedDims: null
-                                );
+                                FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
                                 break;
                         }
                         break;
@@ -565,6 +548,9 @@ Drawing Automation:
                      Part          : Resources/Templates/COB/COB_Template.SLDPRT
                      Drawing (all) : Resources/Templates/COB/COB_Drawings.SLDDRW
 
+API:
+  serve-api      Starts the minimal API host (health, run jobs, job status, download)
+
 Examples:
   # CKVD
   dotnet run -- run-part    --article 3112955 --subclass FG  --dtype Production --wtype CKVD
@@ -576,6 +562,9 @@ Examples:
 
   dotnet run -- get-wedge    --article 3112955 --subclass FG
   dotnet run -- plan-lite    --article 3112955 --subclass FG --dtype Production --wtype CKVD
+
+  # API mode
+  dotnet run -- serve-api
 """);
 }
 

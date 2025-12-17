@@ -17,12 +17,6 @@ public static class PathPlanner
         string FileBase
     );
 
-    /// <summary>
-    /// Build a normalized working directory under:
-    ///   {outputRoot}\{Subclass}\{DrawingType}\{Article}
-    /// Idempotent: if <paramref name="outputRoot"/> already ends with those segments,
-    /// it will not append them again.
-    /// </summary>
     public static Plan Build(
         string article,
         WedgeSubclass subclass,
@@ -33,7 +27,7 @@ public static class PathPlanner
         if (string.IsNullOrWhiteSpace(article))
             throw new ArgumentException("Article is required.", nameof(article));
 
-        Logger.Info($"[PathPlanner] Build start → article={article}, subclass={subclass}, drawingType={drawingType}, outputRoot='{outputRoot}', fileBase='{fileBase ?? "(auto)"}'");
+        Logger.Info($"[PathPlanner] Build start → article={article}, subclass={subclass}, drawingType={drawingType}");
 
         var baseRoot = string.IsNullOrWhiteSpace(outputRoot)
             ? Path.Combine("Resources", "Out")
@@ -42,32 +36,31 @@ public static class PathPlanner
         var sub = subclass.ToString();
         var dtype = drawingType.ToString();
 
-        // Normalize and detect whether baseRoot already ends with \{sub}\{dtype}\{article}
         var normalized = Path.GetFullPath(baseRoot.Trim().TrimEnd('\\', '/'));
-        string[] segs = normalized.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        var segs = normalized.Split(
+            Path.DirectorySeparatorChar,
+            Path.AltDirectorySeparatorChar,
+            StringSplitOptions.RemoveEmptyEntries);
 
         bool alreadyScoped =
-            segs.Length >= 3
-            && segs[^1].Equals(article, StringComparison.OrdinalIgnoreCase)
-            && segs[^2].Equals(dtype, StringComparison.OrdinalIgnoreCase)
-            && segs[^3].Equals(sub, StringComparison.OrdinalIgnoreCase);
+            segs.Length >= 3 &&
+            segs[^1].Equals(article, StringComparison.OrdinalIgnoreCase) &&
+            segs[^2].Equals(dtype, StringComparison.OrdinalIgnoreCase) &&
+            segs[^3].Equals(sub, StringComparison.OrdinalIgnoreCase);
 
         var workDir = alreadyScoped
             ? normalized
             : Path.GetFullPath(Path.Combine(baseRoot, sub, dtype, article));
 
-        if (!Directory.Exists(workDir))
-        {
-            Directory.CreateDirectory(workDir);
-            Logger.Info($"[PathPlanner] Created work directory: {workDir}");
-        }
-        else
-        {
-            Logger.Info($"[PathPlanner] Using existing work directory: {workDir}");
-        }
+        Directory.CreateDirectory(workDir);
 
-        // File base
-        var fb = string.IsNullOrWhiteSpace(fileBase) ? $"{article}P" : fileBase!.Trim();
+        // -----------------------------
+        // File base naming logic
+        // -----------------------------
+        var suffix = ResolveSuffix(subclass, drawingType);
+        var fb = string.IsNullOrWhiteSpace(fileBase)
+            ? $"{article}{suffix}"
+            : fileBase.Trim();
 
         var partPath = Path.Combine(workDir, $"{fb}.SLDPRT");
         var equationsPath = Path.Combine(workDir, "equations.txt");
@@ -86,5 +79,23 @@ public static class PathPlanner
             PdfPath: pdfPath,
             FileBase: fb
         );
+    }
+
+    private static string ResolveSuffix(WedgeSubclass subclass, DrawingType drawingType)
+    {
+        var isPgb = subclass == WedgeSubclass.PGB;
+
+        return (isPgb, drawingType) switch
+        {
+            (true, DrawingType.Production) => "D",
+            (true, DrawingType.Overlay) => "TF",
+
+            (false, DrawingType.Production) => "P",
+            (false, DrawingType.Customer) => "C",
+            (false, DrawingType.Overlay) => "TF",
+
+            _ => throw new NotSupportedException(
+                $"Unsupported combination: subclass={subclass}, drawingType={drawingType}")
+        };
     }
 }
