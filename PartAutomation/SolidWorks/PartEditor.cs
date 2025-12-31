@@ -1,15 +1,18 @@
 ﻿// PartAutomation/SolidWorks/PartEditor.cs
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+
 using Sw = SolidWorks.Interop.sldworks;
 using SwConst = SolidWorks.Interop.swconst;
 using SwDim = SolidWorks.Interop.sldworks.Dimension;
 using SwFeat = SolidWorks.Interop.sldworks.Feature;
 using SwPart = SolidWorks.Interop.sldworks.PartDoc;
-using WAD.Runner.Application;                         // Logger
+
+using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
@@ -26,8 +29,6 @@ public sealed class PartEditor
     public PartEditor(Sw.SldWorks sw) => _sw = sw;
     public Sw.ModelDoc2 Model => _model ?? throw new InvalidOperationException("No active part loaded.");
 
-    // ----------------------------- Open / Close / Save / Rebuild -----------------------------
-
     public void Open(string partPath)
     {
         Logger.Info($"[PartEditor] Open → '{partPath}'");
@@ -38,7 +39,6 @@ public sealed class PartEditor
         if (!File.Exists(full))
             throw new FileNotFoundException("Part not found.", full);
 
-        // Ensure not read-only (copied files sometimes inherit RO)
         var attrs = File.GetAttributes(full);
         if ((attrs & FileAttributes.ReadOnly) != 0)
         {
@@ -46,7 +46,6 @@ public sealed class PartEditor
             File.SetAttributes(full, attrs & ~FileAttributes.ReadOnly);
         }
 
-        // Try OpenDoc6 first
         _err = 0; _warn = 0;
         var doc = _sw.OpenDoc6(
             full,
@@ -86,6 +85,7 @@ public sealed class PartEditor
         _partPath = full;
         _ext = _model.Extension;
         Logger.Success($"[PartEditor] Part opened: {_partPath}");
+
         Rebuild();
     }
 
@@ -117,9 +117,9 @@ public sealed class PartEditor
     {
         Logger.Info("[PartEditor] Rebuild");
         Model.EditRebuild3();
+        Model.ForceRebuild3(false);
+        Model.GraphicsRedraw2();
     }
-
-    // --------------------------------- Config & Equations -----------------------------------
 
     public void ActivateConfiguration(string configName)
     {
@@ -152,11 +152,11 @@ public sealed class PartEditor
 
             _model.ShowConfiguration2(target);
             Logger.Success($"[PartEditor] Activated configuration: {target}");
-            // Rebuild();  // optional
+            Rebuild();
         }
         catch (Exception ex)
         {
-            Logger.Warn($"[PartEditor] ActivateConfiguration fast-path failed: {ex.Message}. Trying ShowConfiguration2...");
+            Logger.Warn($"[PartEditor] ActivateConfiguration failed: {ex.Message}");
             try { _model.ShowConfiguration2(configName); Logger.Success($"[PartEditor] Activated configuration (fallback): {configName}"); Rebuild(); }
             catch { Logger.Error("[PartEditor] Fallback activation failed."); }
         }
@@ -184,13 +184,7 @@ public sealed class PartEditor
             var ok = eq.UpdateValuesFromExternalEquationFile();
             Logger.Info($"[PartEditor] UpdateValuesFromExternalEquationFile() → {ok}");
 
-            // Nudge rebuild after import (helps SOLIDWORKS pick up changes reliably)
-            Logger.Info("[PartEditor] Rebuilding after equations import…");
-            Model.EditRebuild3();
-            Model.ForceRebuild3(false);
-            Model.EditRebuild3();
-            Model.GraphicsRedraw2();
-
+            Rebuild();
             Logger.Success("[PartEditor] Equations updated and rebuild completed.");
         }
         finally
@@ -199,8 +193,6 @@ public sealed class PartEditor
             eq.AutomaticRebuild = prevAutoRebuild;
         }
     }
-
-    // --------------------------------- Properties & Values ----------------------------------
 
     public void SetEngraving(string? text)
     {
@@ -220,60 +212,149 @@ public sealed class PartEditor
             return;
         }
         dim.SystemValue = meters;
-        // Rebuild();
         Logger.Success($"[PartEditor] Dimension set: {fullName}");
     }
 
-    // -------------------------------- Suppress Feature / Sketch -----------------------------
-
-    public void SuppressFeature(string name, bool suppress)
+    public void SetOrAddGlobalVarMm(string varName, double mm)
     {
-        Logger.Info($"[PartEditor] SuppressFeature → name='{name}', suppress={suppress}");
-        if (_ext!.SelectByID2(name, "BODYFEATURE", 0, 0, 0, false, 0, null, 0))
-        {
-            if (suppress) Model.EditSuppress2();
-            else Model.EditUnsuppress2();
-            Model.ClearSelection2(true);
-            // Rebuild();
-            Logger.Success($"[PartEditor] Feature {(suppress ? "suppressed" : "unsuppressed")}: {name}");
-        }
-        else
-        {
-            Logger.Warn($"[PartEditor] Feature not selectable: {name}");
-        }
+        if (string.IsNullOrWhiteSpace(varName))
+            throw new ArgumentException("varName is required.", nameof(varName));
+
+        var rhs = $"{FormatInvariant(mm)}mm";
+        SetOrAddGlobalVarRaw(varName, rhs);
     }
 
-    public void SuppressSketch(string name, bool suppress)
+    public void SetOrAddGlobalVarDeg(string varName, double deg)
     {
-        Logger.Info($"[PartEditor] SuppressSketch → name='{name}', suppress={suppress}");
-        var feat = FindFirstFeatureByExact(name);
-        if (feat == null)
+        if (string.IsNullOrWhiteSpace(varName))
+            throw new ArgumentException("varName is required.", nameof(varName));
+
+        var rhs = $"{FormatInvariant(deg)}deg";
+        SetOrAddGlobalVarRaw(varName, rhs);
+    }
+
+    public void SetOrAddGlobalVarRaw(string varName, string rhsWithUnits)
+    {
+        if (string.IsNullOrWhiteSpace(varName))
+            throw new ArgumentException("varName is required.", nameof(varName));
+        if (string.IsNullOrWhiteSpace(rhsWithUnits))
+            throw new ArgumentException("rhsWithUnits is required.", nameof(rhsWithUnits));
+
+        var eqMgr = (Sw.EquationMgr)Model.GetEquationMgr();
+
+        var eq = $"\"{varName}\"={rhsWithUnits}";
+        var idx = FindEquationIndex(eqMgr, varName);
+
+        if (idx >= 0)
         {
-            Logger.Warn($"[PartEditor] Sketch/feature not found: {name}");
+            eqMgr.Equation[idx] = eq;
+            Logger.Info($"[PartEditor] GlobalVar updated: {eq}");
             return;
         }
 
+        SafeAddEquation(eqMgr, eq);
+        Logger.Info($"[PartEditor] GlobalVar added: {eq}");
+    }
+
+    private static int FindEquationIndex(Sw.EquationMgr eqMgr, string varName)
+    {
+        var needle = $"\"{varName}\"=";
+
+        for (int i = 0; i < eqMgr.GetCount(); i++)
+        {
+            var s = (eqMgr.Equation[i] ?? string.Empty).Replace(" ", string.Empty);
+            if (s.StartsWith(needle, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+
+        return -1;
+    }
+
+    private static void SafeAddEquation(object eqMgr, string eq)
+    {
+        try
+        {
+            eqMgr.GetType().InvokeMember(
+                "Add3",
+                BindingFlags.InvokeMethod,
+                null,
+                eqMgr,
+                new object[] { eq, true });
+            return;
+        }
+        catch { }
+
+        try
+        {
+            eqMgr.GetType().InvokeMember(
+                "Add2",
+                BindingFlags.InvokeMethod,
+                null,
+                eqMgr,
+                new object[] { eq, true });
+            return;
+        }
+        catch { }
+
+        eqMgr.GetType().InvokeMember(
+            "Add",
+            BindingFlags.InvokeMethod,
+            null,
+            eqMgr,
+            new object[] { eq });
+    }
+
+    private static string FormatInvariant(double d)
+    {
+        var s = d.ToString("0.###############", CultureInfo.InvariantCulture);
+        if (s.EndsWith(".", StringComparison.Ordinal)) s = s[..^1];
+        return s;
+    }
+
+    // --------------------------- Best solution: Macro-style suppression ---------------------------
+
+    /// <summary>
+    /// Macro-faithful suppression: no selection, no SelectByID2.
+    /// Works for sketches, planes, sub-features, and suppressed items.
+    /// </summary>
+    public void SuppressFeature(string name, bool suppress)
+    {
+        Logger.Info($"[PartEditor] SuppressFeature → name='{name}', suppress={suppress}");
+
+        var feat = FindFirstFeatureByExact(name);
+        if (feat is null)
+        {
+            Logger.Warn($"[PartEditor] Feature not found: {name}");
+            return;
+        }
+
+        ApplySuppression(feat, suppress);
+        Logger.Success($"[PartEditor] {(suppress ? "suppressed" : "unsuppressed")}: {name}");
+    }
+
+    /// <summary>
+    /// Keep API name, same implementation as SuppressFeature (sketch is still a feature in SW).
+    /// </summary>
+    public void SuppressSketch(string name, bool suppress)
+        => SuppressFeature(name, suppress);
+
+    private static void ApplySuppression(SwFeat feat, bool suppress)
+    {
         feat.SetSuppression2(
-            suppress ? (int)SwConst.swFeatureSuppressionAction_e.swSuppressFeature
-                     : (int)SwConst.swFeatureSuppressionAction_e.swUnSuppressFeature,
+            suppress
+                ? (int)SwConst.swFeatureSuppressionAction_e.swSuppressFeature
+                : (int)SwConst.swFeatureSuppressionAction_e.swUnSuppressFeature,
             (int)SwConst.swInConfigurationOpts_e.swThisConfiguration,
             null);
-
-        // Rebuild();
-        Logger.Success($"[PartEditor] Sketch {(suppress ? "suppressed" : "unsuppressed")}: {name}");
     }
 
     // ------------------------------------- Tolerances ---------------------------------------
 
-    /// <summary>
-    /// Reference-style tolerance setter: resolves "KEY@OWNER" and uses swDim.Tolerance.SetValues(-lower, upper).
-    /// </summary>
     public void ApplyLengthTolerances(WedgeData wedge, IEnumerable<DimensionKey> keys)
     {
         var shortNames = keys?.Select(k => k.Value).ToList() ?? new List<string>();
         Logger.Info($"[PartEditor] ApplyLengthTolerances(ref) → [{string.Join(", ", shortNames)}]");
 
-        // Discover owners at runtime (features + sub-features including sketches)
         var allOwners = GetAllFeatureAndSketchNames(Model);
         Logger.Info($"[PartEditor] Owners discovered: {allOwners.Count}");
 
@@ -287,11 +368,9 @@ public sealed class PartEditor
                     continue;
                 }
 
-                // mm → meters (SW internal unit)
                 double upper_m = (double)d.Tol.Upper.AsMm() / 1000.0;
                 double lower_m = (double)d.Tol.Lower.AsMm() / 1000.0;
 
-                // Probe KEY@OWNER across discovered owners
                 if (!TryGetDimensionByShortName(Model, shortName, allOwners, out var swDim) || swDim is null)
                 {
                     Logger.Warn($"[ApplyTolerances] Could not locate Dimension for '{shortName}' (owner unknown).");
@@ -309,7 +388,6 @@ public sealed class PartEditor
                     ? (int)SwConst.swTolType_e.swTolBILAT
                     : (int)SwConst.swTolType_e.swTolSYMMETRIC;
 
-                // SolidWorks expects SetValues(minusLower, plusUpper)
                 tol.SetValues(-lower_m, upper_m);
 
                 Logger.Success($"[ApplyTolerances] Applied to '{shortName}' → +{upper_m:G6} / -{lower_m:G6} m.");
@@ -319,17 +397,8 @@ public sealed class PartEditor
                 Logger.Warn($"[ApplyTolerances] Failed for '{shortName}': {ex.Message}");
             }
         }
-
-        // Optional: single rebuild after batch
-        // Rebuild();
     }
 
-    // ------------------------------------ Helpers -------------------------------------------
-
-    /// <summary>
-    /// Enumerates all feature and sub-feature names (owners) in the active part,
-    /// including sketches, to probe KEY@OWNER reliably.
-    /// </summary>
     private static List<string> GetAllFeatureAndSketchNames(Sw.ModelDoc2 model)
     {
         var names = new List<string>();
@@ -355,9 +424,6 @@ public sealed class PartEditor
         return names.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    /// <summary>
-    /// Tries to resolve a SolidWorks Dimension by probing "shortName@owner" across discovered owners.
-    /// </summary>
     private static bool TryGetDimensionByShortName(Sw.ModelDoc2 model, string shortName, List<string> owners, out SwDim? swDim)
     {
         foreach (var owner in owners)
@@ -377,30 +443,6 @@ public sealed class PartEditor
         return false;
     }
 
-    private List<string> GetAllOwners()
-    {
-        // kept for compatibility with some logs/flows; equivalent to GetAllFeatureAndSketchNames(Model)
-        var names = GetAllFeatureAndSketchNames(Model);
-        Logger.Info($"[PartEditor] GetAllOwners → {names.Count} names collected.");
-        return names;
-    }
-
-    private SwDim? FindDimension(string shortName, List<string> owners)
-    {
-        foreach (var owner in owners)
-        {
-            var probe = $"{shortName}@{owner}";
-            var dim = Model.Parameter(probe) as SwDim;
-            if (dim != null)
-            {
-                Logger.Info($"[PartEditor] FindDimension → found '{probe}'");
-                return dim;
-            }
-        }
-        Logger.Warn($"[PartEditor] FindDimension → not found for '{shortName}@*'");
-        return null;
-    }
-
     private SwFeat? FindFirstFeatureByExact(string name)
     {
         var part = (SwPart)Model;
@@ -409,25 +451,20 @@ public sealed class PartEditor
         while (f != null)
         {
             if (string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase))
-            {
-                Logger.Info($"[PartEditor] FindFirstFeatureByExact → found '{name}' (top-level)");
                 return f;
-            }
 
             var sub = (SwFeat)f.GetFirstSubFeature();
             while (sub != null)
             {
                 if (string.Equals(sub.Name, name, StringComparison.OrdinalIgnoreCase))
-                {
-                    Logger.Info($"[PartEditor] FindFirstFeatureByExact → found '{name}' (sub-feature)");
                     return sub;
-                }
+
                 sub = (SwFeat)sub.GetNextSubFeature();
             }
 
             f = (SwFeat)f.GetNextFeature();
         }
-        Logger.Warn($"[PartEditor] FindFirstFeatureByExact → '{name}' not found.");
+
         return null;
     }
 }

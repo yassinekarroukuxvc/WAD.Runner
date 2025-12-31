@@ -2,27 +2,29 @@
 using System;
 using System.Collections.Generic;
 using SolidWorks.Interop.sldworks;
-using WAD.Runner.Application;                       // Logger
+using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
-using WAD.Runner.DataManagement.Domain.Wedge;      // WedgeData, WedgeSubclass, WedgeType
+using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.PartAutomation.Interfaces;
 using WAD.Runner.PartAutomation.Rules;
 using WAD.Runner.PartAutomation.SolidWorks;
-// NOTE: SwAppHost is no longer used. You can delete PartAutomation/SolidWorks/SwAppHost.cs.
 
 namespace WAD.Runner.PartAutomation.Execution
 {
-    /// <summary>
-    /// Implements part automation against a SolidWorks instance provided by the caller via Attach(swApp).
-    /// This class does NOT start or quit SolidWorks; it only opens/saves/closes documents.
-    /// </summary>
     public sealed class PartAutomationService : IPartAutomationService
     {
-        private SldWorks? _sw;            // provided via Attach
-        private PartEditor? _editor;      // wrapper around ModelDoc2 operations
+        private SldWorks? _sw;
+        private PartEditor? _editor;
 
-        /// <summary>Provide a running SolidWorks instance. Must be called before other methods.</summary>
+        public ModelDoc2 Model
+        {
+            get
+            {
+                EnsureAttached();
+                return _editor!.Model;
+            }
+        }
         public void Attach(SldWorks swApp)
         {
             _sw = swApp ?? throw new ArgumentNullException(nameof(swApp));
@@ -41,6 +43,7 @@ namespace WAD.Runner.PartAutomation.Execution
         public void ActivateConfiguration(WedgeSubclass subclass, DrawingType drawingType)
         {
             EnsureAttached();
+
             var cfg =
                 subclass switch
                 {
@@ -52,7 +55,7 @@ namespace WAD.Runner.PartAutomation.Execution
                     _ => "FG_PRODUCTION_DRAWING"
                 };
 
-            Logger.Info($"[PartAutomationService] ActivateConfiguration → {cfg} (subclass={subclass}, type={drawingType})");
+            Logger.Info($"[PartAutomationService] ActivateConfiguration → {cfg}");
             _editor!.ActivateConfiguration(cfg);
             Logger.Success("[PartAutomationService] Configuration activated.");
         }
@@ -76,30 +79,28 @@ namespace WAD.Runner.PartAutomation.Execution
         public void ApplyLengthTolerances(WedgeData wedge, IEnumerable<DimensionKey> keys)
         {
             EnsureAttached();
-            var keysList = string.Join(", ", keys is null ? Array.Empty<string>() : System.Linq.Enumerable.Select(keys, k => k.Value));
+            var keysList = string.Join(", ",
+                keys is null ? Array.Empty<string>() : System.Linq.Enumerable.Select(keys, k => k.Value));
+
             Logger.Info($"[PartAutomationService] ApplyLengthTolerances → [{keysList}]");
             _editor!.ApplyLengthTolerances(wedge, keys ?? Array.Empty<DimensionKey>());
             Logger.Success("[PartAutomationService] Tolerances applied.");
         }
 
-        /// <summary>
-        /// Apply wedge-type-specific post rules (CKVD vs COB) plus engraving.
-        /// </summary>
         public void ApplyPostRules(WedgeType wedgeType, WedgeData wedge, DrawingType drawingType)
         {
             EnsureAttached();
-            Logger.Info($"[PartAutomationService] ApplyPostRules → wedgeType={wedgeType}, subclass={wedge.Subclass}, drawingType={drawingType}");
+            Logger.Info($"[PartAutomationService] ApplyPostRules → wedgeType={wedgeType}, drawingType={drawingType}");
 
             var editor = _editor!;
 
-            // Common engraving text setup for all wedge types
-            var engraving = wedge.Marking?.Text
-                            ?? (wedge.Properties.TryGetValue("Marking", out var s) ? s : null);
+            var engraving =
+                wedge.Marking?.Text ??
+                (wedge.Properties.TryGetValue("Marking", out var s) ? s : null);
 
-            Logger.Info($"[PartAutomationService] Engraving text → '{(engraving ?? "(null)")}'");
+            Logger.Info($"[PartAutomationService] Engraving text → '{engraving ?? "(null)"}'");
             editor.SetEngraving(engraving);
 
-            // Delegate to the correct rule set based on wedge type
             switch (wedgeType)
             {
                 case WedgeType.CKVD:
@@ -112,13 +113,16 @@ namespace WAD.Runner.PartAutomation.Execution
                     BasicPartRules.ApplyCobRules(editor, wedge, drawingType);
                     break;
 
+                case WedgeType.OSG7:
+                    Logger.Info("[PartAutomationService] Applying OSG7 rules.");
+                    BasicPartRules.ApplyOsg7Rules(editor, wedge, drawingType);
+                    break;
+
                 default:
-                    Logger.Warn("[PartAutomationService] Unknown wedge type; applying engraving-only fallback.");
-                    // For unknown types: only ensure engraving toggle for non-overlay
-                    if (drawingType == DrawingType.Production || drawingType == DrawingType.Customer)
-                    {
+                    Logger.Warn("[PartAutomationService] Unknown wedge type; applying fallback.");
+                    if (drawingType is DrawingType.Production or DrawingType.Customer)
                         BasicPartRules.ApplyEngravingToggle(editor);
-                    }
+
                     editor.Rebuild();
                     Logger.Success("[PartAutomationService] Post rules applied (fallback).");
                     break;
@@ -148,18 +152,16 @@ namespace WAD.Runner.PartAutomation.Execution
             }
             finally
             {
-                // We do NOT own SolidWorks lifetime. Just release editor references.
                 _editor = null;
                 _sw = null;
-                Logger.Info("[PartAutomationService] Cleanup complete (editor detached).");
+                Logger.Info("[PartAutomationService] Cleanup complete.");
             }
         }
 
-        // --- helpers ---
         private void EnsureAttached()
         {
             if (_sw is null || _editor is null)
-                throw new InvalidOperationException("Not attached. Call Attach(swApp) before using the service.");
+                throw new InvalidOperationException("Not attached. Call Attach(swApp) first.");
         }
     }
 }

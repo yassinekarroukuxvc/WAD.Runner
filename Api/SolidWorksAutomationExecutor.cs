@@ -80,7 +80,11 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
         var orchestrator = sp.GetRequiredService<PartAutomationOrchestrator>();
         var sessFactory = sp.GetRequiredService<ISwSessionFactory>();
 
-        var totalSteps = payload.ArticleNumbers.Count * drawingTypeNames.Count * 2; // part + drawing
+        // Progress accounting:
+        // We report 3 times per (article,dtype): load + part + drawing.
+        const int StepsPerRun = 3;
+        var totalRuns = payload.ArticleNumbers.Count * drawingTypeNames.Count;
+        var totalSteps = totalRuns * StepsPerRun;
         var doneSteps = 0;
 
         string? lastResultPdf = null;
@@ -100,7 +104,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                 report(Progress(++doneSteps, totalSteps, $"Loading data for {article} ({dtype})…"));
 
                 var wedgeData = getWedge.ExecuteAsync(article, subclass, CancellationToken.None)
-                                         .GetAwaiter().GetResult();
+                                        .GetAwaiter().GetResult();
 
                 var drawingData = getDrawing.ExecuteAsync(dtype, subclass, wedgeType, article, CancellationToken.None)
                                             .GetAwaiter().GetResult();

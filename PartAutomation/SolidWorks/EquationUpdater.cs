@@ -1,4 +1,5 @@
-﻿using System;
+﻿// PartAutomation/SolidWorks/EquationUpdater.cs
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -6,27 +7,20 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
-// Domain aliases (YOUR models)
 using DomDim = WAD.Runner.DataManagement.Domain.Dimensions.Dimension;
 using DomDimKey = WAD.Runner.DataManagement.Domain.Dimensions.DimensionKey;
 using DomWedgeData = WAD.Runner.DataManagement.Domain.Wedge.WedgeData;
 using DomDrawingType = WAD.Runner.DataManagement.Domain.Wedge.DrawingType;
 using DomUnitKind = WAD.Runner.DataManagement.Domain.Units.UnitKind;
 
-// SW aliases (minimal)
 using SwModelDoc2 = SolidWorks.Interop.sldworks.ModelDoc2;
 using SwEquationMgr = SolidWorks.Interop.sldworks.EquationMgr;
 using SolidWorks.Interop.swconst;
 
-using WAD.Runner.Application; // Logger
+using WAD.Runner.Application;
 
 namespace WAD.Runner.PartAutomation.SolidWorks
 {
-    /// <summary>
-    /// Updates equations.txt from Domain WedgeData; ensures equations exist in the open part.
-    /// Keeps to YOUR domain types (no reference-project dependencies).
-    /// Also updates overlay_calibration1 and scale for Overlay drawings, computed from FL.
-    /// </summary>
     public static class EquationUpdater
     {
         private static readonly Regex LineRx =
@@ -36,41 +30,41 @@ namespace WAD.Runner.PartAutomation.SolidWorks
 
         public static void UpdateEquationFile(string equationFilePath, DomWedgeData wedge, DomDrawingType drawingType)
         {
-            Logger.Info($"[EquationUpdater] UpdateEquationFile → path='{equationFilePath}', drawingType={drawingType}");
-            if (string.IsNullOrWhiteSpace(equationFilePath) || !File.Exists(equationFilePath))
-            {
-                Logger.Error($"[EquationUpdater] Equation file not found: {equationFilePath}");
-                throw new FileNotFoundException("Equation file not found.", equationFilePath);
-            }
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+            UpdateEquationFile(equationFilePath, wedge.Dimensions, wedge, drawingType);
+        }
+
+        public static void UpdateEquationFile(
+            string equationFilePath,
+            IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims,
+            DomWedgeData wedge,
+            DomDrawingType drawingType)
+        {
+            if (string.IsNullOrWhiteSpace(equationFilePath) || !File.Exists(equationFilePath))
+                throw new FileNotFoundException("Equation file not found.", equationFilePath);
+
+            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+            if (effectiveDims is null) throw new ArgumentNullException(nameof(effectiveDims));
+
+            Logger.Info($"[EquationUpdater] UpdateEquationFile → '{equationFilePath}', drawingType={drawingType}");
 
             var encoding = GetFileEncoding(equationFilePath);
-            Logger.Info($"[EquationUpdater] Detected encoding: {encoding.EncodingName}");
             var raw = File.ReadAllText(equationFilePath, encoding);
             var newline = DetectNewline(raw);
 
             var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
-            Logger.Info($"[EquationUpdater] Existing lines: {lines.Count}");
-
             var output = new List<string>(lines.Count + 32);
 
-            // Build lookups from YOUR domain data
-            var byKey = wedge.Dimensions.ToDictionary(
+            var byKey = effectiveDims.ToDictionary(
                 kv => kv.Key.Value, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
-
-            Logger.Info($"[EquationUpdater] Wedge dimension keys: {byKey.Count}");
 
             var angleKeys = new HashSet<string>(
                 byKey.Where(kv => kv.Value.Nominal.Unit == DomUnitKind.Degree)
                      .Select(kv => kv.Key),
                 StringComparer.OrdinalIgnoreCase);
 
-            Logger.Info($"[EquationUpdater] Angle keys detected: {string.Join(", ", angleKeys)}");
-
             var engravingLine = BuildEngravingStartLine(wedge);
-            Logger.Info($"[EquationUpdater] EngravingStart line → {engravingLine}");
 
-            // ── Overlay mapping (local only, no changes to WedgeData) ──
             bool isOverlay = drawingType == DomDrawingType.Overlay;
             double overlayMag = 100.0;
             double overlayScale = 60.8;
@@ -81,16 +75,14 @@ namespace WAD.Runner.PartAutomation.SolidWorks
                 overlayMag = ComputeOverlayMagnificationFromFl(wedge);
                 overlayScale = GetOverlayModelViewScaleDecimal(overlayMag);
                 overlayMagStr = overlayMag.ToString("0.#####", CultureInfo.InvariantCulture);
-
-                Logger.Info($"[EquationUpdater] Overlay FL-based → mag={overlayMag}X, scale={overlayScale}");
             }
 
             bool engravingTouched = false;
             bool overlayCalTouched = false;
             bool scaleTouched = false;
+
             int rewritten = 0;
 
-            // Rewrite known lines
             foreach (var line in lines)
             {
                 var m = LineRx.Match(line);
@@ -102,7 +94,6 @@ namespace WAD.Runner.PartAutomation.SolidWorks
 
                 var key = m.Groups["key"].Value;
 
-                // EngravingStart
                 if (key.Equals("EngravingStart", StringComparison.OrdinalIgnoreCase))
                 {
                     output.Add(engravingLine);
@@ -111,7 +102,6 @@ namespace WAD.Runner.PartAutomation.SolidWorks
                     continue;
                 }
 
-                // Overlay-specific fields (only when Overlay drawing)
                 if (isOverlay && key.Equals("overlay_calibration1", StringComparison.OrdinalIgnoreCase))
                 {
                     output.Add($"\"overlay_calibration1\" = {overlayMagStr}");
@@ -131,13 +121,10 @@ namespace WAD.Runner.PartAutomation.SolidWorks
                 if (isOverlay && key.Equals("TL", StringComparison.OrdinalIgnoreCase))
                 {
                     output.Add($"\"TL\" = {F(30)}mm");
-                    scaleTouched = true;
                     rewritten++;
                     continue;
                 }
 
-
-                // Dimension value from domain
                 if (byKey.TryGetValue(key, out var dim))
                 {
                     WriteDim(output, key, dim, angleKeys.Contains(key));
@@ -145,11 +132,11 @@ namespace WAD.Runner.PartAutomation.SolidWorks
                     continue;
                 }
 
-                output.Add(line); // leave as-is
+                output.Add(line);
             }
 
-            // Ensure all data keys exist
             int appended = 0;
+
             foreach (var (key, dim) in byKey)
             {
                 if (!LineExists(output, key))
@@ -159,14 +146,12 @@ namespace WAD.Runner.PartAutomation.SolidWorks
                 }
             }
 
-            // Ensure EngravingStart exists
             if (!engravingTouched && !LineExists(output, "EngravingStart"))
             {
                 output.Add(engravingLine);
                 appended++;
             }
 
-            // Ensure overlay_calibration1 + scale for Overlay drawings
             if (isOverlay)
             {
                 if (!overlayCalTouched && !LineExists(output, "overlay_calibration1"))
@@ -182,48 +167,50 @@ namespace WAD.Runner.PartAutomation.SolidWorks
                 }
             }
 
-            Logger.Info($"[EquationUpdater] Rewritten lines: {rewritten}, Appended lines: {appended}");
+            Logger.Info($"[EquationUpdater] Rewritten={rewritten}, Appended={appended}");
             File.WriteAllText(equationFilePath, string.Join(newline, output), encoding);
             Logger.Success($"[EquationUpdater] Equation file updated: {equationFilePath}");
         }
 
         public static void EnsureAllEquationsExist(SwModelDoc2 model, DomWedgeData wedge)
         {
-            Logger.Info("[EquationUpdater] EnsureAllEquationsExist → start");
-            if (model is null || wedge is null)
-            {
-                Logger.Warn("[EquationUpdater] Model or WedgeData is null; skipping.");
-                return;
-            }
+            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+            EnsureAllEquationsExist(model, wedge.Dimensions);
+        }
+
+        public static void EnsureAllEquationsExist(SwModelDoc2 model, IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims)
+        {
+            if (model is null) return;
+            if (effectiveDims is null) return;
 
             var mgr = (SwEquationMgr)model.GetEquationMgr();
-            if (mgr is null)
-            {
-                Logger.Warn("[EquationUpdater] EquationMgr is null; skipping.");
-                return;
-            }
+            if (mgr is null) return;
 
             int count = mgr.GetCount();
             var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             for (int i = 0; i < count; i++)
             {
                 var eq = mgr.Equation[i] ?? string.Empty;
                 var lhs = ExtractLhsName(eq);
                 if (!string.IsNullOrWhiteSpace(lhs)) existing.Add(lhs);
             }
-            Logger.Info($"[EquationUpdater] Existing equation variables in model: {existing.Count}");
 
             int added = 0;
-            foreach (var (keyObj, dim) in wedge.Dimensions)
+
+            foreach (var (keyObj, dim) in effectiveDims)
             {
                 var key = keyObj.Value;
-                if (string.Equals(key, "EngravingStart", StringComparison.OrdinalIgnoreCase))
-                    continue; // file-driven
 
-                if (existing.Contains(key)) continue;
+                if (string.Equals(key, "EngravingStart", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (existing.Contains(key))
+                    continue;
 
                 bool isAngle = dim.Nominal.Unit == DomUnitKind.Degree;
                 double val = (double)(isAngle ? dim.Nominal.AsDeg() : dim.Nominal.AsMm());
+
                 string eq = isAngle
                     ? $"\"{key}\" = {F(val)}deg"
                     : $"\"{key}\" = {F(val)}mm";
@@ -234,31 +221,153 @@ namespace WAD.Runner.PartAutomation.SolidWorks
                         -1,
                         eq,
                         true,
-                        (int)swInConfigurationOpts_e.swThisConfiguration, // scope: this configuration
-                        null
-                    );
+                        (int)swInConfigurationOpts_e.swThisConfiguration,
+                        null);
                     added++;
-                    Logger.Info($"[EquationUpdater] Added equation: {eq}");
                 }
                 catch (Exception ex)
                 {
-                    Logger.Warn($"[EquationUpdater] Failed to add equation for '{key}': {ex.Message}");
+                    Logger.Warn($"[EquationUpdater] Add3 failed for '{key}': {ex.Message}");
                 }
             }
 
             model.EditRebuild3();
-            Logger.Success($"[EquationUpdater] EnsureAllEquationsExist → added={added}, totalExistingNow≈{existing.Count + added}");
+            Logger.Success($"[EquationUpdater] EnsureAllEquationsExist → added={added}");
         }
 
-        // ---- helpers ----
+        /// <summary>
+        /// Macro-like mode: push variables directly into the model's EquationMgr without using an equation file.
+        /// This sets/creates the equations, then rebuilds.
+        ///
+        /// Notes:
+        /// - This updates the EquationMgr text (global variables). It does not “drive” dimensions unless
+        ///   your model features/dimensions are already linked to these variables (as your templates are).
+        /// - For configuration scope, this uses swThisConfiguration to match your current Add3 usage.
+        /// </summary>
+        public static void UpsertEquationsInModel(
+            SwModelDoc2 model,
+            IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims,
+            DomWedgeData wedge,
+            DomDrawingType drawingType)
+        {
+            if (model is null) throw new ArgumentNullException(nameof(model));
+            if (effectiveDims is null) throw new ArgumentNullException(nameof(effectiveDims));
+            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+            var mgr = (SwEquationMgr)model.GetEquationMgr();
+            if (mgr is null)
+                throw new InvalidOperationException("EquationMgr is null.");
+
+            var byNameIndex = BuildEquationIndex(mgr);
+
+            bool isOverlay = drawingType == DomDrawingType.Overlay;
+
+            double overlayMag = 100.0;
+            double overlayScale = 60.8;
+            string overlayMagStr = "100";
+
+            if (isOverlay)
+            {
+                overlayMag = ComputeOverlayMagnificationFromFl(wedge);
+                overlayScale = GetOverlayModelViewScaleDecimal(overlayMag);
+                overlayMagStr = overlayMag.ToString("0.#####", CultureInfo.InvariantCulture);
+            }
+
+            var engravingLine = BuildEngravingStartLine(wedge);
+
+            int upserted = 0;
+
+            foreach (var (keyObj, dim) in effectiveDims)
+            {
+                var key = keyObj.Value;
+
+                if (string.Equals(key, "EngravingStart", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                bool isAngle = dim.Nominal.Unit == DomUnitKind.Degree;
+                double val = (double)(isAngle ? dim.Nominal.AsDeg() : dim.Nominal.AsMm());
+
+                string rhs = isAngle ? $"{F(val)}deg" : $"{F(val)}mm";
+                string eqText = $"\"{key}\" = {rhs}";
+
+                UpsertEquation(mgr, byNameIndex, key, eqText);
+                upserted++;
+            }
+
+            UpsertEquation(mgr, byNameIndex, "EngravingStart", engravingLine);
+            upserted++;
+
+            if (isOverlay)
+            {
+                UpsertEquation(mgr, byNameIndex, "overlay_calibration1", $"\"overlay_calibration1\" = {overlayMagStr}");
+                upserted++;
+
+                UpsertEquation(mgr, byNameIndex, "scale", $"\"scale\" = {F(overlayScale)}");
+                upserted++;
+
+                UpsertEquation(mgr, byNameIndex, "TL", $"\"TL\" = {F(30)}mm");
+                upserted++;
+            }
+
+            model.EditRebuild3();
+            Logger.Success($"[EquationUpdater] UpsertEquationsInModel → upserted={upserted}");
+        }
+
+        private static void UpsertEquation(SwEquationMgr mgr, Dictionary<string, int> index, string key, string equationText)
+        {
+            if (index.TryGetValue(key, out var i))
+            {
+                try
+                {
+                    mgr.Equation[i] = equationText;
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"[EquationUpdater] Failed to set Equation[{i}] for '{key}': {ex.Message}");
+                }
+            }
+
+            try
+            {
+                _ = mgr.Add3(
+                    -1,
+                    equationText,
+                    true,
+                    (int)swInConfigurationOpts_e.swThisConfiguration,
+                    null);
+
+                index[key] = mgr.GetCount() - 1;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[EquationUpdater] Failed to add equation for '{key}': {ex.Message}");
+            }
+        }
+
+        private static Dictionary<string, int> BuildEquationIndex(SwEquationMgr mgr)
+        {
+            int count = mgr.GetCount();
+            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < count; i++)
+            {
+                var eq = mgr.Equation[i] ?? string.Empty;
+                var lhs = ExtractLhsName(eq);
+                if (string.IsNullOrWhiteSpace(lhs)) continue;
+
+                if (!map.ContainsKey(lhs))
+                    map.Add(lhs, i);
+            }
+
+            return map;
+        }
 
         private static void WriteDim(List<string> sink, string key, DomDim dim, bool isAngle)
         {
             double v = (double)(isAngle ? dim.Nominal.AsDeg() : dim.Nominal.AsMm());
             string unit = isAngle ? "deg" : "mm";
-            var line = $"\"{key}\" = {F(v)}{unit}";
-            sink.Add(line);
-            Logger.Blue($"[EquationUpdater] Emit line → {line}");
+            sink.Add($"\"{key}\" = {F(v)}{unit}");
         }
 
         private static string BuildEngravingStartLine(DomWedgeData wedge)
@@ -279,47 +388,31 @@ namespace WAD.Runner.PartAutomation.SolidWorks
             return $"\"EngravingStart\" = {F(engrMm)}mm";
         }
 
-        /// <summary>
-        /// FL-based overlay magnification, local to this updater.
-        /// Thresholds: 100/200/300/400X as in the OTHER project.
-        /// </summary>
         private static double ComputeOverlayMagnificationFromFl(DomWedgeData wedge)
         {
             const double defaultMag = 100.0;
 
-            if (wedge is null || wedge.Dimensions is null)
+            if (wedge?.Dimensions is null)
                 return defaultMag;
 
             if (!wedge.Dimensions.TryGetValue(DomDimKey.From("FL"), out var flDim) ||
                 flDim is null ||
                 flDim.Nominal.Unit != DomUnitKind.Millimeter)
             {
-                Logger.Warn("[EquationUpdater] FL missing or not in mm; using default overlay mag=100X.");
                 return defaultMag;
             }
 
             double fl = (double)flDim.Nominal.AsMm();
             if (double.IsNaN(fl) || double.IsInfinity(fl) || fl <= 0.0)
-            {
-                Logger.Warn($"[EquationUpdater] FL invalid ({fl}); using default overlay mag=100X.");
                 return defaultMag;
-            }
 
-            double mag;
-            if (fl <= 0.3403) { mag = 400; }
-            else if (fl <= 0.4572) { mag = 300; }
-            else if (fl <= 0.6908) { mag = 200; }
-            else if (fl <= 1.3766) { mag = 100; }
-            else { mag = 100; }
-
-            Logger.Info($"[EquationUpdater] FL={fl:0.####} mm → overlay mag={mag}X.");
-            return mag;
+            if (fl <= 0.3403) return 400;
+            if (fl <= 0.4572) return 300;
+            if (fl <= 0.6908) return 200;
+            if (fl <= 1.3766) return 100;
+            return 100;
         }
 
-        /// <summary>
-        /// Maps overlay magnification (100/200/300/400) to the "scale" value:
-        /// 100→60.8, 200→122.7, 300→183, 400→246. Default=60.8.
-        /// </summary>
         private static double GetOverlayModelViewScaleDecimal(double overlayMagnification)
         {
             int token = NormalizeScalingToken(overlayMagnification);
@@ -339,7 +432,7 @@ namespace WAD.Runner.PartAutomation.SolidWorks
 
             if (double.TryParse(overlayScaling.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
             {
-                if (d < 10.0) return (int)Math.Round(d * 100.0); // 1..4 → 100..400
+                if (d < 10.0) return (int)Math.Round(d * 100.0);
                 return (int)Math.Round(d);
             }
 

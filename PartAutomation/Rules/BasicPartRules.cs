@@ -34,6 +34,16 @@ public static class BasicPartRules
         COBRules.Apply(part, wedge, drawingType);
     }
 
+    public static void ApplyOsg7Rules(PartEditor part, WedgeData wedge, DrawingType drawingType)
+    {
+        if (part == null) throw new ArgumentNullException(nameof(part));
+        if (wedge == null) throw new ArgumentNullException(nameof(wedge));
+
+        Logger.Info($"[BasicPartRules] ApplyOsg7Rules → subclass={wedge.Subclass}, drawingType={drawingType}");
+        OSG7Rules.Apply(part, wedge, drawingType);
+    }
+
+
     /// <summary>
     /// Common engraving sketch toggle for *non-overlay* drawings.
     /// Wedge-type-specific rule sets can reuse this.

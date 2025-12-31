@@ -272,6 +272,10 @@ switch (cmd)
                     partTemplatePath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
                     equationTemplatePath = Path.Combine("Resources", "Templates", "COB", "equations.txt");
                     break;
+                case WedgeType.OSG7:
+                    partTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "COB", "equations.txt");
+                    break;
 
                 case WedgeType.CKVD:
                 default:
@@ -590,12 +594,13 @@ static (string article, WedgeSubclass subclass, DrawingType dtype) ParsePlanArgs
 
 static WedgeType ParseWedgeTypeEnum(string[] a)
 {
-    var wtype = GetArgValue(a, "--wtype") ?? "CKVD";
-    wtype = wtype.Trim().ToUpperInvariant();
+    var wtype = (GetArgValue(a, "--wtype") ?? "CKVD").Trim().ToUpperInvariant();
 
     return wtype switch
     {
+        "CKVD" => WedgeType.CKVD,
         "COB" => WedgeType.COB,
+        "OSG7" => WedgeType.OSG7,
         _ => WedgeType.CKVD
     };
 }

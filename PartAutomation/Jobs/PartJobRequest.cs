@@ -15,7 +15,5 @@ public sealed class PartJobRequest
     public string? FileBase { get; init; }
 
     public WedgeData WedgeData { get; init; } = null!;
-
-    // 🔹 NEW: wedge type (CKVD / COB)
     public WedgeType WedgeType { get; init; }
 }
