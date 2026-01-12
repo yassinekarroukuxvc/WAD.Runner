@@ -22,9 +22,22 @@ public sealed class SwSession : IAsyncDisposable, IDisposable
 
     public async ValueTask DisposeAsync()
     {
-        try { App.ExitApp(); } catch { /* ignore */ }
-        try { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(App); } catch { /* ignore */ }
-        _log.LogInformation("SolidWorks session closed.");
-        await ValueTask.CompletedTask;
+        try
+        {
+            try { App.CloseAllDocuments(true); } catch { }
+            try { App.ExitApp(); } catch { }
+        }
+        finally
+        {
+            try { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(App); } catch { }
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            _log.LogInformation("SolidWorks session closed.");
+            await ValueTask.CompletedTask;
+        }
     }
+
 }

@@ -51,11 +51,7 @@
 "GR"=0.02794
 "GR@G_groove_sketch" = "GR"
 "FR"=0.0635
-"FR@FR_STD_feature"="FR"
 "BR"=0.1524
-"FR@FR_STD_VFL_feature"="FR"
-"BR@BR_STD_feature"="BR"
-"BR@BR_STD_VFL_feature"="BR"
 "GD"=0.08128
 "GD@FR_BR_STD_sketch" = "GD"
 "BR@FR_BR_STD_sketch" = "BR"

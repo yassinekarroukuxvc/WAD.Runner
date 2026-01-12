@@ -64,12 +64,10 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .ConfigureServices((ctx, services) =>
     {
-        // ---- SQLite repo ----
         var cs = ctx.Configuration.GetConnectionString("ProAlphaSqlite")
                  ?? throw new InvalidOperationException("Missing ConnectionStrings:ProAlphaSqlite");
         services.AddSingleton(new ProAlphaRepository(cs));
 
-        // ---- Choose the data source: SQLite instead of Java API ----
         var firma = ctx.Configuration.GetValue<int>("ProAlpha:Firma", 1);
         var language = ctx.Configuration.GetValue<string>("ProAlpha:Language", "E");
 
@@ -82,20 +80,16 @@ var host = Host.CreateDefaultBuilder(args)
             )
         );
 
-        // Drawing config (JSON)
         var drawingCfgPath = ctx.Configuration["DrawingConfig:Path"] ?? "Infrastructure/Config/drawing_config.json";
         services.AddSingleton<IDrawingDataSource>(_ => new JsonDrawingDataSource(drawingCfgPath));
 
-        // Use-cases
         services.AddTransient<GetWedgeData>();
         services.AddTransient<GetDrawingData>();
         services.AddTransient<BuildAnnotationSet>();
         services.AddTransient<PlanDrawing>();
 
-        // SolidWorks session factory (stateless)
         services.AddSingleton<ISwSessionFactory, SwServiceFactory>();
 
-        // ---- Part Automation ----
         services.AddSingleton<IPartAutomationService, PartAutomationService>();
         services.AddSingleton<PartAutomationOrchestrator>();
     })
@@ -103,11 +97,9 @@ var host = Host.CreateDefaultBuilder(args)
 
 Logger.Success("[Boot] Host ready.");
 
-// Common JSON options (converter fixes the dictionary key issue)
 var jsonOpts = new JsonSerializerOptions { WriteIndented = true };
 jsonOpts.Converters.Add(new DimensionKeyJsonConverter());
 
-// ---------------- CLI ----------------
 var cmd = args.FirstOrDefault()?.ToLowerInvariant();
 Logger.Info($"[CLI] Command = '{cmd ?? "(none)"}'");
 
@@ -256,6 +248,7 @@ switch (cmd)
 
     case "run-part":
         {
+            SolidWorksProcessKiller.KillAll(killVbaServer: true);
             var (article, subclass) = ParseArticleAndSubclass(args);
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
@@ -265,16 +258,16 @@ switch (cmd)
             string partTemplatePath;
             string equationTemplatePath;
 
-            // Map WedgeType → paths
             switch (wedgeTypeEnum)
             {
                 case WedgeType.COB:
                     partTemplatePath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
                     equationTemplatePath = Path.Combine("Resources", "Templates", "COB", "equations.txt");
                     break;
+
                 case WedgeType.OSG7:
                     partTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "COB", "equations.txt");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
                     break;
 
                 case WedgeType.CKVD:
@@ -332,6 +325,7 @@ switch (cmd)
 
     case "run-drawing":
         {
+            SolidWorksProcessKiller.KillAll(killVbaServer: true);
             var (article, subclass) = ParseArticleAndSubclass(args);
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
@@ -350,6 +344,18 @@ switch (cmd)
                     equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "COB", "equations.txt");
                     break;
 
+                case WedgeType.OSG7:
+                    templatePartPath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
+                    templateDrawingPath = dtype switch
+                    {
+                        DrawingType.Overlay =>
+                            Path.Combine("Resources", "Templates", "OSG7", "OSG7_OVERLAY_TEMPLATE.SLDDRW"),
+                        DrawingType.Production or DrawingType.Customer or _ =>
+                            Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDDRW"),
+                    };
+                    equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
+                    break;
+
                 case WedgeType.CKVD:
                 default:
                     templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT");
@@ -357,7 +363,6 @@ switch (cmd)
                     {
                         DrawingType.Overlay =>
                             Path.Combine("Resources", "Templates", "CKVD", "OVERLAY_TEMPLATE.SLDDRW"),
-
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDDRW"),
                     };
@@ -369,17 +374,14 @@ switch (cmd)
             Logger.Info($"[run-drawing] Template(Part)='{templatePartPath}'");
             Logger.Info($"[run-drawing] Template(Drawing)='{templateDrawingPath}'");
 
-            // 1) Load domain data
             var getWedge = host.Services.GetRequiredService<GetWedgeData>();
             var getDrawing = host.Services.GetRequiredService<GetDrawingData>();
             var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
             var drawingData = await getDrawing.ExecuteAsync(dtype, subclass, wedgeTypeEnum, article, CancellationToken.None);
 
-            // 2) Prepare a BASE output root
             var outputRootBase = Path.Combine("Resources", "Out");
             Directory.CreateDirectory(outputRootBase);
 
-            // 3) Plan all paths consistently (suffix-aware)
             var plan = PathPlanner.Build(
                 article: article,
                 subclass: subclass,
@@ -389,25 +391,19 @@ switch (cmd)
 
             var modDrawingPath = Path.Combine(plan.WorkDir, $"{plan.FileBase}.SLDDRW");
 
-            // 4) Prepare DrawingRun (use planned names)
             var run = new DrawingRun
             {
                 WedgeType = wedgeTypeEnum,
-
                 TemplatePartPath = templatePartPath,
                 TemplateDrawingPath = templateDrawingPath,
-
                 ModPartPath = plan.PartPath,
                 ModDrawingPath = modDrawingPath,
                 EquationsPath = plan.EquationsPath,
-
                 Wedge = wedgeData,
-
                 OutputPdfPath = plan.PdfPath,
                 OutputTiffPath = null
             };
 
-            // 5) Part phase in its own SW session
             string? partResultPath = null;
             try
             {
@@ -421,16 +417,10 @@ switch (cmd)
                     ArticleNumber = article,
                     Subclass = subclass,
                     DrawingType = dtype,
-
-                    // IMPORTANT: pass BASE root; orchestrator appends structure once
                     OutputRoot = outputRootBase,
-
                     PartTemplatePath = templatePartPath,
                     EquationTemplatePath = equationTemplatePathForPartPhase,
-
-                    // Critical: make PartAutomation use the same suffix the drawing phase expects
                     FileBase = plan.FileBase,
-
                     WedgeData = wedgeData,
                     WedgeType = wedgeTypeEnum
                 };
@@ -445,7 +435,6 @@ switch (cmd)
                 break;
             }
 
-            // 6) Drawing phase in a fresh SW session
             var sessFactory2 = host.Services.GetRequiredService<ISwSessionFactory>();
             using (var swDraw = sessFactory2.Create(visible: true))
             {
@@ -514,8 +503,8 @@ WAD.Runner CLI
 
 Data:
   get-wedge      --article <num> --subclass <FG|PGB>
-  get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> [--wtype CKVD|COB]
-  plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB]
+  get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> [--wtype CKVD|COB|OSG7]
+  plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
 
 Diagnostics:
   db-info        [--limit 20]
@@ -523,7 +512,7 @@ Diagnostics:
   show-article   --article <num>
 
 Part Automation:
-  run-part       --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB]
+  run-part       --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
                  Uses (by wtype):
                    CKVD:
                      Part template  : Resources/Templates/CKVD/CKVD_2023.SLDPRT
@@ -531,17 +520,13 @@ Part Automation:
                    COB:
                      Part template  : Resources/Templates/COB/COB_Template.SLDPRT
                      Equations file : Resources/Templates/COB/equations.txt
+                   OSG7:
+                     Part template  : Resources/Templates/OSG7/wedge_auto_draw_OSG7_3d.SLDPRT
+                     Equations file : Resources/Templates/OSG7/equations_OSG7.txt
                  Output root    : Resources/Out
-                 Pipeline:
-                   Load WedgeData → Start SW session → Copy templates → Open part
-                   → Activate config → **Write equations.txt from WedgeData** → Import equations
-                   → EnsureAllEquationsExist → Apply tolerances → Apply post rules → Rebuild → Save/Close
 
 Drawing Automation:
-  run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB]
-                 Pipeline:
-                   Load Wedge/Drawing data → Part phase (own SW session, applies eq/tols/post rules)
-                   → New SW session → FG/PGB drawing placement (Production/Customer/Overlay)
+  run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
                  Templates (by wtype):
                    CKVD:
                      Part          : Resources/Templates/CKVD/CKVD_2023.SLDPRT
@@ -551,24 +536,17 @@ Drawing Automation:
                    COB:
                      Part          : Resources/Templates/COB/COB_Template.SLDPRT
                      Drawing (all) : Resources/Templates/COB/COB_Drawings.SLDDRW
+                   OSG7:
+                     Part          : Resources/Templates/OSG7/wedge_auto_draw_OSG7_3d.SLDPRT
+                     Drawing (Prod): Resources/Templates/OSG7/OSG7_Production.SLDDRW
+                     Drawing (Ovrl): Resources/Templates/OSG7/OSG7_OVERLAY_TEMPLATE.SLDDRW
+                     Equations     : Resources/Templates/OSG7/equations_OSG7.txt
 
 API:
-  serve-api      Starts the minimal API host (health, run jobs, job status, download)
+  serve-api      Starts the minimal API host
 
 Examples:
-  # CKVD
-  dotnet run -- run-part    --article 3112955 --subclass FG  --dtype Production --wtype CKVD
-  dotnet run -- run-drawing --article 3112955 --subclass FG  --dtype Production --wtype CKVD
-
-  # COB (part + drawing)
-  dotnet run -- run-part    --article 2026200 --subclass FG  --dtype Production --wtype COB
-  dotnet run -- run-drawing --article 2026200 --subclass FG  --dtype Production --wtype COB
-
-  dotnet run -- get-wedge    --article 3112955 --subclass FG
-  dotnet run -- plan-lite    --article 3112955 --subclass FG --dtype Production --wtype CKVD
-
-  # API mode
-  dotnet run -- serve-api
+  dotnet run -- run-drawing --article 3118724 --subclass FG --dtype Production --wtype OSG7
 """);
 }
 

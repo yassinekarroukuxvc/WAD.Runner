@@ -12,7 +12,7 @@ using WAD.Runner.Application.UseCases;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
-using WAD.Runner.PartAutomation.Common;    // PathPlanner
+using WAD.Runner.PartAutomation.Common;
 using WAD.Runner.PartAutomation.Execution;
 using WAD.Runner.PartAutomation.Jobs;
 
@@ -47,15 +47,12 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
         if (payload.ArticleNumbers is null || payload.ArticleNumbers.Count == 0)
             throw new InvalidOperationException("Job payload has no ArticleNumbers.");
 
-        // Subclass: "FG" / "PGB"
         var subclassStr = (payload.Subclass ?? "FG").Trim();
         if (!Enum.TryParse<WedgeSubclass>(subclassStr, true, out var subclass))
             subclass = WedgeSubclass.FG;
 
-        // Drawing types: prefer normalized list, else legacy Options["drawingTypes"], else DrawingType
         var drawingTypeNames = ResolveDrawingTypes(job, payload);
 
-        // WedgeType from options["wedgeType"], default CKVD
         var wedgeTypeStr = payload.Options is not null &&
                            payload.Options.TryGetValue("wedgeType", out var wtype)
             ? wtype
@@ -65,10 +62,10 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
         var wedgeType = wedgeTypeStr switch
         {
             "COB" => WedgeType.COB,
+            "OSG7" => WedgeType.OSG7,
             _ => WedgeType.CKVD
         };
 
-        // Job-specific output root (API sets this to C:\WedgeJobs\<jobId>\results)
         var outputRootBase = payload.OutputFolder ?? Path.Combine("Resources", "Out");
         Directory.CreateDirectory(outputRootBase);
 
@@ -80,8 +77,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
         var orchestrator = sp.GetRequiredService<PartAutomationOrchestrator>();
         var sessFactory = sp.GetRequiredService<ISwSessionFactory>();
 
-        // Progress accounting:
-        // We report 3 times per (article,dtype): load + part + drawing.
         const int StepsPerRun = 3;
         var totalRuns = payload.ArticleNumbers.Count * drawingTypeNames.Count;
         var totalSteps = totalRuns * StepsPerRun;
@@ -100,7 +95,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                     "Job {JobId}: starting automation for article={Article}, subclass={Subclass}, type={Type}, wtype={WType}",
                     job.Id, article, subclass, dtype, wedgeType);
 
-                // 1) Load domain data
                 report(Progress(++doneSteps, totalSteps, $"Loading data for {article} ({dtype})…"));
 
                 var wedgeData = getWedge.ExecuteAsync(article, subclass, CancellationToken.None)
@@ -109,7 +103,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                 var drawingData = getDrawing.ExecuteAsync(dtype, subclass, wedgeType, article, CancellationToken.None)
                                             .GetAwaiter().GetResult();
 
-                // 2) Select templates
                 string templatePartPath;
                 string templateDrawingPath;
                 string equationTemplatePathForPartPhase;
@@ -120,6 +113,19 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                         templatePartPath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
                         templateDrawingPath = Path.Combine("Resources", "Templates", "COB", "COB_Drawings.SLDDRW");
                         equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "COB", "equations.txt");
+                        break;
+
+                    case WedgeType.OSG7:
+                        templatePartPath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
+                        templateDrawingPath = dtype switch
+                        {
+                            DrawingType.Overlay =>
+                                Path.Combine("Resources", "Templates", "OSG7", "OSG7_OVERLAY_TEMPLATE.SLDDRW"),
+
+                            DrawingType.Production or DrawingType.Customer or _ =>
+                                Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDDRW"),
+                        };
+                        equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
                         break;
 
                     case WedgeType.CKVD:
@@ -137,7 +143,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                         break;
                 }
 
-                // 3) Plan paths consistently (suffix-aware)
                 var plan = PathPlanner.Build(
                     article: article,
                     subclass: subclass,
@@ -164,7 +169,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                     OutputTiffPath = null
                 };
 
-                // 4) Part phase
                 report(Progress(++doneSteps, totalSteps, $"Running part phase for {article} ({dtype})…"));
 
                 string? partResultPath;
@@ -180,7 +184,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                         PartTemplatePath = templatePartPath,
                         EquationTemplatePath = equationTemplatePathForPartPhase,
 
-                        // Critical: force same file base that the drawing phase will expect
                         FileBase = plan.FileBase,
 
                         WedgeData = wedgeData,
@@ -191,7 +194,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                                  .GetAwaiter().GetResult();
                 }
 
-                // 5) Drawing phase
                 report(Progress(++doneSteps, totalSteps, $"Running drawing phase for {article} ({dtype})…"));
 
                 using (var swDraw = sessFactory.Create(visible: true))
@@ -258,11 +260,9 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
 
     private static List<string> ResolveDrawingTypes(JobInfo job, RunRequest payload)
     {
-        // 1) Already normalized by API (preferred)
         if (job.DrawingTypesNormalized is { Count: > 0 })
             return job.DrawingTypesNormalized;
 
-        // 2) Legacy: Options["drawingTypes"]
         if (payload.Options is not null &&
             payload.Options.TryGetValue("drawingTypes", out var csv) &&
             !string.IsNullOrWhiteSpace(csv))
@@ -277,7 +277,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                 return parsed;
         }
 
-        // 3) Fallback
         return new List<string> { (payload.DrawingType ?? "Production").Trim() };
     }
 

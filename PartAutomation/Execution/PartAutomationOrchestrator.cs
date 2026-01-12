@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,10 +10,10 @@ using SolidWorks.Interop.sldworks;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
+using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 using WAD.Runner.PartAutomation.Common;
-using WAD.Runner.PartAutomation.Execution;           // PartAutomationService
 using WAD.Runner.PartAutomation.Interfaces;
 using WAD.Runner.PartAutomation.Jobs;
 using WAD.Runner.PartAutomation.SolidWorks;
@@ -39,7 +40,9 @@ namespace WAD.Runner.PartAutomation.Execution
                 article: (job.ArticleNumber ?? "UNKNOWN").Trim(),
                 subclass: job.Subclass,
                 drawingType: job.DrawingType,
-                outputRoot: string.IsNullOrWhiteSpace(job.OutputRoot) ? Path.Combine("Resources", "Out") : job.OutputRoot!,
+                outputRoot: string.IsNullOrWhiteSpace(job.OutputRoot)
+                    ? Path.Combine("Resources", "Out")
+                    : job.OutputRoot!,
                 fileBase: job.FileBase
             );
 
@@ -74,7 +77,6 @@ namespace WAD.Runner.PartAutomation.Execution
                     };
 
                 effectiveDims = normalizer.Normalize(job.WedgeData, job.DrawingType);
-
                 EquationUpdater.UpdateEquationFile(equationsOutPath, effectiveDims, job.WedgeData, job.DrawingType);
             }
             else
@@ -90,40 +92,29 @@ namespace WAD.Runner.PartAutomation.Execution
             if (job.WedgeData is not null)
             {
                 var wedge = job.WedgeData;
-                var dims = effectiveDims ?? wedge.Dimensions;
 
-                if (job.WedgeType == WedgeType.OSG7)
-                {
-                    if (_partService is PartAutomationService svc)
-                    {
-                        Logger.Info("[PartOrchestrator] OSG7 → using direct EquationMgr upsert (no equation file import).");
-                        EquationUpdater.UpsertEquationsInModel(svc.Model, dims, wedge, job.DrawingType);
-                    }
-                    else
-                    {
-                        Logger.Warn("[PartOrchestrator] OSG7 → cannot access Model. Falling back to equation-file import.");
-                        _partService.UpdateEquations(equationsOutPath);
-                    }
-                }
-                else
-                {
-                    Logger.Info("[PartOrchestrator] Non-OSG7 → using equation-file import (default CKVD behavior).");
-                    _partService.UpdateEquations(equationsOutPath);
-                    _partService.RebuildPart();
-                }
+                Logger.Info("[PartOrchestrator] Importing equations from equation file.");
+                _partService.UpdateEquations(equationsOutPath);
+                _partService.RebuildPart();
 
                 _partService.EnsureAllEquationsExist(wedge);
 
-                var tolKeys = new[]
-                {
-                    new DimensionKey("TL"),
-                    new DimensionKey("TD"),
-                    new DimensionKey("TDF"),
-                    new DimensionKey("FL"),
-                    new DimensionKey("W")
-                };
+                var tolKeys = wedge.Dimensions
+                    .Where(kvp => kvp.Value.Nominal.Unit == UnitKind.Millimeter)
+                    .Where(kvp => !kvp.Value.Tol.IsZero)
+                    .Select(kvp => kvp.Key)
+                    .Distinct()
+                    .ToArray();
 
-                _partService.ApplyLengthTolerances(wedge, tolKeys);
+                if (tolKeys.Length == 0)
+                {
+                    Logger.Info("[PartOrchestrator] No non-zero length tolerances found in WedgeData.");
+                }
+                else
+                {
+                    _partService.ApplyLengthTolerances(wedge, tolKeys);
+                }
+
                 _partService.ApplyPostRules(job.WedgeType, wedge, job.DrawingType);
             }
             else

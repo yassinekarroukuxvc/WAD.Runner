@@ -100,6 +100,47 @@ public static class ProfilePresets
         Section: "COB_PGB_Ovl_Section"
     );
 
+    // OSG7 (set these to match your OSG7 drawing templates)
+    private static ViewNames Osg7FgProductionViews() => new(
+        Front: "Drawing View3",
+        Side: "Drawing View2",
+        Top: "Drawing View1",
+        Detail: "Drawing View4",
+        Section: "Section View A-A"
+    );
+
+    private static ViewNames Osg7FgCustomerViews() => new(
+        Front: "OSG7_FG_Cust_Front",
+        Side: "OSG7_FG_Cust_Side",
+        Top: "OSG7_FG_Cust_Top",
+        Detail: "OSG7_FG_Cust_Detail",
+        Section: "OSG7_FG_Cust_Section"
+    );
+
+    private static ViewNames Osg7FgOverlayViews() => new(
+        Front: "OSG7_FG_Ovl_Front",
+        Side: "OSG7_FG_Ovl_Side",
+        Top: "OSG7_FG_Ovl_Top",
+        Detail: "OSG7_FG_Ovl_Detail",
+        Section: "OSG7_FG_Ovl_Section"
+    );
+
+    private static ViewNames Osg7PgbProductionViews() => new(
+        Front: "OSG7_PGB_Prod_Front",
+        Side: "OSG7_PGB_Prod_Side",
+        Top: "OSG7_PGB_Prod_Top",
+        Detail: "OSG7_PGB_Prod_Detail",
+        Section: "OSG7_PGB_Prod_Section"
+    );
+
+    private static ViewNames Osg7PgbOverlayViews() => new(
+        Front: "OSG7_PGB_Ovl_Front",
+        Side: "OSG7_PGB_Ovl_Side",
+        Top: "OSG7_PGB_Ovl_Top",
+        Detail: "OSG7_PGB_Ovl_Detail",
+        Section: "OSG7_PGB_Ovl_Section"
+    );
+
     private static Func<IEnumerable<string>, string> Prefer(string preferred)
         => (available) =>
         {
@@ -160,6 +201,61 @@ public static class ProfilePresets
         SheetSelector: Prefer("PGB_OVERLAY"),
         ViewsOrder: StdOrder,
         Views: CkvdPgbOverlayViews(),
+        UseBreaklinesForView: v => false,
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile Osg7FgProduction() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
+        ProfileName: "OSG7 FG Production",
+        SheetSelector: Prefer("PRODUCTION"),
+        ViewsOrder: StdOrder,
+        Views: Osg7FgProductionViews(),
+        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile Osg7FgCustomer() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Customer),
+        ProfileName: "OSG7 FG Customer",
+        SheetSelector: Prefer("CUSTOMER"),
+        ViewsOrder: StdOrder,
+        Views: Osg7FgCustomerViews(),
+        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile Osg7FgOverlay() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay),
+        ProfileName: "OSG7 FG Overlay",
+        SheetSelector: Prefer("OVERLAY"),
+        ViewsOrder: StdOrder,
+        Views: Osg7FgOverlayViews(),
+        UseBreaklinesForView: v => false,
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile Osg7PgbProduction() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Production),
+        ProfileName: "OSG7 PGB Production",
+        SheetSelector: Prefer("PGB"),
+        ViewsOrder: StdOrder,
+        Views: Osg7PgbProductionViews(),
+        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile Osg7PgbOverlay() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Overlay),
+        ProfileName: "OSG7 PGB Overlay",
+        SheetSelector: Prefer("PGB_OVERLAY"),
+        ViewsOrder: StdOrder,
+        Views: Osg7PgbOverlayViews(),
         UseBreaklinesForView: v => false,
         ScaleForView: (_, fb) => Keep(fb),
         Scale: DefaultScale

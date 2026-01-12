@@ -4,16 +4,16 @@ using System.Collections.Generic;
 using System.Linq;
 using SolidWorks.Interop.sldworks;
 
-using WAD.Runner.Application;                          // Logger
-using WAD.Runner.DataManagement.Domain.Drawing;       // DrawingData, DrawingType
-using WAD.Runner.DataManagement.Domain.Planning;      // LayoutContext, PlannerDiagnostics, DimensionRules
-using WAD.Runner.DataManagement.Domain.Wedge;         // WedgeSubclass, WedgeData, WedgeType
-using WAD.Runner.DrawingAutomation.Common;            // DrawingExecutorCommon
-using WAD.Runner.DrawingAutomation.SolidWorks;        // DrawingService
-using WAD.Runner.DrawingAutomation.Views;             // ViewPlacementService, SecondaryViewPlacementService, ViewAutoScaleService, BreaklineHandler, AnnotationPositioner, AnnotationCleanupService
-using WAD.Runner.DrawingAutomation.Profiles;          // ProfileRegistry, ProfileHelpers
-using WAD.Runner.DrawingAutomation.Metadata;          // MetadataApplier
-using WAD.Runner.DrawingAutomation.Tables;            // TableService
+using WAD.Runner.Application;
+using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Planning;
+using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DrawingAutomation.Common;
+using WAD.Runner.DrawingAutomation.SolidWorks;
+using WAD.Runner.DrawingAutomation.Views;
+using WAD.Runner.DrawingAutomation.Profiles;
+using WAD.Runner.DrawingAutomation.Metadata;
+using WAD.Runner.DrawingAutomation.Tables;
 
 namespace WAD.Runner.DrawingAutomation.Executors.FG
 {
@@ -40,15 +40,16 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
 
             Logger.Info("=== WAD ▶ FG/Production (Placement + Autoscale) ===");
 
-            // 🔹 Decide which profile set to use: CKVD vs COB
-            var wedgeType = run.WedgeType; // new property on DrawingRun
+            var wedgeType = run.WedgeType;
 
             DrawingProfile profile = wedgeType switch
             {
                 WedgeType.COB =>
                     ProfileRegistry.GetCob(run.Wedge.Subclass, drawingData.DrawingType),
 
-                // Default: CKVD behavior (backwards compatible)
+                WedgeType.OSG7 =>
+                    ProfileRegistry.GetOsg7(run.Wedge.Subclass, drawingData.DrawingType),
+
                 _ =>
                     ProfileRegistry.GetCkvd(run.Wedge.Subclass, drawingData.DrawingType)
             };
@@ -81,9 +82,8 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             }
             ds.ZoomToSheet();
 
-            var nameMap = ProfileHelpers.ToNameMap(profile); // logical -> actual SW view name
+            var nameMap = ProfileHelpers.ToNameMap(profile);
 
-            // ---- PLACE VIEWS FIRST -------------------------------------------------
             Logger.Info("[4/11] Place Front/Side/Top views…");
             var placer = new ViewPlacementService(ds, nameMap);
             placer.Apply("Front", drawingData);
@@ -94,7 +94,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             var secondary = new SecondaryViewPlacementService(ds, nameMap);
             placer.ApplyDetailAndSection(drawingData);
 
-            // ---- BREAKLINES BEFORE AUTOSCALE --------------------------------------
             EnsureBreaklineGaps(drawingData);
 
             Logger.Info("[6/11] Breaklines (pre-autoscale)…");
@@ -116,6 +115,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                             Logger.Warn($"Breakline: view '{logicalViewName}' not found (skipping).");
                             return;
                         }
+
                         var bl = new BreaklineHandler(view, model);
                         var ok = bl.ApplyBreakline(
                             logicalViewName,
@@ -123,6 +123,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                             run.Wedge.Subclass,
                             run.Wedge,
                             drawingData);
+
                         if (!ok) Logger.Warn($"Breakline: apply failed for '{logicalViewName}'.");
                     }
 
@@ -137,10 +138,8 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 Logger.Warn($"Breaklines step encountered an error (continuing): {ex.Message}");
             }
 
-            // Rebuild so SW updates outlines before we measure for autoscale
             ds.Rebuild();
 
-            // ---- AUTOSCALE AFTER BREAKLINES ---------------------------------------
             Logger.Info("[7/11] Compute unified scale from Front outline (post-breaklines) …");
             var autoscale = new ViewAutoScaleService(ds);
             var policy = ProfileHelpers.ToAutoScalePolicy(profile.Scale);
@@ -149,7 +148,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 $"[Exec] Scales → Front={drawingData.Views["Front"].Scale:0.###}, " +
                 $"Side={drawingData.Views["Side"].Scale:0.###}, Top={drawingData.Views["Top"].Scale:0.###}");
 
-            // Some services only set the scale; re-apply placements to lock target positions at new scales
             Logger.Info("[7b/11] Re-apply placements at new scales…");
             placer.Apply("Front", drawingData);
             placer.Apply("Side", drawingData);
@@ -157,7 +155,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             placer.ApplyDetailAndSection(drawingData);
             ds.Rebuild();
 
-            // ---- REPLAN DIMS WITH FINAL SCALES ------------------------------------
             Logger.Info("[8/11] Replan dimensions with final scales…");
             var ctx2 = new LayoutContext(run.Wedge, drawingData);
             var diag2 = new PlannerDiagnostics();
@@ -172,7 +169,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             }).ToList();
             Logger.Info($"[8/11] Replanned dims count = {plannedDimsReplanned.Count}");
 
-            // ---- APPLY ANNOTATIONS -------------------------------------------------
             Logger.Info("[9/11] Apply planned annotation positions…");
             try
             {
@@ -184,19 +180,17 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 Logger.Warn($"[DimPos] Skipped due to error: {ex.Message}");
             }
 
-            // ---- APPLY METADATA TO DRAWING PROPERTIES -----------------------------
             Logger.Info("[10/11] Apply metadata to drawing properties…");
             try
             {
                 MetadataApplier.Apply(ds, drawingData, run.Wedge);
-                ds.Rebuild(); // ensure title block notes refresh
+                ds.Rebuild();
             }
             catch (Exception ex)
             {
                 Logger.Warn($"Metadata apply failed (continuing): {ex.Message}");
             }
 
-            // ---- TABLES (simple create) -------------------------------------------
             Logger.Info("[10b/11] Create tables…");
             try
             {
@@ -249,7 +243,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                         Logger.Warn($"CreatePolishTable failed: {ex.Message}");
                     }
 
-                    ds.Rebuild(); // reflect tables before export
+                    ds.Rebuild();
                 }
             }
             catch (Exception ex)
@@ -257,7 +251,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 Logger.Warn($"Tables step encountered an error (continuing): {ex.Message}");
             }
 
-            // ---- DATA-DRIVEN ZERO DIMENSION CLEANUP -------------------------------
             Logger.Info("[10c/11] Cleanup zero-valued dimensions based on planning data…");
             try
             {
@@ -268,7 +261,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 Logger.Warn($"Zero-dimension cleanup failed (continuing): {ex.Message}");
             }
 
-            // ---- EXPORT ------------------------------------------------------------
             Logger.Info("[11/11] Export & finalize…");
             DrawingExecutorCommon.FinalizeProduction(swApp, ds, run.OutputPdfPath);
             Logger.Success("FG/Production drawing execution completed.");
@@ -303,6 +295,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             try
             {
                 if (ds?.Drawing is not DrawingDoc dd) return null;
+
                 string actualName = logicalName;
                 if (nameMap != null &&
                     nameMap.TryGetValue(logicalName, out var mapped) &&
@@ -313,7 +306,8 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
 
                 View v = dd.IGetFirstView();
                 if (v == null) return null;
-                v = v.IGetNextView(); // skip sheet
+                v = v.IGetNextView();
+
                 int guard = 0;
                 while (v != null && guard++ < 512)
                 {
@@ -335,6 +329,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             {
                 Logger.Warn($"FindView('{logicalName}') failed: {ex.Message}");
             }
+
             return null;
         }
     }
