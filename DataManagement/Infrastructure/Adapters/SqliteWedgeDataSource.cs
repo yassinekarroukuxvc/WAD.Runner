@@ -1,11 +1,19 @@
-﻿using Microsoft.Extensions.Logging;
+﻿// DataManagement/Infrastructure/Adapters/SqliteWedgeDataSource.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+
 using WAD.Runner.Application.Ports;
-using WAD.Runner.DataManagement.Infrastructure.Transport.Dtos;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Infrastructure.Mapping;
 using WAD.Runner.DataManagement.Infrastructure.Parsing;
 using WAD.Runner.DataManagement.Infrastructure.Sqlite;
+using WAD.Runner.DataManagement.Infrastructure.Transport.Dtos;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Adapters;
 
@@ -30,7 +38,7 @@ public sealed class SqliteWedgeDataSource : IWedgeDataSource
 
     public SqliteWedgeDataSource(ProAlphaRepository repo, int firma, string language, ILogger<SqliteWedgeDataSource>? log = null)
     {
-        _repo = repo;
+        _repo = repo ?? throw new ArgumentNullException(nameof(repo));
         _firma = firma;
         _language = string.IsNullOrWhiteSpace(language) ? "E" : language.Trim();
         _log = log ?? NullLogger<SqliteWedgeDataSource>.Instance;
@@ -57,7 +65,6 @@ public sealed class SqliteWedgeDataSource : IWedgeDataSource
             var desc = await _repo.GetArticleDescriptionAsync(_firma, articleNumber, _language, ct);
             if (!string.IsNullOrWhiteSpace(desc))
             {
-                Console.WriteLine("$DEEEZ NUTS");
                 baseWedge = WithProperty(baseWedge, "article_description", desc);
             }
         }
@@ -87,7 +94,24 @@ public sealed class SqliteWedgeDataSource : IWedgeDataSource
             WedPolish: Get(spec1Rows, "Wed-Polish"),
             WedPS: Get(spec1Rows, "Wed-PS"),
             WedNotes: Get(spec1Rows, "Wed-Notes"),
-            WedOverlay: Get(spec1Rows, "Wed-Overlay")
+            WedOverlay: Get(spec1Rows, "Wed-Overlay"),
+
+            WedEngrave: Get(spec1Rows, "Wed-Engrave"),
+            WedCoining: Get(spec1Rows, "Wed-Coining"),
+
+            // NEW (COB / UT-US metadata fields)
+            WedType: Get(spec1Rows, "Wed-Type"),
+            WedFootOption: Get(spec1Rows, "Wed-Foot_Option"),
+            WedWireExit: Get(spec1Rows, "Wed-Wire_Exit"),
+            WedFeedHSlot: Get(spec1Rows, "Wed-Feed_H/Slot"),
+
+            DwgText1: Get(spec1Rows, "Wed-Dwg-Text1"),
+            DwgText2: Get(spec1Rows, "Wed-Dwg-Text2"),
+            DwgText3: Get(spec1Rows, "Wed-Dwg-Text3"),
+            DwgText4: Get(spec1Rows, "Wed-Dwg-Text4"),
+            DwgText5: Get(spec1Rows, "Wed-Dwg-Text5"),
+            DwgText6: Get(spec1Rows, "Wed-Dwg-Text6"),
+            DwgText7: Get(spec1Rows, "Wed-Dwg-Text7")
         );
 
         var spec2Dto = spec2Rows
@@ -126,7 +150,24 @@ public sealed class SqliteWedgeDataSource : IWedgeDataSource
             ArticleNumber: articleNumber,
             Polish: Get(spec1Rows, "PGB-Polish"),
             PS: Get(spec1Rows, "PGB-PS"),
-            Remarks: Get(spec1Rows, "PGB-Remarks")
+            Remarks: Get(spec1Rows, "PGB-Remarks"),
+
+            Engrave: Get(spec1Rows, "Wed-Engrave"),
+            FLBlank: Get(spec1Rows, "Wed-FL-Blank"),
+
+            DwgText1: Get(spec1Rows, "Wed-Dwg-Text1"),
+            DwgText2: Get(spec1Rows, "Wed-Dwg-Text2"),
+            DwgText3: Get(spec1Rows, "Wed-Dwg-Text3"),
+            DwgText4: Get(spec1Rows, "Wed-Dwg-Text4"),
+            DwgText5: Get(spec1Rows, "Wed-Dwg-Text5"),
+            DwgText6: Get(spec1Rows, "Wed-Dwg-Text6"),
+            DwgText7: Get(spec1Rows, "Wed-Dwg-Text7"),
+
+            // NEW (align PGB with Wed metadata fields too)
+            WedType: Get(spec1Rows, "Wed-Type"),
+            WedFootOption: Get(spec1Rows, "Wed-Foot_Option"),
+            WedWireExit: Get(spec1Rows, "Wed-Wire_Exit"),
+            WedFeedHSlot: Get(spec1Rows, "Wed-Feed_H/Slot")
         );
 
         var spec2Dto = spec2Rows
@@ -146,6 +187,7 @@ public sealed class SqliteWedgeDataSource : IWedgeDataSource
         {
             [key] = value
         };
+
         return new WedgeData(
             articleNumber: w.ArticleNumber,
             subclass: w.Subclass,

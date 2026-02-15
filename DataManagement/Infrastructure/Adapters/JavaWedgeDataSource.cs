@@ -1,4 +1,10 @@
-﻿using Microsoft.Extensions.Logging;
+﻿// DataManagement/Infrastructure/Adapters/JavaWedgeDataSource.cs
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Microsoft.Extensions.Logging;
+
 using WAD.Runner.Application.Ports;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Infrastructure.Mapping;
@@ -18,7 +24,7 @@ public sealed class JavaWedgeDataSource : IWedgeDataSource
 
     public JavaWedgeDataSource(IJavaWedgeTransport api, ILogger<JavaWedgeDataSource>? log = null)
     {
-        _api = api;
+        _api = api ?? throw new ArgumentNullException(nameof(api));
         _log = log;
     }
 
@@ -42,6 +48,14 @@ public sealed class JavaWedgeDataSource : IWedgeDataSource
                     if (spec2 is null || spec2.Count == 0)
                         throw new InvalidOperationException($"No Wed-Spec2 rows returned for article {articleNumber}.");
 
+                    // NOTE:
+                    // The client mappings (Wed-Engrave, Wed-Dwg-Text1..7, Wed-Coining) are handled in the
+                    // DataManagement mapping layer (WedgeDataAssembler) PROVIDED the transport returns them
+                    // as part of Wed-Spec1.
+                    //
+                    // If the Java API already returns those fields in spec1, no extra work is needed here.
+                    // If not, the transport DTO must be extended to include them.
+
                     var wd = WedgeDataAssembler.BuildForWed(spec1, spec2, kvalue, marking);
                     _log?.LogInformation("Loaded FG wedge data: {Article} with {DimCount} dims", wd.ArticleNumber, wd.Dimensions.Count);
                     return wd;
@@ -55,6 +69,11 @@ public sealed class JavaWedgeDataSource : IWedgeDataSource
 
                     if (spec2 is null || spec2.Count == 0)
                         throw new InvalidOperationException($"No PGB-Spec2 rows returned for article {articleNumber}.");
+
+                    // NOTE:
+                    // The client mappings (Wed-Engrave, Wed-Dwg-Text1..7, Wed-FL-Blank) should be returned
+                    // by the Java API as part of PGB-Spec1. As long as the transport DTO is updated to
+                    // include these fields, WedgeDataAssembler will normalize them into WedgeData.Properties.
 
                     var wd = WedgeDataAssembler.BuildForPgb(spec1, spec2);
                     _log?.LogInformation("Loaded PGB wedge data: {Article} with {DimCount} dims", wd.ArticleNumber, wd.Dimensions.Count);

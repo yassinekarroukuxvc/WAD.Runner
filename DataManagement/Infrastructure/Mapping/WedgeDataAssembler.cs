@@ -42,8 +42,25 @@ public static class WedgeDataAssembler
             ["Wed-Polish"] = NullIfWhite(spec1.WedPolish),
             ["Wed-PS"] = NullIfWhite(spec1.WedPS),
             ["Wed-Notes"] = NullIfWhite(spec1.WedNotes),
-            ["Wed-Overlay"] = NullIfWhite(spec1.WedOverlay)
+            ["Wed-Overlay"] = NullIfWhite(spec1.WedOverlay),
+
+            ["Wed-Engrave"] = NullIfWhite(spec1.WedEngrave),
+            ["Wed-Coining"] = NullIfWhite(spec1.WedCoining),
+
+            ["Wed-Dwg-Text1"] = NullIfWhite(spec1.DwgText1),
+            ["Wed-Dwg-Text2"] = NullIfWhite(spec1.DwgText2),
+            ["Wed-Dwg-Text3"] = NullIfWhite(spec1.DwgText3),
+            ["Wed-Dwg-Text4"] = NullIfWhite(spec1.DwgText4),
+            ["Wed-Dwg-Text5"] = NullIfWhite(spec1.DwgText5),
+            ["Wed-Dwg-Text6"] = NullIfWhite(spec1.DwgText6),
+            ["Wed-Dwg-Text7"] = NullIfWhite(spec1.DwgText7),
+
+            ["Wed-Type"] = NullIfWhite(spec1.WedType),
+            ["Wed-Foot_Option"] = NullIfWhite(spec1.WedFootOption),
+            ["Wed-Wire_Exit"] = NullIfWhite(spec1.WedWireExit),
+            ["Wed-Feed_H/Slot"] = NullIfWhite(spec1.WedFeedHSlot),
         };
+
 
         return new WedgeData(
             articleNumber: spec1.ArticleNumber,
@@ -70,8 +87,27 @@ public static class WedgeDataAssembler
         {
             ["PGB-Polish"] = NullIfWhite(spec1.Polish),
             ["PGB-PS"] = NullIfWhite(spec1.PS),
-            ["PGB-Remarks"] = NullIfWhite(spec1.Remarks)
+            ["PGB-Remarks"] = NullIfWhite(spec1.Remarks),
+
+            // NEW (client-aligned naming)
+            ["Wed-Engrave"] = NullIfWhite(spec1.Engrave),
+            ["Wed-Coining"] = NullIfWhite(spec1.FLBlank),
+
+            ["Wed-Dwg-Text1"] = NullIfWhite(spec1.DwgText1),
+            ["Wed-Dwg-Text2"] = NullIfWhite(spec1.DwgText2),
+            ["Wed-Dwg-Text3"] = NullIfWhite(spec1.DwgText3),
+            ["Wed-Dwg-Text4"] = NullIfWhite(spec1.DwgText4),
+            ["Wed-Dwg-Text5"] = NullIfWhite(spec1.DwgText5),
+            ["Wed-Dwg-Text6"] = NullIfWhite(spec1.DwgText6),
+            ["Wed-Dwg-Text7"] = NullIfWhite(spec1.DwgText7),
+
+            ["Wed-Type"] = NullIfWhite(spec1.WedType),
+            ["Wed-Foot_Option"] = NullIfWhite(spec1.WedFootOption),
+            ["Wed-Wire_Exit"] = NullIfWhite(spec1.WedWireExit),
+            ["Wed-Feed_H/Slot"] = NullIfWhite(spec1.WedFeedHSlot),
+
         };
+
 
         return new WedgeData(
             articleNumber: spec1.ArticleNumber,
