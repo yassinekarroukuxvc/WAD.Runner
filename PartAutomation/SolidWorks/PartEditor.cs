@@ -1,5 +1,6 @@
 ﻿// PartAutomation/SolidWorks/PartEditor.cs
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -9,12 +10,17 @@ using System.Reflection;
 using Sw = SolidWorks.Interop.sldworks;
 using SwConst = SolidWorks.Interop.swconst;
 using SwDim = SolidWorks.Interop.sldworks.Dimension;
-using SwFeat = SolidWorks.Interop.sldworks.Feature;
 using SwPart = SolidWorks.Interop.sldworks.PartDoc;
+
+using SolidWorks.Interop.sldworks;
+using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Wedge;
+
+using WAD.Runner.PartAutomation.Rules; // FeatureTogglePlan
+using WAD.Runner.PartAutomation.SolidWorks.Interop;
 
 namespace WAD.Runner.PartAutomation.SolidWorks;
 
@@ -26,7 +32,14 @@ public sealed class PartEditor
     private string _partPath = "";
     private int _err = 0, _warn = 0;
 
+    // Case-insensitive feature map (mirrors VBA dictionary)
+    private IReadOnlyDictionary<string, Feature>? _featMap;
+
+    // Optional: keep the full result (if FeatureIndex.Result contains more metadata)
+    private FeatureIndex.Result? _featIndex;
+
     public PartEditor(Sw.SldWorks sw) => _sw = sw;
+
     public Sw.ModelDoc2 Model => _model ?? throw new InvalidOperationException("No active part loaded.");
 
     public void Open(string partPath)
@@ -60,13 +73,19 @@ public sealed class PartEditor
             Logger.Warn($"[PartEditor] OpenDoc6 returned null (err={_err}, warn={_warn}). Trying OpenDoc7...");
             try
             {
-                dynamic spec = _sw.GetOpenDocSpec(full);
-                spec.DocumentType = (int)SwConst.swDocumentTypes_e.swDocPART;
-                spec.Silent = true;
-                spec.ReadOnly = false;
-                spec.LightWeight = false;
-                doc = _sw.OpenDoc7(spec);
-                Logger.Info($"[PartEditor] OpenDoc7 returned {(doc is null ? "null" : "a document")}.");
+                // OpenDocSpec is COM; keep it simple and safe
+                var specObj = _sw.GetOpenDocSpec(full);
+                if (specObj != null)
+                {
+                    var specType = specObj.GetType();
+                    specType.InvokeMember("DocumentType", BindingFlags.SetProperty, null, specObj, new object[] { (int)SwConst.swDocumentTypes_e.swDocPART });
+                    specType.InvokeMember("Silent", BindingFlags.SetProperty, null, specObj, new object[] { true });
+                    specType.InvokeMember("ReadOnly", BindingFlags.SetProperty, null, specObj, new object[] { false });
+                    specType.InvokeMember("LightWeight", BindingFlags.SetProperty, null, specObj, new object[] { false });
+
+                    doc = _sw.OpenDoc7(specObj);
+                    Logger.Info($"[PartEditor] OpenDoc7 returned {(doc is null ? "null" : "a document")}.");
+                }
             }
             catch (Exception ex)
             {
@@ -86,6 +105,7 @@ public sealed class PartEditor
         _ext = _model.Extension;
         Logger.Success($"[PartEditor] Part opened: {_partPath}");
 
+        RefreshFeatureIndex();
         Rebuild();
     }
 
@@ -109,8 +129,23 @@ public sealed class PartEditor
     public void Close()
     {
         Logger.Info($"[PartEditor] Close → '{(_partPath ?? "(null)")}'");
-        try { _sw.CloseDoc(_partPath); Logger.Success("[PartEditor] Closed."); }
-        catch (Exception ex) { Logger.Warn($"[PartEditor] Close exception: {ex.Message}"); }
+        try
+        {
+            _sw.CloseDoc(_partPath);
+            Logger.Success("[PartEditor] Closed.");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"[PartEditor] Close exception: {ex.Message}");
+        }
+        finally
+        {
+            _featIndex = null;
+            _featMap = null;
+            _ext = null;
+            _model = null;
+            _partPath = "";
+        }
     }
 
     public void Rebuild()
@@ -152,13 +187,24 @@ public sealed class PartEditor
 
             _model.ShowConfiguration2(target);
             Logger.Success($"[PartEditor] Activated configuration: {target}");
+
             Rebuild();
+            RefreshFeatureIndex();
         }
         catch (Exception ex)
         {
             Logger.Warn($"[PartEditor] ActivateConfiguration failed: {ex.Message}");
-            try { _model.ShowConfiguration2(configName); Logger.Success($"[PartEditor] Activated configuration (fallback): {configName}"); Rebuild(); }
-            catch { Logger.Error("[PartEditor] Fallback activation failed."); }
+            try
+            {
+                _model.ShowConfiguration2(configName);
+                Logger.Success($"[PartEditor] Activated configuration (fallback): {configName}");
+                Rebuild();
+                RefreshFeatureIndex();
+            }
+            catch
+            {
+                Logger.Error("[PartEditor] Fallback activation failed.");
+            }
         }
     }
 
@@ -175,22 +221,33 @@ public sealed class PartEditor
 
         bool prevAutoSolve = eq.AutomaticSolveOrder;
         bool prevAutoRebuild = eq.AutomaticRebuild;
+        string prevPath = eq.FilePath;
+
         try
         {
             eq.AutomaticSolveOrder = true;
             eq.AutomaticRebuild = true;
+
+            // NOTE: This sets the active part's EquationMgr link to this path.
+            // If you don't want the generated part to remain linked to the template file,
+            // you must pass a job-local copied equations.txt path here (caller responsibility).
             eq.FilePath = equationFilePath;
 
             var ok = eq.UpdateValuesFromExternalEquationFile();
             Logger.Info($"[PartEditor] UpdateValuesFromExternalEquationFile() → {ok}");
 
             Rebuild();
+            RefreshFeatureIndex(); // equations can drive suppression / feature state indirectly
             Logger.Success("[PartEditor] Equations updated and rebuild completed.");
         }
         finally
         {
             eq.AutomaticSolveOrder = prevAutoSolve;
             eq.AutomaticRebuild = prevAutoRebuild;
+
+            // If you want to restore the previous link, keep this. If you want to keep the new one, remove.
+            // Keeping restore here makes PartEditor "non-destructive" w.r.t. prior linkage.
+            try { eq.FilePath = prevPath; } catch { }
         }
     }
 
@@ -279,7 +336,7 @@ public sealed class PartEditor
                 BindingFlags.InvokeMethod,
                 null,
                 eqMgr,
-                new object[] { eq, true });
+                new object[] { -1, eq, true, (int)swInConfigurationOpts_e.swThisConfiguration, null });
             return;
         }
         catch { }
@@ -291,7 +348,7 @@ public sealed class PartEditor
                 BindingFlags.InvokeMethod,
                 null,
                 eqMgr,
-                new object[] { eq, true });
+                new object[] { -1, eq, true });
             return;
         }
         catch { }
@@ -311,41 +368,191 @@ public sealed class PartEditor
         return s;
     }
 
-    // --------------------------- Best solution: Macro-style suppression ---------------------------
+    // --------------------------- Feature Tree control (modified: no dynamic) ---------------------------
 
-    /// <summary>
-    /// Macro-faithful suppression: no selection, no SelectByID2.
-    /// Works for sketches, planes, sub-features, and suppressed items.
-    /// </summary>
+    private static readonly ConcurrentDictionary<Type, (PropertyInfo? PropEnable, MethodInfo? MethEnable, MethodInfo? MethWindow)> _fmCache = new();
+
+    public void DisableFeatureTree()
+    {
+        try
+        {
+            var fmObj = Model.FeatureManager;
+            if (fmObj is null) return;
+
+            var meta = _fmCache.GetOrAdd(fmObj.GetType(), ResolveFeatureManagerMeta);
+
+            // Try property first, then methods (PIA differences)
+            try { meta.PropEnable?.SetValue(fmObj, false); } catch { }
+            try { meta.MethEnable?.Invoke(fmObj, new object?[] { false }); } catch { }
+            try { meta.MethWindow?.Invoke(fmObj, new object?[] { false }); } catch { }
+
+            Logger.Info("[PartEditor] Feature tree disabled.");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"[PartEditor] DisableFeatureTree failed (ignored): {ex.Message}");
+        }
+    }
+
+    public void EnableFeatureTree()
+    {
+        try
+        {
+            var fmObj = Model.FeatureManager;
+            if (fmObj is null) return;
+
+            var meta = _fmCache.GetOrAdd(fmObj.GetType(), ResolveFeatureManagerMeta);
+
+            try { meta.PropEnable?.SetValue(fmObj, true); } catch { }
+            try { meta.MethEnable?.Invoke(fmObj, new object?[] { true }); } catch { }
+            try { meta.MethWindow?.Invoke(fmObj, new object?[] { true }); } catch { }
+
+            Logger.Info("[PartEditor] Feature tree enabled.");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"[PartEditor] EnableFeatureTree failed (ignored): {ex.Message}");
+        }
+    }
+
+    private static (PropertyInfo? PropEnable, MethodInfo? MethEnable, MethodInfo? MethWindow) ResolveFeatureManagerMeta(Type t)
+    {
+        var prop = t.GetProperty("EnableFeatureTree", BindingFlags.Instance | BindingFlags.Public);
+        var methEnable = t.GetMethod("EnableFeatureTree", BindingFlags.Instance | BindingFlags.Public, binder: null, types: new[] { typeof(bool) }, modifiers: null);
+        var methWindow = t.GetMethod("EnableFeatureTreeWindow", BindingFlags.Instance | BindingFlags.Public, binder: null, types: new[] { typeof(bool) }, modifiers: null);
+        return (prop, methEnable, methWindow);
+    }
+
+    // --------------------------- Feature indexing + suppression (VBA-style) ---------------------------
+
+    public void RefreshFeatureIndex()
+    {
+        try
+        {
+            // ✅ FIX: FeatureIndex.Build returns FeatureIndex.Result
+            _featIndex = FeatureIndex.Build(Model);
+
+            // ✅ FIX: assign the dictionary map
+            _featMap = _featIndex.Map;
+
+            Logger.Info($"[PartEditor] FeatureIndex built: {_featMap.Count} entries.");
+        }
+        catch (Exception ex)
+        {
+            _featIndex = null;
+            _featMap = null;
+            Logger.Warn($"[PartEditor] FeatureIndex build failed: {ex.Message}");
+        }
+    }
+
+    public void ApplyFeaturePlan(FeatureTogglePlan plan, Action<string>? log = null)
+    {
+        if (plan == null) throw new ArgumentNullException(nameof(plan));
+
+        RefreshFeatureIndex();
+
+        if (_featMap == null)
+        {
+            log?.Invoke("[PartEditor] ApplyFeaturePlan: feature index missing; cannot apply plan.");
+            return;
+        }
+
+        DisableFeatureTree();
+
+        var scoped = new RebuildGuard(Model);
+        try
+        {
+            log?.Invoke($"[PartEditor] ApplyFeaturePlan → OFF={plan.Off.Count}, ON={plan.On.Count}");
+
+            FeatureSuppression.Apply(_featMap, plan.Off, suppress: true, log: log);
+            FeatureSuppression.Apply(_featMap, plan.On, suppress: false, log: log);
+        }
+        finally
+        {
+            scoped.Dispose();
+            EnableFeatureTree();
+        }
+    }
+
     public void SuppressFeature(string name, bool suppress)
     {
-        Logger.Info($"[PartEditor] SuppressFeature → name='{name}', suppress={suppress}");
+        if (string.IsNullOrWhiteSpace(name)) return;
 
-        var feat = FindFirstFeatureByExact(name);
-        if (feat is null)
+        if (_featMap == null) RefreshFeatureIndex();
+
+        var key = name.Trim();
+        if (_featMap == null || !_featMap.TryGetValue(key, out var feat) || feat is null)
         {
             Logger.Warn($"[PartEditor] Feature not found: {name}");
             return;
         }
 
-        ApplySuppression(feat, suppress);
-        Logger.Success($"[PartEditor] {(suppress ? "suppressed" : "unsuppressed")}: {name}");
+        // Use ONLY the fast method (no TryIsSuppressed anywhere)
+        var cfgOpt = (int)swInConfigurationOpts_e.swThisConfiguration;
+        if (FeatureSuppression.TryIsSuppressedFast(feat, cfgOpt, out var isSuppressed) && isSuppressed == suppress)
+            return;
+
+        int action = suppress
+            ? (int)swFeatureSuppressionAction_e.swSuppressFeature
+            : (int)swFeatureSuppressionAction_e.swUnSuppressFeature;
+
+        feat.SetSuppression2(action, cfgOpt, null);
+
+        Logger.Info($"[PartEditor] {(suppress ? "SUPPRESS" : "UNSUPPRESS")} → {name}");
     }
 
-    /// <summary>
-    /// Keep API name, same implementation as SuppressFeature (sketch is still a feature in SW).
-    /// </summary>
     public void SuppressSketch(string name, bool suppress)
         => SuppressFeature(name, suppress);
 
-    private static void ApplySuppression(SwFeat feat, bool suppress)
+    public bool TrySuppressFeatureIfNeeded(string featureName, bool suppress)
     {
-        feat.SetSuppression2(
-            suppress
-                ? (int)SwConst.swFeatureSuppressionAction_e.swSuppressFeature
-                : (int)SwConst.swFeatureSuppressionAction_e.swUnSuppressFeature,
-            (int)SwConst.swInConfigurationOpts_e.swThisConfiguration,
-            null);
+        if (string.IsNullOrWhiteSpace(featureName)) return false;
+
+        if (_featMap == null) RefreshFeatureIndex();
+
+        var key = featureName.Trim();
+        if (_featMap == null || !_featMap.TryGetValue(key, out var feat) || feat is null)
+        {
+            Logger.Warn($"[PartEditor] TrySuppressFeatureIfNeeded: feature not found '{featureName}'");
+            return false;
+        }
+
+        var cfgOpt = (int)swInConfigurationOpts_e.swThisConfiguration;
+        if (FeatureSuppression.TryIsSuppressedFast(feat, cfgOpt, out var isSuppressed) && isSuppressed == suppress)
+            return false;
+
+        int action = suppress
+            ? (int)swFeatureSuppressionAction_e.swSuppressFeature
+            : (int)swFeatureSuppressionAction_e.swUnSuppressFeature;
+
+        feat.SetSuppression2(action, cfgOpt, null);
+        return true;
+    }
+
+    private sealed class RebuildGuard : IDisposable
+    {
+        private readonly Sw.ModelDoc2 _m;
+        private bool _prevAddToDb;
+        private bool _prevDisplayWhenAdded;
+        private bool _hasPrevAddToDb;
+        private bool _hasPrevDisplayWhenAdded;
+
+        public RebuildGuard(Sw.ModelDoc2 m)
+        {
+            _m = m;
+
+            try { _prevAddToDb = _m.GetAddToDB(); _hasPrevAddToDb = true; } catch { _hasPrevAddToDb = false; }
+            try { _prevDisplayWhenAdded = _m.GetDisplayWhenAdded(); _hasPrevDisplayWhenAdded = true; } catch { _hasPrevDisplayWhenAdded = false; }
+
+            try { _m.SetAddToDB(true); } catch { }
+            try { _m.SetDisplayWhenAdded(false); } catch { }
+        }
+
+        public void Dispose()
+        {
+            try { if (_hasPrevAddToDb) _m.SetAddToDB(_prevAddToDb); } catch { }
+            try { if (_hasPrevDisplayWhenAdded) _m.SetDisplayWhenAdded(_prevDisplayWhenAdded); } catch { }
+        }
     }
 
     // ------------------------------------- Tolerances ---------------------------------------
@@ -403,22 +610,22 @@ public sealed class PartEditor
     {
         var names = new List<string>();
         var part = (SwPart)model;
-        var f = (SwFeat)part.FirstFeature();
+        var f = part.FirstFeature() as Feature;
 
         while (f != null)
         {
             if (!string.IsNullOrWhiteSpace(f.Name))
                 names.Add(f.Name);
 
-            var sub = (SwFeat)f.GetFirstSubFeature();
+            var sub = f.GetFirstSubFeature() as Feature;
             while (sub != null)
             {
                 if (!string.IsNullOrWhiteSpace(sub.Name))
                     names.Add(sub.Name);
-                sub = (SwFeat)sub.GetNextSubFeature();
+                sub = sub.GetNextSubFeature() as Feature;
             }
 
-            f = (SwFeat)f.GetNextFeature();
+            f = f.GetNextFeature() as Feature;
         }
 
         return names.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -441,30 +648,5 @@ public sealed class PartEditor
         Logger.Warn($"[ApplyTolerances] Not found for '{shortName}@*'");
         swDim = null;
         return false;
-    }
-
-    private SwFeat? FindFirstFeatureByExact(string name)
-    {
-        var part = (SwPart)Model;
-        var f = (SwFeat)part.FirstFeature();
-
-        while (f != null)
-        {
-            if (string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase))
-                return f;
-
-            var sub = (SwFeat)f.GetFirstSubFeature();
-            while (sub != null)
-            {
-                if (string.Equals(sub.Name, name, StringComparison.OrdinalIgnoreCase))
-                    return sub;
-
-                sub = (SwFeat)sub.GetNextSubFeature();
-            }
-
-            f = (SwFeat)f.GetNextFeature();
-        }
-
-        return null;
     }
 }

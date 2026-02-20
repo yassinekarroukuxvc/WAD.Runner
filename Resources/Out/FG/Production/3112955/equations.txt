@@ -10,9 +10,7 @@
 "GD" = 0.13716mm
 "FL" = 0.44958mm
 "F" = 0.3302mm
-"FX" = 0mm
 "B" = 0.22098mm
-"VW" = 0mm
 "cleaned_VR"= IIF ( "VR" > 0 , "VR" , "E" - "_Offset" )
 "cleaned_VW"= IIF ( "VW" > 0 , "VW" , "TD" - "_Offset" )
 "back_edge"= "TD" / 2 - "X"
@@ -28,7 +26,6 @@
 "cleaned_BRX"= IIF ( "BRX" > 0 , "BRX" , "BR" )
 "FL_groove_angle" = 0deg
 "X" = 0.77216mm
-"VR" = 0mm
 "W" = 0.39878mm
 "VW_radius"= "cleaned_VW" / 10
 "VW_radius_cleaned"= IIF ( "VW" > 0 , "VW_radius" , "_Offset" / 2 )
@@ -67,10 +64,8 @@
 "D1@sketch_Engraving"="_Offset" * 10
 "FX@sketch_FA_BA_grinding" = "cleaned_FX"
 "D1@sketch_FA_BA_grinding"="TD"/2
-"VRR" = 0mm
 "D5@sketch_FA_BA_grinding"="TDF"
 "FL@sketch_FA_BA_grinding"="FL"
-"TIP" = 0mm
 "scale" = 183
 "D1@ref_point_1"="H_cut"
 "D4@FG_Production_Wed_F" = "GD"
@@ -80,7 +75,6 @@
 "D1@sketch_VW_VR_grinding"="side_edge_Offset"*2
 "VW@sketch_VW_VR_grinding"="cleaned_VW"
 "VR@sketch_VW_VR_grinding"="cleaned_VR"
-"VRA" = 0deg
 "VRA@sketch_VW_VR_grinding"="cleaned_VRA"
 "VRR@sketch_VW_VR_grinding"="VRR"
 "cleaned_VRA"= IIF ( "VRA" > 0 , "VRA" , 20 )

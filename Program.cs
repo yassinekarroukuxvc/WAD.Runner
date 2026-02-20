@@ -47,6 +47,10 @@ using WAD.Runner.DrawingAutomation.Views;
 // API host
 using WAD.Runner.Api;
 using WAD.Runner.PartAutomation.Common;
+using WAD.Runner.ModelAutomation.Execution;
+using WAD.Runner.ModelAutomation.SolidWorks;
+using WAD.Runner.ModelAutomation.Common;
+
 
 Logger.Info("[Boot] Building host…");
 
@@ -92,6 +96,13 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddSingleton<IPartAutomationService, PartAutomationService>();
         services.AddSingleton<PartAutomationOrchestrator>();
+
+        ////
+        
+        services.AddSingleton<ModelDimensionApplier>();
+        services.AddSingleton<ModelAutomationOrchestrator>();
+
+        ////
     })
     .Build();
 
@@ -261,8 +272,13 @@ switch (cmd)
             switch (wedgeTypeEnum)
             {
                 case WedgeType.COB:
-                    partTemplatePath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "COB", "equations.txt");
+                    partTemplatePath = Path.Combine(
+                        "Resources", "Templates", "COB", "COB template 02-14-2026",
+                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+
+                    equationTemplatePath = Path.Combine(
+                        "Resources", "Templates", "COB", "COB template 02-14-2026",
+                        "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
                 case WedgeType.OSG7:
@@ -272,8 +288,8 @@ switch (cmd)
 
                 case WedgeType.CKVD:
                 default:
-                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CK.txt");
+                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2","CKVD_2023.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CK.txt");
                     break;
             }
 
@@ -339,9 +355,9 @@ switch (cmd)
             switch (wedgeTypeEnum)
             {
                 case WedgeType.COB:
-                    templatePartPath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
+                    templatePartPath = Path.Combine("Resources", "Templates", "COB", "COB template 02-14-2026", "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
                     templateDrawingPath = Path.Combine("Resources", "Templates", "COB", "COB_Drawings.SLDDRW");
-                    equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "COB", "equations.txt");
+                    equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "COB", "COB template 02-14-2026", "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
                 case WedgeType.OSG7:
@@ -382,7 +398,7 @@ switch (cmd)
             var outputRootBase = Path.Combine("Resources", "Out");
             Directory.CreateDirectory(outputRootBase);
 
-            var plan = PathPlanner.Build(
+            var plan = WAD.Runner.ModelAutomation.Common.PathPlanner.Build(
                 article: article,
                 subclass: subclass,
                 drawingType: dtype,
@@ -488,6 +504,92 @@ switch (cmd)
             }
 
             Logger.Success("[run-drawing] Completed.");
+            break;
+        }
+
+    case "run-model":
+        {
+            SolidWorksProcessKiller.KillAll(killVbaServer: true);
+
+            var (article, subclass) = ParseArticleAndSubclass(args);
+
+            var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
+            if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
+
+            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
+
+            string partTemplatePath;
+            string equationTemplatePath;
+
+            switch (wedgeTypeEnum)
+            {
+                case WedgeType.COB:
+                    partTemplatePath = Path.Combine(
+                        "Resources", "Templates", "COB", "COB template 02-14-2026",
+                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+
+                    equationTemplatePath = Path.Combine(
+                        "Resources", "Templates", "COB", "COB template 02-14-2026",
+                        "wedge-auto-draw-COB-3d-equation.txt");
+                    break;
+
+                case WedgeType.OSG7:
+                    partTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
+                    break;
+
+                case WedgeType.CKVD:
+                default:
+                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CK.txt");
+                    break;
+            }
+
+            var outputRoot = Path.Combine("Resources", "Out");
+            Directory.CreateDirectory(outputRoot);
+
+            Logger.Info($"[run-model] Article={article}, Subclass={subclass}, Type={dtype}, WedgeType={wedgeTypeEnum}");
+            Logger.Info($"[run-model] Template(Part)='{partTemplatePath}'");
+            Logger.Info($"[run-model] Template(Equations)='{equationTemplatePath}'");
+            Logger.Info($"[run-model] OutputRoot='{outputRoot}'");
+
+            var sessFactory = host.Services.GetRequiredService<ISwSessionFactory>();
+            var getWedge = host.Services.GetRequiredService<GetWedgeData>();
+            var orchestrator = host.Services.GetRequiredService<ModelAutomationOrchestrator>();
+
+            try
+            {
+                using var sw = sessFactory.Create(visible: true);
+
+                var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
+
+                var job = new ModelJobRequest
+                {
+                    ArticleNumber = article,
+                    Subclass = subclass,
+                    DrawingType = dtype,
+                    OutputRoot = outputRoot,
+                    PartTemplatePath = partTemplatePath,
+                    EquationTemplatePath = equationTemplatePath,
+                    FileBase = null,
+                    WedgeData = wedgeData,
+                    WedgeType = wedgeTypeEnum
+                };
+
+                var resultPath = await orchestrator.RunAsync(job, sw.App, CancellationToken.None);
+
+                Logger.Success($"[run-model] Completed. Output: {resultPath}");
+                Console.WriteLine($"Model automation complete.\nOutput: {resultPath}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("[run-model] Failed:");
+                Logger.Error(ex.ToString());
+                Console.WriteLine("Model automation failed:");
+                Console.WriteLine(ex.ToString());
+                Environment.ExitCode = 1;
+            }
+
             break;
         }
 

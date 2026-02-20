@@ -1,0 +1,171 @@
+SOLIDWORKS MODEL DUMP
+----------------------------------------------------------------------
+DateTime : 2025-12-21 10:42:26
+Title    : wedge_auto_draw_OSG7_3d.SLDPRT
+Path     : C:\Users\mounir\Desktop\Yassine's Playground\WAD.Runner\Resources\Templates\OSG7\wedge_auto_draw_OSG7_3d.SLDPRT
+Type     : Part
+----------------------------------------------------------------------
+
+[GLOBAL VARIABLES / EQUATIONS]
+----------------------------------------------------------------------
+"TD"=0.1249
+"TD@TD_sketch" = "TD"
+"TL@TL_feature"="TL"
+"TD@TDF_sketch" = "TD"
+"TDF"=0.11
+"TDF@TDF_sketch" = "TDF"
+"_offset"= 0.01
+"Offset@TDF_sketch" = "TD" + "_offset" * 2
+"TD@ISA_sketch" = "TD"
+"TL"=2.5
+"TL@ISA_sketch" = "TL"
+"W"=0.03
+"W@ISA_sketch" = "W"
+"ISA"=30
+"ISA@ISA_sketch" = "ISA"
+"TD@VR_sketch" = "TD"
+"TL@VR_sketch" = "TL"
+"VR"=0.024
+"VW"=0.019
+"VW@VR_sketch" = "VW"
+"VRR"=0.02
+"VRR@VR_sketch" = "VRR"
+"VRA"=90
+"VRA@VR_sketch" = "VRA"
+"TD@STD_shak_sketch" = "TD"
+"TL@STD_shak_sketch" = "TL"
+"TDF@STD_shak_sketch" = "TDF"
+"X"=0.0333
+"X@STD_shak_sketch" = "X"
+"BA"=5
+"BA@STD_shak_sketch" = "BA"
+"FA"=5
+"FA@STD_shak_sketch" = "FA"
+"FL"=0.0375
+"FL@STD_shak_sketch" = "FL"
+"TL@VFL_sketch" = "TL"
+"TD@VFL_sketch" = "TD"
+"TDF@VFL_sketch" = "TDF"
+"X@VFL_sketch" = "X"
+"FL@VFL_sketch" = "FL"
+"VFL"=0.075
+"VFL@VFL_sketch" = "VFL"
+"VFLR"=0.02
+"VFLR@VFL_sketch" = "VFLR"
+"TD@G_groove_sketch" = "TD"
+"TL@G_groove_sketch" = "TL"
+"GA"=70
+"GA@G_groove_sketch" = "GA"
+"B"=0.0183
+"B@G_groove_sketch" = "B"
+"GR"=0.00238
+"GR@G_groove_sketch" = "GR"
+"FR"=0.0102
+"FR@FR_STD_feature"="FR"
+"BR"=0.0102
+"FR@FR_STD_VFL_feature"="FR"
+"BR@BR_STD_feature"="BR"
+"BR@BR_STD_VFL_feature"="BR"
+
+[FEATURE TREE]
+----------------------------------------------------------------------
+- Comments [CommentsFolder]
+- Favorites [FavoriteFolder]
+- History [HistoryFolder]
+- Selection Sets [SelectionSetFolder]
+- Sensors [SensorFolder]
+- Design Binder [DocsFolder]
+- Annotations [DetailCabinet]
+  - Notes [NotesAreaFtrFolder]
+  - Notes1___EndTag___ [NotesAreaFtrFolder]
+- Surface Bodies [SurfaceBodyFolder]
+- Solid Bodies [SolidBodyFolder]
+- Lights, Cameras and Scene [EnvFolder]
+  - Ambient [AmbientLight]
+  - Directional1 [DirectionLight]
+  - Directional2 [DirectionLight]
+  - Directional3 [DirectionLight]
+- Markups [InkMarkupFolder]
+- Equations [EqnFolder]
+- Tungsten [MaterialFolder]
+- Front Plane [RefPlane]
+- Top Plane [RefPlane]
+- Right Plane [RefPlane]
+- Origin [OriginProfileFeature]
+- TD_sketch [ProfileFeature]
+- TL_feature [Extrusion]
+  - TD_sketch [ProfileFeature]
+- TDF_sketch [ProfileFeature]
+- TDF_feature [ICE]
+  - TDF_sketch [ProfileFeature]
+- ISA_sketch [ProfileFeature]
+- ISA_feature [ICE]
+  - ISA_sketch [ProfileFeature]
+- VR_sketch [ProfileFeature]
+- VR_feature [ICE]
+  - VR_sketch [ProfileFeature]
+- STD_shak_sketch [ProfileFeature]
+- STD_shank_feature [ICE]
+  - STD_shak_sketch [ProfileFeature]
+- VFL_sketch [ProfileFeature]
+- VFL_feature [ICE]
+  - VFL_sketch [ProfileFeature]
+- G_groove_sketch [ProfileFeature]
+- G_groove_feature [ICE]
+  - G_groove_sketch [ProfileFeature]
+- FR_STD_feature [Fillet]
+- BR_STD_feature [Fillet]
+- FR_STD_VFL_feature [Fillet]
+- BR_STD_VFL_feature [Fillet]
+
+[SKETCH NAMES (UNIQUE)]
+----------------------------------------------------------------------
+G_groove_sketch
+ISA_sketch
+STD_shak_sketch
+TDF_sketch
+TD_sketch
+VFL_sketch
+VR_sketch
+
+[DIMENSIONS FULL NAMES (UNIQUE)]
+----------------------------------------------------------------------
+B@G_groove_sketch@wedge_auto_draw_OSG7_3d.Part
+BA@STD_shak_sketch@wedge_auto_draw_OSG7_3d.Part
+BR@BR_STD_VFL_feature@wedge_auto_draw_OSG7_3d.Part
+BR@BR_STD_feature@wedge_auto_draw_OSG7_3d.Part
+FA@STD_shak_sketch@wedge_auto_draw_OSG7_3d.Part
+FL@STD_shak_sketch@wedge_auto_draw_OSG7_3d.Part
+FL@VFL_sketch@wedge_auto_draw_OSG7_3d.Part
+FR@FR_STD_VFL_feature@wedge_auto_draw_OSG7_3d.Part
+FR@FR_STD_feature@wedge_auto_draw_OSG7_3d.Part
+GA@G_groove_sketch@wedge_auto_draw_OSG7_3d.Part
+GR@G_groove_sketch@wedge_auto_draw_OSG7_3d.Part
+ISA@ISA_sketch@wedge_auto_draw_OSG7_3d.Part
+Offset@TDF_sketch@wedge_auto_draw_OSG7_3d.Part
+TD@G_groove_sketch@wedge_auto_draw_OSG7_3d.Part
+TD@ISA_sketch@wedge_auto_draw_OSG7_3d.Part
+TD@STD_shak_sketch@wedge_auto_draw_OSG7_3d.Part
+TD@TDF_sketch@wedge_auto_draw_OSG7_3d.Part
+TD@TD_sketch@wedge_auto_draw_OSG7_3d.Part
+TD@VFL_sketch@wedge_auto_draw_OSG7_3d.Part
+TD@VR_sketch@wedge_auto_draw_OSG7_3d.Part
+TDF@STD_shak_sketch@wedge_auto_draw_OSG7_3d.Part
+TDF@TDF_sketch@wedge_auto_draw_OSG7_3d.Part
+TDF@VFL_sketch@wedge_auto_draw_OSG7_3d.Part
+TL@G_groove_sketch@wedge_auto_draw_OSG7_3d.Part
+TL@ISA_sketch@wedge_auto_draw_OSG7_3d.Part
+TL@STD_shak_sketch@wedge_auto_draw_OSG7_3d.Part
+TL@TL_feature@wedge_auto_draw_OSG7_3d.Part
+TL@VFL_sketch@wedge_auto_draw_OSG7_3d.Part
+TL@VR_sketch@wedge_auto_draw_OSG7_3d.Part
+VFL@VFL_sketch@wedge_auto_draw_OSG7_3d.Part
+VFLR@VFL_sketch@wedge_auto_draw_OSG7_3d.Part
+VR@VR_sketch@wedge_auto_draw_OSG7_3d.Part
+VRA@VR_sketch@wedge_auto_draw_OSG7_3d.Part
+VRR@VR_sketch@wedge_auto_draw_OSG7_3d.Part
+VW@VR_sketch@wedge_auto_draw_OSG7_3d.Part
+W@ISA_sketch@wedge_auto_draw_OSG7_3d.Part
+X@STD_shak_sketch@wedge_auto_draw_OSG7_3d.Part
+X@VFL_sketch@wedge_auto_draw_OSG7_3d.Part
+angle@VFL_sketch@wedge_auto_draw_OSG7_3d.Part
