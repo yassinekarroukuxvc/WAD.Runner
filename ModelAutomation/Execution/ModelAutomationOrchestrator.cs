@@ -163,6 +163,8 @@ namespace WAD.Runner.ModelAutomation.Execution
 
             editor.SetEngraving(engraving);
 
+            //editor.ApplyFeatureToggles(featurePlan.Suppress, featurePlan.Unsuppress);
+
             // -----------------------------
             // Step 5) ONE rebuild, save, close
             // -----------------------------

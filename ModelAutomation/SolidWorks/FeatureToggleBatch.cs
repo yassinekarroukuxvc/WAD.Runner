@@ -13,10 +13,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 {
     /// <summary>
     /// Fast, macro-style feature suppression/unsuppression:
-    /// - Builds a feature index once (top-level + sub-features)
-    /// - Caches suppression state per feature (per configuration scope)
-    /// - Skips COM calls when state is already correct
-    /// - Does NOT rebuild (caller controls single rebuild at end)
+    /// - Builds a feature index once (top-level + sub-features) for fallback and stats
+    /// - Primary fast path: selection-batch suppress/unsuppress (macro pattern)
+    /// - Optional blind mode: skips IsSuppressed2 reads to reduce COM calls
+    /// - Does NOT rebuild (caller controls a single rebuild at end)
     ///
     /// IMPORTANT:
     /// Feature.IsSuppressed2 can return VARIANT arrays (bool[], int[], object[]).
@@ -24,10 +24,14 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
     /// </summary>
     public sealed class FeatureToggleBatch
     {
+        private readonly ModelDoc2 _model;
+        private readonly IModelDocExtension _ext;
         private readonly Dictionary<string, FeatureEntry> _index;
 
-        private FeatureToggleBatch(Dictionary<string, FeatureEntry> index)
+        private FeatureToggleBatch(ModelDoc2 model, Dictionary<string, FeatureEntry> index)
         {
+            _model = model ?? throw new ArgumentNullException(nameof(model));
+            _ext = (IModelDocExtension)model.Extension;
             _index = index;
         }
 
@@ -36,10 +40,38 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             public Feature Feature { get; }
             public bool? IsSuppressedCached { get; set; } // cache for current config scope
 
-            public FeatureEntry(Feature feature)
-            {
-                Feature = feature;
-            }
+            public FeatureEntry(Feature feature) => Feature = feature;
+        }
+
+        public sealed class ToggleOptions
+        {
+            /// <summary>
+            /// If true, do not call IsSuppressed2 (faster). We will attempt to set the state regardless.
+            /// Default: true (macro-like speed).
+            /// </summary>
+            public bool BlindApply { get; init; } = true;
+
+            /// <summary>
+            /// Use selection-batch suppression (fast path). Default: true.
+            /// </summary>
+            public bool UseSelectionBatch { get; init; } = true;
+
+            /// <summary>
+            /// How many items to select per batch to avoid selection limits / slowdowns.
+            /// Default: 80.
+            /// </summary>
+            public int BatchSize { get; init; } = 80;
+
+            /// <summary>
+            /// Clear selection before each batch. Default: true.
+            /// </summary>
+            public bool ClearSelectionPerBatch { get; init; } = true;
+
+            /// <summary>
+            /// If true, when selection-batch fails for a name, we fallback to per-feature SetSuppression2 (if present in index).
+            /// Default: true.
+            /// </summary>
+            public bool FallbackToPerFeature { get; init; } = true;
         }
 
         /// <summary>
@@ -49,7 +81,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         public static FeatureToggleBatch Build(ModelDoc2 model)
         {
             if (model is null) throw new ArgumentNullException(nameof(model));
-
             if (model is not PartDoc part)
                 throw new InvalidOperationException("FeatureToggleBatch.Build expects an opened PartDoc (SLDPRT).");
 
@@ -71,21 +102,24 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
 
             Logger.Info($"[FeatureToggleBatch] Index built → {map.Count} features (incl. sub-features).");
-            return new FeatureToggleBatch(map);
+            return new FeatureToggleBatch(model, map);
         }
 
         /// <summary>
         /// Batch apply:
-        /// - suppressNames: features to suppress
-        /// - unsuppressNames: features to unsuppress
+        /// - suppressNames: names to suppress
+        /// - unsuppressNames: names to unsuppress
         ///
         /// No rebuild is performed here.
         /// </summary>
         public ToggleResult Apply(
             IEnumerable<string>? suppressNames,
             IEnumerable<string>? unsuppressNames,
-            swInConfigurationOpts_e scope = swInConfigurationOpts_e.swThisConfiguration)
+            swInConfigurationOpts_e scope = swInConfigurationOpts_e.swThisConfiguration,
+            ToggleOptions? options = null)
         {
+            options ??= new ToggleOptions();
+
             var res = new ToggleResult();
 
             // Reset cache (important when switching scope or after big changes)
@@ -100,14 +134,36 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             if (unsup.Length > 0 && sup.Length > 0)
                 sup = sup.Where(s => !unsup.Contains(s, StringComparer.OrdinalIgnoreCase)).ToArray();
 
-            Logger.Info($"[FeatureToggleBatch] Apply(scope={scope}) unsup={unsup.Length}, sup={sup.Length}");
+            Logger.Info($"[FeatureToggleBatch] Apply(scope={scope}) unsup={unsup.Length}, sup={sup.Length}, " +
+                        $"batch={options.UseSelectionBatch}, blind={options.BlindApply}, batchSize={options.BatchSize}");
 
-            // Unsuppress first (safer)
+            // Fast path: selection-batch (macro style)
+            if (options.UseSelectionBatch)
+            {
+                // Unsuppress first (safer)
+                ApplyBySelectionBatches(unsup, suppress: false, scope, options, res);
+                ApplyBySelectionBatches(sup, suppress: true, scope, options, res);
+
+                Logger.Info(
+                    "[FeatureToggleBatch] Apply done → " +
+                    $"unsuppressed={res.Unsuppressed.Count}, suppressed={res.Suppressed.Count}, " +
+                    $"skipped={res.SkippedAlreadyCorrect.Count}, missing={res.Missing.Count}, failed={res.Failed.Count}");
+
+                if (res.Missing.Count > 0)
+                    Logger.Warn("[FeatureToggleBatch] Missing: " + string.Join(", ", res.Missing.Take(50)));
+
+                if (res.Failed.Count > 0)
+                    Logger.Warn("[FeatureToggleBatch] Failed: " + string.Join(", ", res.Failed.Take(20).Select(kv => $"{kv.Key} => {kv.Value}")));
+
+                return res;
+            }
+
+            // Legacy path: per-item toggles
             foreach (var name in unsup)
-                ToggleOne(name, targetSuppress: false, scope, res);
+                ToggleOnePerFeature(name, targetSuppress: false, scope, options.BlindApply, res);
 
             foreach (var name in sup)
-                ToggleOne(name, targetSuppress: true, scope, res);
+                ToggleOnePerFeature(name, targetSuppress: true, scope, options.BlindApply, res);
 
             Logger.Info(
                 "[FeatureToggleBatch] Apply done → " +
@@ -155,11 +211,161 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return true;
         }
 
-        private void ToggleOne(
+        // -----------------------------
+        // FAST PATH: selection batching
+        // -----------------------------
+        private void ApplyBySelectionBatches(
+            string[] names,
+            bool suppress,
+            swInConfigurationOpts_e scope,
+            ToggleOptions options,
+            ToggleResult res)
+        {
+            if (names.Length == 0) return;
+
+            var batchSize = Math.Max(1, options.BatchSize);
+
+            for (int i = 0; i < names.Length; i += batchSize)
+            {
+                var batch = names.Skip(i).Take(batchSize).ToArray();
+
+                if (options.ClearSelectionPerBatch)
+                    _model.ClearSelection2(true);
+
+                // Select everything we can
+                var selected = new List<string>(batch.Length);
+                foreach (var name in batch)
+                {
+                    // If not blind, optionally skip names already correct (requires IsSuppressed2 => slower)
+                    if (!options.BlindApply && _index.TryGetValue(name, out var entry))
+                    {
+                        if (TryGetIsSuppressed(entry, scope, out var cur) && cur == suppress)
+                        {
+                            res.SkippedAlreadyCorrect.Add(name);
+                            continue;
+                        }
+                    }
+
+                    if (TrySelectByNameHeuristics(name, append: true))
+                        selected.Add(name);
+                    else
+                        res.Missing.Add(name);
+                }
+
+                if (selected.Count == 0)
+                    continue;
+
+                // Apply suppression to the whole selection set once
+                if (!TrySetSelectionSuppression(suppress, scope, out var err))
+                {
+                    // Fallback: per-feature set for those that exist in index
+                    if (options.FallbackToPerFeature)
+                    {
+                        foreach (var nm in selected)
+                            ToggleOnePerFeature(nm, suppress, scope, blindApply: true, res, forceFallbackOnly: true);
+                    }
+                    else
+                    {
+                        foreach (var nm in selected)
+                            res.Failed[nm] = err;
+                    }
+
+                    continue;
+                }
+
+                // Mark results (assume success for selected)
+                if (suppress) res.Suppressed.AddRange(selected);
+                else res.Unsuppressed.AddRange(selected);
+            }
+        }
+
+        /// <summary>
+        /// Macro-style: suppress/unsuppress currently selected features.
+        /// </summary>
+        private bool TrySetSelectionSuppression(bool suppress, swInConfigurationOpts_e scope, out string error)
+        {
+            error = string.Empty;
+
+            try
+            {
+                // We intentionally keep this generic: set suppression on the selected set.
+                // Many templates include sketches/features; selection-based action handles both.
+                //
+                // If your environment prefers EditSuppress2 / EditUnsuppress2,
+                // swap this implementation accordingly.
+                var doc = _model;
+
+                // Best-effort: call "EditSuppress2" / "EditUnsuppress2" if available
+                // ModelDoc2 exposes these in many SW versions.
+                if (suppress)
+                {
+                    // returns bool in many interops
+                    var ok = doc.EditSuppress2();
+                    if (!ok) { error = "EditSuppress2 returned false."; return false; }
+                }
+                else
+                {
+                    var ok = doc.EditUnsuppress2();
+                    if (!ok) { error = "EditUnsuppress2 returned false."; return false; }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"{ex.GetType().Name}: {ex.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Select by name using common SolidWorks selection types.
+        /// We try feature first, then sketch, then "BODYFEATURE"/"REFERENCECURVES" as defensive.
+        /// </summary>
+        private bool TrySelectByNameHeuristics(string name, bool append)
+        {
+            // NOTE: SelectByID2 "type" strings are case-sensitive-ish in practice.
+            // These are common ones for features and sketches.
+            // If one fails, we try others.
+            const int mark = 0;
+            const double x = 0, y = 0, z = 0;
+
+            try
+            {
+                // feature
+                if (_ext.SelectByID2(name, "FEATURE", x, y, z, append, mark, null, 0))
+                    return true;
+
+                // sketch (many of your planned names end with _sketch)
+                if (_ext.SelectByID2(name, "SKETCH", x, y, z, append, mark, null, 0))
+                    return true;
+
+                // some sketches/features can be selectable as "BODYFEATURE"
+                if (_ext.SelectByID2(name, "BODYFEATURE", x, y, z, append, mark, null, 0))
+                    return true;
+
+                // generic fallback
+                if (_ext.SelectByID2(name, "REFERENCECURVES", x, y, z, append, mark, null, 0))
+                    return true;
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // -----------------------------
+        // LEGACY PATH: per-feature set
+        // -----------------------------
+        private void ToggleOnePerFeature(
             string name,
             bool targetSuppress,
             swInConfigurationOpts_e scope,
-            ToggleResult res)
+            bool blindApply,
+            ToggleResult res,
+            bool forceFallbackOnly = false)
         {
             if (!_index.TryGetValue(name, out var entry))
             {
@@ -167,13 +373,16 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 return;
             }
 
-            // Read cached or query once
-            if (TryGetIsSuppressed(entry, scope, out var current))
+            if (!forceFallbackOnly && !blindApply)
             {
-                if (current == targetSuppress)
+                // Read cached or query once
+                if (TryGetIsSuppressed(entry, scope, out var current))
                 {
-                    res.SkippedAlreadyCorrect.Add(name);
-                    return;
+                    if (current == targetSuppress)
+                    {
+                        res.SkippedAlreadyCorrect.Add(name);
+                        return;
+                    }
                 }
             }
 
@@ -330,10 +539,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             public List<string> Suppressed { get; } = new();
             public List<string> Unsuppressed { get; } = new();
 
-            /// <summary>Features found, but already in correct state (COM call skipped).</summary>
+            /// <summary>Items found, but already in correct state (COM call skipped).</summary>
             public List<string> SkippedAlreadyCorrect { get; } = new();
 
-            /// <summary>Feature name not found in index.</summary>
+            /// <summary>Name not found / not selectable.</summary>
             public List<string> Missing { get; } = new();
 
             /// <summary>name -> error</summary>

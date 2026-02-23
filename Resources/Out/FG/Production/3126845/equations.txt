@@ -133,7 +133,7 @@
 "funnel_final_section" = 0.098425
 "T@CAVITY_STD_sketch" = "T"
 "BA@CAVITY_STD_sketch" = "BA"
-"funnel_gap"=0.0003
+"funnel_gap" = 0.00762mm
 "funnel_final_section@CAVITY_STD_sketch" = "funnel_final_section"
 "funnel_gap@CAVITY_STD_sketch" = "funnel_gap"
 "erw" = 0.05715mm

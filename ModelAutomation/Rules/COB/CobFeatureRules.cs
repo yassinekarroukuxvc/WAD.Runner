@@ -15,11 +15,22 @@ namespace WAD.Runner.ModelAutomation.Rules
     /// <summary>
     /// COB feature toggle planning (NO SolidWorks calls, NO rebuild).
     ///
-    /// Minimal logging:
-    /// - parsed shank + foot
-    /// - optionals enabled/disabled
-    /// - business rule trigger
-    /// - final counts
+    /// Remedy A:
+    /// - Include matching *_sketch names for many bases to reduce sketch wake-ups after equation import/rebuild.
+    ///
+    /// NOTE:
+    /// - SLB is controlled by dimension "VBL": nominal == 0 => OFF, else ON
+    ///
+    /// FOOT:
+    /// - Base foot selection comes from property (C/G/VG/CC).
+    /// - C_WithCbr is selected ONLY when base foot is C AND (CBRA>0 AND CBRD>0 AND CBRL>0).
+    ///
+    /// H UPDATE:
+    /// - H is no longer a single mandatory base feature.
+    /// - Mandatory H per shank is now:
+    ///     H_<shank>_cut_feature  (with H_<shank>_cut_sketch)
+    ///     H_<shank>_fix_feature
+    /// - These must always be UNSUPPRESSED for the selected shank, and SUPPRESSED for the opposite shank.
     /// </summary>
     public sealed class CobFeatureRules : IFeatureRuleSet
     {
@@ -70,6 +81,8 @@ namespace WAD.Runner.ModelAutomation.Rules
             HashSet<string> suppress,
             HashSet<string> unsuppress)
         {
+            // 4.1 Mandatory features (always active for selected shank)
+            // NOTE: "H" removed because it is now split into cut/fix features (handled separately below).
             var mandatoryBases = new[]
             {
                 "TDF",
@@ -77,14 +90,16 @@ namespace WAD.Runner.ModelAutomation.Rules
                 "10BA",
                 "FRO",
                 "ERW",
-                "H",
                 "funnel_final_diametre",
                 "ROUND_BR",
                 "COMBINE",
             };
 
+            // 4.3 Independent optional features
+            // NOTE: SLB is controlled by dimension VBL (not property).
             var optionalBases = new[] { "SLB", "VW", "W2", "RA2" };
 
+            // 4.2 Foot + fillets (mutually exclusive sets)
             var footAndFilletBases_All = new[]
             {
                 "C", "G", "VG", "CG", "CBRA",
@@ -101,48 +116,69 @@ namespace WAD.Runner.ModelAutomation.Rules
             // Shank selection
             var opposite = shank == CobShankType.Std ? CobShankType.Rev180 : CobShankType.Std;
 
-            // Opposite shank OFF
+            // ---------------------------
+            // 5.1 Shank selection logic
+            // Step 1: suppress all opposite shank features
+            // Step 2: unsuppress mandatory for selected shank
+            // ---------------------------
+
+            // Opposite shank OFF (mandatory + foot + optional)
             foreach (var b in mandatoryBases)
-                foreach (var nm in BuildFeatureNameCandidates(b, opposite))
+                foreach (var nm in BuildNameCandidatesWithSketches(b, opposite))
                     suppress.Add(nm);
 
             foreach (var b in footAndFilletBases_All)
-                foreach (var nm in BuildFeatureNameCandidates(b, opposite))
+                foreach (var nm in BuildNameCandidatesWithSketches(b, opposite))
                     suppress.Add(nm);
 
             foreach (var b in optionalBases)
-                foreach (var nm in BuildFeatureNameCandidates(b, opposite))
+                foreach (var nm in BuildNameCandidatesWithSketches(b, opposite))
                     suppress.Add(nm);
+
+            // NEW: Opposite shank OFF for the new H cut/fix features
+            foreach (var nm in BuildHMandatoryCandidates(opposite))
+                suppress.Add(nm);
 
             // Mandatory ON for selected shank
             foreach (var b in mandatoryBases)
-                foreach (var nm in BuildFeatureNameCandidates(b, shank))
+                foreach (var nm in BuildNameCandidatesWithSketches(b, shank))
                     unsuppress.Add(nm);
 
-            // Foot logic: OFF all, then ON only selected
+            // NEW: Mandatory ON for the new H cut/fix features
+            foreach (var nm in BuildHMandatoryCandidates(shank))
+                unsuppress.Add(nm);
+
+            // ---------------------------
+            // 5.2 Foot option selection logic
+            // Step 1: suppress ALL foot-related features for selected shank
+            // Step 2: unsuppress only features for chosen foot option
+            // ---------------------------
             foreach (var nm in ExpandForShank(footAndFilletBases_All, shank))
                 suppress.Add(nm);
 
             foreach (var nm in ExpandFootForShank(foot, shank))
                 unsuppress.Add(nm);
 
-            // Apply business rule
+            // Apply business rule (FR off)
             if (froEqualsFr)
             {
                 foreach (var frBase in new[] { "FR_C", "FR_G", "FR_VG" })
-                    foreach (var nm in BuildFeatureNameCandidates(frBase, shank))
+                    foreach (var nm in BuildNameCandidatesWithSketches(frBase, shank))
                         suppress.Add(nm);
 
+                // Remove any FR_* that may have been ON from foot selection (feature OR sketch variants)
                 unsuppress.RemoveWhere(nm => nm.StartsWith("FR_", StringComparison.OrdinalIgnoreCase));
             }
 
-            // Optionals
+            // ---------------------------
+            // 5.3 Optional feature toggle logic (selected shank)
+            // ---------------------------
             foreach (var opt in optionalBases)
             {
                 bool enabled = ResolveOptionalEnabled(wedge, opt);
                 Logger.Info($"[CobFeatureRules] Optional '{opt}' enabled={enabled}");
 
-                foreach (var nm in BuildFeatureNameCandidates(opt, shank))
+                foreach (var nm in BuildNameCandidatesWithSketches(opt, shank))
                 {
                     if (enabled) unsuppress.Add(nm);
                     else suppress.Add(nm);
@@ -156,7 +192,7 @@ namespace WAD.Runner.ModelAutomation.Rules
         private static IEnumerable<string> ExpandForShank(IEnumerable<string> bases, CobShankType shank)
         {
             foreach (var b in bases)
-                foreach (var nm in BuildFeatureNameCandidates(b, shank))
+                foreach (var nm in BuildNameCandidatesWithSketches(b, shank))
                     yield return nm;
         }
 
@@ -168,51 +204,89 @@ namespace WAD.Runner.ModelAutomation.Rules
                 CobFootOption.G => ExpandForShank(new[] { "G", "BR_G", "FR_G" }, shank),
                 CobFootOption.VG => ExpandForShank(new[] { "VG", "BR_VG", "FR_VG" }, shank),
                 CobFootOption.CC => ExpandForShank(new[] { "C", "CG", "BR_C", "FR_C" }, shank),
+
+                // Special: C + CBRA + FR_C (NOT BR_C)
                 CobFootOption.C_WithCbr => ExpandForShank(new[] { "C", "CBRA", "FR_C" }, shank),
+
                 _ => Array.Empty<string>()
             };
         }
 
-        private static string BuildFeatureName(string baseName, CobShankType shank)
-        {
-            var suffix = shank == CobShankType.Std ? "STD" : "180_DEG_REV";
-            return $"{baseName}_{suffix}_feature";
-        }
+        private static string BuildSuffix(CobShankType shank)
+            => shank == CobShankType.Std ? "STD" : "180_DEG_REV";
 
-        private static IEnumerable<string> BuildFeatureNameCandidates(string baseName, CobShankType shank)
+        private static string BuildFeatureName(string baseName, CobShankType shank)
+            => $"{baseName}_{BuildSuffix(shank)}_feature";
+
+        /// <summary>
+        /// Remedy A: return feature + sketch candidates for baseName.
+        /// </summary>
+        private static IEnumerable<string> BuildNameCandidatesWithSketches(string baseName, CobShankType shank)
         {
+            // Primary feature
             yield return BuildFeatureName(baseName, shank);
+
+            // Sketch candidates
+            var suffix = BuildSuffix(shank);
+            yield return $"{baseName}_{suffix}_sketch";
+            yield return $"{baseName}_{suffix}_Sketch";
+            yield return $"{baseName}_{suffix}_SKETCH";
 
             // RA2 reverse name variant (template/spec inconsistency)
             if (baseName.Equals("RA2", StringComparison.OrdinalIgnoreCase) && shank == CobShankType.Rev180)
             {
+                // feature variants
                 yield return "RA2_180_DEF_REV_feature"; // spec typo variant
                 yield return "RA2_180_DEG_REV_feature"; // defensive
+
+                // sketch variants
+                yield return "RA2_180_DEF_REV_sketch";
+                yield return "RA2_180_DEF_REV_Sketch";
+                yield return "RA2_180_DEF_REV_SKETCH";
+
+                yield return "RA2_180_DEG_REV_sketch";
+                yield return "RA2_180_DEG_REV_Sketch";
+                yield return "RA2_180_DEG_REV_SKETCH";
             }
+        }
+
+        /// <summary>
+        /// Mandatory H candidates per shank:
+        /// - H_<shank>_cut_feature + its sketch
+        /// - H_<shank>_fix_feature
+        /// </summary>
+        private static IEnumerable<string> BuildHMandatoryCandidates(CobShankType shank)
+        {
+            var suffix = BuildSuffix(shank);
+
+            // Features
+            yield return $"H_{suffix}_cut_feature";
+            yield return $"H_{suffix}_fix_feature";
+
+            // Sketch for the cut feature (explicitly specified)
+            yield return $"H_{suffix}_cut_sketch";
+            yield return $"H_{suffix}_cut_Sketch";
+            yield return $"H_{suffix}_cut_SKETCH";
         }
 
         // --------------------------------------------
         // Optional enablement rules
         // --------------------------------------------
-        private static bool ResolveOptionalEnabled(WedgeData wedge, string key)
+        private static bool ResolveOptionalEnabled(WedgeData wedge, string featureKey)
         {
             if (wedge is null) return false;
 
-            // SLB is property-driven
-            if (key.Equals("SLB", StringComparison.OrdinalIgnoreCase))
-            {
-                var prop =
-                    GetPropLoose(wedge, "SLB") ??
-                    GetPropLoose(wedge, "SLB_enabled") ??
-                    GetPropLoose(wedge, "SLB_Enabled") ??
-                    GetPropLoose(wedge, "has_SLB") ??
-                    GetPropLoose(wedge, "Has_SLB");
+            // SLB is controlled by dimension VBL
+            if (featureKey.Equals("SLB", StringComparison.OrdinalIgnoreCase))
+                return IsDimEnabled(wedge, "VBL");
 
-                return !string.IsNullOrWhiteSpace(prop) && ParseBoolLoose(NormalizeDbToken(prop));
-            }
+            // VW/W2/RA2 are controlled by their own dimension key
+            return IsDimEnabled(wedge, featureKey);
+        }
 
-            // VW/W2/RA2 are dimension-driven: nominal != 0 => ON
-            if (!wedge.Dimensions.TryGetValue(DimensionKey.From(key), out var dim) || dim is null)
+        private static bool IsDimEnabled(WedgeData wedge, string dimKey)
+        {
+            if (!wedge.Dimensions.TryGetValue(DimensionKey.From(dimKey), out var dim) || dim is null)
                 return false;
 
             return dim.Nominal.Value != 0m;
@@ -249,6 +323,7 @@ namespace WAD.Runner.ModelAutomation.Rules
 
         private static CobFootOption ResolveFootOption(WedgeData wedge)
         {
+            // 1) Base foot from property: C / G / VG / CC (default C)
             var raw =
                 GetPropLoose(wedge, "Wed-Foot_Option") ??
                 GetPropLoose(wedge, "Wed-FootOption") ??
@@ -259,12 +334,39 @@ namespace WAD.Runner.ModelAutomation.Rules
 
             raw = NormalizeDbToken(raw);
 
-            if (EqualsAny(raw, "SW_G", "G")) return CobFootOption.G;
-            if (EqualsAny(raw, "SW_VG", "VG")) return CobFootOption.VG;
-            if (EqualsAny(raw, "SW_CG", "CG", "CC")) return CobFootOption.CC;
-            if (EqualsAny(raw, "SW_F", "F", "CBR", "C_CBR")) return CobFootOption.C_WithCbr;
+            CobFootOption baseFoot;
 
-            return CobFootOption.C;
+            if (EqualsAny(raw, "SW_G", "G")) baseFoot = CobFootOption.G;
+            else if (EqualsAny(raw, "SW_VG", "VG")) baseFoot = CobFootOption.VG;
+            else if (EqualsAny(raw, "SW_CG", "CG", "CC")) baseFoot = CobFootOption.CC;
+            else baseFoot = CobFootOption.C;
+
+            // 2) C_WithCbr rule:
+            // Only when base foot is C AND ALL of CBRA/CBRD/CBRL are > 0
+            if (baseFoot == CobFootOption.C)
+            {
+                bool allPositive =
+                    IsDimPositive(wedge, "CBRA") &&
+                    IsDimPositive(wedge, "CBRD") &&
+                    IsDimPositive(wedge, "CBRL");
+
+                if (allPositive)
+                {
+                    Logger.Info("[CobFeatureRules] Foot rule: base=C and (CBRA/CBRD/CBRL all > 0) → using C_WithCbr.");
+                    return CobFootOption.C_WithCbr;
+                }
+            }
+
+            return baseFoot;
+        }
+
+        private static bool IsDimPositive(WedgeData wedge, string dimKey)
+        {
+            if (wedge?.Dimensions is null) return false;
+            if (!wedge.Dimensions.TryGetValue(DimensionKey.From(dimKey), out var dim) || dim is null)
+                return false;
+
+            return dim.Nominal.Value > 0m;
         }
 
         private static string NormalizeDbToken(string s)
@@ -311,12 +413,6 @@ namespace WAD.Runner.ModelAutomation.Rules
             k ??= string.Empty;
             k = k.Trim();
             return k.Replace("-", "").Replace("_", "").Replace(" ", "");
-        }
-
-        private static bool ParseBoolLoose(string s)
-        {
-            s = (s ?? string.Empty).Trim();
-            return EqualsAny(s, "1", "true", "yes", "y", "on", "enabled", "enable");
         }
 
         private static bool EqualsAny(string value, params string[] options)

@@ -525,11 +525,11 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     partTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026",
+                        "Resources", "Templates", "COB", "COB template 02-14-2026","V2",
                         "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
 
                     equationTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026",
+                        "Resources", "Templates", "COB", "COB template 02-14-2026","V2",
                         "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
