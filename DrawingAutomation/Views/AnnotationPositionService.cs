@@ -13,6 +13,7 @@ using WAD.Runner.DrawingAutomation.SolidWorks;        // DrawingService
 
 // Resolve SolidWorks vs Domain type name clash:
 using SwDimension = SolidWorks.Interop.sldworks.Dimension;
+using SolidWorks.Interop.swconst;
 
 namespace WAD.Runner.DrawingAutomation.Views
 {
@@ -413,5 +414,68 @@ namespace WAD.Runner.DrawingAutomation.Views
         }
 
         private static double MmToMeters(double mm) => mm / 1000.0;
+
+        public object? InsertModelAnnotationsInView(
+            string logicalViewName,
+            swInsertAnnotation_e types = swInsertAnnotation_e.swInsertDimensionsMarkedForDrawing,
+            int source = 0,
+            bool allTypes = true,
+            bool addToAllViews = false,
+            bool includeItemsFromHiddenFeatures = false,
+            bool includeItemsFromHiddenSketches = false)
+        {
+            if (string.IsNullOrWhiteSpace(logicalViewName))
+                throw new ArgumentException("View name is required.", nameof(logicalViewName));
+
+            var dd = _ds.Drawing as DrawingDoc;
+            var model = _ds.Model as ModelDoc2;
+            if (dd is null || model is null)
+            {
+                Logger.Warn("[AnnIns] Skipped: drawing or model is null.");
+                return null;
+            }
+
+            var view = FindView(dd, logicalViewName);
+            if (view == null)
+            {
+                Logger.Warn($"[AnnIns] View '{logicalViewName}' not found. No annotations inserted.");
+                return null;
+            }
+
+            var actualViewName = SafeName(view);
+
+            try
+            {
+                bool selected = model.Extension.SelectByID2(
+                    actualViewName,
+                    "DRAWINGVIEW",
+                    0, 0, 0,
+                    false,
+                    0,
+                    null,
+                    0);
+
+                if (!selected)
+                {
+                    Logger.Warn($"[AnnIns] Could not select view '{actualViewName}'. InsertModelAnnotations3 may target the wrong view.");
+                }
+
+                object? inserted = dd.InsertModelAnnotations3(
+                    source,
+                    (int)types,
+                    allTypes,
+                    addToAllViews,
+                    includeItemsFromHiddenFeatures,
+                    includeItemsFromHiddenSketches);
+
+                Logger.Info($"[AnnIns] InsertModelAnnotations3 in view '{actualViewName}' (types={types}, source={source}).");
+                return inserted;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[AnnIns] InsertModelAnnotationsInView failed (view='{actualViewName}'): {ex.Message}");
+                return null;
+            }
+        }
     }
 }

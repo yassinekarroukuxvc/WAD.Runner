@@ -29,7 +29,11 @@ namespace WAD.Runner.ModelAutomation.Execution
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
 
-            Logger.Info($"[ModelRuleRunner] BuildFeaturePlan → wedgeType={wedgeType}, subclass={wedge.Subclass}, drawingType={drawingType}");
+            // IMPORTANT:
+            // - Do NOT rely on wedge.Properties for subclass routing; use wedge.Subclass directly.
+            var subclass = wedge.Subclass;
+
+            Logger.Info($"[ModelRuleRunner] BuildFeaturePlan → wedgeType={wedgeType}, subclass={subclass}, drawingType={drawingType}");
 
             IFeatureRuleSet rules = wedgeType switch
             {
@@ -39,7 +43,8 @@ namespace WAD.Runner.ModelAutomation.Execution
             };
 
             // Build the raw plan (pure planning)
-            var plan = rules.Build(wedge, drawingType);
+            // NOTE: subclass is now passed explicitly to rule sets.
+            var plan = rules.Build(wedge, drawingType, subclass);
 
             // Normalize (trim, distinct, remove overlaps)
             var unsupSet = Normalize(plan.Unsuppress);
@@ -57,7 +62,6 @@ namespace WAD.Runner.ModelAutomation.Execution
             return new FeaturePlan(sup, unsup);
         }
 
-
         private static HashSet<string> Normalize(IEnumerable<string> names)
         {
             return new HashSet<string>(
@@ -72,6 +76,6 @@ namespace WAD.Runner.ModelAutomation.Execution
     /// </summary>
     public interface IFeatureRuleSet
     {
-        ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType);
+        ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass);
     }
 }

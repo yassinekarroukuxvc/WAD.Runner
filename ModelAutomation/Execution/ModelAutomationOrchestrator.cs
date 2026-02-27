@@ -89,8 +89,12 @@ namespace WAD.Runner.ModelAutomation.Execution
 
             editor.OpenPart(modPartPath);
 
-            // Configuration activation (same mapping you used before)
-            var configOk = editor.ActivateConfiguration(ResolveConfiguration(job.Subclass, job.DrawingType));
+            // IMPORTANT (COB change):
+            // - For COB + FG (Production/Customer/Overlay): always use "Default"
+            // - For COB + PGB: use COB_STD_PGB / COB_180_DEG_REV_PGB depending on shank type
+            var configName = ResolveConfiguration(job.WedgeType, job.Subclass, job.DrawingType, job.WedgeData);
+            var configOk = editor.ActivateConfiguration(configName);
+
             var toggleScope = configOk
                 ? swInConfigurationOpts_e.swThisConfiguration
                 : swInConfigurationOpts_e.swAllConfiguration;
@@ -163,8 +167,6 @@ namespace WAD.Runner.ModelAutomation.Execution
 
             editor.SetEngraving(engraving);
 
-            //editor.ApplyFeatureToggles(featurePlan.Suppress, featurePlan.Unsuppress);
-
             // -----------------------------
             // Step 5) ONE rebuild, save, close
             // -----------------------------
@@ -179,8 +181,25 @@ namespace WAD.Runner.ModelAutomation.Execution
             return modPartPath;
         }
 
-        private static string ResolveConfiguration(WedgeSubclass subclass, DrawingType drawingType)
+        private static string ResolveConfiguration(WedgeType wedgeType, WedgeSubclass subclass, DrawingType drawingType, WedgeData? wedge)
         {
+            // Only COB has the special config mapping requested here.
+            if (wedgeType == WedgeType.COB)
+            {
+                // COB + PGB: config depends on shank type
+                if (subclass == WedgeSubclass.PGB)
+                {
+                    var shank = ResolveCobShankType(wedge);
+                    return shank == CobShankType.Rev180
+                        ? "COB_180_DEG_REV_PGB"
+                        : "COB_STD_PGB";
+                }
+
+                // COB + FG (Production/Customer/Overlay): always Default
+                return "Default";
+            }
+
+            // Fallback: keep existing mapping for other wedge types (CKVD etc.)
             return subclass switch
             {
                 WedgeSubclass.PGB when drawingType == DrawingType.Overlay => "PGB_OVERLAY",
@@ -192,5 +211,85 @@ namespace WAD.Runner.ModelAutomation.Execution
                 _ => "FG_PRODUCTION_DRAWING"
             };
         }
+
+        private static CobShankType ResolveCobShankType(WedgeData? wedge)
+        {
+            if (wedge == null) return CobShankType.Std;
+
+            // Keep the same loose property parsing you used in CobFeatureRules
+            var raw =
+                GetPropLoose(wedge, "Wed-Type") ??
+                GetPropLoose(wedge, "Wed_Type") ??
+                GetPropLoose(wedge, "Wed Type") ??
+                GetPropLoose(wedge, "Shank_Type") ??
+                GetPropLoose(wedge, "shank_type") ??
+                string.Empty;
+
+            raw = NormalizeDbToken(raw);
+
+            if (EqualsAny(raw,
+                    "SW_180REV",
+                    "SW_180_DEG_REV",
+                    "SW_180DEGREV",
+                    "180_DEG_REV",
+                    "180DEGREV",
+                    "180REV",
+                    "REV",
+                    "REVERSE"))
+                return CobShankType.Rev180;
+
+            return CobShankType.Std;
+        }
+
+        private static string? GetPropLoose(WedgeData wedge, string key)
+        {
+            try
+            {
+                if (wedge?.Properties == null || wedge.Properties.Count == 0)
+                    return null;
+
+                if (wedge.Properties.TryGetValue(key, out var exact))
+                    return exact;
+
+                var target = NormalizeKey(key);
+
+                foreach (var kv in wedge.Properties)
+                {
+                    var k = NormalizeKey(kv.Key);
+                    if (string.Equals(k, target, StringComparison.OrdinalIgnoreCase))
+                        return kv.Value;
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string NormalizeKey(string? k)
+        {
+            k ??= string.Empty;
+            k = k.Trim();
+            return k.Replace("-", "").Replace("_", "").Replace(" ", "");
+        }
+
+        private static string NormalizeDbToken(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+
+            s = s.Trim();
+            var semi = s.IndexOf(';');
+            if (semi >= 0)
+                s = s.Substring(0, semi);
+
+            return s.Trim();
+        }
+
+        private static bool EqualsAny(string value, params string[] options)
+            => options.Any(o => string.Equals(value, o, StringComparison.OrdinalIgnoreCase));
+
+        private enum CobShankType { Std, Rev180 }
     }
 }

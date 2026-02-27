@@ -85,11 +85,11 @@ public static class ProfilePresets
     );
 
     private static ViewNames CobPgbProductionViews() => new(
-        Front: "COB_PGB_Front",
-        Side: "COB_PGB_Side",
-        Top: "COB_PGB_Top",
-        Detail: "COB_PGB_Detail",
-        Section: "COB_PGB_Section"
+        Front: "Drawing View56",
+        Side: "Drawing View55",
+        Top: "Drawing View60",
+        Detail: "Drawing View58",
+        Section: "Section View AB-AB"
     );
 
     private static ViewNames CobPgbOverlayViews() => new(
@@ -100,7 +100,7 @@ public static class ProfilePresets
         Section: "COB_PGB_Ovl_Section"
     );
 
-    // OSG7 (set these to match your OSG7 drawing templates)
+    // OSG7
     private static ViewNames Osg7FgProductionViews() => new(
         Front: "Drawing View3",
         Side: "Drawing View2",

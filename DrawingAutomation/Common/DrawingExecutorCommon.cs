@@ -24,16 +24,29 @@ public static class DrawingExecutorCommon
             ? string.Empty
             : Path.GetFullPath(run.TemplatePartPath);
 
-        // Ensure copy exists
+        // Ensure destination folder exists
         Directory.CreateDirectory(Path.GetDirectoryName(destDrw)!);
-        if (!File.Exists(destDrw))
+
+        // If a drawing already exists at the destination, delete it first, then copy fresh
+        if (File.Exists(destDrw))
         {
-            File.Copy(srcDrw, destDrw, overwrite: true);
-            Logger.Info($"[Init] Copied drawing template → '{destDrw}'");
+            try
+            {
+                File.SetAttributes(destDrw, FileAttributes.Normal); // avoid read-only issues
+            }
+            catch { /* ignore */ }
+
+            File.Delete(destDrw);
+            Logger.Info($"[Init] Deleted existing destination drawing → '{destDrw}'");
         }
+
+        // Copy template drawing to destination (fresh copy every time)
+        File.Copy(srcDrw, destDrw, overwrite: true);
+        Logger.Info($"[Init] Copied drawing template → '{destDrw}'");
 
         if (!File.Exists(destDrw))
             throw new FileNotFoundException("Destination drawing missing after copy.", destDrw);
+
         if (!File.Exists(newPart))
             Logger.Warn($"[Init] Target part not found yet (relink will still try): {newPart}");
 

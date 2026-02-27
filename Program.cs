@@ -342,7 +342,9 @@ switch (cmd)
     case "run-drawing":
         {
             SolidWorksProcessKiller.KillAll(killVbaServer: true);
+
             var (article, subclass) = ParseArticleAndSubclass(args);
+
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
 
@@ -350,14 +352,20 @@ switch (cmd)
 
             string templatePartPath;
             string templateDrawingPath;
-            string equationTemplatePathForPartPhase;
+            string equationTemplatePathForModelPhase;
 
             switch (wedgeTypeEnum)
             {
                 case WedgeType.COB:
-                    templatePartPath = Path.Combine("Resources", "Templates", "COB", "COB template 02-14-2026", "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+                    templatePartPath = Path.Combine(
+                        "Resources", "Templates", "COB", "COB template 02-14-2026",
+                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+
                     templateDrawingPath = Path.Combine("Resources", "Templates", "COB", "COB_Drawings.SLDDRW");
-                    equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "COB", "COB template 02-14-2026", "wedge-auto-draw-COB-3d-equation.txt");
+
+                    equationTemplatePathForModelPhase = Path.Combine(
+                        "Resources", "Templates", "COB", "COB template 02-14-2026",
+                        "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
                 case WedgeType.OSG7:
@@ -369,20 +377,20 @@ switch (cmd)
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDDRW"),
                     };
-                    equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
                     break;
 
                 case WedgeType.CKVD:
                 default:
-                    templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT");
+                    templatePartPath = Path.Combine("Resources", "Templates", "CKVD","CKVDv2" ,"CKVD_2023.SLDPRT");
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
-                            Path.Combine("Resources", "Templates", "CKVD", "OVERLAY_TEMPLATE.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "CKVD","CKVDv2", "OVERLAY_TEMPLATE.SLDDRW"),
                         DrawingType.Production or DrawingType.Customer or _ =>
-                            Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDDRW"),
                     };
-                    equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "CKVD", "CK.txt");
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD","CKVDv2", "CK.txt");
                     break;
             }
 
@@ -392,6 +400,7 @@ switch (cmd)
 
             var getWedge = host.Services.GetRequiredService<GetWedgeData>();
             var getDrawing = host.Services.GetRequiredService<GetDrawingData>();
+
             var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
             var drawingData = await getDrawing.ExecuteAsync(dtype, subclass, wedgeTypeEnum, article, CancellationToken.None);
 
@@ -420,41 +429,48 @@ switch (cmd)
                 OutputTiffPath = null
             };
 
-            string? partResultPath = null;
+            // -----------------------------
+            // MODEL phase (ModelAutomation)
+            // -----------------------------
+            string? modelResultPath = null;
             try
             {
-                var orchestrator = host.Services.GetRequiredService<PartAutomationOrchestrator>();
+                var orchestrator = host.Services.GetRequiredService<ModelAutomationOrchestrator>();
                 var sessFactory = host.Services.GetRequiredService<ISwSessionFactory>();
 
-                using var swPart = sessFactory.Create(visible: true);
+                using var swModel = sessFactory.Create(visible: true);
 
-                var job = new PartJobRequest
+                var job = new ModelJobRequest
                 {
                     ArticleNumber = article,
                     Subclass = subclass,
                     DrawingType = dtype,
                     OutputRoot = outputRootBase,
                     PartTemplatePath = templatePartPath,
-                    EquationTemplatePath = equationTemplatePathForPartPhase,
-                    FileBase = plan.FileBase,
+                    EquationTemplatePath = equationTemplatePathForModelPhase,
+                    FileBase = plan.FileBase,              // keep same filebase so drawing uses same outputs
                     WedgeData = wedgeData,
                     WedgeType = wedgeTypeEnum
                 };
 
-                partResultPath = await orchestrator.RunAsync(job, swPart.App, CancellationToken.None);
+                modelResultPath = await orchestrator.RunAsync(job, swModel.App, CancellationToken.None);
             }
             catch (Exception ex)
             {
-                Logger.Error("[run-drawing] Part phase failed:");
+                Logger.Error("[run-drawing] Model phase failed:");
                 Logger.Error(ex.ToString());
                 Environment.ExitCode = 1;
                 break;
             }
 
+            // -----------------------------
+            // DRAWING phase (unchanged)
+            // -----------------------------
             var sessFactory2 = host.Services.GetRequiredService<ISwSessionFactory>();
             using (var swDraw = sessFactory2.Create(visible: true))
             {
-                Func<object?> runPartAutomation = () => partResultPath;
+                // keep signature expected by executors
+                Func<object?> runModelAutomation = () => modelResultPath;
 
                 switch (subclass)
                 {
@@ -463,18 +479,18 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Customer → using FG Customer executor (temporary).");
-                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Overlay:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Overlay → using PGB Overlay drawing executor…");
-                                PgbOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                PgbOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Production → using PGB Production drawing executor…");
-                                PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                 break;
                         }
                         break;
@@ -485,18 +501,18 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Customer → using FG Customer drawing executor…");
-                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Overlay:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Overlay → using FG Overlay drawing executor…");
-                                FgOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                FgOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Production → using FG Production drawing executor…");
-                                FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                 break;
                         }
                         break;

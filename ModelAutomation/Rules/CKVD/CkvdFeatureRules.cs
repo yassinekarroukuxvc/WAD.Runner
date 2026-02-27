@@ -19,7 +19,7 @@ namespace WAD.Runner.ModelAutomation.Rules
     /// </summary>
     public sealed class CkvdFeatureRules : IFeatureRuleSet
     {
-        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType)
+        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
 

@@ -20,7 +20,7 @@ namespace WAD.Runner.ModelAutomation.Rules
     {
         private const double Eps = 1e-6;
 
-        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType)
+        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
 
