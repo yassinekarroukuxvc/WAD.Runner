@@ -358,14 +358,15 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     templatePartPath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026",
+                        "Resources", "Templates", "COB", "COB template 02-14-2026","V3",
                         "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
 
-                    templateDrawingPath = Path.Combine("Resources", "Templates", "COB", "COB_Drawings.SLDDRW");
+                    templateDrawingPath = Path.Combine("Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
+                        "wedge-auto-draw-COB-2d-drawing.SLDDRW");
 
                     equationTemplatePathForModelPhase = Path.Combine(
                         "Resources", "Templates", "COB", "COB template 02-14-2026",
-                        "wedge-auto-draw-COB-3d-equation.txt");
+                        "V3", "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
                 case WedgeType.OSG7:
@@ -479,7 +480,7 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Customer → using FG Customer executor (temporary).");
-                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
 
                             case DrawingType.Overlay:
@@ -490,7 +491,7 @@ switch (cmd)
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Production → using PGB Production drawing executor…");
-                                PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
                         }
                         break;
@@ -501,7 +502,7 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Customer → using FG Customer drawing executor…");
-                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
 
                             case DrawingType.Overlay:
@@ -512,7 +513,7 @@ switch (cmd)
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Production → using FG Production drawing executor…");
-                                FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
                         }
                         break;
@@ -541,11 +542,11 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     partTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026","V2",
+                        "Resources", "Templates", "COB", "COB template 02-14-2026","V3",
                         "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
 
                     equationTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026","V2",
+                        "Resources", "Templates", "COB", "COB template 02-14-2026","V3",
                         "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 

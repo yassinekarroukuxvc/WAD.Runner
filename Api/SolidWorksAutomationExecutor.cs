@@ -207,7 +207,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             {
                                 case DrawingType.Customer:
                                     _logger.LogInformation("Job {JobId}: PGB Customer → FG Customer executor (temporary).", job.Id);
-                                    FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                    PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation);
                                     break;
 
                                 case DrawingType.Overlay:
@@ -218,7 +218,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                 case DrawingType.Production:
                                 default:
                                     _logger.LogInformation("Job {JobId}: PGB Production → PGB Production executor.", job.Id);
-                                    PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                    PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation);
                                     break;
                             }
                             break;
@@ -229,7 +229,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             {
                                 case DrawingType.Customer:
                                     _logger.LogInformation("Job {JobId}: FG Customer → FG Customer executor.", job.Id);
-                                    FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                    FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation);
                                     break;
 
                                 case DrawingType.Overlay:
@@ -240,7 +240,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                 case DrawingType.Production:
                                 default:
                                     _logger.LogInformation("Job {JobId}: FG Production → FG Production executor.", job.Id);
-                                    FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                    FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation);
                                     break;
                             }
                             break;

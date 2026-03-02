@@ -61,19 +61,19 @@ public static class ProfilePresets
     );
 
     private static ViewNames CobFgProductionViews() => new(
-        Front: "Drawing View4",
-        Side: "Drawing View1",
-        Top: "Drawing View3",
-        Detail: "Drawing View5",
-        Section: "Section View AA-AA"
+        Front: "Drawing View7",
+        Side: "Drawing View6",
+        Top: "Drawing View8",
+        Detail: "Drawing View9",
+        Section: "Section View AF-AF"
     );
 
     private static ViewNames CobFgCustomerViews() => new(
-        Front: "COB_FG_Cust_Front",
-        Side: "COB_FG_Cust_Side",
-        Top: "COB_FG_Cust_Top",
-        Detail: "COB_FG_Cust_Detail",
-        Section: "COB_FG_Cust_Section"
+        Front: "Drawing View2",
+        Side: "Drawing View1",
+        Top: "Drawing View3",
+        Detail: "Drawing View4",
+        Section: "Section View AE-AE"
     );
 
     private static ViewNames CobFgOverlayViews() => new(
@@ -85,11 +85,11 @@ public static class ProfilePresets
     );
 
     private static ViewNames CobPgbProductionViews() => new(
-        Front: "Drawing View56",
-        Side: "Drawing View55",
-        Top: "Drawing View60",
-        Detail: "Drawing View58",
-        Section: "Section View AB-AB"
+        Front: "Drawing View12",
+        Side: "Drawing View11",
+        Top: "Drawing View13",
+        Detail: "Drawing View14",
+        Section: "Section View AG-AG"
     );
 
     private static ViewNames CobPgbOverlayViews() => new(

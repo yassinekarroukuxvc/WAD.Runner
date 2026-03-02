@@ -191,8 +191,8 @@ namespace WAD.Runner.ModelAutomation.Execution
                 {
                     var shank = ResolveCobShankType(wedge);
                     return shank == CobShankType.Rev180
-                        ? "COB_180_DEG_REV_PGB"
-                        : "COB_STD_PGB";
+                        ? "Default"
+                        : "Default";
                 }
 
                 // COB + FG (Production/Customer/Overlay): always Default

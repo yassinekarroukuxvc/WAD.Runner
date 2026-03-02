@@ -73,7 +73,10 @@
         "COB": {
           "Common": {
             "Views": {
-              "Detail": { "Scale": 60.0 },
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
               "Section": { "Scale": 60.0 }
             },
             "Metadata": { "SpecialNote": "COB production override" }
@@ -107,7 +110,10 @@
         "COB": {
           "Common": {
             "Views": {
-              "Detail": { "Scale": 60.0 },
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
               "Section": { "Scale": 60.0 }
             },
             "Metadata": { "SpecialNote": "COB customer override" }

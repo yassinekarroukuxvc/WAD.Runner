@@ -477,5 +477,174 @@ namespace WAD.Runner.DrawingAutomation.Views
                 return null;
             }
         }
+
+        public object? InsertMarkedAnnotationsStrictInView(
+    string logicalViewName,
+    int source = 0,
+    bool includeItemsFromHiddenFeatures = false,
+    bool includeItemsFromHiddenSketches = false)
+        {
+            if (string.IsNullOrWhiteSpace(logicalViewName))
+                throw new ArgumentException("View name is required.", nameof(logicalViewName));
+
+            var dd = _ds.Drawing as DrawingDoc;
+            var model = _ds.Model as ModelDoc2;
+            if (dd is null || model is null)
+            {
+                Logger.Warn("[AnnIns] Skipped: drawing or model is null.");
+                return null;
+            }
+
+            var targetView = FindView(dd, logicalViewName);
+            if (targetView == null)
+            {
+                Logger.Warn($"[AnnIns] View '{logicalViewName}' not found. No annotations inserted.");
+                return null;
+            }
+
+            var actualViewName = SafeName(targetView);
+
+            try
+            {
+                // Snapshot BEFORE (per-view)
+                var before = SnapshotDisplayDimensionsByView(dd);
+
+                // Make target view the ACTIVE drawing view (this is key)
+                try { dd.ActivateView(actualViewName); } catch { /* best effort */ }
+
+                model.ClearSelection2(true);
+
+                // Select view (helps some SW versions)
+                bool selected = model.Extension.SelectByID2(
+                    actualViewName,
+                    "DRAWINGVIEW",
+                    0, 0, 0,
+                    false,
+                    0,
+                    null,
+                    0);
+
+                if (!selected)
+                    Logger.Warn($"[AnnIns] Could not select view '{actualViewName}'. InsertModelAnnotations3 may target the wrong view.");
+
+                // Insert ONLY "Marked for Drawing" (no allTypes spray)
+                object? inserted = dd.InsertModelAnnotations3(
+                    source,
+                    (int)swInsertAnnotation_e.swInsertDimensionsMarkedForDrawing,
+                    /*allTypes*/ false,
+                    /*addToAllViews*/ false,
+                    includeItemsFromHiddenFeatures,
+                    includeItemsFromHiddenSketches);
+
+                // Snapshot AFTER
+                var after = SnapshotDisplayDimensionsByView(dd);
+
+                // Compute "newly inserted" dimensions per view
+                var targetKey = actualViewName; // actual SW name
+                int kept = 0, removed = 0;
+
+                foreach (var (viewName, afterSet) in after)
+                {
+                    before.TryGetValue(viewName, out var beforeSet);
+
+                    // new = after - before
+                    foreach (var ddim in afterSet)
+                    {
+                        if (beforeSet != null && beforeSet.Contains(ddim))
+                            continue;
+
+                        // If it didn't land in the target view, delete it
+                        if (!string.Equals(viewName, targetKey, StringComparison.OrdinalIgnoreCase))
+                        {
+                            TryDeleteDisplayDimension(ddim);
+                            removed++;
+                        }
+                        else
+                        {
+                            kept++;
+                        }
+                    }
+                }
+
+                Logger.Info($"[AnnIns] InsertModelAnnotations3 requested for '{actualViewName}'. Kept={kept}, RemovedOutsideTarget={removed}.");
+                try { _ds.Rebuild(); } catch { }
+
+                return inserted;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[AnnIns] InsertMarkedAnnotationsStrictInView failed (view='{actualViewName}'): {ex.Message}");
+                return null;
+            }
+        }
+
+        // ---------------- helpers ----------------
+
+        private static Dictionary<string, HashSet<DisplayDimension>> SnapshotDisplayDimensionsByView(DrawingDoc dd)
+        {
+            var map = new Dictionary<string, HashSet<DisplayDimension>>(StringComparer.OrdinalIgnoreCase);
+
+            View v = dd.IGetFirstView();
+            if (v == null) return map;
+            v = v.IGetNextView(); // skip sheet
+
+            int guard = 0;
+            while (v != null && guard++ < 2048)
+            {
+                var name = SafeNameStatic(v);
+
+                var set = new HashSet<DisplayDimension>(ReferenceEqualityComparer<DisplayDimension>.Instance);
+                foreach (var d in EnumerateDisplayDimensionsFromAnnotations(v))
+                    set.Add(d);
+                if (set.Count == 0)
+                    foreach (var d in EnumerateDisplayDimensionsLegacy(v))
+                        set.Add(d);
+
+                map[name] = set;
+
+                v = v.IGetNextView();
+            }
+
+            return map;
+        }
+
+        private void TryDeleteDisplayDimension(DisplayDimension ddim)
+        {
+            try
+            {
+                var model = _ds.Model as ModelDoc2;
+                if (model == null) return;
+
+                var ann = ddim.GetAnnotation() as Annotation;
+                if (ann == null) return;
+
+                model.ClearSelection2(true);
+
+                // Select the annotation (not the dimension)
+                bool ok = ann.Select3(false, null);
+                if (!ok) return;
+
+                // Delete selected annotation(s)
+                model.Extension.DeleteSelection2((int)swDeleteSelectionOptions_e.swDelete_Absorbed);
+            }
+            catch
+            {
+                // best effort
+            }
+        }
+
+        // Reference-based HashSet comparer for COM objects
+        private sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T> where T : class
+        {
+            public static readonly ReferenceEqualityComparer<T> Instance = new();
+            public bool Equals(T? x, T? y) => ReferenceEquals(x, y);
+            public int GetHashCode(T obj) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
+        }
+
+        private static string SafeNameStatic(View v)
+        {
+            try { return v?.Name ?? "(null)"; }
+            catch { return "(ex)"; }
+        }
     }
 }

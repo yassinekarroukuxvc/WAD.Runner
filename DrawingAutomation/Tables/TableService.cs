@@ -32,11 +32,16 @@ namespace WAD.Runner.DrawingAutomation.Tables
             _drawing = swModel as DrawingDoc ?? throw new InvalidCastException("Active model is not a DrawingDoc.");
         }
 
-        public bool CreateDimensionTable(WedgeData wedge, DrawingData draw, string tableId = "DimTable", string header = "DIMENSIONS")
+        public bool CreateDimensionTable(
+            WedgeData wedge,
+            DrawingData draw,
+            WedgeType wedgeType,
+            string tableId = "DimTable",
+            string header = "DIMENSIONS")
         {
             if (!TryGetCfg(draw, tableId, out var cfg)) return false;
 
-            var rows = BuildDimensionRows_Filtered(wedge);
+            var rows = BuildDimensionRows_Filtered(wedge, draw, wedgeType);
             if (rows.Count == 0) return false;
 
             var widthM = ResolveWidthM(cfg, fallbackM: 0.08);
@@ -397,13 +402,23 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
         private static double PointsToMeters(double pt) => pt * 0.0003527777778;
 
-        private static List<string> BuildDimensionRows_Filtered(WedgeData wedge)
+        private static List<string> BuildDimensionRows_Filtered(WedgeData wedge, DrawingData draw, WedgeType wedgeType)
         {
             var rows = new List<string>();
+
+            var subclass = wedge.Subclass;
+            var drawingType = draw.DrawingType;
+
+            // null => no filtering for that wedgeType/subclass/drawingType
+            var allowed = DimensionTableKeyFilter.GetAllowedKeys(wedgeType, drawingType, subclass);
 
             foreach (var kv in wedge.Dimensions)
             {
                 var key = kv.Key.Value;
+
+                if (allowed != null && !allowed.Contains(key))
+                    continue;
+
                 if (DimensionKeyPolicy.IsAngle(key)) continue;
 
                 var d = kv.Value;
@@ -435,7 +450,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
             return rows;
         }
-
         private static List<string> ReadLinesFromMetadata(DrawingData draw, string metaKey)
         {
             var lines = new List<string>();

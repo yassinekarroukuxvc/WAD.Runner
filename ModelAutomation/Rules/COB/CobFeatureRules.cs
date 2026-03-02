@@ -16,10 +16,14 @@ namespace WAD.Runner.ModelAutomation.Rules
     /// <summary>
     /// COB feature toggle planning (NO SolidWorks calls, NO rebuild).
     ///
-    /// PGB FAST MODE:
-    /// - Assumes the PGB template/config is already "all suppressed" by default.
-    /// - We ONLY UNSUPPRESS the required allowlist (6 items depending on shank).
-    /// - (Optional safety) We also suppress the opposite shank's 6 items to prevent leakage.
+    /// FG:
+    /// - Apply full COB feature planning logic (mandatory + optional + foot rules).
+    ///
+    /// PGB:
+    /// - No foot options, no optional enablement.
+    /// - Only shank-type mandatory bases (STD vs 180_DEG_REV).
+    /// - We unsuppress the mandatory set for the selected shank and suppress the opposite shank set
+    ///   to avoid leakage when templates/configurations are not perfectly "all suppressed".
     /// </summary>
     public sealed class CobFeatureRules : IFeatureRuleSet
     {
@@ -29,24 +33,24 @@ namespace WAD.Runner.ModelAutomation.Rules
 
             Logger.Info("[CobFeatureRules] Build → start");
 
-            var suppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var unsuppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
             var shank = ResolveShankType(wedge);
 
             // ------------------------------------------------------------
-            // COB PGB override: FAST MODE (no massive suppress list)
+            // PGB rules (NEW)
             // ------------------------------------------------------------
             if (subclass == WedgeSubclass.PGB)
             {
-                Logger.Info($"[CobFeatureRules] Parsed → Subclass=PGB, Shank={shank}");
+                Logger.Info($"[CobFeatureRules] Subclass=PGB → applying PGB shank-only rules. Shank={shank}");
 
-                BuildPgbOnlyPlanFast(shank, suppress, unsuppress);
+                var suppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var unsuppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                BuildPgbPlan(shank, suppress, unsuppress);
 
                 // Unsuppress wins
                 suppress.RemoveWhere(nm => unsuppress.Contains(nm));
 
-                Logger.Success($"[CobFeatureRules] Build(PGB-fast) → done. unsuppress={unsuppress.Count}, suppress={suppress.Count}");
+                Logger.Success($"[CobFeatureRules] Build(PGB) → done. unsuppress={unsuppress.Count}, suppress={suppress.Count}");
 
                 return new ModelRuleRunner.FeaturePlan(
                     Suppress: suppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -54,68 +58,88 @@ namespace WAD.Runner.ModelAutomation.Rules
             }
 
             // ------------------------------------------------------------
-            // Default: FG rules (existing logic)
+            // FG rules (existing logic)
             // ------------------------------------------------------------
+            var fgSuppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var fgUnsuppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var foot = ResolveFootOption(wedge);
 
             // TL_feature always active (FG only)
-            unsuppress.Add("TL_feature");
+            fgUnsuppress.Add("TL_feature");
 
             // Engraving toggle (non-overlay only) (FG only)
             if (drawingType is DrawingType.Production or DrawingType.Customer)
             {
                 var engraving = TryGetEngravingName();
                 if (!string.IsNullOrWhiteSpace(engraving))
-                    unsuppress.Add(engraving);
+                    fgUnsuppress.Add(engraving);
             }
-
-            var foot = ResolveFootOption(wedge);
 
             Logger.Info($"[CobFeatureRules] Parsed → Subclass=FG, Shank={shank}, Foot={foot}");
 
-            BuildFeaturePlanAlignedWithSpec(wedge, shank, foot, suppress, unsuppress);
+            BuildFeaturePlanAlignedWithSpec(wedge, shank, foot, fgSuppress, fgUnsuppress);
 
             // Unsuppress wins
-            suppress.RemoveWhere(nm => unsuppress.Contains(nm));
+            fgSuppress.RemoveWhere(nm => fgUnsuppress.Contains(nm));
 
-            Logger.Success($"[CobFeatureRules] Build → done. unsuppress={unsuppress.Count}, suppress={suppress.Count}");
+            Logger.Success($"[CobFeatureRules] Build(FG) → done. unsuppress={fgUnsuppress.Count}, suppress={fgSuppress.Count}");
 
             return new ModelRuleRunner.FeaturePlan(
-                Suppress: suppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
-                Unsuppress: unsuppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray());
+                Suppress: fgSuppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
+                Unsuppress: fgUnsuppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray());
         }
 
-        // ------------------------------------------------------------
-        // PGB-only plan (FAST): only unsuppress allowlist
-        // ------------------------------------------------------------
-        private static void BuildPgbOnlyPlanFast(
+        // --------------------------------------------
+        // PGB planning (shank-only mandatory)
+        // --------------------------------------------
+        private static void BuildPgbPlan(
             CobShankType shank,
             HashSet<string> suppress,
             HashSet<string> unsuppress)
         {
-            // ✅ UNSUPPRESS ONLY these 6
-            var suffix = BuildSuffix(shank);
-
+            // Common (no suffix)
             unsuppress.Add("TL_feature");
             unsuppress.Add("part_axis");
 
-            unsuppress.Add($"TDF_{suffix}_feature");
-            unsuppress.Add($"ISA_20_{suffix}_feature");
-            unsuppress.Add($"10BA_{suffix}_feature");
-            unsuppress.Add($"10BA_{suffix}_annotation");
-
-            // ✅ Optional safety:
-            // suppress the opposite shank's allowlist (only 6 names, cheap)
+            // Mandatory bases per shank (feature names are fixed in your spec)
+            // STD mandatory:
+            // TL_feature ; part_axis ; TDF_STD_feature ; ISA_20_STD_feature ; 10BA_STD_feature ; 10BA_STD_annotation
+            // 180_DEG_REV mandatory:
+            // TL_feature ; part_axis ; TDF_180_DEG_REV_feature ; ISA_20_180_DEG_REV_feature ; 10BA_180_DEG_REV_feature ; 10BA_180_DEG_REV_annotation
             var opposite = shank == CobShankType.Std ? CobShankType.Rev180 : CobShankType.Std;
-            var oppSuffix = BuildSuffix(opposite);
 
-            suppress.Add($"TDF_{oppSuffix}_feature");
-            suppress.Add($"ISA_20_{oppSuffix}_feature");
-            suppress.Add($"10BA_{oppSuffix}_feature");
-            suppress.Add($"10BA_{oppSuffix}_annotation");
+            // Selected shank: force-enable mandatory features (+ sketches)
+            foreach (var nm in BuildNameCandidatesWithSketches("TDF", shank))
+                unsuppress.Add(nm);
 
-            // If part_axis exists only once (no suffix), don't add it to suppress here.
-            // TL_feature should stay ON for both shanks for PGB, so don't suppress it either.
+            foreach (var nm in BuildNameCandidatesWithSketches("ISA_20", shank))
+                unsuppress.Add(nm);
+
+            foreach (var nm in BuildNameCandidatesWithSketches("10BA", shank))
+                unsuppress.Add(nm);
+
+            unsuppress.Add(BuildAnnotationName("10BA", shank));
+
+            // Opposite shank: suppress its mandatory features (+ sketches) to prevent leakage
+            foreach (var nm in BuildNameCandidatesWithSketches("TDF", opposite))
+                suppress.Add(nm);
+
+            foreach (var nm in BuildNameCandidatesWithSketches("ISA_20", opposite))
+                suppress.Add(nm);
+
+            foreach (var nm in BuildNameCandidatesWithSketches("10BA", opposite))
+                suppress.Add(nm);
+
+            suppress.Add(BuildAnnotationName("10BA", opposite));
+
+            // (Optional: log config hint for 180 rev PGB)
+            if (shank == CobShankType.Rev180)
+                Logger.Info("[CobFeatureRules] PGB 180_DEG_REV hint: configuration name expected = COB_180_DEG_REV_PGB");
         }
+
+        private static string BuildAnnotationName(string baseName, CobShankType shank)
+            => $"{baseName}_{BuildSuffix(shank)}_annotation";
 
         // --------------------------------------------
         // SPEC-ALIGNED planning (FG / default)

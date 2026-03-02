@@ -54,6 +54,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
             var output = new List<string>(lines.Count + 32);
 
+            // Dimensions coming from caller (effective dims)
             var byKey = effectiveDims.ToDictionary(
                 kv => kv.Key.Value, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
 
@@ -61,6 +62,27 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 byKey.Where(kv => kv.Value.Nominal.Unit == DomUnitKind.Degree)
                      .Select(kv => kv.Key),
                 StringComparer.OrdinalIgnoreCase);
+
+            // Keys in our provided dimension list that are effectively "do not override"
+            // if their nominal is zero (keep equation file value as-is)
+            var zeroProvidedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (k, dim) in byKey)
+            {
+                try
+                {
+                    var v = dim.Nominal.Unit == DomUnitKind.Degree
+                        ? (double)dim.Nominal.AsDeg()
+                        : (double)dim.Nominal.AsMm();
+
+                    if (Math.Abs(v) < 1e-12)
+                        zeroProvidedKeys.Add(k);
+                }
+                catch
+                {
+                    // If we can't read it reliably, treat as "don't override"
+                    zeroProvidedKeys.Add(k);
+                }
+            }
 
             var engravingLine = BuildEngravingStartLine(wedge);
 
@@ -93,6 +115,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
                 var key = m.Groups["key"].Value;
 
+                // Always-managed special keys
                 if (key.Equals("EngravingStart", StringComparison.OrdinalIgnoreCase))
                 {
                     output.Add(engravingLine);
@@ -124,20 +147,37 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
+                // NEW RULE:
+                // - If key exists in provided dims AND its provided value is NON-ZERO -> override
+                // - If key exists in provided dims BUT provided value is ZERO -> KEEP existing equation line (do not override)
+                // - If key does NOT exist in provided dims -> KEEP existing equation line (do not override)
                 if (byKey.TryGetValue(key, out var dim))
                 {
+                    if (zeroProvidedKeys.Contains(key))
+                    {
+                        // keep equation file's value (original line)
+                        output.Add(line);
+                        continue;
+                    }
+
                     WriteDim(output, key, dim, angleKeys.Contains(key));
                     rewritten++;
                     continue;
                 }
 
+                // Not in provided dims -> keep equation file line as-is
                 output.Add(line);
             }
 
             int appended = 0;
 
+            // Append only NON-ZERO provided dims that don't exist in the file yet.
+            // (Zero provided dims are intentionally NOT appended/overwritten.)
             foreach (var (key, dim) in byKey)
             {
+                if (zeroProvidedKeys.Contains(key))
+                    continue;
+
                 if (!LineExists(output, key))
                 {
                     WriteDim(output, key, dim, angleKeys.Contains(key));
@@ -174,6 +214,11 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         /// <summary>
         /// Direct upsert into model EquationMgr (fallback/alternate).
         /// IMPORTANT: no rebuild here. Orchestrator will do the single rebuild at the end.
+        ///
+        /// UPDATED BEHAVIOR:
+        /// - If a provided dim is zero -> DO NOT override existing equation in the model (keep it).
+        /// - If a dim does not exist in provided dims -> it is untouched (keeps model equation).
+        /// - Special keys (EngravingStart / overlay vars) are still enforced.
         /// </summary>
         public static void UpsertEquationsInModel(
             ModelDoc2 model,
@@ -208,6 +253,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             var engravingLine = BuildEngravingStartLine(wedge);
 
             int upserted = 0;
+            int skippedZero = 0;
 
             foreach (var (keyObj, dim) in effectiveDims)
             {
@@ -217,7 +263,25 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
 
                 bool isAngle = dim.Nominal.Unit == DomUnitKind.Degree;
-                double val = (double)(isAngle ? dim.Nominal.AsDeg() : dim.Nominal.AsMm());
+
+                double val;
+                try
+                {
+                    val = (double)(isAngle ? dim.Nominal.AsDeg() : dim.Nominal.AsMm());
+                }
+                catch
+                {
+                    // If we can't resolve it, don't override.
+                    skippedZero++;
+                    continue;
+                }
+
+                // NEW: if provided value is zero -> keep existing equation (do not upsert)
+                if (Math.Abs(val) < 1e-12)
+                {
+                    skippedZero++;
+                    continue;
+                }
 
                 string rhs = isAngle ? $"{F(val)}deg" : $"{F(val)}mm";
                 string eqText = $"\"{key}\" = {rhs}";
@@ -226,6 +290,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 upserted++;
             }
 
+            // Always enforce these
             UpsertEquation(mgr, byNameIndex, "EngravingStart", engravingLine);
             upserted++;
 
@@ -246,7 +311,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 model.EditRebuild3();
             }
 
-            Logger.Success($"[ModelAutomation.EquationUpdater] UpsertEquationsInModel → upserted={upserted}, rebuild={rebuild}");
+            Logger.Success(
+                $"[ModelAutomation.EquationUpdater] UpsertEquationsInModel → upserted={upserted}, skippedZeroOrUnreadable={skippedZero}, rebuild={rebuild}");
         }
 
         // ------------------------- helpers -------------------------
