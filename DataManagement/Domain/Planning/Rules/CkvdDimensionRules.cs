@@ -267,12 +267,14 @@ internal static class CkvdDimensionRules
         if (!ctx.Drawing.Views.ContainsKey(view))
         {
             diag.MissingView(view);
+            Logger.Warn($"[Plan.Drop] Missing view='{view}' for key='{key}'.");
             return;
         }
 
         if (!ctx.TryGetDim(key, out var d))
         {
             diag.MissingDimension(key);
+            Logger.Warn($"[Plan.Drop] Missing dim key='{key}' (view='{view}').");
             return;
         }
 
@@ -292,6 +294,7 @@ internal static class CkvdDimensionRules
             Comment = d.Comment,
             Style = style
         });
+
     }
 
     private static bool IsRef(string? comment)

@@ -20,9 +20,16 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB;
 /// - Production + Customer: implemented from the PDF, with your corrections:
 ///   1) Anything PDF says "Front View" → treat as "Side View" IN CODE (global guideline),
 ///      BUT…
-///  2) Your explicit override: Front View only keeps TL @ANNOT_LEFT_sketch and K@ANNOT_LEFT_sketch.
+///   2) Your explicit override: Front View only keeps TL @ANNOT_LEFT_sketch and K@ANNOT_LEFT_sketch.
 ///   3) Your explicit override: the "Front sketch list" (FRO/FD/FL/ERL/CA/RA/H/HA/FNA/BA) MUST be kept in SECTION view.
 ///   4) NEW: Production + Customer MUST also ALWAYS keep BA in SIDE view (per your latest instruction).
+///
+/// ✅ NEW (this change):
+/// - Detail View foot-option rules updated:
+///   - FootOption CG: keep G/CGD/CGR in DETAIL view using the shank FRONT sketch (STD or 180_DEG_REV).
+///   - FootOption CC: keep C-detail (CR/CD) + CG-detail (G/CGD/CGR) in DETAIL view.
+///   - For 180_DEG_REV CGD/CGR, support both sketch name variants:
+///       ANNOT_180_DEG_REV_FRONT_sketch  and  ANNOT_180_DEG_REV_FRONT_FRONT_sketch
 /// </summary>
 public static class CobAnnotationDeletionRules
 {
@@ -340,7 +347,7 @@ public static class CobAnnotationDeletionRules
         AddSectionFrBrSuperset(all, ShankType.Std);
         AddSectionFrBrSuperset(all, ShankType.Deg180Rev);
 
-        // Foot options (left sketch + section sketch)
+        // Foot options (left sketch + CG-in-detail + section sketch)
         AddFootOptionSuperset(all);
 
         return all;
@@ -382,7 +389,6 @@ public static class CobAnnotationDeletionRules
     private static void AddFrontAlways(HashSet<AnnotationDeletionCore.Ann> set)
     {
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "TL@ANNOT_LEFT_sketch"));
-        // K: allow override (some models may have typos / different suffix)
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "K@ANNOT_LEFT_sketch"));
     }
 
@@ -509,7 +515,7 @@ public static class CobAnnotationDeletionRules
                 ? opt.ErdAnnotationFullName!.Trim()
                 : $"ERD@{FrontSketch(shank)}";
 
-            keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"ERD@{FrontSketch(shank)}"));
+            keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, erdName));
         }
 
         // Foot option dims:
@@ -567,14 +573,14 @@ public static class CobAnnotationDeletionRules
                 ? opt.ErdAnnotationFullName!.Trim()
                 : $"ERD@{FrontSketch(shank)}";
 
-            keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"ERD@{FrontSketch(shank)}"));
+            keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, erdName));
         }
 
-        // FR/BR rules (Customer)
+        // Foot / CG rules (Customer)
         AddFootOptionKeep_Customer(keep, shank, foot, opt);
 
         // IMPORTANT:
-        // Customer explicitly EXCLUDES: FL, FD, FRO, CD, CR, GR, B, GA, GD, G, CGR, CFD
+        // Customer explicitly EXCLUDES many dims.
         // We enforce this by simply NOT adding those to KEEP.
         // They still exist in the superset so they will be deleted if present.
     }
@@ -632,11 +638,8 @@ public static class CobAnnotationDeletionRules
 
     private static void AddSectionFrBrSuperset(HashSet<AnnotationDeletionCore.Ann> set, ShankType shank)
     {
-        // STD: ANNOT_FR_BR_STD_FRONT_sketch
-        // REV: ANNOT_FR_BR_180_DEG_REV_FRONT_sketch
         var sketch = FrBrSketch(shank);
 
-        // variants per foot family
         foreach (var suffix in new[] { "C", "G", "VG" })
         {
             set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"FR_{suffix}@{sketch}"));
@@ -650,7 +653,7 @@ public static class CobAnnotationDeletionRules
 
     private static void AddFootOptionSuperset(HashSet<AnnotationDeletionCore.Ann> set)
     {
-        // Left sketch items (detail view)
+        // Left sketch items (detail view) — same for STD and 180_REV
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
 
@@ -661,34 +664,54 @@ public static class CobAnnotationDeletionRules
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "GA@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "B@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
 
-        // Section items for CG / CC / C_WITH_CBR families (the PDF has minor naming inconsistencies; we include all plausible keys)
-        // CG: (G, CGD, CGR) and sometimes CFD appears in "Complete assignment".
+        // ✅ NEW: CG foot-option items are in DETAIL view and sourced from the shank FRONT sketch.
+        AddCgFootOptionSuperset_AsDetail(set, ShankType.Std);
+        AddCgFootOptionSuperset_AsDetail(set, ShankType.Deg180Rev);
+
+        // --- Legacy / safeguard (older config naming) kept in superset so they can be deleted if they exist ---
+        // If these still appear, rules will delete them unless you explicitly keep them.
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "G@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CGD@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CGR@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
-        set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CFD@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch")); // PDF inconsistency safeguard
+        set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CFD@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch")); // safeguard
 
-        // C_WITH_CBR: CBRA, CBRL (section), plus CR/CD (detail)
+        // C_WITH_CBR section items (legacy naming kept)
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CBRA@ANNOT_CBR_FOOT_OPTIONS_FRONT_sketch"));
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CBRL@ANNOT_CBR_FOOT_OPTIONS_FRONT_sketch"));
     }
 
+    private static void AddCgFootOptionSuperset_AsDetail(HashSet<AnnotationDeletionCore.Ann> set, ShankType shank)
+    {
+        // STD:
+        //   G@ANNOT_STD_FRONT_sketch
+        //   CGD@ANNOT_STD_FRONT_sketch
+        //   CGR@ANNOT_STD_FRONT_sketch
+        //
+        // 180_REV:
+        //   G@ANNOT_180_DEG_REV_FRONT_sketch
+        //   CGD/CGR sometimes appear as ...FRONT_FRONT_sketch (per your note)
+        foreach (var sketch in CgDetailSketchCandidates(shank))
+        {
+            set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, $"G@{sketch}"));
+            set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, $"CGD@{sketch}"));
+            set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, $"CGR@{sketch}"));
+        }
+    }
+
     private static void AddFootOptionKeep_Production(HashSet<AnnotationDeletionCore.Ann> keep, ShankType shank, FootOption foot, Options opt)
     {
-        // Production includes foot-option-specific dimensions in the FOOT_OPTIONS_LEFT sketch (detail view),
-        // plus some section-view dimensions for CG/CC/C_WITH_CBR and FR/BR for C/G/VG.
+        // Production includes foot-option-specific dimensions in DETAIL view,
+        // plus some SECTION-view dimensions (FR/BR for C/G/VG, and CBR section items).
 
         switch (foot)
         {
             case FootOption.None:
-                // PGB only; production shouldn't use None, but keep nothing extra.
                 break;
 
             case FootOption.C:
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
 
-                // FR/BR only if feature exists in this job
                 if (opt.HasFrBr)
                 {
                     var frbr = FrBrSketch(shank);
@@ -723,24 +746,15 @@ public static class CobAnnotationDeletionRules
                 break;
 
             case FootOption.CG:
-                // Section sketch items (CG family)
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "G@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CGD@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CGR@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CFD@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch")); // safeguard
+                // ✅ NEW: CG dims are in DETAIL view sourced from shank FRONT sketch
+                AddCgFootOptionKeep_AsDetail(keep, shank);
                 break;
 
             case FootOption.CC:
-                // CC = C + CG
-                // Detail C
+                // CC = C + CG combined
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
-
-                // Section CG family
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "G@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CGD@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CGR@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CFD@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch")); // safeguard
+                AddCgFootOptionKeep_AsDetail(keep, shank);
                 break;
 
             case FootOption.C_WITH_CBR:
@@ -748,7 +762,7 @@ public static class CobAnnotationDeletionRules
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
 
-                // Section CBR
+                // Section CBR (unchanged)
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CBRA@ANNOT_CBR_FOOT_OPTIONS_FRONT_sketch"));
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CBRL@ANNOT_CBR_FOOT_OPTIONS_FRONT_sketch"));
                 break;
@@ -758,13 +772,24 @@ public static class CobAnnotationDeletionRules
         }
     }
 
+    private static void AddCgFootOptionKeep_AsDetail(HashSet<AnnotationDeletionCore.Ann> keep, ShankType shank)
+    {
+        // Keep all plausible sketch variants for robustness (especially 180_REV FRONT_FRONT typo).
+        foreach (var sketch in CgDetailSketchCandidates(shank))
+        {
+            keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, $"G@{sketch}"));
+            keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, $"CGD@{sketch}"));
+            keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, $"CGR@{sketch}"));
+        }
+    }
+
     private static void AddFootOptionKeep_Customer(HashSet<AnnotationDeletionCore.Ann> keep, ShankType shank, FootOption foot, Options opt)
     {
-        // Customer explicitly excludes many foot option dims.
-        // What remains:
+        // Customer:
         // - For C/G/VG: FR/BR (section) if present
-        // - For CG/CC: CGD only (section)
+        // - For CG/CC: ✅ NEW -> G/CGD/CGR in DETAIL view (shank front sketch)
         // - For C_WITH_CBR: CBRA/CBRL (section)
+        // - CR/CD for C (detail) are NOT kept for Customer (as before)
 
         switch (foot)
         {
@@ -796,13 +821,14 @@ public static class CobAnnotationDeletionRules
                 break;
 
             case FootOption.CG:
-                // CGD only
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CGD@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
+                // ✅ NEW: CG dims in DETAIL
+                AddCgFootOptionKeep_AsDetail(keep, shank);
                 break;
 
             case FootOption.CC:
-                // CGD only
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, "CGD@ANNOT_CG_FOOT_OPTIONS_FRONT_sketch"));
+                // ✅ NEW: CC = C + CG, but Customer still doesn't keep CR/CD.
+                // Only keep CG portion in DETAIL.
+                AddCgFootOptionKeep_AsDetail(keep, shank);
                 break;
 
             case FootOption.C_WITH_CBR:
@@ -836,4 +862,18 @@ public static class CobAnnotationDeletionRules
         => shank == ShankType.Std
             ? "ANNOT_FR_BR_STD_FRONT_sketch"
             : "ANNOT_FR_BR_180_DEG_REV_FRONT_sketch";
+
+    private static IEnumerable<string> CgDetailSketchCandidates(ShankType shank)
+    {
+        // STD uses only the standard front sketch.
+        if (shank == ShankType.Std)
+        {
+            yield return "ANNOT_STD_FRONT_sketch";
+            yield break;
+        }
+
+        // 180_REV: support both the normal name and the FRONT_FRONT variant you listed
+        yield return "ANNOT_180_DEG_REV_FRONT_sketch";
+        yield return "ANNOT_180_DEG_REV_FRONT_FRONT_sketch";
+    }
 }

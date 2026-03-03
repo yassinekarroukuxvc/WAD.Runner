@@ -38,38 +38,20 @@
   },
 
   "Sections": {
-
-    /* ===========================
-       PRODUCTION
-       =========================== */
     "Production": {
-      "Common": {
-        "Metadata": { "Watermark": "" }
-      },
+      "Common": { "Metadata": { "Watermark": "" } },
 
-      "FG": {
-        "Common": {
-          "Metadata": { "SheetTitle": "FG Production Drawing" }
-        }
-      },
-
-      "PGB": {
-        "Common": {
-          "Metadata": { "SheetTitle": "PGB Production Drawing" }
-        }
-      },
+      "FG": { "Common": { "Metadata": { "SheetTitle": "FG Production Drawing" } } },
+      "PGB": { "Common": { "Metadata": { "SheetTitle": "PGB Production Drawing" } } },
 
       "WedgeTypeOverrides": {
         "CKVD": {
           "Common": {
-            "Views": {
-              "Front": { "Params": { "BreaklineGap": 7.5 } }
-            },
+            "Views": { "Front": { "Params": { "BreaklineGap": 7.5 } } },
             "Metadata": { "SpecialNote": "CKVD production override" }
           }
         },
 
-        /* ---- NEW: COB Production Overrides ---- */
         "COB": {
           "Common": {
             "Views": {
@@ -79,34 +61,26 @@
               },
               "Section": { "Scale": 60.0 }
             },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 86 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+            },
+
             "Metadata": { "SpecialNote": "COB production override" }
           }
         }
       }
     },
 
-    /* ===========================
-       CUSTOMER
-       =========================== */
     "Customer": {
-      "Common": {
-        "Metadata": { "Watermark": "CUSTOMER" }
-      },
+      "Common": { "Metadata": { "Watermark": "CUSTOMER" } },
 
-      "FG": {
-        "Common": {
-          "Metadata": { "SheetTitle": "FG Customer Drawing" }
-        }
-      },
-
-      "PGB": {
-        "Common": {
-          "Metadata": { "SheetTitle": "PGB Customer Drawing" }
-        }
-      },
+      "FG": { "Common": { "Metadata": { "SheetTitle": "FG Customer Drawing" } } },
+      "PGB": { "Common": { "Metadata": { "SheetTitle": "PGB Customer Drawing" } } },
 
       "WedgeTypeOverrides": {
-        /* ---- NEW: COB Customer Overrides ---- */
         "COB": {
           "Common": {
             "Views": {
@@ -116,16 +90,19 @@
               },
               "Section": { "Scale": 60.0 }
             },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 86 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+            },
+
             "Metadata": { "SpecialNote": "COB customer override" }
           }
         }
       }
     },
 
-    /* ===========================
-       OVERLAY
-       (unchanged except original COB override)
-       =========================== */
     "Overlay": {
       "Common": {
         "Views": {
@@ -135,25 +112,13 @@
         "Metadata": { "Watermark": "OVERLAY" }
       },
 
-      "FG": {
-        "Common": {
-          "Metadata": { "SheetTitle": "FG Overlay Drawing" }
-        }
-      },
-
-      "PGB": {
-        "Common": {
-          "Metadata": { "SheetTitle": "PGB Overlay Drawing" }
-        }
-      },
+      "FG": { "Common": { "Metadata": { "SheetTitle": "FG Overlay Drawing" } } },
+      "PGB": { "Common": { "Metadata": { "SheetTitle": "PGB Overlay Drawing" } } },
 
       "WedgeTypeOverrides": {
-        /* ORIGINAL COB OVERLAY OVERRIDE - untouched */
         "COB": {
           "Common": {
-            "Views": {
-              "Side": { "Params": { "BreaklineGap": 8.0 } }
-            },
+            "Views": { "Side": { "Params": { "BreaklineGap": 8.0 } } },
             "Metadata": { "SpecialNote": "COB overlay tuning" }
           }
         }

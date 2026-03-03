@@ -98,7 +98,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
                     ? $"{drawing.DrawingType} {number}".Trim()
                     : $"{drawing.DrawingType} {number} — {description}".Trim();
 
-                model.SummaryInfo[(int)swSummInfoField_e.swSumInfoTitle] = title;
+                model.SummaryInfo[(int)swSummInfoField_e.swSumInfoTitle] = description;
                 model.SummaryInfo[(int)swSummInfoField_e.swSumInfoSubject] = subject;
                 model.SummaryInfo[(int)swSummInfoField_e.swSumInfoAuthor] = author;
                 model.SummaryInfo[(int)swSummInfoField_e.swSumInfoSavedBy] = author;

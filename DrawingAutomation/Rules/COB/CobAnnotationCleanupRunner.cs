@@ -1,6 +1,7 @@
 ﻿// DrawingAutomation/Rules/COB/CobAnnotationCleanupRunner.cs
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using SolidWorks.Interop.sldworks;
 
@@ -11,6 +12,11 @@ using WAD.Runner.DrawingAutomation.SolidWorks;
 using WAD.Runner.DrawingAutomation.Views; // AnnotationCleanupService
 
 using WAD.Runner.DrawingAutomation.Rules.Common;
+
+// ✅ Follow EquationUpdater pattern (typed access to wedge.Dimensions)
+using DomDim = WAD.Runner.DataManagement.Domain.Dimensions.Dimension;
+using DomDimKey = WAD.Runner.DataManagement.Domain.Dimensions.DimensionKey;
+using DomUnitKind = WAD.Runner.DataManagement.Domain.Units.UnitKind;
 
 namespace WAD.Runner.DrawingAutomation.Rules.COB
 {
@@ -63,8 +69,9 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
                 var rulesDrawingType = ResolveCobRulesDrawingType(run, drawingData);
 
                 // ✅ Options inferred from WedgeData DIMENSIONS by VALUE (>0)
+                // ✅ Updated to use typed access like ModelAutomation.EquationUpdater
                 var options = BuildCobOptionsFromWedgeDimensions(run.Wedge);
-
+                Logger.Blue($"[COB.Cleanup] Shank={shank}, Foot={foot}");
                 var deletions = CobAnnotationDeletionRules.PlanDeletionsFromDrawing(
                     model,
                     rulesDrawingType,
@@ -110,117 +117,35 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
         }
 
         // ============================================================
-        // Options builder (VALUE-BASED: >0 checks)
+        // Options builder (VALUE-BASED: >0 checks)  ✅ TYPED LIKE EquationUpdater
         // ============================================================
 
         private static CobAnnotationDeletionRules.Options BuildCobOptionsFromWedgeDimensions(WedgeData wedge)
         {
-            static object? FindDimObject(WedgeData w, string key)
-            {
-                if (w?.Dimensions == null || w.Dimensions.Count == 0) return null;
+            bool Pos(string key) => IsDimPositive(wedge, key);
 
-                foreach (var kv in w.Dimensions)
-                {
-                    var kStr = kv.Key.ToString();
-                    if (string.Equals(kStr, key, StringComparison.OrdinalIgnoreCase))
-                        return kv.Value;
-                }
+            var hasVwVr = Pos("VR") && Pos("VW");
+            var hasW2 = Pos("W2");
+            var hasF = Pos("F");
+            var hasSlb = Pos("VBL");
+            var hasFrBr = Pos("FR") && Pos("BR");
+            var hasErd = Pos("ERD");
+            var hasK = Pos("K");
+            var hasRa2 = Pos("RA2");
 
-                return null;
-            }
+            Logger.Blue($"[COB.Options] VW/VR={hasVwVr}, W2={hasW2}, F={hasF}, VBL(SLB)={hasSlb}, FR/BR={hasFrBr}, ERD={hasErd}, K={hasK}, RA2={hasRa2}");
 
-            static double TryGetNominalAsDouble(object? dimObj)
-            {
-                if (dimObj == null) return 0.0;
-
-                static double ReadNumericProp(object o, string propName)
-                {
-                    var p = o.GetType().GetProperty(propName);
-                    if (p == null) return double.NaN;
-
-                    object? v;
-                    try { v = p.GetValue(o); }
-                    catch { return double.NaN; }
-
-                    if (v == null) return double.NaN;
-
-                    try
-                    {
-                        return v switch
-                        {
-                            double d => d,
-                            float f => f,
-                            decimal m => (double)m,
-                            int i => i,
-                            long l => l,
-                            short s => s,
-                            _ => Convert.ToDouble(v)
-                        };
-                    }
-                    catch
-                    {
-                        return double.NaN;
-                    }
-                }
-
-                var candidates = new[]
-                {
-                    "Mm", "mm",
-                    "Deg", "deg",
-                    "ValueMm", "ValueMM",
-                    "NominalMm", "NominalMM",
-                    "Value", "Nominal"
-                };
-
-                foreach (var name in candidates)
-                {
-                    var x = ReadNumericProp(dimObj, name);
-                    if (!double.IsNaN(x))
-                        return x;
-                }
-
-                try
-                {
-                    var s = dimObj.ToString() ?? string.Empty;
-                    var buf = new string(s.Where(c => char.IsDigit(c) || c == '.' || c == '-' || c == ',').ToArray());
-                    if (double.TryParse(buf.Replace(',', '.'),
-                        System.Globalization.NumberStyles.Any,
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        out var parsed))
-                        return parsed;
-                }
-                catch { }
-
-                return 0.0;
-            }
-
-            static bool IsPositive(WedgeData w, string key)
-            {
-                var dim = FindDimObject(w, key);
-                var val = TryGetNominalAsDouble(dim);
-                return val > 0.0;
-            }
-
-            // Rules requested:
-            // - HasVwVr true if VR and VW > 0
-            // - HasW2 true if W2 > 0
-            // - HasF true if F > 0
-            // - HasSlb true if VBL > 0
-            // - HasFrBr true if FR and BR > 0
-            // - HasErd true if ERD > 0
-            // - HasK true if K > 0
-            // - HasRa2 true if RA2 > 0
-
-            var hasVwVr = IsPositive(wedge, "VR") && IsPositive(wedge, "VW");
-            var hasW2 = IsPositive(wedge, "W2");
-            var hasF = IsPositive(wedge, "F");
-            var hasSlb = IsPositive(wedge, "VBL");
-            var hasFrBr = IsPositive(wedge, "FR") && IsPositive(wedge, "BR");
-            var hasErd = IsPositive(wedge, "ERD");
-            var hasK = IsPositive(wedge, "K");
-            var hasRa2 = IsPositive(wedge, "RA2");
-
-            Logger.Info($"[COB.Options] VW/VR={hasVwVr}, W2={hasW2}, F={hasF}, VBL(SLB)={hasSlb}, FR/BR={hasFrBr}, ERD={hasErd}, K={hasK}, RA2={hasRa2}");
+            // Extra debug (helps confirm loader issues vs positivity logic issues)
+            DumpDim(wedge, "VW");
+            DumpDim(wedge, "VR");
+            DumpDim(wedge, "W2");
+            DumpDim(wedge, "F");
+            DumpDim(wedge, "VBL");
+            DumpDim(wedge, "FR");
+            DumpDim(wedge, "BR");
+            DumpDim(wedge, "ERD");
+            DumpDim(wedge, "K");
+            DumpDim(wedge, "RA2");
 
             return new CobAnnotationDeletionRules.Options
             {
@@ -240,6 +165,106 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             };
         }
 
+        private static void DumpDim(WedgeData wedge, string key)
+        {
+            if (!TryGetDim(wedge, key, out var dim) || dim is null)
+            {
+                Logger.Info($"[COB.OptionsDbg] {key}: (missing)");
+                return;
+            }
+
+            try
+            {
+                double v = dim.Nominal.Unit == DomUnitKind.Degree
+                    ? (double)dim.Nominal.AsDeg()
+                    : (double)dim.Nominal.AsMm();
+
+                Logger.Info($"[COB.OptionsDbg] {key}: {v.ToString("0.#####", CultureInfo.InvariantCulture)} ({dim.Nominal.Unit})");
+            }
+            catch (Exception ex)
+            {
+                Logger.Info($"[COB.OptionsDbg] {key}: (unreadable) {ex.Message}");
+            }
+        }
+
+        private static bool IsDimPositive(WedgeData wedge, string key)
+        {
+            const double eps = 1e-12;
+
+            if (!TryGetDim(wedge, key, out var dim) || dim is null)
+                return false;
+
+            try
+            {
+                double v = dim.Nominal.Unit == DomUnitKind.Degree
+                    ? (double)dim.Nominal.AsDeg()
+                    : (double)dim.Nominal.AsMm();
+
+                return v > eps;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Typed lookup like ModelAutomation.EquationUpdater:
+        /// - Try direct wedge.Dimensions.TryGetValue(DimensionKey.From(key))
+        /// - Fallback scan by kv.Key.Value case-insensitive
+        /// </summary>
+        private static bool TryGetDim(WedgeData wedge, string key, out DomDim? dim)
+        {
+            dim = null;
+
+            if (wedge?.Dimensions == null || wedge.Dimensions.Count == 0 || string.IsNullOrWhiteSpace(key))
+                return false;
+
+            var want = NormalizeBaseKey(key);
+
+            foreach (var kv in wedge.Dimensions)
+            {
+                // DimensionKey is a struct => kv.Key is never null
+                var haveRaw = kv.Key.Value ?? kv.Key.ToString() ?? string.Empty;
+                var have = NormalizeBaseKey(haveRaw);
+
+                if (have.Equals(want, StringComparison.OrdinalIgnoreCase))
+                {
+                    dim = kv.Value;
+                    return dim is not null;
+                }
+            }
+
+            return false;
+        }
+
+        private static string NormalizeBaseKey(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return string.Empty;
+
+            var s = raw.Trim().ToUpperInvariant();
+
+            // If your keys sometimes include qualifiers, strip common separators
+            var at = s.IndexOf('@');
+            if (at >= 0) s = s.Substring(0, at);
+
+            s = s.Replace("-", "_").Replace(" ", "_");
+            s = s.Replace("(", "_").Replace(")", "");
+
+            var us = s.IndexOf('_');
+            if (us > 0) s = s.Substring(0, us);
+
+            // Keep only letters/digits
+            s = new string(s.Where(char.IsLetterOrDigit).ToArray());
+
+            return s;
+        }
+
+        // ============================================================
+        // DrawingType resolution
+        // ============================================================
+
         private static CobAnnotationDeletionRules.DrawingType ResolveCobRulesDrawingType(DrawingRun run, DrawingData dd)
         {
             if (run?.Wedge?.Subclass == WedgeSubclass.PGB)
@@ -255,11 +280,11 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
 
         private static (CobAnnotationDeletionRules.ShankType Shank, CobAnnotationDeletionRules.FootOption Foot) ResolveCobShankAndFoot(WedgeData wedge)
         {
-            var wedType = TryGetProp(wedge, "Wed-Type");
-            var footOpt = TryGetProp(wedge, "Wed-Foot_Option");
-
+            var wedType = TryGetPropLoose(wedge, "Wed-Type");
+            var footOpt = TryGetPropLoose(wedge, "Wed-Foot_Option"); // we’ll also probe other spellings
+            Logger.Blue($"FOOOOOT OPTIIIIOOON : {footOpt}");
             var shank = ParseCobShankType(wedType);
-            var foot = ParseCobFootOption(footOpt);
+            var foot = ResolveCobFootOption(wedge, footOpt);
 
             return (shank, foot);
         }
@@ -274,21 +299,33 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             return logical;
         }
 
-        private static string? TryGetProp(WedgeData wedge, string key)
+        // ============================================================
+        // Property helpers
+        // ============================================================
+
+        private static string? TryGetPropLoose(WedgeData wedge, string key)
         {
-            if (wedge?.Properties == null) return null;
+            if (wedge == null || string.IsNullOrWhiteSpace(key)) return null;
 
-            if (wedge.Properties.TryGetValue(key, out var v))
-                return string.IsNullOrWhiteSpace(v) ? null : v.Trim();
-
-            foreach (var kv in wedge.Properties)
+            // 1) Direct Properties dictionary (case-insensitive)
+            if (wedge.Properties != null)
             {
-                if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
-                    return string.IsNullOrWhiteSpace(kv.Value) ? null : kv.Value.Trim();
+                if (wedge.Properties.TryGetValue(key, out var v))
+                    return string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+
+                foreach (var kv in wedge.Properties)
+                {
+                    if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
+                        return string.IsNullOrWhiteSpace(kv.Value) ? null : kv.Value.Trim();
+                }
             }
 
             return null;
         }
+
+        // ============================================================
+        // Shank parsing
+        // ============================================================
 
         private static CobAnnotationDeletionRules.ShankType ParseCobShankType(string? wedType)
         {
@@ -299,24 +336,67 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             return CobAnnotationDeletionRules.ShankType.Std;
         }
 
-        private static CobAnnotationDeletionRules.FootOption ParseCobFootOption(string? footOption)
+        // ============================================================
+        // ✅ FOOT OPTION RESOLUTION (UPDATED per your correction)
+        // ============================================================
+
+        private static CobAnnotationDeletionRules.FootOption ResolveCobFootOption(WedgeData wedge, string? rawFootOption)
         {
-            var s = (footOption ?? string.Empty).Trim().ToUpperInvariant();
-            s = s.Replace("-", "_").Replace(" ", "_");
+            // probe multiple possible keys (since data sometimes varies)
+            var s =
+                NormalizeToken(rawFootOption) ??
+                NormalizeToken(TryGetPropLoose(wedge, "Wed-Foot_Option")) ??
+                NormalizeToken(TryGetPropLoose(wedge, "Foot_Option")) ??
+                NormalizeToken(TryGetPropLoose(wedge, "FootOption")) ??
+                NormalizeToken(TryGetPropLoose(wedge, "foot_option"));
 
             if (string.IsNullOrWhiteSpace(s))
                 return CobAnnotationDeletionRules.FootOption.None;
 
-            if (s == "C") return CobAnnotationDeletionRules.FootOption.C;
-            if (s == "G") return CobAnnotationDeletionRules.FootOption.G;
-            if (s == "VG") return CobAnnotationDeletionRules.FootOption.VG;
-            if (s == "CG") return CobAnnotationDeletionRules.FootOption.CG;
-            if (s == "CC") return CobAnnotationDeletionRules.FootOption.CC;
+            // base mapping
+            CobAnnotationDeletionRules.FootOption baseFoot =
+                s switch
+                {
+                    "SW_C" => CobAnnotationDeletionRules.FootOption.C,
+                    "SW_G" => CobAnnotationDeletionRules.FootOption.G,
+                    "SW_VG" => CobAnnotationDeletionRules.FootOption.VG,
+                    "SW_CG" => CobAnnotationDeletionRules.FootOption.CG,
+                    "SW_CC" => CobAnnotationDeletionRules.FootOption.CC,
+                    _ => CobAnnotationDeletionRules.FootOption.None
+                };
 
-            if (s.Contains("CBR"))
-                return CobAnnotationDeletionRules.FootOption.C_WITH_CBR;
+            // ✅ your corrected rule for C_WITH_CBR
+            if (baseFoot == CobAnnotationDeletionRules.FootOption.C && s == "SW_C")
+            {
+                bool allPositive =
+                    IsDimPositive(wedge, "CBRA") &&
+                    IsDimPositive(wedge, "CBRL") &&
+                    IsDimPositive(wedge, "CBRD");
 
-            return CobAnnotationDeletionRules.FootOption.None;
+                if (allPositive)
+                {
+                    Logger.Info("[COB.Cleanup] Foot rule: raw=SW_C and (CBRA/CBRL/CBRD all > 0) → using C_WITH_CBR.");
+                    return CobAnnotationDeletionRules.FootOption.C_WITH_CBR;
+                }
+            }
+
+            return baseFoot;
+        }
+
+        private static string? NormalizeToken(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return null;
+
+            var t = s.Trim().ToUpperInvariant();
+
+            // unify separators
+            t = t.Replace("-", "_").Replace(" ", "_");
+
+            // ✅ strip any garbage like ";;;;" or other punctuation
+            // keep only [A-Z0-9_]
+            t = new string(t.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+
+            return string.IsNullOrWhiteSpace(t) ? null : t;
         }
     }
 }
