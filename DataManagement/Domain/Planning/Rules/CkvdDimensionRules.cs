@@ -167,10 +167,10 @@ internal static class CkvdDimensionRules
         PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal, Sec[0], Sec[1] - 40 - 25);
 
         PlaceDim(ctx, diag, outList, "FR", Section, DimAxis.Horizontal,
-            Sec[0] + scv * FL / 2, Sec[1] - 40);
+            Sec[0] - scv * FL / 2, Sec[1] - 40);
 
         PlaceDim(ctx, diag, outList, "BR", Section, DimAxis.Horizontal,
-            Sec[0] - scv * FL / 2, Sec[1] - 40);
+            Sec[0] + scv * FL / 2, Sec[1] - 40);
     }
 
     // ----------------- FG Overlay baseline rules -----------------

@@ -1,7 +1,11 @@
 ﻿// Program.cs  (root of WAD.Runner)
+using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,6 +20,8 @@ using WAD.Runner.Application.UseCases;
 
 // Infra adapters
 using WAD.Runner.DataManagement.Infrastructure.Serialization;
+using WAD.Runner.DataManagement.Infrastructure.Transport;
+using WAD.Runner.DataManagement.Infrastructure.Transport.Dtos;
 
 // Domain enums
 using WAD.Runner.DataManagement.Domain.Drawing;
@@ -35,22 +41,19 @@ using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Executors.FG;
 using WAD.Runner.DrawingAutomation.Executors.PGB;
 using WAD.Runner.DrawingAutomation.Common;
-
-// SolidWorks sessions/factory (folder: /Solidworks/Adapters)
-using WAD.Runner.Solidworks.Adapters;
-
-// Alias SolidWorks COM types to avoid IConfiguration/Environment ambiguities
-using Sw = SolidWorks.Interop.sldworks;
-using WAD.Runner.SolidWorks.Adapters;
 using WAD.Runner.DrawingAutomation.Views;
+
+// SolidWorks sessions/factory
+using WAD.Runner.Solidworks.Adapters;
+using WAD.Runner.SolidWorks.Adapters;
 
 // API host
 using WAD.Runner.Api;
-using WAD.Runner.PartAutomation.Common;
+
+// Model Automation
 using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.SolidWorks;
 using WAD.Runner.ModelAutomation.Common;
-
 
 Logger.Info("[Boot] Building host…");
 
@@ -68,41 +71,97 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .ConfigureServices((ctx, services) =>
     {
-        var cs = ctx.Configuration.GetConnectionString("ProAlphaSqlite")
-                 ?? throw new InvalidOperationException("Missing ConnectionStrings:ProAlphaSqlite");
-        services.AddSingleton(new ProAlphaRepository(cs));
+        // ============================================================
+        // 1) WEDGE DATA SOURCE SWITCH: Java API vs SQLite
+        // ============================================================
+        var useJava = ctx.Configuration.GetValue<bool>("Runner:UseJavaDbApi", false);
 
-        var firma = ctx.Configuration.GetValue<int>("ProAlpha:Firma", 1);
-        var language = ctx.Configuration.GetValue<string>("ProAlpha:Language", "E");
+        if (useJava)
+        {
+            var baseUrl = ctx.Configuration.GetValue<string>("Runner:JavaDbApi:BaseUrl")
+                          ?? throw new InvalidOperationException("Missing Runner:JavaDbApi:BaseUrl");
 
-        services.AddSingleton<IWedgeDataSource>(sp =>
-            new SqliteWedgeDataSource(
-                sp.GetRequiredService<ProAlphaRepository>(),
-                firma,
-                language,
-                sp.GetService<ILogger<SqliteWedgeDataSource>>()
-            )
-        );
+            var timeoutSec = ctx.Configuration.GetValue<int?>("Runner:JavaDbApi:TimeoutSeconds") ?? 45;
+            var apiKey = ctx.Configuration.GetValue<string>("Runner:JavaDbApi:ApiKey");
 
+            Logger.Info("[Boot] IWedgeDataSource = Java API");
+            Logger.Info($"[Boot] JavaDbApi: BaseUrl={baseUrl}, Timeout={timeoutSec}s");
+
+            services.AddHttpClient<IJavaWedgeTransport, JavaWedgeHttpClient>(http =>
+            {
+                http.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
+                http.Timeout = TimeSpan.FromSeconds(timeoutSec);
+
+                // Optional: ensure JSON is the default Accept
+                if (!http.DefaultRequestHeaders.Accept.Any(h => h.MediaType == "application/json"))
+                    http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+
+                // Optional: API Key header (adjust to your Java API's expectation)
+                if (!string.IsNullOrWhiteSpace(apiKey))
+                {
+                    // Example:
+                    // http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+
+                    // If Bearer:
+                    // http.DefaultRequestHeaders.Authorization =
+                    //     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                }
+            });
+
+            services.AddSingleton<IWedgeDataSource, JavaWedgeDataSource>();
+        }
+        else
+        {
+            Logger.Info("[Boot] IWedgeDataSource = SQLite");
+
+            var cs = ctx.Configuration.GetConnectionString("ProAlphaSqlite")
+                     ?? throw new InvalidOperationException("Missing ConnectionStrings:ProAlphaSqlite");
+
+            services.AddSingleton(new ProAlphaRepository(cs));
+
+            var firma = ctx.Configuration.GetValue<int>("ProAlpha:Firma", 1);
+            var language = ctx.Configuration.GetValue<string>("ProAlpha:Language", "E");
+
+            services.AddSingleton<IWedgeDataSource>(sp =>
+                new SqliteWedgeDataSource(
+                    sp.GetRequiredService<ProAlphaRepository>(),
+                    firma,
+                    language,
+                    sp.GetService<ILogger<SqliteWedgeDataSource>>()
+                )
+            );
+        }
+
+        // ============================================================
+        // 2) DRAWING DATA SOURCE
+        // ============================================================
         var drawingCfgPath = ctx.Configuration["DrawingConfig:Path"] ?? "Infrastructure/Config/drawing_config.json";
         services.AddSingleton<IDrawingDataSource>(_ => new JsonDrawingDataSource(drawingCfgPath));
 
+        // ============================================================
+        // 3) USE CASES
+        // ============================================================
         services.AddTransient<GetWedgeData>();
         services.AddTransient<GetDrawingData>();
         services.AddTransient<BuildAnnotationSet>();
         services.AddTransient<PlanDrawing>();
 
+        // ============================================================
+        // 4) SOLIDWORKS SESSION FACTORY
+        // ============================================================
         services.AddSingleton<ISwSessionFactory, SwServiceFactory>();
 
+        // ============================================================
+        // 5) PART AUTOMATION
+        // ============================================================
         services.AddSingleton<IPartAutomationService, PartAutomationService>();
         services.AddSingleton<PartAutomationOrchestrator>();
 
-        ////
-        
+        // ============================================================
+        // 6) MODEL AUTOMATION (new pipeline)
+        // ============================================================
         services.AddSingleton<ModelDimensionApplier>();
         services.AddSingleton<ModelAutomationOrchestrator>();
-
-        ////
     })
     .Build();
 
@@ -211,7 +270,15 @@ switch (cmd)
 
     case "list-articles":
         {
-            var repo = host.Services.GetRequiredService<ProAlphaRepository>();
+            var repo = host.Services.GetService<ProAlphaRepository>();
+            if (repo is null)
+            {
+                Logger.Warn("[list-articles] ProAlphaRepository not registered (likely UseJavaDbApi=true).");
+                Console.WriteLine("SQLite repository not available when Runner:UseJavaDbApi=true.");
+                Environment.ExitCode = 2;
+                break;
+            }
+
             var cfg = host.Services.GetRequiredService<IConfiguration>();
             var firma = cfg.GetValue<int>("ProAlpha:Firma", 1);
 
@@ -232,7 +299,15 @@ switch (cmd)
 
     case "show-article":
         {
-            var repo = host.Services.GetRequiredService<ProAlphaRepository>();
+            var repo = host.Services.GetService<ProAlphaRepository>();
+            if (repo is null)
+            {
+                Logger.Warn("[show-article] ProAlphaRepository not registered (likely UseJavaDbApi=true).");
+                Console.WriteLine("SQLite repository not available when Runner:UseJavaDbApi=true.");
+                Environment.ExitCode = 2;
+                break;
+            }
+
             var cfg = host.Services.GetRequiredService<IConfiguration>();
             var firma = cfg.GetValue<int>("ProAlpha:Firma", 1);
             var article = GetArgValue(args, "--article") ?? throw new ArgumentException("--article is required");
@@ -260,6 +335,7 @@ switch (cmd)
     case "run-part":
         {
             SolidWorksProcessKiller.KillAll(killVbaServer: true);
+
             var (article, subclass) = ParseArticleAndSubclass(args);
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
@@ -288,7 +364,7 @@ switch (cmd)
 
                 case WedgeType.CKVD:
                 default:
-                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2","CKVD_2023.SLDPRT");
+                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDPRT");
                     equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CK.txt");
                     break;
             }
@@ -358,15 +434,16 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     templatePartPath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026","V3",
+                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
                         "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
 
-                    templateDrawingPath = Path.Combine("Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
+                    templateDrawingPath = Path.Combine(
+                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
                         "wedge-auto-draw-COB-2d-drawing.SLDDRW");
 
                     equationTemplatePathForModelPhase = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026",
-                        "V3", "wedge-auto-draw-COB-3d-equation.txt");
+                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
+                        "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
                 case WedgeType.OSG7:
@@ -383,15 +460,15 @@ switch (cmd)
 
                 case WedgeType.CKVD:
                 default:
-                    templatePartPath = Path.Combine("Resources", "Templates", "CKVD","CKVDv2" ,"CKVD_2023.SLDPRT");
+                    templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDPRT");
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
-                            Path.Combine("Resources", "Templates", "CKVD","CKVDv2", "OVERLAY_TEMPLATE.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "OVERLAY_TEMPLATE.SLDDRW"),
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDDRW"),
                     };
-                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD","CKVDv2", "CK.txt");
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CK.txt");
                     break;
             }
 
@@ -542,11 +619,11 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     partTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026","V3",
+                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
                         "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
 
                     equationTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026","V3",
+                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
                         "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
@@ -557,8 +634,8 @@ switch (cmd)
 
                 case WedgeType.CKVD:
                 default:
-                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CK.txt");
+                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CKVD_2023.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CK.txt");
                     break;
             }
 
@@ -615,6 +692,10 @@ switch (cmd)
         break;
 }
 
+// ============================================================
+// Helpers
+// ============================================================
+
 static void PrintHelp()
 {
     Console.WriteLine("""
@@ -625,46 +706,25 @@ Data:
   get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> [--wtype CKVD|COB|OSG7]
   plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
 
-Diagnostics:
+Diagnostics (SQLite only):
   db-info        [--limit 20]
   list-articles  [--limit 20]
   show-article   --article <num>
 
 Part Automation:
   run-part       --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
-                 Uses (by wtype):
-                   CKVD:
-                     Part template  : Resources/Templates/CKVD/CKVD_2023.SLDPRT
-                     Equations file : Resources/Templates/CKVD/CK.txt
-                   COB:
-                     Part template  : Resources/Templates/COB/COB_Template.SLDPRT
-                     Equations file : Resources/Templates/COB/equations.txt
-                   OSG7:
-                     Part template  : Resources/Templates/OSG7/wedge_auto_draw_OSG7_3d.SLDPRT
-                     Equations file : Resources/Templates/OSG7/equations_OSG7.txt
-                 Output root    : Resources/Out
 
 Drawing Automation:
   run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
-                 Templates (by wtype):
-                   CKVD:
-                     Part          : Resources/Templates/CKVD/CKVD_2023.SLDPRT
-                     Drawing (Prod): Resources/Templates/CKVD/CKVD_2023.SLDDRW
-                     Drawing (Cust): Resources/Templates/CKVD/CKVD_2023.SLDDRW
-                     Drawing (Ovrl): Resources/Templates/CKVD/OVERLAY_TEMPLATE.SLDDRW
-                   COB:
-                     Part          : Resources/Templates/COB/COB_Template.SLDPRT
-                     Drawing (all) : Resources/Templates/COB/COB_Drawings.SLDDRW
-                   OSG7:
-                     Part          : Resources/Templates/OSG7/wedge_auto_draw_OSG7_3d.SLDPRT
-                     Drawing (Prod): Resources/Templates/OSG7/OSG7_Production.SLDDRW
-                     Drawing (Ovrl): Resources/Templates/OSG7/OSG7_OVERLAY_TEMPLATE.SLDDRW
-                     Equations     : Resources/Templates/OSG7/equations_OSG7.txt
+
+Model Automation:
+  run-model      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
 
 API:
   serve-api      Starts the minimal API host
 
 Examples:
+  dotnet run -- get-wedge --article 3118724 --subclass FG
   dotnet run -- run-drawing --article 3118724 --subclass FG --dtype Production --wtype OSG7
 """);
 }

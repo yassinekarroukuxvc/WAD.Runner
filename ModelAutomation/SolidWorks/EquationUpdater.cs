@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -18,6 +17,7 @@ using DomDimKey = WAD.Runner.DataManagement.Domain.Dimensions.DimensionKey;
 using DomWedgeData = WAD.Runner.DataManagement.Domain.Wedge.WedgeData;
 using DomDrawingType = WAD.Runner.DataManagement.Domain.Wedge.DrawingType;
 using DomUnitKind = WAD.Runner.DataManagement.Domain.Units.UnitKind;
+using DomWedgeType = WAD.Runner.DataManagement.Domain.Wedge.WedgeType;
 
 namespace WAD.Runner.ModelAutomation.SolidWorks
 {
@@ -28,16 +28,33 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
         private static string F(double v) => v.ToString("0.#####", CultureInfo.InvariantCulture);
 
-        public static void UpdateEquationFile(string equationFilePath, DomWedgeData wedge, DomDrawingType drawingType)
+        // --------------------------------------------------------------------
+        // Public API (wedgeType-aware, deterministic)
+        // --------------------------------------------------------------------
+
+        public static void UpdateEquationFile(
+            string equationFilePath,
+            DomWedgeData wedge,
+            DomWedgeType wedgeType,
+            DomDrawingType drawingType)
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
-            UpdateEquationFile(equationFilePath, wedge.Dimensions, wedge, drawingType);
+            UpdateEquationFile(equationFilePath, wedge.Dimensions, wedge, wedgeType, drawingType);
         }
 
+        /// <summary>
+        /// Writes equations.txt so that:
+        /// - For every key present in effectiveDims, we WRITE/UPDATE its equation line.
+        /// - CKVD: writeZeros=true, so 0 values are written (override template).
+        /// - Others: writeZeros=false, so 0 values DO NOT override template (keep existing line).
+        /// - Overlay vars are enforced.
+        /// - COB-only: compute + upsert funnel_gap.
+        /// </summary>
         public static void UpdateEquationFile(
             string equationFilePath,
             IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims,
             DomWedgeData wedge,
+            DomWedgeType wedgeType,
             DomDrawingType drawingType)
         {
             if (string.IsNullOrWhiteSpace(equationFilePath) || !File.Exists(equationFilePath))
@@ -46,14 +63,19 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
             if (effectiveDims is null) throw new ArgumentNullException(nameof(effectiveDims));
 
-            Logger.Info($"[ModelAutomation.EquationUpdater] UpdateEquationFile → '{equationFilePath}', drawingType={drawingType}");
+            DumpEffectiveDims("EquationUpdater.UpdateEquationFile", effectiveDims);
+
+            bool writeZeros = ShouldWriteZeroDims(wedgeType);
+
+            Logger.Info(
+                $"[ModelAutomation.EquationUpdater] UpdateEquationFile → '{equationFilePath}', drawingType={drawingType}, wedgeType={wedgeType}, writeZeros={writeZeros}");
 
             var encoding = GetFileEncoding(equationFilePath);
             var raw = File.ReadAllText(equationFilePath, encoding);
             var newline = DetectNewline(raw);
 
             var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
-            var output = new List<string>(lines.Count + 32);
+            var output = new List<string>(lines.Count + 64);
 
             // Dimensions coming from caller (effective dims)
             var byKey = effectiveDims.ToDictionary(
@@ -64,16 +86,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                      .Select(kv => kv.Key),
                 StringComparer.OrdinalIgnoreCase);
 
-            // CKVD RULE:
-            // - CKVD should WRITE 0 values into equations when provided.
-            // - COB (and others) should KEEP template value when provided dim is 0.
-            bool writeZeros = ShouldWriteZeroDims(wedge);
-
             // Keys in our provided dimension list that are effectively "do not override"
-            // if their nominal is zero (keep equation file value as-is)
+            // if their nominal is zero (keep equation file value as-is) — ONLY when writeZeros=false
             var zeroProvidedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // Only build this set when we are in "keep template on zero" mode.
             if (!writeZeros)
             {
                 foreach (var (k, dim) in byKey)
@@ -89,7 +105,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     }
                     catch
                     {
-                        // If we can't read it reliably, treat as "don't override"
                         zeroProvidedKeys.Add(k);
                     }
                 }
@@ -162,7 +177,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 // - If key exists in provided dims AND:
                 //     - writeZeros == true  => ALWAYS override (including 0)
                 //     - writeZeros == false => override only when non-zero; if zero => keep existing line
-                // - If key does NOT exist in provided dims => keep existing line
                 if (byKey.TryGetValue(key, out var dim))
                 {
                     if (!writeZeros && zeroProvidedKeys.Contains(key))
@@ -198,12 +212,14 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 }
             }
 
+            // Append EngravingStart if missing
             if (!engravingTouched && !LineExists(output, "EngravingStart"))
             {
                 output.Add(engravingLine);
                 appended++;
             }
 
+            // Append overlay lines if missing
             if (isOverlay)
             {
                 if (!overlayCalTouched && !LineExists(output, "overlay_calibration1"))
@@ -219,6 +235,18 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 }
             }
 
+            // --------------------------- COB funnel_gap ---------------------------
+            // Default funnel gap is in mm. We always enforce it when this looks like a COB wedge.
+            if (IsCobWedge(byKey))
+            {
+                double funnelGapMm = ComputeCobFunnelGapMm(wedge);
+
+                ReplaceOrAppend(output, "funnel_gap",
+                    $"\"funnel_gap\" = {F(funnelGapMm)}mm");
+
+                Logger.Info($"[ModelAutomation.EquationUpdater] COB funnel_gap computed = {funnelGapMm} mm");
+            }
+
             Logger.Info($"[ModelAutomation.EquationUpdater] Rewritten={rewritten}, Appended={appended}");
             File.WriteAllText(equationFilePath, string.Join(newline, output), encoding);
             Logger.Success($"[ModelAutomation.EquationUpdater] Equation file updated: {equationFilePath}");
@@ -228,22 +256,26 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         /// Direct upsert into model EquationMgr (fallback/alternate).
         /// IMPORTANT: no rebuild here. Orchestrator will do the single rebuild at the end.
         ///
-        /// UPDATED BEHAVIOR:
+        /// BEHAVIOR:
         /// - CKVD: If a provided dim is zero -> DO override (write 0 into the model).
         /// - Others: If a provided dim is zero -> DO NOT override existing equation in the model (keep it).
         /// - If a dim does not exist in provided dims -> it is untouched (keeps model equation).
         /// - Special keys (EngravingStart / overlay vars) are still enforced.
+        /// - COB: funnel_gap is enforced when the COB input set is present.
         /// </summary>
         public static void UpsertEquationsInModel(
             ModelDoc2 model,
             IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims,
             DomWedgeData wedge,
+            DomWedgeType wedgeType,
             DomDrawingType drawingType,
             bool rebuild = false)
         {
             if (model is null) throw new ArgumentNullException(nameof(model));
             if (effectiveDims is null) throw new ArgumentNullException(nameof(effectiveDims));
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+            bool writeZeros = ShouldWriteZeroDims(wedgeType);
 
             var mgr = (EquationMgr)model.GetEquationMgr();
             if (mgr is null)
@@ -266,9 +298,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             var engravingLine = BuildEngravingStartLine(wedge);
 
-            // CKVD writes zeros; others keep template/model for zeros.
-            bool writeZeros = ShouldWriteZeroDims(wedge);
-
             int upserted = 0;
             int skippedZero = 0;
 
@@ -288,7 +317,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 }
                 catch
                 {
-                    // If we can't resolve it, don't override.
                     skippedZero++;
                     continue;
                 }
@@ -325,14 +353,32 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 upserted++;
             }
 
+            // --------------------------- COB funnel_gap ---------------------------
+            var byKey = effectiveDims.ToDictionary(kv => kv.Key.Value, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+            if (IsCobWedge(byKey))
+            {
+                double funnelGapMm = ComputeCobFunnelGapMm(wedge);
+                UpsertEquation(mgr, byNameIndex, "funnel_gap", $"\"funnel_gap\" = {F(funnelGapMm)}mm");
+                upserted++;
+
+                Logger.Info($"[ModelAutomation.EquationUpdater] COB funnel_gap computed (model) = {funnelGapMm} mm");
+            }
+
             if (rebuild)
             {
                 model.EditRebuild3();
             }
 
             Logger.Success(
-                $"[ModelAutomation.EquationUpdater] UpsertEquationsInModel → upserted={upserted}, skippedZeroOrUnreadable={skippedZero}, rebuild={rebuild}");
+                $"[ModelAutomation.EquationUpdater] UpsertEquationsInModel → upserted={upserted}, skippedZeroOrUnreadable={skippedZero}, rebuild={rebuild}, wedgeType={wedgeType}, writeZeros={writeZeros}");
         }
+
+        // --------------------------------------------------------------------
+        // Policy
+        // --------------------------------------------------------------------
+
+        private static bool ShouldWriteZeroDims(DomWedgeType wedgeType)
+            => wedgeType == DomWedgeType.CKVD;
 
         // ------------------------- helpers -------------------------
 
@@ -384,6 +430,21 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
 
             return map;
+        }
+
+        private static void ReplaceOrAppend(List<string> lines, string key, string newLine)
+        {
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var m = LineRx.Match(lines[i]);
+                if (m.Success && m.Groups["key"].Value.Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    lines[i] = newLine;
+                    return;
+                }
+            }
+
+            lines.Add(newLine);
         }
 
         private static void WriteDim(List<string> sink, string key, DomDim dim, bool isAngle)
@@ -500,50 +561,114 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return lhs;
         }
 
-        // ----------------------------------------------------------
-        // CKVD vs COB behavior switch
-        // ----------------------------------------------------------
+        // --------------------------- COB funnel_gap ---------------------------
 
-        /// <summary>
-        /// Returns true when the wedge family/type is CKVD, meaning:
-        /// - Provided zero dims should be WRITTEN as 0 into equations/model.
-        /// For other wedge types (e.g., COB):
-        /// - Provided zero dims should NOT override the template/model values.
-        ///
-        /// Implementation uses reflection to avoid binding to a specific property name
-        /// (WedgeType / Type / Family etc.) and to keep this file robust across domain changes.
-        /// </summary>
-        private static bool ShouldWriteZeroDims(DomWedgeData wedge)
+        private static bool IsCobWedge(Dictionary<string, DomDim> byKey)
         {
-            if (wedge is null) return false;
-
-            // Try common property names. If your domain has a definitive property,
-            // you can replace this with a direct check for maximum clarity/perf.
-            var wt =
-                TryGetStringProp(wedge, "WedgeType") ??
-                TryGetStringProp(wedge, "Type") ??
-                TryGetStringProp(wedge, "Family") ??
-                TryGetStringProp(wedge, "WedgeFamily");
-
-            return string.Equals(wt, "CKVD", StringComparison.OrdinalIgnoreCase);
+            return byKey.ContainsKey("FNO") &&
+                   byKey.ContainsKey("FNA") &&
+                   byKey.ContainsKey("BA") &&
+                   byKey.ContainsKey("RA") &&
+                   byKey.ContainsKey("FND") &&
+                   byKey.ContainsKey("H");
         }
 
-        private static string? TryGetStringProp(object obj, string propName)
+        private static double ComputeCobFunnelGapMm(DomWedgeData wedge)
         {
-            try
+            const double DefaultGapMm = 0.0003;
+
+            if (!TryGetMm(wedge, "FNO", out var fno) || fno <= 0)
+                return DefaultGapMm;
+
+            if (!TryGetDeg(wedge, "FNA", out var fna) ||
+                !TryGetDeg(wedge, "BA", out var ba) ||
+                !TryGetDeg(wedge, "RA", out var ra) ||
+                !TryGetMm(wedge, "FND", out var fnd) ||
+                !TryGetMm(wedge, "H", out var h))
+                return DefaultGapMm;
+
+            double alpha = (fna / 2.0) * Math.PI / 180.0;
+            double k = (ba + ra) * Math.PI / 180.0;
+
+            double t2 = Math.Tan(alpha) * Math.Tan(alpha) * Math.Tan(k) * Math.Tan(k);
+            double frac = (1 - t2) / (1 + t2);
+
+            double inside = fnd * frac - h;
+            double denom = 2.0 * Math.Sin(alpha);
+            if (Math.Abs(denom) < 1e-12) return DefaultGapMm;
+
+            return inside / denom;
+        }
+
+        private static bool TryGetMm(DomWedgeData wedge, string key, out double value)
+        {
+            value = 0;
+            if (wedge?.Dimensions is null) return false;
+
+            if (!wedge.Dimensions.TryGetValue(DomDimKey.From(key), out var dim) || dim is null)
+                return false;
+
+            if (dim.Nominal.Unit != DomUnitKind.Millimeter)
+                return false;
+
+            value = (double)dim.Nominal.AsMm();
+            return true;
+        }
+
+        private static bool TryGetDeg(DomWedgeData wedge, string key, out double value)
+        {
+            value = 0;
+            if (wedge?.Dimensions is null) return false;
+
+            if (!wedge.Dimensions.TryGetValue(DomDimKey.From(key), out var dim) || dim is null)
+                return false;
+
+            if (dim.Nominal.Unit != DomUnitKind.Degree)
+                return false;
+
+            value = (double)dim.Nominal.AsDeg();
+            return true;
+        }
+
+        // --------------------------- diagnostics ---------------------------
+
+        private static void DumpEffectiveDims(
+            string tag,
+            IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims)
+        {
+            if (effectiveDims is null)
             {
-                var p = obj.GetType().GetProperty(propName, BindingFlags.Instance | BindingFlags.Public);
-                if (p is null) return null;
-
-                var v = p.GetValue(obj);
-                if (v is null) return null;
-
-                // If it's an enum, ToString() gives "CKVD" etc.
-                return v.ToString();
+                Logger.Warn($"[{tag}] effectiveDims = <null>");
+                return;
             }
-            catch
+
+            Logger.Info($"[{tag}] effectiveDims.Count = {effectiveDims.Count}");
+
+            foreach (var kv in effectiveDims.OrderBy(k => k.Key.Value, StringComparer.OrdinalIgnoreCase))
             {
-                return null;
+                var key = kv.Key.Value ?? "<null-key>";
+                var dim = kv.Value;
+
+                if (dim is null)
+                {
+                    Logger.Warn($"[{tag}] {key} = <null-dim>");
+                    continue;
+                }
+
+                try
+                {
+                    var unit = dim.Nominal.Unit;
+                    double nominal = unit == DomUnitKind.Degree
+                        ? (double)dim.Nominal.AsDeg()
+                        : (double)dim.Nominal.AsMm();
+
+                    var unitStr = unit == DomUnitKind.Degree ? "deg" : "mm";
+                    Logger.Info($"[{tag}] {key} = {nominal.ToString("0.#####", CultureInfo.InvariantCulture)}{unitStr}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"[{tag}] {key} = <failed to read nominal> : {ex.Message}");
+                }
             }
         }
     }

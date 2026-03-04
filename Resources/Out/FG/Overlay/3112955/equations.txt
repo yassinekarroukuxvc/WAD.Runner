@@ -1,5 +1,5 @@
 ﻿"_Offset"=0.01mm
-"TL" = 28.9814mm
+"TL" = 30mm
 "TD" = 1.99898mm
 "TDF" = 1.6002mm
 "BA" = 5deg
@@ -36,7 +36,7 @@
 "BRX" = 0mm
 "cleaned_FX"= IIF ( "FX" > 0 , "FX" , "TDF" - ("FL" + "X") )
 "EngravingStart" = 11.59256mm
-"overlay_calibration1" = 300
+"overlay_calibration1" = 300
 "TD@sketch_TL_cutting" = "TD"
 "TL@TL_cutting" = "TL"
 "k" = 0mm
@@ -71,7 +71,7 @@
 "D5@sketch_FA_BA_grinding"="TDF"
 "FL@sketch_FA_BA_grinding"="FL"
 "TIP" = 0mm
-"scale" = 183
+"scale" = 183
 "D1@ref_point_1"="H_cut"
 "D4@FG_Production_Wed_F" = "GD"
 "FL@sketch_contour_V-Groove"="FL"

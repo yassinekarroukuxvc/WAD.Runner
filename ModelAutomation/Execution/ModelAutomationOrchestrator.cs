@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using SolidWorks.Interop.sldworks;
+using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application; // Logger
 using WAD.Runner.DataManagement.Domain.Dimensions;
@@ -19,7 +20,6 @@ using WAD.Runner.ModelAutomation.SolidWorks;
 using WAD.Runner.ModelAutomation.Rules;
 using WAD.Runner.ModelAutomation.Rules.OSG7;
 using WAD.Runner.ModelAutomation.Rules.COB;
-using SolidWorks.Interop.swconst;
 
 namespace WAD.Runner.ModelAutomation.Execution
 {
@@ -142,6 +142,7 @@ namespace WAD.Runner.ModelAutomation.Execution
                 equationsOutPath,
                 effectiveDims,
                 wedge,
+                job.WedgeType,     // ✅ NEW: wedgeType passed through
                 job.DrawingType);
 
             // Step 4.5) CKVD derived dims (VR_MIN/VR_MAX, VW_LTOL/VW_UTOL) — no rebuild
@@ -196,6 +197,8 @@ namespace WAD.Runner.ModelAutomation.Execution
                 if (subclass == WedgeSubclass.PGB)
                 {
                     var shank = ResolveCobShankType(wedge);
+
+                    // NOTE: you currently return "Default" for both; keep as-is until you wire real config names.
                     return shank == CobShankType.Rev180
                         ? "Default"
                         : "Default";

@@ -8,7 +8,7 @@ using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application; // Logger
-
+using WAD.Runner.DataManagement.Domain.Wedge;
 using DomDimKey = WAD.Runner.DataManagement.Domain.Dimensions.DimensionKey;
 using DomWedgeData = WAD.Runner.DataManagement.Domain.Wedge.WedgeData;
 
@@ -115,7 +115,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             Logger.Success($"[ModelEditor] Activated configuration: {target}");
             return true;
         }
-
 
         /// <summary>
         /// Import equations from external equation file into the model.
@@ -245,6 +244,225 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             // NO rebuild here
         }
 
+        // =====================================================================
+        // CKVD DERIVED DIMENSIONS + TOLERANCE SKETCH PARAMETERS
+        // =====================================================================
+
+        /// <summary>
+        /// CKVD-only: apply derived parameters and also push LTOL/UTOL sketch parameters
+        /// based on wedge tolerances for selected keys.
+        /// NO rebuild here.
+        /// </summary>
+        public void ApplyCkvdDerivedDimensions(DomWedgeData wedge)
+        {
+            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+            Logger.Info("[ModelEditor] ApplyCkvdDerivedDimensions (CKVD) → start");
+
+            // ----------------------------
+            // VR_MIN / VR_MAX (example)
+            // ----------------------------
+            if (wedge.Dimensions.TryGetValue(DomDimKey.From("VR"), out var vr) && vr is not null)
+            {
+                try
+                {
+                    var vr_m = (double)vr.Nominal.AsMm() / 1000.0;
+                    var lo_m = (double)vr.Tol.Lower.AsMm() / 1000.0;
+                    var up_m = (double)vr.Tol.Upper.AsMm() / 1000.0;
+
+                    var vrMin_m = vr_m - lo_m;
+                    var vrMax_m = vr_m + up_m;
+
+                    // Adjust these owner names if your CKVD template uses different sketches/features
+                    TrySetParameterMeters("VR_MIN@FG_Wed_VW", vrMin_m);
+                    TrySetParameterMeters("VR_MAX@FG_Wed_VW", vrMax_m);
+
+                    Logger.Success($"[ModelEditor] CKVD VR_MIN/VR_MAX applied → MIN={vrMin_m:G6} m, MAX={vrMax_m:G6} m");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"[ModelEditor] CKVD VR_MIN/VR_MAX failed: {ex.Message}");
+                }
+            }
+            else
+            {
+                Logger.Warn("[ModelEditor] CKVD VR not found; skipping VR_MIN/VR_MAX.");
+            }
+
+            // ----------------------------
+            // VW_LTOL / VW_UTOL (example)
+            // ----------------------------
+            if (wedge.Dimensions.TryGetValue(DomDimKey.From("VW"), out var vw) && vw is not null)
+            {
+                try
+                {
+                    var lt_m = (double)vw.Tol.Lower.AsMm() / 1000.0;
+                    var ut_m = (double)vw.Tol.Upper.AsMm() / 1000.0;
+
+                    // Adjust these owner names if your CKVD template uses different sketches/features
+                    TrySetParameterMeters("VW_LTOL@FG_Wed_VW", lt_m);
+                    TrySetParameterMeters("VW_UTOL@FG_Wed_VW", ut_m);
+
+                    Logger.Success($"[ModelEditor] CKVD VW_LTOL/VW_UTOL applied → LTOL={lt_m:G6} m, UTOL={ut_m:G6} m");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"[ModelEditor] CKVD VW_LTOL/VW_UTOL failed: {ex.Message}");
+                }
+            }
+            else
+            {
+                Logger.Warn("[ModelEditor] CKVD VW not found; skipping VW_LTOL/VW_UTOL.");
+            }
+
+            // ----------------------------
+            // NEW: push tolerance sketch parameters (UTOL@Sketch / LTOL@Sketch)
+            // ----------------------------
+            // This is intentionally "best-effort": if a sketch name is wrong/missing in a template,
+            // it will log warnings and continue.
+            var tolSketchMap = wedge.Subclass == WedgeSubclass.PGB
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["FL"] = "PGB_Wed_FL",
+                    ["W"] = "PGB_Wed_W",
+                }
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["FL"] = "FG_Wed_FL",
+                    ["W"] = "FG_Wed_W",
+                    ["B"] = "FG_Wed_B",
+                    ["VW"] = "FG_Wed_VW",
+                    ["VR"] = "FG_Wed_VR"
+                };
+
+            UpdateToleranceSketchParameters(wedge, tolSketchMap);
+
+            Logger.Info("[ModelEditor] ApplyCkvdDerivedDimensions (CKVD) → done (no rebuild).");
+        }
+
+        /// <summary>
+        /// Sets UTOL/LTOL parameters inside sketches, based on wedge tolerances for selected keys.
+        ///
+        /// For each entry { key -> sketchName }:
+        /// - reads dim tolerances from wedge (Upper/Lower)
+        /// - normalizes NaN/Inf to 0, and negative to positive magnitude
+        /// - writes:
+        ///     UTOL@{sketchName} = upperTol (meters)
+        ///     LTOL@{sketchName} = lowerTol (meters)
+        ///
+        /// NO rebuild here (orchestrator will rebuild once).
+        /// </summary>
+        public void UpdateToleranceSketchParameters(
+            DomWedgeData wedge,
+            IDictionary<string, string> keyToSketchMap)
+        {
+            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+            if (_model is null || keyToSketchMap is null || keyToSketchMap.Count == 0)
+            {
+                Logger.Warn("[ModelEditor] UpdateToleranceSketchParameters → invalid inputs.");
+                return;
+            }
+
+            Logger.Info($"[ModelEditor] UpdateToleranceSketchParameters → count={keyToSketchMap.Count}");
+
+            foreach (var kv in keyToSketchMap)
+            {
+                var key = kv.Key?.Trim() ?? "";
+                var sketch = kv.Value?.Trim() ?? "";
+
+                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(sketch))
+                    continue;
+
+                if (!wedge.Dimensions.TryGetValue(DomDimKey.From(key), out var dim) || dim is null)
+                {
+                    Logger.Warn($"[ModelEditor] [TolSketch] Missing dimension data for key '{key}'.");
+                    continue;
+                }
+
+                double up_m, lo_m;
+                try
+                {
+                    up_m = NormalizeTolerance((double)dim.Tol.Upper.AsMm() / 1000.0);
+                    lo_m = NormalizeTolerance((double)dim.Tol.Lower.AsMm() / 1000.0);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"[ModelEditor] [TolSketch] Failed reading tolerances for '{key}': {ex.Message}");
+                    continue;
+                }
+
+                var utolName = $"UTOL@{sketch}";
+                var ltolName = $"LTOL@{sketch}";
+
+                var okU = TrySetParameterMeters(utolName, up_m);
+                var okL = TrySetParameterMeters(ltolName, lo_m);
+
+                if (okU || okL)
+                    Logger.Success($"[ModelEditor] [TolSketch] {key} → {utolName}={up_m:G6} m, {ltolName}={lo_m:G6} m");
+                else
+                    Logger.Warn($"[ModelEditor] [TolSketch] Failed to set both UTOL/LTOL for '{key}' on sketch '{sketch}'.");
+            }
+
+            // NO rebuild here
+        }
+
+        private static double NormalizeTolerance(double v)
+        {
+            if (double.IsNaN(v) || double.IsInfinity(v)) return 0.0;
+            return Math.Abs(v);
+        }
+
+        /// <summary>
+        /// Convenience: set a parameter/dimension in meters by name, best-effort.
+        /// </summary>
+        private bool TrySetParameterMeters(string swDimNameOrShortName, double valueMeters)
+            => TrySetDimensionMeters(swDimNameOrShortName, valueMeters);
+
+        /// <summary>
+        /// Attempts to set a dimension (in meters) by SolidWorks parameter name.
+        /// Accepts either full "X@Owner" or short "X" names (will probe owners if needed).
+        /// NO rebuild here.
+        /// </summary>
+        private bool TrySetDimensionMeters(string swDimNameOrShortName, double valueMeters)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(swDimNameOrShortName))
+                    return false;
+
+                // 1) direct try (works if it's already "Name@Owner")
+                var direct = Model.Parameter(swDimNameOrShortName) as SwDim;
+                if (direct != null)
+                {
+                    direct.SystemValue = valueMeters;
+                    Logger.Info($"[ModelEditor] SetDim → '{swDimNameOrShortName}' = {valueMeters:G6} m (direct)");
+                    return true;
+                }
+
+                // 2) fallback: treat as short name and probe owners
+                var owners = GetAllFeatureAndSketchNames(Model);
+                if (TryGetDimensionByShortName(Model, swDimNameOrShortName, owners, out var swDim) && swDim != null)
+                {
+                    swDim.SystemValue = valueMeters;
+                    Logger.Info($"[ModelEditor] SetDim → '{swDimNameOrShortName}@*' = {valueMeters:G6} m (probed)");
+                    return true;
+                }
+
+                Logger.Warn($"[ModelEditor] SetDim failed: '{swDimNameOrShortName}' not found.");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[ModelEditor] SetDim exception for '{swDimNameOrShortName}': {ex.Message}");
+                return false;
+            }
+        }
+
+        // =====================================================================
+        // REBUILD / SAVE / CLOSE
+        // =====================================================================
+
         /// <summary>
         /// The ONLY rebuild method. Call once at the end of the workflow.
         /// </summary>
@@ -344,127 +562,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             Logger.Warn($"[ModelEditor] Not found for '{shortName}@*'");
             swDim = null;
             return false;
-        }
-
-        // ModelAutomation/SolidWorks/ModelEditor.cs  (add inside the ModelEditor class)
-
-        public void ApplyCkvdDerivedDimensions(DomWedgeData wedge)
-        {
-            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
-
-            Logger.Info("[ModelEditor] ApplyCkvdDerivedDimensions (CKVD) → start");
-
-            // ----------------------------
-            // VR_MIN / VR_MAX
-            // ----------------------------
-            if (wedge.Dimensions.TryGetValue(DomDimKey.From("VR"), out var vr) && vr is not null && vr.Nominal.IsMm)
-            {
-                var vr_m = (double)vr.Nominal.AsMm() / 1000.0;
-                var lo_m = (double)vr.Tol.Lower.AsMm() / 1000.0;
-                var up_m = (double)vr.Tol.Upper.AsMm() / 1000.0;
-
-                var vrMin_m = vr_m - lo_m;
-                var vrMax_m = vr_m + up_m;
-
-                var dimVrMinName = ResolveSwDimName("DimVrMin", fallback: "VR_MIN");
-                var dimVrMaxName = ResolveSwDimName("DimVrMax", fallback: "VR_MAX");
-
-                TrySetDimensionMeters(dimVrMinName, vrMin_m);
-                TrySetDimensionMeters(dimVrMaxName, vrMax_m);
-
-                Logger.Success($"[ModelEditor] CKVD VR_MIN/VR_MAX applied → MIN={vrMin_m:F6} m, MAX={vrMax_m:F6} m");
-            }
-            else
-            {
-                Logger.Warn("[ModelEditor] CKVD VR not found/mm; skipping VR_MIN/VR_MAX.");
-            }
-
-            // ----------------------------
-            // VW_LTOL / VW_UTOL
-            // ----------------------------
-            if (wedge.Dimensions.TryGetValue(DomDimKey.From("VW"), out var vw) && vw is not null)
-            {
-                var lt_m = (double)vw.Tol.Lower.AsMm() / 1000.0;
-                var ut_m = (double)vw.Tol.Upper.AsMm() / 1000.0;
-
-                var dimVwLtolName = ResolveSwDimName("DimVwLTol", fallback: "VW_LTOL");
-                var dimVwUtolName = ResolveSwDimName("DimVwUTol", fallback: "VW_UTOL");
-
-                TrySetDimensionMeters(dimVwLtolName, lt_m);
-                TrySetDimensionMeters(dimVwUtolName, ut_m);
-
-                Logger.Success($"[ModelEditor] CKVD VW_LTOL/VW_UTOL applied → LTOL={lt_m:F6} m, UTOL={ut_m:F6} m");
-            }
-            else
-            {
-                Logger.Warn("[ModelEditor] CKVD VW not found; skipping VW_LTOL/VW_UTOL.");
-            }
-
-            Logger.Info("[ModelEditor] ApplyCkvdDerivedDimensions (CKVD) → done (no rebuild).");
-        }
-
-        /// <summary>
-        /// Attempts to set a dimension (in meters) by SolidWorks parameter name.
-        /// Accepts either full "X@Owner" or short "X" names (will probe owners if needed).
-        /// </summary>
-        private bool TrySetDimensionMeters(string swDimNameOrShortName, double valueMeters)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(swDimNameOrShortName))
-                    return false;
-
-                // 1) direct try (works if it's already "Name@Owner")
-                var direct = Model.Parameter(swDimNameOrShortName) as SwDim;
-                if (direct != null)
-                {
-                    direct.SystemValue = valueMeters;
-                    Logger.Info($"[ModelEditor] SetDim → '{swDimNameOrShortName}' = {valueMeters:F6} m (direct)");
-                    return true;
-                }
-
-                // 2) fallback: treat as short name and probe owners
-                _toggles ??= FeatureToggleBatch.Build(Model); // ensures model ready; doesn't affect dims
-
-                var owners = GetAllFeatureAndSketchNames(Model);
-                if (TryGetDimensionByShortName(Model, swDimNameOrShortName, owners, out var swDim) && swDim != null)
-                {
-                    swDim.SystemValue = valueMeters;
-                    Logger.Info($"[ModelEditor] SetDim → '{swDimNameOrShortName}@*' = {valueMeters:F6} m (probed)");
-                    return true;
-                }
-
-                Logger.Warn($"[ModelEditor] SetDim failed: '{swDimNameOrShortName}' not found.");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Logger.Warn($"[ModelEditor] SetDim exception for '{swDimNameOrShortName}': {ex.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Resolve a SwNames.* constant if it exists, otherwise fallback to a literal short name.
-        /// This keeps the code compiling even if SwNames lacks the constant.
-        /// </summary>
-        private static string ResolveSwDimName(string swNamesMember, string fallback)
-        {
-            try
-            {
-                // Avoid hard dependency on a specific constant existing.
-                var t = typeof(WAD.Runner.ModelAutomation.Common.SwNames);
-                var pi = t.GetProperty(swNamesMember);
-                if (pi?.GetValue(null) is string s && !string.IsNullOrWhiteSpace(s))
-                    return s;
-
-                var fi = t.GetField(swNamesMember);
-                if (fi?.GetValue(null) is string s2 && !string.IsNullOrWhiteSpace(s2))
-                    return s2;
-            }
-            catch { /* ignore */ }
-
-            return fallback;
         }
     }
 }

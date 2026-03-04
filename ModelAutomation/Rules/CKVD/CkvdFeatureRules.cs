@@ -195,7 +195,7 @@ namespace WAD.Runner.ModelAutomation.Rules
 
         private static string ResolveSketchCrmetName()
         {
-            try { return SwNames.SketchCrmet; } catch { return "SketchCrmet"; } // adjust literal if needed
+            try { return SwNames.SketchCrmet; } catch { return "Drawing_CRMET"; } // adjust literal if needed
         }
 
         private static string ResolveSketchFgWedWName()
