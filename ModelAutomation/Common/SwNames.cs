@@ -7,6 +7,8 @@ public static class SwNames
     // -------------------------------------------------
     public const string Engraving = "Engraving";
     public const string SketchCrmet = "Drawing_CRMET";
+    public const string EngravingFeature = "Engraving";
+    public const string EngravingSketch = "sketch_Engraving";
 
     // -------------------------------------------------
     // CKVD sketches

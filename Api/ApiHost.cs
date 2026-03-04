@@ -16,6 +16,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using WAD.Runner.ModelAutomation.Execution;
+using WAD.Runner.ModelAutomation.SolidWorks;
 
 using WAD.Runner.Application.Ports;
 using WAD.Runner.Application.UseCases;
@@ -271,6 +273,9 @@ public static class ApiHost
             .ValidateDataAnnotations()
             .Validate(o => !string.IsNullOrWhiteSpace(o.ApiKey), "Runner:ApiKey is required")
             .ValidateOnStart();
+
+        builder.Services.AddSingleton<ModelDimensionApplier>();
+        builder.Services.AddSingleton<ModelAutomationOrchestrator>();
 
         var runnerOpts = builder.Configuration.GetSection("Runner").Get<RunnerOptions>() ?? new RunnerOptions();
 

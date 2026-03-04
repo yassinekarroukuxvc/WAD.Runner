@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -63,24 +64,34 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                      .Select(kv => kv.Key),
                 StringComparer.OrdinalIgnoreCase);
 
+            // CKVD RULE:
+            // - CKVD should WRITE 0 values into equations when provided.
+            // - COB (and others) should KEEP template value when provided dim is 0.
+            bool writeZeros = ShouldWriteZeroDims(wedge);
+
             // Keys in our provided dimension list that are effectively "do not override"
             // if their nominal is zero (keep equation file value as-is)
             var zeroProvidedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (k, dim) in byKey)
-            {
-                try
-                {
-                    var v = dim.Nominal.Unit == DomUnitKind.Degree
-                        ? (double)dim.Nominal.AsDeg()
-                        : (double)dim.Nominal.AsMm();
 
-                    if (Math.Abs(v) < 1e-12)
-                        zeroProvidedKeys.Add(k);
-                }
-                catch
+            // Only build this set when we are in "keep template on zero" mode.
+            if (!writeZeros)
+            {
+                foreach (var (k, dim) in byKey)
                 {
-                    // If we can't read it reliably, treat as "don't override"
-                    zeroProvidedKeys.Add(k);
+                    try
+                    {
+                        var v = dim.Nominal.Unit == DomUnitKind.Degree
+                            ? (double)dim.Nominal.AsDeg()
+                            : (double)dim.Nominal.AsMm();
+
+                        if (Math.Abs(v) < 1e-12)
+                            zeroProvidedKeys.Add(k);
+                    }
+                    catch
+                    {
+                        // If we can't read it reliably, treat as "don't override"
+                        zeroProvidedKeys.Add(k);
+                    }
                 }
             }
 
@@ -147,13 +158,14 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
-                // NEW RULE:
-                // - If key exists in provided dims AND its provided value is NON-ZERO -> override
-                // - If key exists in provided dims BUT provided value is ZERO -> KEEP existing equation line (do not override)
-                // - If key does NOT exist in provided dims -> KEEP existing equation line (do not override)
+                // RULE:
+                // - If key exists in provided dims AND:
+                //     - writeZeros == true  => ALWAYS override (including 0)
+                //     - writeZeros == false => override only when non-zero; if zero => keep existing line
+                // - If key does NOT exist in provided dims => keep existing line
                 if (byKey.TryGetValue(key, out var dim))
                 {
-                    if (zeroProvidedKeys.Contains(key))
+                    if (!writeZeros && zeroProvidedKeys.Contains(key))
                     {
                         // keep equation file's value (original line)
                         output.Add(line);
@@ -171,11 +183,12 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             int appended = 0;
 
-            // Append only NON-ZERO provided dims that don't exist in the file yet.
-            // (Zero provided dims are intentionally NOT appended/overwritten.)
+            // Append provided dims that don't exist in the file yet.
+            // - CKVD (writeZeros=true): appends even if value == 0.
+            // - Others: skips appending zero provided dims.
             foreach (var (key, dim) in byKey)
             {
-                if (zeroProvidedKeys.Contains(key))
+                if (!writeZeros && zeroProvidedKeys.Contains(key))
                     continue;
 
                 if (!LineExists(output, key))
@@ -216,7 +229,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         /// IMPORTANT: no rebuild here. Orchestrator will do the single rebuild at the end.
         ///
         /// UPDATED BEHAVIOR:
-        /// - If a provided dim is zero -> DO NOT override existing equation in the model (keep it).
+        /// - CKVD: If a provided dim is zero -> DO override (write 0 into the model).
+        /// - Others: If a provided dim is zero -> DO NOT override existing equation in the model (keep it).
         /// - If a dim does not exist in provided dims -> it is untouched (keeps model equation).
         /// - Special keys (EngravingStart / overlay vars) are still enforced.
         /// </summary>
@@ -252,6 +266,9 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             var engravingLine = BuildEngravingStartLine(wedge);
 
+            // CKVD writes zeros; others keep template/model for zeros.
+            bool writeZeros = ShouldWriteZeroDims(wedge);
+
             int upserted = 0;
             int skippedZero = 0;
 
@@ -276,8 +293,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
-                // NEW: if provided value is zero -> keep existing equation (do not upsert)
-                if (Math.Abs(val) < 1e-12)
+                // RULE:
+                // - Others: if provided value is zero -> keep existing equation (do not upsert)
+                // - CKVD: allow writing zero
+                if (!writeZeros && Math.Abs(val) < 1e-12)
                 {
                     skippedZero++;
                     continue;
@@ -479,6 +498,53 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             if (lhs.StartsWith("\"") && lhs.EndsWith("\"") && lhs.Length >= 2)
                 lhs = lhs[1..^1];
             return lhs;
+        }
+
+        // ----------------------------------------------------------
+        // CKVD vs COB behavior switch
+        // ----------------------------------------------------------
+
+        /// <summary>
+        /// Returns true when the wedge family/type is CKVD, meaning:
+        /// - Provided zero dims should be WRITTEN as 0 into equations/model.
+        /// For other wedge types (e.g., COB):
+        /// - Provided zero dims should NOT override the template/model values.
+        ///
+        /// Implementation uses reflection to avoid binding to a specific property name
+        /// (WedgeType / Type / Family etc.) and to keep this file robust across domain changes.
+        /// </summary>
+        private static bool ShouldWriteZeroDims(DomWedgeData wedge)
+        {
+            if (wedge is null) return false;
+
+            // Try common property names. If your domain has a definitive property,
+            // you can replace this with a direct check for maximum clarity/perf.
+            var wt =
+                TryGetStringProp(wedge, "WedgeType") ??
+                TryGetStringProp(wedge, "Type") ??
+                TryGetStringProp(wedge, "Family") ??
+                TryGetStringProp(wedge, "WedgeFamily");
+
+            return string.Equals(wt, "CKVD", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string? TryGetStringProp(object obj, string propName)
+        {
+            try
+            {
+                var p = obj.GetType().GetProperty(propName, BindingFlags.Instance | BindingFlags.Public);
+                if (p is null) return null;
+
+                var v = p.GetValue(obj);
+                if (v is null) return null;
+
+                // If it's an enum, ToString() gives "CKVD" etc.
+                return v.ToString();
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

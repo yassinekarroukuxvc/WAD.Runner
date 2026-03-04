@@ -12,15 +12,16 @@ using WAD.Runner.Application.UseCases;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
-using WAD.Runner.PartAutomation.Common;
-using WAD.Runner.PartAutomation.Execution;
-using WAD.Runner.PartAutomation.Jobs;
-
 using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Executors.FG;
 using WAD.Runner.DrawingAutomation.Executors.PGB;
 
 using WAD.Runner.Solidworks.Adapters;
+
+// ✅ Use ModelAutomation (same as Program.cs)
+using WAD.Runner.ModelAutomation.Common;
+using WAD.Runner.ModelAutomation.Execution;
+using WAD.Runner.ModelAutomation.SolidWorks;
 
 namespace WAD.Runner.Api;
 
@@ -47,12 +48,21 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
         if (payload.ArticleNumbers is null || payload.ArticleNumbers.Count == 0)
             throw new InvalidOperationException("Job payload has no ArticleNumbers.");
 
+        // -----------------------------
+        // Parse subclass
+        // -----------------------------
         var subclassStr = (payload.Subclass ?? "FG").Trim();
         if (!Enum.TryParse<WedgeSubclass>(subclassStr, true, out var subclass))
             subclass = WedgeSubclass.FG;
 
+        // -----------------------------
+        // Drawing types to run
+        // -----------------------------
         var drawingTypeNames = ResolveDrawingTypes(job, payload);
 
+        // -----------------------------
+        // Wedge type
+        // -----------------------------
         var wedgeTypeStr = payload.Options is not null &&
                            payload.Options.TryGetValue("wedgeType", out var wtype)
             ? wtype
@@ -66,6 +76,9 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
             _ => WedgeType.CKVD
         };
 
+        // -----------------------------
+        // Output root
+        // -----------------------------
         var outputRootBase = payload.OutputFolder ?? Path.Combine("Resources", "Out");
         Directory.CreateDirectory(outputRootBase);
 
@@ -74,9 +87,13 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
 
         var getWedge = sp.GetRequiredService<GetWedgeData>();
         var getDrawing = sp.GetRequiredService<GetDrawingData>();
-        var orchestrator = sp.GetRequiredService<PartAutomationOrchestrator>();
+        var modelOrchestrator = sp.GetRequiredService<ModelAutomationOrchestrator>();
         var sessFactory = sp.GetRequiredService<ISwSessionFactory>();
 
+        // Steps:
+        //  1) Load data
+        //  2) Model phase (ModelAutomation)
+        //  3) Drawing phase
         const int StepsPerRun = 3;
         var totalRuns = payload.ArticleNumbers.Count * drawingTypeNames.Count;
         var totalSteps = totalRuns * StepsPerRun;
@@ -95,6 +112,9 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                     "Job {JobId}: starting automation for article={Article}, subclass={Subclass}, type={Type}, wtype={WType}",
                     job.Id, article, subclass, dtype, wedgeType);
 
+                // ---------------------------------
+                // Step 1) Load data
+                // ---------------------------------
                 report(Progress(++doneSteps, totalSteps, $"Loading data for {article} ({dtype})…"));
 
                 var wedgeData = getWedge.ExecuteAsync(article, subclass, CancellationToken.None)
@@ -103,20 +123,32 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                 var drawingData = getDrawing.ExecuteAsync(dtype, subclass, wedgeType, article, CancellationToken.None)
                                             .GetAwaiter().GetResult();
 
+                // ---------------------------------
+                // Templates (match Program.cs run-drawing)
+                // ---------------------------------
                 string templatePartPath;
                 string templateDrawingPath;
-                string equationTemplatePathForPartPhase;
+                string equationTemplatePathForModelPhase;
 
                 switch (wedgeType)
                 {
                     case WedgeType.COB:
-                        templatePartPath = Path.Combine("Resources", "Templates", "COB", "COB_Template.SLDPRT");
-                        templateDrawingPath = Path.Combine("Resources", "Templates", "COB", "COB_Drawings.SLDDRW");
-                        equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "COB", "equations.txt");
+                        templatePartPath = Path.Combine(
+                            "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
+                            "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+
+                        templateDrawingPath = Path.Combine(
+                            "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
+                            "wedge-auto-draw-COB-2d-drawing.SLDDRW");
+
+                        equationTemplatePathForModelPhase = Path.Combine(
+                            "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
+                            "wedge-auto-draw-COB-3d-equation.txt");
                         break;
 
                     case WedgeType.OSG7:
                         templatePartPath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
+
                         templateDrawingPath = dtype switch
                         {
                             DrawingType.Overlay =>
@@ -125,30 +157,37 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             DrawingType.Production or DrawingType.Customer or _ =>
                                 Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDDRW"),
                         };
-                        equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
+
+                        equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
                         break;
 
                     case WedgeType.CKVD:
                     default:
-                        templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDPRT");
+                        templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDPRT");
+
                         templateDrawingPath = dtype switch
                         {
                             DrawingType.Overlay =>
-                                Path.Combine("Resources", "Templates", "CKVD", "OVERLAY_TEMPLATE.SLDDRW"),
+                                Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "OVERLAY_TEMPLATE.SLDDRW"),
 
                             DrawingType.Production or DrawingType.Customer or _ =>
-                                Path.Combine("Resources", "Templates", "CKVD", "CKVD_2023.SLDDRW"),
+                                Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDDRW"),
                         };
-                        equationTemplatePathForPartPhase = Path.Combine("Resources", "Templates", "CKVD", "CK.txt");
+
+                        equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CK.txt");
                         break;
                 }
 
+                // ---------------------------------
+                // Plan outputs (use ModelAutomation path planner)
+                // ---------------------------------
                 var plan = PathPlanner.Build(
                     article: article,
                     subclass: subclass,
                     drawingType: dtype,
                     outputRoot: outputRootBase,
-                    fileBase: null);
+                    fileBase: null // if your RunRequest has FileBase; otherwise this will be null
+                );
 
                 var modDrawingPath = Path.Combine(plan.WorkDir, $"{plan.FileBase}.SLDDRW");
 
@@ -169,12 +208,15 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                     OutputTiffPath = null
                 };
 
-                report(Progress(++doneSteps, totalSteps, $"Running part phase for {article} ({dtype})…"));
+                // ---------------------------------
+                // Step 2) MODEL phase (ModelAutomation)
+                // ---------------------------------
+                report(Progress(++doneSteps, totalSteps, $"Running model phase for {article} ({dtype})…"));
 
-                string? partResultPath;
-                using (var swPart = sessFactory.Create(visible: true))
+                string? modelResultPath;
+                using (var swModel = sessFactory.Create(visible: true))
                 {
-                    var jobReq = new PartJobRequest
+                    var jobReq = new ModelJobRequest
                     {
                         ArticleNumber = article,
                         Subclass = subclass,
@@ -182,23 +224,26 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                         OutputRoot = outputRootBase,
 
                         PartTemplatePath = templatePartPath,
-                        EquationTemplatePath = equationTemplatePathForPartPhase,
+                        EquationTemplatePath = equationTemplatePathForModelPhase,
 
-                        FileBase = plan.FileBase,
+                        FileBase = plan.FileBase, // keep consistent so drawing uses the same outputs
 
                         WedgeData = wedgeData,
                         WedgeType = wedgeType
                     };
 
-                    partResultPath = orchestrator.RunAsync(jobReq, swPart.App, CancellationToken.None)
-                                                 .GetAwaiter().GetResult();
+                    modelResultPath = modelOrchestrator.RunAsync(jobReq, swModel.App, CancellationToken.None)
+                                                     .GetAwaiter().GetResult();
                 }
 
+                // ---------------------------------
+                // Step 3) DRAWING phase (unchanged)
+                // ---------------------------------
                 report(Progress(++doneSteps, totalSteps, $"Running drawing phase for {article} ({dtype})…"));
 
                 using (var swDraw = sessFactory.Create(visible: true))
                 {
-                    Func<object?> runPartAutomation = () => partResultPath;
+                    Func<object?> runModelAutomation = () => modelResultPath;
 
                     switch (subclass)
                     {
@@ -207,18 +252,18 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             {
                                 case DrawingType.Customer:
                                     _logger.LogInformation("Job {JobId}: PGB Customer → FG Customer executor (temporary).", job.Id);
-                                    PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation);
+                                    PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                     break;
 
                                 case DrawingType.Overlay:
                                     _logger.LogInformation("Job {JobId}: PGB Overlay → PGB Overlay executor.", job.Id);
-                                    PgbOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                    PgbOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                     break;
 
                                 case DrawingType.Production:
                                 default:
                                     _logger.LogInformation("Job {JobId}: PGB Production → PGB Production executor.", job.Id);
-                                    PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation);
+                                    PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                     break;
                             }
                             break;
@@ -229,18 +274,18 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             {
                                 case DrawingType.Customer:
                                     _logger.LogInformation("Job {JobId}: FG Customer → FG Customer executor.", job.Id);
-                                    FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation);
+                                    FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                     break;
 
                                 case DrawingType.Overlay:
                                     _logger.LogInformation("Job {JobId}: FG Overlay → FG Overlay executor.", job.Id);
-                                    FgOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation, plannedDims: null);
+                                    FgOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                     break;
 
                                 case DrawingType.Production:
                                 default:
                                     _logger.LogInformation("Job {JobId}: FG Production → FG Production executor.", job.Id);
-                                    FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runPartAutomation);
+                                    FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                     break;
                             }
                             break;
@@ -248,6 +293,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                 }
 
                 lastResultPdf = run.OutputPdfPath;
+
                 _logger.LogInformation(
                     "Job {JobId}: completed article={Article}, type={Type}, output='{Out}'",
                     job.Id, article, dtype, lastResultPdf);

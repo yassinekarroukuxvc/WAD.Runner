@@ -144,6 +144,12 @@ namespace WAD.Runner.ModelAutomation.Execution
                 wedge,
                 job.DrawingType);
 
+            // Step 4.5) CKVD derived dims (VR_MIN/VR_MAX, VW_LTOL/VW_UTOL) — no rebuild
+            if (job.WedgeType == WedgeType.CKVD && wedge.Subclass == WedgeSubclass.FG)
+            {
+                editor.ApplyCkvdDerivedDimensions(wedge);
+            }
+
             if (!applyRes.Success)
                 Logger.Warn($"[ModelOrchestrator] Dimension apply failed. Method={applyRes.MethodUsed}. Error={applyRes.Error}");
 
@@ -165,7 +171,7 @@ namespace WAD.Runner.ModelAutomation.Execution
                 wedge.Marking?.Text ??
                 (wedge.Properties.TryGetValue("Marking", out var s) ? s : null);
 
-            editor.SetEngraving(engraving);
+            //editor.SetEngraving(engraving);
 
             // -----------------------------
             // Step 5) ONE rebuild, save, close

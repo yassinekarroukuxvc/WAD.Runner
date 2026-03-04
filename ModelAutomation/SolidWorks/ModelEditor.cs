@@ -345,5 +345,126 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             swDim = null;
             return false;
         }
+
+        // ModelAutomation/SolidWorks/ModelEditor.cs  (add inside the ModelEditor class)
+
+        public void ApplyCkvdDerivedDimensions(DomWedgeData wedge)
+        {
+            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+            Logger.Info("[ModelEditor] ApplyCkvdDerivedDimensions (CKVD) → start");
+
+            // ----------------------------
+            // VR_MIN / VR_MAX
+            // ----------------------------
+            if (wedge.Dimensions.TryGetValue(DomDimKey.From("VR"), out var vr) && vr is not null && vr.Nominal.IsMm)
+            {
+                var vr_m = (double)vr.Nominal.AsMm() / 1000.0;
+                var lo_m = (double)vr.Tol.Lower.AsMm() / 1000.0;
+                var up_m = (double)vr.Tol.Upper.AsMm() / 1000.0;
+
+                var vrMin_m = vr_m - lo_m;
+                var vrMax_m = vr_m + up_m;
+
+                var dimVrMinName = ResolveSwDimName("DimVrMin", fallback: "VR_MIN");
+                var dimVrMaxName = ResolveSwDimName("DimVrMax", fallback: "VR_MAX");
+
+                TrySetDimensionMeters(dimVrMinName, vrMin_m);
+                TrySetDimensionMeters(dimVrMaxName, vrMax_m);
+
+                Logger.Success($"[ModelEditor] CKVD VR_MIN/VR_MAX applied → MIN={vrMin_m:F6} m, MAX={vrMax_m:F6} m");
+            }
+            else
+            {
+                Logger.Warn("[ModelEditor] CKVD VR not found/mm; skipping VR_MIN/VR_MAX.");
+            }
+
+            // ----------------------------
+            // VW_LTOL / VW_UTOL
+            // ----------------------------
+            if (wedge.Dimensions.TryGetValue(DomDimKey.From("VW"), out var vw) && vw is not null)
+            {
+                var lt_m = (double)vw.Tol.Lower.AsMm() / 1000.0;
+                var ut_m = (double)vw.Tol.Upper.AsMm() / 1000.0;
+
+                var dimVwLtolName = ResolveSwDimName("DimVwLTol", fallback: "VW_LTOL");
+                var dimVwUtolName = ResolveSwDimName("DimVwUTol", fallback: "VW_UTOL");
+
+                TrySetDimensionMeters(dimVwLtolName, lt_m);
+                TrySetDimensionMeters(dimVwUtolName, ut_m);
+
+                Logger.Success($"[ModelEditor] CKVD VW_LTOL/VW_UTOL applied → LTOL={lt_m:F6} m, UTOL={ut_m:F6} m");
+            }
+            else
+            {
+                Logger.Warn("[ModelEditor] CKVD VW not found; skipping VW_LTOL/VW_UTOL.");
+            }
+
+            Logger.Info("[ModelEditor] ApplyCkvdDerivedDimensions (CKVD) → done (no rebuild).");
+        }
+
+        /// <summary>
+        /// Attempts to set a dimension (in meters) by SolidWorks parameter name.
+        /// Accepts either full "X@Owner" or short "X" names (will probe owners if needed).
+        /// </summary>
+        private bool TrySetDimensionMeters(string swDimNameOrShortName, double valueMeters)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(swDimNameOrShortName))
+                    return false;
+
+                // 1) direct try (works if it's already "Name@Owner")
+                var direct = Model.Parameter(swDimNameOrShortName) as SwDim;
+                if (direct != null)
+                {
+                    direct.SystemValue = valueMeters;
+                    Logger.Info($"[ModelEditor] SetDim → '{swDimNameOrShortName}' = {valueMeters:F6} m (direct)");
+                    return true;
+                }
+
+                // 2) fallback: treat as short name and probe owners
+                _toggles ??= FeatureToggleBatch.Build(Model); // ensures model ready; doesn't affect dims
+
+                var owners = GetAllFeatureAndSketchNames(Model);
+                if (TryGetDimensionByShortName(Model, swDimNameOrShortName, owners, out var swDim) && swDim != null)
+                {
+                    swDim.SystemValue = valueMeters;
+                    Logger.Info($"[ModelEditor] SetDim → '{swDimNameOrShortName}@*' = {valueMeters:F6} m (probed)");
+                    return true;
+                }
+
+                Logger.Warn($"[ModelEditor] SetDim failed: '{swDimNameOrShortName}' not found.");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[ModelEditor] SetDim exception for '{swDimNameOrShortName}': {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Resolve a SwNames.* constant if it exists, otherwise fallback to a literal short name.
+        /// This keeps the code compiling even if SwNames lacks the constant.
+        /// </summary>
+        private static string ResolveSwDimName(string swNamesMember, string fallback)
+        {
+            try
+            {
+                // Avoid hard dependency on a specific constant existing.
+                var t = typeof(WAD.Runner.ModelAutomation.Common.SwNames);
+                var pi = t.GetProperty(swNamesMember);
+                if (pi?.GetValue(null) is string s && !string.IsNullOrWhiteSpace(s))
+                    return s;
+
+                var fi = t.GetField(swNamesMember);
+                if (fi?.GetValue(null) is string s2 && !string.IsNullOrWhiteSpace(s2))
+                    return s2;
+            }
+            catch { /* ignore */ }
+
+            return fallback;
+        }
     }
 }
