@@ -29,6 +29,41 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         private static string F(double v) => v.ToString("0.#####", CultureInfo.InvariantCulture);
 
         // --------------------------------------------------------------------
+        // CKVD policy:
+        // - CKVD writes provided zeros (writeZeros=true)
+        // - AND (new) CKVD treats missing DB-driven dims as 0 (override template)
+        // --------------------------------------------------------------------
+
+        /// <summary>
+        /// CKVD: keys that are expected to be DB-driven base dimensions.
+        /// If missing from effectiveDims => we overwrite template value with 0 (not for cleaned_/computed vars).
+        /// </summary>
+        private static readonly HashSet<string> CkvdDbDrivenKeys =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                // --- base mm dims ---
+                "TL","TD","TDF",
+                "B","E","ER","F","FL","FX","W","X","GD","GR",
+                "FR","BR","FRX","BRX",
+                "VR","VW","VRA",
+                "TIP",
+                "k",              // if you consider it DB-driven; otherwise remove it
+                "SymmetryTolerance", // if DB-driven in your pipeline; otherwise remove it
+
+                // --- base angle dims ---
+                "BA","FA","GA","ISA"
+            };
+
+        /// <summary>
+        /// CKVD: keys that are angle-based (deg). Used when we need to emit 0 for missing keys.
+        /// </summary>
+        private static readonly HashSet<string> CkvdAngleKeys =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                "BA","FA","GA","ISA"
+            };
+
+        // --------------------------------------------------------------------
         // Public API (wedgeType-aware, deterministic)
         // --------------------------------------------------------------------
 
@@ -47,6 +82,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         /// - For every key present in effectiveDims, we WRITE/UPDATE its equation line.
         /// - CKVD: writeZeros=true, so 0 values are written (override template).
         /// - Others: writeZeros=false, so 0 values DO NOT override template (keep existing line).
+        /// - CKVD (new): missing DB-driven keys => set to 0 (override template), e.g. FX missing => "FX"=0mm.
         /// - Overlay vars are enforced.
         /// - COB-only: compute + upsert funnel_gap.
         /// </summary>
@@ -66,9 +102,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             DumpEffectiveDims("EquationUpdater.UpdateEquationFile", effectiveDims);
 
             bool writeZeros = ShouldWriteZeroDims(wedgeType);
+            bool missingAsZero = ShouldTreatMissingAsZero(wedgeType);
 
             Logger.Info(
-                $"[ModelAutomation.EquationUpdater] UpdateEquationFile → '{equationFilePath}', drawingType={drawingType}, wedgeType={wedgeType}, writeZeros={writeZeros}");
+                $"[ModelAutomation.EquationUpdater] UpdateEquationFile → '{equationFilePath}', drawingType={drawingType}, wedgeType={wedgeType}, writeZeros={writeZeros}, missingAsZero={missingAsZero}");
 
             var encoding = GetFileEncoding(equationFilePath);
             var raw = File.ReadAllText(equationFilePath, encoding);
@@ -80,6 +117,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             // Dimensions coming from caller (effective dims)
             var byKey = effectiveDims.ToDictionary(
                 kv => kv.Key.Value, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+
+            var providedKeys = new HashSet<string>(byKey.Keys, StringComparer.OrdinalIgnoreCase);
 
             var angleKeys = new HashSet<string>(
                 byKey.Where(kv => kv.Value.Nominal.Unit == DomUnitKind.Degree)
@@ -191,6 +230,17 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
+                // NEW RULE (CKVD):
+                // - If a DB-driven base dim key is MISSING from effectiveDims => write 0 (override template)
+                // This fixes cases like FX missing => template value must not leak into generated file.
+                if (missingAsZero && CkvdDbDrivenKeys.Contains(key) && !providedKeys.Contains(key))
+                {
+                    output.Add(MakeZeroLinePreservingUnit(key, line, CkvdAngleKeys.Contains(key)));
+                    rewritten++;
+                    Logger.Info($"[ModelAutomation.EquationUpdater] CKVD missing key -> zero: {key}");
+                    continue;
+                }
+
                 // Not in provided dims -> keep equation file line as-is
                 output.Add(line);
             }
@@ -209,6 +259,21 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 {
                     WriteDim(output, key, dim, angleKeys.Contains(key));
                     appended++;
+                }
+            }
+
+            // Append missing CKVD DB-driven keys as zero if they aren't in file at all.
+            if (missingAsZero)
+            {
+                foreach (var key in CkvdDbDrivenKeys)
+                {
+                    if (!LineExists(output, key))
+                    {
+                        var isAngle = CkvdAngleKeys.Contains(key);
+                        output.Add($"\"{key}\" = 0{(isAngle ? "deg" : "mm")}");
+                        appended++;
+                        Logger.Info($"[ModelAutomation.EquationUpdater] CKVD missing line appended as zero: {key}");
+                    }
                 }
             }
 
@@ -237,7 +302,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             // --------------------------- COB funnel_gap ---------------------------
             // Default funnel gap is in mm. We always enforce it when this looks like a COB wedge.
-            if (IsCobWedge(byKey))
+            if (wedgeType == DomWedgeType.COB)
             {
                 double funnelGapMm = ComputeCobFunnelGapMm(wedge);
 
@@ -259,7 +324,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         /// BEHAVIOR:
         /// - CKVD: If a provided dim is zero -> DO override (write 0 into the model).
         /// - Others: If a provided dim is zero -> DO NOT override existing equation in the model (keep it).
-        /// - If a dim does not exist in provided dims -> it is untouched (keeps model equation).
+        /// - CKVD (new): If a DB-driven dim is missing from provided dims, we will NOT touch it here
+        ///   because EquationMgr upsert only iterates provided dims. The file-based updater handles missing-as-zero.
         /// - Special keys (EngravingStart / overlay vars) are still enforced.
         /// - COB: funnel_gap is enforced when the COB input set is present.
         /// </summary>
@@ -380,7 +446,23 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         private static bool ShouldWriteZeroDims(DomWedgeType wedgeType)
             => wedgeType == DomWedgeType.CKVD;
 
+        private static bool ShouldTreatMissingAsZero(DomWedgeType wedgeType)
+            => wedgeType == DomWedgeType.CKVD;
+
         // ------------------------- helpers -------------------------
+
+        private static string MakeZeroLinePreservingUnit(string key, string existingLine, bool isAngleKeyFallback)
+        {
+            // Try to preserve mm/deg/in from the existing template line.
+            // Fallback uses known CKVD angle key list.
+            string unit =
+                existingLine.IndexOf("deg", StringComparison.OrdinalIgnoreCase) >= 0 ? "deg" :
+                existingLine.IndexOf("in", StringComparison.OrdinalIgnoreCase) >= 0 ? "in" :
+                existingLine.IndexOf("mm", StringComparison.OrdinalIgnoreCase) >= 0 ? "mm" :
+                (isAngleKeyFallback ? "deg" : "mm");
+
+            return $"\"{key}\" = 0{unit}";
+        }
 
         private static void UpsertEquation(EquationMgr mgr, Dictionary<string, int> index, string key, string equationText)
         {
@@ -596,7 +678,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             double inside = fnd * frac - h;
             double denom = 2.0 * Math.Sin(alpha);
             if (Math.Abs(denom) < 1e-12) return DefaultGapMm;
-
+            Logger.Blue($"Funnel Gap = {inside / denom}");
             return inside / denom;
         }
 

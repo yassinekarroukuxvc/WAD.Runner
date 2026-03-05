@@ -84,29 +84,25 @@ var host = Host.CreateDefaultBuilder(args)
             var timeoutSec = ctx.Configuration.GetValue<int?>("Runner:JavaDbApi:TimeoutSeconds") ?? 45;
             var apiKey = ctx.Configuration.GetValue<string>("Runner:JavaDbApi:ApiKey");
 
-            Logger.Info("[Boot] IWedgeDataSource = Java API");
-            Logger.Info($"[Boot] JavaDbApi: BaseUrl={baseUrl}, Timeout={timeoutSec}s");
+            var firma = ctx.Configuration.GetValue<int?>("ProAlpha:Firma") ?? 200;
+            var language = ctx.Configuration.GetValue<string>("ProAlpha:Language", "E");
 
-            services.AddHttpClient<IJavaWedgeTransport, JavaWedgeHttpClient>(http =>
+            services.AddHttpClient<IJavaWedgeTransport, JavaLegacyWedgeTransport>(http =>
             {
                 http.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
                 http.Timeout = TimeSpan.FromSeconds(timeoutSec);
 
-                // Optional: ensure JSON is the default Accept
                 if (!http.DefaultRequestHeaders.Accept.Any(h => h.MediaType == "application/json"))
                     http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
 
-                // Optional: API Key header (adjust to your Java API's expectation)
                 if (!string.IsNullOrWhiteSpace(apiKey))
                 {
-                    // Example:
-                    // http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
-
-                    // If Bearer:
-                    // http.DefaultRequestHeaders.Authorization =
-                    //     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                    // If your Java app expects a header, set it here (same as before).
+                    http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
                 }
-            });
+            })
+            // pass firma/language to the typed client constructor
+            .AddTypedClient((http, sp) => new JavaLegacyWedgeTransport(http, firma, language));
 
             services.AddSingleton<IWedgeDataSource, JavaWedgeDataSource>();
         }

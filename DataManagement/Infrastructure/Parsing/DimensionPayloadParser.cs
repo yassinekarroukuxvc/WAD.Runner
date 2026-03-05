@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text.RegularExpressions;
+
 using WAD.Runner.DataManagement.Domain.Units;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Parsing;
@@ -19,6 +20,14 @@ namespace WAD.Runner.DataManagement.Infrastructure.Parsing;
 ///   - "200x|0.70mm"          -> 0.700 mm
 /// If a composite/annotated token is used (e.g. "100X|700um"), a short note
 /// is appended to the returned comment to preserve the original token.
+///
+/// ✅ Also tolerates ProAlpha style tokens appearing in numeric slots:
+///   - REF, MIN, MAX, '-', 'N/A'
+/// These are treated as "no numeric value" (0) and preserved into the comment.
+///
+/// ✅ Tolerance sign normalization:
+///   - If parsed tolerance is negative, it is converted to positive (absolute value).
+///     Example: LTOL = -0.001 => 0.001
 /// </summary>
 public static class DimensionPayloadParser
 {
@@ -35,14 +44,21 @@ public static class DimensionPayloadParser
         // 1) Nominal (mm) with tolerant parsing
         var (nomMm, note) = ParseNominalFlexibleToMm(p[0]);
 
-        // 2) Tolerances (mm), strict numeric or empty -> 0
+        // 2) Tolerances (mm), tolerant numeric or empty -> 0
         var lt = ParseOptionalDecimal(p[1]);
         var ut = ParseOptionalDecimal(p[2]);
+
+        // ✅ Normalize negative tolerances => positive
+        lt = decimal.Abs(lt);
+        ut = decimal.Abs(ut);
 
         // 3) Comment: merge original + any salvage note
         var cmt = NormalizeComment(p[3]);
         if (!string.IsNullOrWhiteSpace(note))
             cmt = string.IsNullOrWhiteSpace(cmt) ? note : $"{cmt} (source={note})";
+
+        // 4) Preserve style markers if they appear in numeric slots
+        cmt = AppendStyleMarkersToCommentIfAny(cmt, p[0], p[1], p[2]);
 
         return (Quantity.MmOf(nomMm), Tolerance.Mm(lt, ut), cmt);
     }
@@ -56,8 +72,13 @@ public static class DimensionPayloadParser
         var p = Split(payload);
 
         // Angles remain strict numbers (no unit conversion here by design).
+        // If REF/MIN/MAX is present in the nominal slot for an angle, this is invalid.
         var nomDeg = ParseRequiredDecimal(p[0], "nominal (deg)", payload);
+
         var cmt = NormalizeComment(p[3]);
+
+        // Preserve markers if they appear in tol slots (rare, but harmless)
+        cmt = AppendStyleMarkersToCommentIfAny(cmt, p[1], p[2]);
 
         // Angular tolerances not modeled here; keep zero length tolerance.
         return (Quantity.DegOf(nomDeg), Tolerance.Zero, cmt);
@@ -78,7 +99,6 @@ public static class DimensionPayloadParser
         if (parts.Length < 4)
             throw new FormatException($"Payload must have at least 4 fields (nom;Ltol;Utol;Comment). Received: \"{payload}\"");
 
-        // Normalize nulls for safety
         for (int i = 0; i < parts.Length; i++)
             parts[i] = parts[i]?.Trim() ?? string.Empty;
 
@@ -87,16 +107,80 @@ public static class DimensionPayloadParser
 
     private static decimal ParseRequiredDecimal(string s, string fieldName, string payloadForError)
     {
-        if (!decimal.TryParse(s, NumberStyles.Float, CI, out var v))
+        var t = NormalizeNumericToken(s);
+
+        if (!decimal.TryParse(t, NumberStyles.Float, CI, out var v))
             throw new FormatException($"Invalid {fieldName}: \"{s}\" in payload \"{payloadForError}\"");
+
         return v;
     }
 
+    /// <summary>
+    /// Optional numeric fields:
+    /// - empty => 0
+    /// - REF/MIN/MAX/-/N/A => 0
+    /// - tolerant of comma decimals
+    /// </summary>
     private static decimal ParseOptionalDecimal(string s)
-        => string.IsNullOrWhiteSpace(s) ? 0m : decimal.Parse(s, NumberStyles.Float, CI);
+    {
+        if (string.IsNullOrWhiteSpace(s))
+            return 0m;
+
+        var t = s.Trim();
+
+        // ✅ style markers / non-numeric tokens => treat as "missing numeric"
+        if (IsStyleToken(t)) return 0m;
+
+        t = NormalizeNumericToken(t);
+
+        if (decimal.TryParse(t, NumberStyles.Float, CI, out var v))
+            return v;
+
+        throw new FormatException($"Invalid numeric token '{t}' in tolerance field.");
+    }
+
+    private static string NormalizeNumericToken(string s)
+    {
+        var t = (s ?? string.Empty).Trim();
+
+        // tolerate comma decimals from some exports/locales
+        t = t.Replace(',', '.');
+
+        return t;
+    }
+
+    private static bool IsStyleToken(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        var t = s.Trim();
+
+        return t.Equals("REF", StringComparison.OrdinalIgnoreCase)
+            || t.Equals("MIN", StringComparison.OrdinalIgnoreCase)
+            || t.Equals("MAX", StringComparison.OrdinalIgnoreCase)
+            || t.Equals("-", StringComparison.OrdinalIgnoreCase)
+            || t.Equals("N/A", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string? NormalizeComment(string s)
         => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private static string? AppendStyleMarkersToCommentIfAny(string? comment, params string[] tokens)
+    {
+        if (tokens is null || tokens.Length == 0) return comment;
+
+        // Keep only "meaningful" markers (skip '-' and 'N/A' since they’re just empties)
+        var markers = tokens
+            .Where(IsStyleToken)
+            .Select(t => (t ?? string.Empty).Trim().ToUpperInvariant())
+            .Where(t => t is "REF" or "MIN" or "MAX")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (markers.Count == 0) return comment;
+
+        var joined = string.Join(",", markers);
+        return string.IsNullOrWhiteSpace(comment) ? joined : $"{comment} ({joined})";
+    }
 
     /// <summary>
     /// Attempts to parse the nominal token into millimeters with tolerant handling:
@@ -111,8 +195,12 @@ public static class DimensionPayloadParser
         if (t.Length == 0)
             throw new FormatException("Nominal is empty.");
 
+        // If nominal is a style marker (REF/MIN/MAX), treat as 0mm and let caller preserve marker in comment.
+        if (IsStyleToken(t))
+            return (0m, null);
+
         // Fast path: plain decimal (e.g., "0.424")
-        if (decimal.TryParse(t, NumberStyles.Float, CI, out var plain))
+        if (decimal.TryParse(NormalizeNumericToken(t), NumberStyles.Float, CI, out var plain))
             return (plain, null);
 
         // If contains a pipe or other delimiters, try each segment
@@ -120,9 +208,13 @@ public static class DimensionPayloadParser
 
         foreach (var c in candidates)
         {
+            if (IsStyleToken(c))
+                return (0m, t);
+
             if (TryParseUnitValueToMm(c, out var mm))
                 return (mm, t);
-            if (decimal.TryParse(c, NumberStyles.Float, CI, out var asMm))
+
+            if (decimal.TryParse(NormalizeNumericToken(c), NumberStyles.Float, CI, out var asMm))
                 return (asMm, t);
         }
 
@@ -130,7 +222,6 @@ public static class DimensionPayloadParser
         if (TryScanNumberWithUnitToMm(t, out var mmFromScan))
             return (mmFromScan, t);
 
-        // Give up
         throw new FormatException($"Invalid nominal (mm): \"{t}\"");
     }
 
@@ -140,19 +231,16 @@ public static class DimensionPayloadParser
     /// </summary>
     private static IEnumerable<string> SplitCompositeToken(string s)
     {
-        // Prioritize pipe '|' which is common in "100X|700um"
         foreach (var byPipe in s.Split('|', StringSplitOptions.RemoveEmptyEntries))
         {
             var trimmed = byPipe.Trim();
             if (trimmed.Length == 0) continue;
 
-            // Further split on commas or spaces if present
             var secondaries = trimmed.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var sec in secondaries)
                 yield return sec.Trim();
         }
 
-        // If there was no pipe at all, still return the original once
         if (!s.Contains('|'))
             yield return s.Trim();
     }
@@ -166,12 +254,13 @@ public static class DimensionPayloadParser
         if (string.IsNullOrWhiteSpace(s)) return false;
 
         var lower = s.Trim().ToLowerInvariant();
-        // Normalize micro symbol
         lower = lower.Replace("µm", "um");
 
         if (lower.EndsWith("mm", StringComparison.Ordinal))
         {
             var num = lower.Substring(0, lower.Length - 2).Trim();
+            num = NormalizeNumericToken(num);
+
             if (decimal.TryParse(num, NumberStyles.Float, CI, out var v))
             {
                 mm = v;
@@ -183,6 +272,8 @@ public static class DimensionPayloadParser
         if (lower.EndsWith("um", StringComparison.Ordinal))
         {
             var num = lower.Substring(0, lower.Length - 2).Trim();
+            num = NormalizeNumericToken(num);
+
             if (decimal.TryParse(num, NumberStyles.Float, CI, out var v))
             {
                 mm = v / 1000m;
@@ -207,12 +298,11 @@ public static class DimensionPayloadParser
 
         var normalized = s.Replace("µm", "um");
 
-        // number + unit (mm|um), with optional spaces:  ([+-]?\d+(\.\d+)?)[ ]*(mm|um)
         var rx = new Regex(@"([+-]?\d+(?:\.\d+)?)[ ]*(mm|um)", RegexOptions.IgnoreCase);
         var m = rx.Match(normalized);
         if (!m.Success) return false;
 
-        var number = m.Groups[1].Value;
+        var number = NormalizeNumericToken(m.Groups[1].Value);
         var unit = m.Groups[2].Value.ToLowerInvariant();
 
         if (!decimal.TryParse(number, NumberStyles.Float, CI, out var v))
