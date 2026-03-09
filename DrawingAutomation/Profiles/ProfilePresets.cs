@@ -80,8 +80,8 @@ public static class ProfilePresets
         Front: "COB_FG_Ovl_Front",
         Side: "COB_FG_Ovl_Side",
         Top: "COB_FG_Ovl_Top",
-        Detail: "COB_FG_Ovl_Detail",
-        Section: "COB_FG_Ovl_Section"
+        Detail: "Drawing View3",
+        Section: "Drawing View4"
     );
 
     private static ViewNames CobPgbProductionViews() => new(
@@ -96,8 +96,8 @@ public static class ProfilePresets
         Front: "COB_PGB_Ovl_Front",
         Side: "COB_PGB_Ovl_Side",
         Top: "COB_PGB_Ovl_Top",
-        Detail: "COB_PGB_Ovl_Detail",
-        Section: "COB_PGB_Ovl_Section"
+        Detail: "Drawing View1",
+        Section: "Drawing View2"
     );
 
     // OSG7
@@ -292,7 +292,7 @@ public static class ProfilePresets
     public static DrawingProfile CobFgOverlay() => new(
         Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay),
         ProfileName: "COB FG Overlay",
-        SheetSelector: Prefer("OVERLAY"),
+        SheetSelector: Prefer("FG"),
         ViewsOrder: StdOrder,
         Views: CobFgOverlayViews(),
         UseBreaklinesForView: v => false,
@@ -314,7 +314,7 @@ public static class ProfilePresets
     public static DrawingProfile CobPgbOverlay() => new(
         Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Overlay),
         ProfileName: "COB PGB Overlay",
-        SheetSelector: Prefer("PGB_OVERLAY"),
+        SheetSelector: Prefer("PGB"),
         ViewsOrder: StdOrder,
         Views: CobPgbOverlayViews(),
         UseBreaklinesForView: v => false,

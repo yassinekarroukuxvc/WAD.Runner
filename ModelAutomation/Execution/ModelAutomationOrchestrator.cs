@@ -21,6 +21,9 @@ using WAD.Runner.ModelAutomation.Rules;
 using WAD.Runner.ModelAutomation.Rules.OSG7;
 using WAD.Runner.ModelAutomation.Rules.COB;
 
+
+using WAD.Runner.ModelAutomation.Tolerances;
+
 namespace WAD.Runner.ModelAutomation.Execution
 {
     /// <summary>
@@ -34,6 +37,9 @@ namespace WAD.Runner.ModelAutomation.Execution
     public sealed class ModelAutomationOrchestrator
     {
         private readonly ModelDimensionApplier _dimensionApplier;
+
+        // ✅ NEW: tolerance planner (pure logic)
+        private readonly TolerancePlanner _tolerancePlanner = new();
 
         public ModelAutomationOrchestrator(ModelDimensionApplier? dimensionApplier = null)
         {
@@ -145,16 +151,51 @@ namespace WAD.Runner.ModelAutomation.Execution
                 job.WedgeType,     // ✅ NEW: wedgeType passed through
                 job.DrawingType);
 
-            // Step 4.5) CKVD derived dims (VR_MIN/VR_MAX, VW_LTOL/VW_UTOL) — no rebuild
-            if (job.WedgeType == WedgeType.CKVD && wedge.Subclass == WedgeSubclass.FG)
-            {
-                editor.ApplyCkvdDerivedDimensions(wedge);
-            }
-
             if (!applyRes.Success)
                 Logger.Warn($"[ModelOrchestrator] Dimension apply failed. Method={applyRes.MethodUsed}. Error={applyRes.Error}");
 
-            // Tolerances (still no rebuild)
+            // -----------------------------
+            // Step 4.6) Push DB tolerances into template sketch parameters (Overlay etc.)
+            // Still NO rebuild.
+            // -----------------------------
+            try
+            {
+                var tolPlan = _tolerancePlanner.Build(
+                    wedgeType: job.WedgeType,
+                    wedge: wedge,
+                    drawingType: job.DrawingType,
+                    subclass: job.Subclass);
+
+                if (tolPlan.Count > 0)
+                {
+                    Logger.Info($"[ModelOrchestrator] Applying tolerance plan: {tolPlan.Count} updates…");
+
+                    // NOTE: ModelEditor must expose ModelDoc2 via a property like `Model`.
+                    var model = editor.Model;
+                    if (model == null)
+                    {
+                        Logger.Warn("[ModelOrchestrator] editor.Model is null; cannot apply tolerance plan.");
+                    }
+                    else
+                    {
+                        var tolApplier = new ToleranceApplier(model);
+                        tolApplier.Apply(tolPlan);
+                    }
+                }
+                else
+                {
+                    Logger.Info("[ModelOrchestrator] No tolerance plan updates for this job.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[ModelOrchestrator] Tolerance plan/apply step failed (continuing): {ex.Message}");
+            }
+
+            // -----------------------------
+            // Existing standard tolerance application (kept)
+            // NOTE: This is separate from overlay sketch-parameter tolerances above.
+            // -----------------------------
             var tolKeys = wedge.Dimensions
                 .Where(kvp => kvp.Value.Nominal.Unit == UnitKind.Millimeter)
                 .Where(kvp => !kvp.Value.Tol.IsZero)

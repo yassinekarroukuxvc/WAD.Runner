@@ -24,6 +24,17 @@ namespace WAD.Runner.ModelAutomation.Rules
     /// - Only shank-type mandatory bases (STD vs 180_DEG_REV).
     /// - We unsuppress the mandatory set for the selected shank and suppress the opposite shank set
     ///   to avoid leakage when templates/configurations are not perfectly "all suppressed".
+    ///
+    /// Overlay rule:
+    /// - Overlay enables cut_feature / cut_plan_feature / ref_point_sketch.
+    /// - PGB Overlay uses PGB_LEFT_overlay_sketch.
+    /// - FG Overlay uses FG_LEFT_overlay_sketch.
+    /// - Both FG and PGB Overlay use the same front overlay sketches:
+    ///   PGB_STD_FRONT_overlay_sketch / PGB_180_DEG_REV_FRONT_overlay_sketch.
+    ///
+    /// Non-overlay rule:
+    /// - If drawingType is NOT Overlay: force suppress "cut_feature" and "cut_plan_feature"
+    ///   (and remove them from unsuppress if they were added).
     /// </summary>
     public sealed class CobFeatureRules : IFeatureRuleSet
     {
@@ -36,7 +47,7 @@ namespace WAD.Runner.ModelAutomation.Rules
             var shank = ResolveShankType(wedge);
 
             // ------------------------------------------------------------
-            // PGB rules (NEW)
+            // PGB rules
             // ------------------------------------------------------------
             if (subclass == WedgeSubclass.PGB)
             {
@@ -45,7 +56,18 @@ namespace WAD.Runner.ModelAutomation.Rules
                 var suppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var unsuppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+                // PGB mandatory shank plan
                 BuildPgbPlan(shank, suppress, unsuppress);
+
+                // PGB Overlay template rules
+                if (drawingType == DrawingType.Overlay)
+                {
+                    Logger.Info("[CobFeatureRules] Subclass=PGB + Overlay → applying overlay template feature toggles.");
+                    BuildOverlayPlan(shank, suppress, unsuppress, "PGB_LEFT_overlay_sketch");
+                }
+
+                // If NOT overlay → force suppress cut features
+                EnforceCutFeaturesByDrawingType(drawingType, suppress, unsuppress);
 
                 // Unsuppress wins
                 suppress.RemoveWhere(nm => unsuppress.Contains(nm));
@@ -58,7 +80,7 @@ namespace WAD.Runner.ModelAutomation.Rules
             }
 
             // ------------------------------------------------------------
-            // FG rules (existing logic)
+            // FG rules
             // ------------------------------------------------------------
             var fgSuppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var fgUnsuppress = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -76,9 +98,20 @@ namespace WAD.Runner.ModelAutomation.Rules
                     fgUnsuppress.Add(engraving);
             }
 
+            // FG Overlay uses same overlay logic as PGB,
+            // but with FG_LEFT_overlay_sketch instead of PGB_LEFT_overlay_sketch
+            if (drawingType == DrawingType.Overlay)
+            {
+                Logger.Info("[CobFeatureRules] Subclass=FG + Overlay → applying FG overlay template feature toggles.");
+                BuildOverlayPlan(shank, fgSuppress, fgUnsuppress, "FG_LEFT_overlay_sketch");
+            }
+
             Logger.Info($"[CobFeatureRules] Parsed → Subclass=FG, Shank={shank}, Foot={foot}");
 
             BuildFeaturePlanAlignedWithSpec(wedge, shank, foot, fgSuppress, fgUnsuppress);
+
+            // If NOT overlay → force suppress cut features
+            EnforceCutFeaturesByDrawingType(drawingType, fgSuppress, fgUnsuppress);
 
             // Unsuppress wins
             fgSuppress.RemoveWhere(nm => fgUnsuppress.Contains(nm));
@@ -88,6 +121,28 @@ namespace WAD.Runner.ModelAutomation.Rules
             return new ModelRuleRunner.FeaturePlan(
                 Suppress: fgSuppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
                 Unsuppress: fgUnsuppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
+
+        // --------------------------------------------
+        // DrawingType enforcement for cut features
+        // --------------------------------------------
+        private static void EnforceCutFeaturesByDrawingType(
+            DrawingType drawingType,
+            HashSet<string> suppress,
+            HashSet<string> unsuppress)
+        {
+            if (drawingType == DrawingType.Overlay)
+                return;
+
+            // Force suppress these when NOT Overlay
+            suppress.Add("cut_feature");
+            suppress.Add("cut_plan_feature");
+
+            // Safety: if any logic added them to unsuppress, remove
+            unsuppress.Remove("cut_feature");
+            unsuppress.Remove("cut_plan_feature");
+
+            Logger.Info($"[CobFeatureRules] Non-Overlay ({drawingType}) → force suppress: cut_feature, cut_plan_feature");
         }
 
         // --------------------------------------------
@@ -102,11 +157,6 @@ namespace WAD.Runner.ModelAutomation.Rules
             unsuppress.Add("TL_feature");
             unsuppress.Add("part_axis");
 
-            // Mandatory bases per shank (feature names are fixed in your spec)
-            // STD mandatory:
-            // TL_feature ; part_axis ; TDF_STD_feature ; ISA_20_STD_feature ; 10BA_STD_feature ; 10BA_STD_annotation
-            // 180_DEG_REV mandatory:
-            // TL_feature ; part_axis ; TDF_180_DEG_REV_feature ; ISA_20_180_DEG_REV_feature ; 10BA_180_DEG_REV_feature ; 10BA_180_DEG_REV_annotation
             var opposite = shank == CobShankType.Std ? CobShankType.Rev180 : CobShankType.Std;
 
             // Selected shank: force-enable mandatory features (+ sketches)
@@ -133,9 +183,47 @@ namespace WAD.Runner.ModelAutomation.Rules
 
             suppress.Add(BuildAnnotationName("10BA", opposite));
 
-            // (Optional: log config hint for 180 rev PGB)
             if (shank == CobShankType.Rev180)
                 Logger.Info("[CobFeatureRules] PGB 180_DEG_REV hint: configuration name expected = COB_180_DEG_REV_PGB");
+        }
+
+        // --------------------------------------------
+        // Shared overlay plan for PGB + FG
+        // --------------------------------------------
+        private static void BuildOverlayPlan(
+            CobShankType shank,
+            HashSet<string> suppress,
+            HashSet<string> unsuppress,
+            string leftOverlaySketch)
+        {
+            // Default: if shank is unset/invalid, treat as STD
+            if (!Enum.IsDefined(typeof(CobShankType), shank))
+                shank = CobShankType.Std;
+
+            // Base overlay prep (always)
+            unsuppress.Add("ref_point_sketch");
+            unsuppress.Add("cut_plan_feature");
+            unsuppress.Add("cut_feature");
+
+            // Left overlay sketch depends on subclass/template family
+            if (!string.IsNullOrWhiteSpace(leftOverlaySketch))
+                unsuppress.Add(leftOverlaySketch);
+
+            // Shank-specific overlay FRONT SKETCH
+            // Same real names for both FG and PGB templates
+            const string StdFront = "PGB_STD_FRONT_overlay_sketch";
+            const string RevFront = "PGB_180_DEG_REV_FRONT_overlay_sketch";
+
+            if (shank == CobShankType.Std)
+            {
+                unsuppress.Add(StdFront);
+                suppress.Add(RevFront); // prevent leakage
+            }
+            else
+            {
+                unsuppress.Add(RevFront);
+                suppress.Add(StdFront); // prevent leakage
+            }
         }
 
         private static string BuildAnnotationName(string baseName, CobShankType shank)
@@ -173,10 +261,6 @@ namespace WAD.Runner.ModelAutomation.Rules
                 "BR_VG", "FR_VG"
             };
 
-            // Extra rule:
-            // If BA == 0:
-            // - suppress 10BA_STD_feature and 10BA_180_DEG_REV_feature
-            // - force-enable SLB feature (selected shank)
             bool baIsZero = IsDimZero(wedge, "BA");
             if (baIsZero)
                 Logger.Info("[CobFeatureRules] Business rule triggered: BA == 0 → suppress 10BA (STD + 180_DEG_REV) and force-enable SLB.");
