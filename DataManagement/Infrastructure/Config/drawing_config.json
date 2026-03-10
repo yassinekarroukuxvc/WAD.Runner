@@ -47,7 +47,10 @@
       "WedgeTypeOverrides": {
         "CKVD": {
           "Common": {
-            "Views": { "Front": { "Params": { "BreaklineGap": 7.5 } } },
+            "Views": {
+              "Front": { "Params": { "BreaklineGap": 7.5 } },
+              "Section": { "PositionMm": [ 240, 200 ] }
+            },
             "Metadata": { "SpecialNote": "CKVD production override" }
           }
         },
@@ -59,16 +62,42 @@
                 "PositionMm": [ 130, 200 ],
                 "Scale": 60.0
               },
-              "Section": { "Scale": 60.0 }
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
             },
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 86 ] },
+              "DimTable": { "PositionMm": [ 193, 120 ] },
               "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
             },
 
             "Metadata": { "SpecialNote": "COB production override" }
+          }
+        },
+
+        "UTUS": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
+            },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 120 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+            },
+
+            "Metadata": { "SpecialNote": "UTUS production override" }
           }
         }
       }
@@ -81,6 +110,14 @@
       "PGB": { "Common": { "Metadata": { "SheetTitle": "PGB Customer Drawing" } } },
 
       "WedgeTypeOverrides": {
+        "CKVD": {
+          "Common": {
+            "Views": {
+              "Section": { "PositionMm": [ 240, 200 ] }
+            }
+          }
+        },
+
         "COB": {
           "Common": {
             "Views": {
@@ -88,16 +125,42 @@
                 "PositionMm": [ 130, 200 ],
                 "Scale": 60.0
               },
-              "Section": { "Scale": 60.0 }
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
             },
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 86 ] },
+              "DimTable": { "PositionMm": [ 193, 130 ] },
               "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
             },
 
             "Metadata": { "SpecialNote": "COB customer override" }
+          }
+        },
+
+        "UTUS": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
+            },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 130 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+            },
+
+            "Metadata": { "SpecialNote": "UTUS customer override" }
           }
         }
       }
@@ -120,6 +183,13 @@
           "Common": {
             "Views": { "Side": { "Params": { "BreaklineGap": 8.0 } } },
             "Metadata": { "SpecialNote": "COB overlay tuning" }
+          }
+        },
+
+        "UTUS": {
+          "Common": {
+            "Views": { "Side": { "Params": { "BreaklineGap": 8.0 } } },
+            "Metadata": { "SpecialNote": "UTUS overlay tuning" }
           }
         }
       }

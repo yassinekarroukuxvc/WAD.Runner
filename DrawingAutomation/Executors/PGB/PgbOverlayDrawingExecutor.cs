@@ -55,31 +55,32 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
                 drawingData,
                 out var nameMap);
 
-            // 2b) ✅ PGB-specific step (keep it here, not in common)
+            // 2b) ✅ PGB-specific step
             Logger.Info("[2b/10] PGB overlay: bind view referenced configurations…");
             //TryBindReferencedConfigsForPgbOverlay(ds, nameMap, run, drawingData);
 
             // 3) Compute overlay mag/cal + payload
-            Logger.Info("[3/10] Compute overlay magnification/calibration from FL…");
-            var (ctx, overlayMag, overlayCalUm) = OverlayDrawingExecutorCommon.ComputeOverlayMagCalFromFl(run, drawingData);
+            Logger.Info("[3/10] Compute overlay magnification/calibration…");
+            var (ctx, overlayMag, overlayCalUm) = OverlayDrawingExecutorCommon.ComputeOverlayMagCal(run, drawingData);
 
             Logger.Info("[3b/10] Build overlay payload for dimension table…");
             var overlayKeys = OverlayDrawingExecutorCommon.DefaultOverlayDimKeys(run.WedgeType);
             var overlayData = OverlayDrawingExecutorCommon.BuildOverlayPayload(run, drawingData, overlayKeys);
 
             ds.Rebuild();
-            /*
+
             // 4) Apply overlay scales
             Logger.Info("[4/10] Apply overlay view scales…");
             OverlayDrawingExecutorCommon.ApplyOverlayViewScales(ds, nameMap, overlayMag);
 
             // 5) Reposition views via macro
             Logger.Info("[5/10] Reposition all overlay views (macro)…");
-            //OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(swApp, ds, nameMap);
+            //OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(swApp, ds, run, nameMap);
 
             // 6) Delete Front view when VR == 0
             Logger.Info("[6/10] Delete Front view if VR=0…");
             //OverlayDrawingExecutorCommon.DeleteFrontViewIfVrZero(ds, nameMap, ctx);
+
             ds.Rebuild();
             ds.ZoomToSheet();
 
@@ -107,7 +108,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
             Logger.Info("[Final] Export overlay drawing (TIFF)…");
             OverlayDrawingExecutorCommon.ExportOverlayTiff(swApp, ds, run);
 
-            Logger.Success($"{bannerLabel} drawing execution completed.");*/
+            Logger.Success($"{bannerLabel} drawing execution completed.");
         }
 
         private static void TryBindReferencedConfigsForPgbOverlay(
@@ -131,7 +132,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
                 var overlayType = drawingData.DrawingType;
                 var prodType = DrawingType.Production;
 
-                // Front/Side/Top → Production config
                 if (!string.IsNullOrWhiteSpace(frontViewName))
                     DrawingViewConfigBinder.SetReferencedConfigurationForView(model, frontViewName, subclass, prodType);
 
@@ -141,7 +141,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
                 if (!string.IsNullOrWhiteSpace(topViewName))
                     DrawingViewConfigBinder.SetReferencedConfigurationForView(model, topViewName, subclass, prodType);
 
-                // Detail/Section → Overlay config
                 if (!string.IsNullOrWhiteSpace(detailViewName))
                     DrawingViewConfigBinder.SetReferencedConfigurationForView(model, detailViewName, subclass, overlayType);
 

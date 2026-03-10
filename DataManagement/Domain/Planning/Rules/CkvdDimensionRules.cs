@@ -143,7 +143,7 @@ internal static class CkvdDimensionRules
         var E = LayoutMath.Dmm(ctx, "E");
 
         PlaceDim(ctx, diag, outList, "E", Side, DimAxis.Horizontal,
-            S[0] + ssv * TD / 2.0 + 10.0,
+            S[0] + ssv * TD / 2.0 + 5.0,
             S[1] - L_side / 2.0 + E * ssv / 2.0);
 
         PlaceDim(ctx, diag, outList, "X", Side, DimAxis.Horizontal,

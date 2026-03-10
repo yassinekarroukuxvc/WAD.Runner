@@ -57,13 +57,11 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 drawingData,
                 out var nameMap);
 
-            // 2b) FG-specific hook area (wedge-type specific stuff)
-            // Example pattern:
-            // switch (run.WedgeType) { case WedgeType.CKVD: ...; break; case WedgeType.COB: ...; break; }
+            // 2b) FG-specific hook area
 
             // 3) Compute overlay mag/cal + payload
-            Logger.Info("[3/9] Compute overlay magnification/calibration from FL…");
-            var (ctx, overlayMag, overlayCalUm) = OverlayDrawingExecutorCommon.ComputeOverlayMagCalFromFl(run, drawingData);
+            Logger.Info("[3/9] Compute overlay magnification/calibration…");
+            var (ctx, overlayMag, overlayCalUm) = OverlayDrawingExecutorCommon.ComputeOverlayMagCal(run, drawingData);
 
             Logger.Info("[3b/9] Build overlay payload for dimension table…");
             var overlayKeys = OverlayDrawingExecutorCommon.DefaultOverlayDimKeys(run.WedgeType);
@@ -74,22 +72,22 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             // 4) Apply overlay scales
             Logger.Info("[4/9] Apply overlay view scales…");
             OverlayDrawingExecutorCommon.ApplyOverlayViewScales(ds, nameMap, overlayMag);
-            
+
             // 5) Reposition views via macro
             Logger.Info("[5/9] Reposition all overlay views (macro)…");
-            OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(swApp, ds,run, nameMap);
+            OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(swApp, ds, run, nameMap);
+
             var isCkvd = run.WedgeType == WedgeType.CKVD;
             if (isCkvd)
             {
                 // 6) Delete Front view when VR == 0
                 Logger.Info("[6/9] Delete Front view if VR=0…");
                 OverlayDrawingExecutorCommon.DeleteFrontViewIfVrZero(ds, nameMap, ctx);
-                
             }
+
             ds.Rebuild();
             ds.ZoomToSheet();
-            
-            
+
             // 7) Plan dims
             Logger.Info("[7/9] Plan overlay dimensions…");
             var (dims, planned) = OverlayDrawingExecutorCommon.PlanOverlayDimensions(ctx, run.WedgeType, plannedDims);
@@ -97,7 +95,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             // 8) Create overlay dimension table
             Logger.Info("[8/9] Create overlay dimension table…");
             OverlayDrawingExecutorCommon.TryCreateOverlayDimTable(swApp, ds, drawingData, overlayData);
-            
+
             // 9) Apply positions + metadata + cleanup + final
             Logger.Info("[9/9] Apply annotation positions…");
             OverlayDrawingExecutorCommon.TryApplyAnnotationPositions(ds, nameMap, run, drawingData, planned);
@@ -115,8 +113,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             OverlayDrawingExecutorCommon.ExportOverlayTiff(swApp, ds, run);
 
             Logger.Success($"{bannerLabel} drawing execution completed.");
-            /**/
-
         }
     }
 }

@@ -32,14 +32,14 @@
 "W" = 0.36322mm
 "VW_radius"= "cleaned_VW" / 10
 "VW_radius_cleaned"= IIF ( "VW" > 0 , "VW_radius" , "_Offset" / 2 )
-"FRX" = 0mm
-"BRX" = 0mm
+"FRX" = 0mm
+"BRX" = 0mm
 "cleaned_FX"= IIF ( "FX" > 0 , "FX" , "TDF" - ("FL" + "X") )
 "EngravingStart" = 30.39872mm
 "overlay_calibration1" = 300
 "TD@sketch_TL_cutting" = "TD"
 "TL@TL_cutting" = "TL"
-"k" = 0mm
+"k" = 0mm
 "TDF@sketch_TDF_cutting" = "TDF"
 "D1@sketch_TDF_cutting" = "TD" + "_Offset" * 2
 "offset@sketch_VW_VR_grinding" = "_Offset"
@@ -94,7 +94,7 @@
 "BR@BR_EDM"="BR"
 "FL@sketch_pre_FRX_BRX"="FL"+"_Offset"
 "ER" = 0.508mm
-"SymmetryTolerance" = 0.0016mm
+"SymmetryTolerance" = 0mm
 "K-Value" = 30.39872mm
 "VRR@FG_Wed_VW"="VRR"
 "D1@ISA_grinding"="TD"+"_Offset"*2

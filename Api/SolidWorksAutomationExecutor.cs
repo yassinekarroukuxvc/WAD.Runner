@@ -72,6 +72,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
         var wedgeType = wedgeTypeStr switch
         {
             "COB" => WedgeType.COB,
+            "UTUS" => WedgeType.UTUS,
             "OSG7" => WedgeType.OSG7,
             _ => WedgeType.CKVD
         };
@@ -134,15 +135,47 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                 {
                     case WedgeType.COB:
                         templatePartPath = Path.Combine(
-                            "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
+                            "Resources", "Templates", "COB", "COB template 02-14-2026", "V4",
                             "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
 
-                        templateDrawingPath = Path.Combine(
-                            "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
-                            "wedge-auto-draw-COB-2d-drawing.SLDDRW");
+                        templateDrawingPath = dtype switch
+                        {
+                            DrawingType.Overlay =>
+                                Path.Combine(
+                                    "Resources", "Templates", "COB", "COB template 02-14-2026", "V4",
+                                    "wedge-auto-draw-COB-2d-overlay.SLDDRW"),
+
+                            DrawingType.Production or DrawingType.Customer or _ =>
+                                Path.Combine(
+                                    "Resources", "Templates", "COB", "COB template 02-14-2026", "V4",
+                                    "wedge-auto-draw-COB-2d-drawing.SLDDRW"),
+                        };
 
                         equationTemplatePathForModelPhase = Path.Combine(
-                            "Resources", "Templates", "COB", "COB template 02-14-2026", "V3",
+                            "Resources", "Templates", "COB", "COB template 02-14-2026", "V4",
+                            "wedge-auto-draw-COB-3d-equation.txt");
+                        break;
+
+                    case WedgeType.UTUS:
+                        templatePartPath = Path.Combine(
+                            "Resources", "Templates", "UT-US", "V1",
+                            "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+
+                        templateDrawingPath = dtype switch
+                        {
+                            DrawingType.Overlay =>
+                                Path.Combine(
+                                    "Resources", "Templates", "UT-US", "V1",
+                                    "wedge-auto-draw-COB-2d-overlay.SLDDRW"),
+
+                            DrawingType.Production or DrawingType.Customer or _ =>
+                                Path.Combine(
+                                    "Resources", "Templates", "UT-US", "V1",
+                                    "wedge-auto-draw-COB-2d-drawing.SLDDRW"),
+                        };
+
+                        equationTemplatePathForModelPhase = Path.Combine(
+                            "Resources", "Templates", "UT-US", "V1",
                             "wedge-auto-draw-COB-3d-equation.txt");
                         break;
 
@@ -163,18 +196,18 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
 
                     case WedgeType.CKVD:
                     default:
-                        templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDPRT");
+                        templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CKVD_2023.SLDPRT");
 
                         templateDrawingPath = dtype switch
                         {
                             DrawingType.Overlay =>
-                                Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "OVERLAY_TEMPLATE.SLDDRW"),
+                                Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "OVERLAY_TEMPLATE.SLDDRW"),
 
                             DrawingType.Production or DrawingType.Customer or _ =>
-                                Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDDRW"),
+                                Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CKVD_2023.SLDDRW"),
                         };
 
-                        equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CK.txt");
+                        equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CK.txt");
                         break;
                 }
 
@@ -186,7 +219,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                     subclass: subclass,
                     drawingType: dtype,
                     outputRoot: outputRootBase,
-                    fileBase: null // if your RunRequest has FileBase; otherwise this will be null
+                    fileBase: null
                 );
 
                 var modDrawingPath = Path.Combine(plan.WorkDir, $"{plan.FileBase}.SLDDRW");
@@ -226,7 +259,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                         PartTemplatePath = templatePartPath,
                         EquationTemplatePath = equationTemplatePathForModelPhase,
 
-                        FileBase = plan.FileBase, // keep consistent so drawing uses the same outputs
+                        FileBase = plan.FileBase,
 
                         WedgeData = wedgeData,
                         WedgeType = wedgeType

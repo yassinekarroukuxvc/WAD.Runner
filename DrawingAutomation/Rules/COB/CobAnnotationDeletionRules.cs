@@ -591,7 +591,7 @@ public static class CobAnnotationDeletionRules
 
     private static void AddFrontSketchCavitySuperset_AsSection(HashSet<AnnotationDeletionCore.Ann> set, ShankType shank)
     {
-        foreach (var key in new[] { "FRO", "FD", "FL", "ERL", "CA", "RA", "H", "HA", "FNA", "BA" })
+        foreach (var key in new[] { "FD", "FL", "ERL", "RA", "H", "HA", "FNA", "BA" })
             set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"{key}@{FrontSketch(shank)}"));
     }
 
@@ -709,7 +709,7 @@ public static class CobAnnotationDeletionRules
                 break;
 
             case FootOption.C:
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
+                //keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
 
                 if (opt.HasFrBr)
@@ -752,14 +752,14 @@ public static class CobAnnotationDeletionRules
 
             case FootOption.CC:
                 // CC = C + CG combined
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
+                //keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 AddCgFootOptionKeep_AsDetail(keep, shank);
                 break;
 
             case FootOption.C_WITH_CBR:
                 // Detail C
-                keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
+                //keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
 
                 // Section CBR (unchanged)

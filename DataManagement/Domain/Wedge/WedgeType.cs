@@ -25,6 +25,8 @@ public enum WedgeType
     /// <summary>OSG7 — Overlay wedge type for specific geometries.</summary>
     OSG7 = 5,
 
+    UTUS = 6,
+
     /// <summary>Other special or test wedge types.</summary>
     Other = 99
 }

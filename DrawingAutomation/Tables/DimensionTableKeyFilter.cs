@@ -65,7 +65,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
                             "VBL",
                             "CR", "CD", "GR", "GD", "GA", "B",
                             "G", "CGD", "CGR", "CFD",
-                            "CBRA", "CBRL",
+                            "CBRA", "CBRL","BA","ISA","RA","VR","VRA","W","VW","FR","BR","ERL","ERD","FNO"
                         },
 
                         [DrawingType.Customer] = new[]
@@ -99,7 +99,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
                             "TL", "TD", "TDF", "W", "ISA",
                             "K",
                             "BA",
-                            "RA", "T", "FD"
+                            "RA", "T", "FD","ISA","RA"
                         },
 
                         [DrawingType.Overlay] = new[]

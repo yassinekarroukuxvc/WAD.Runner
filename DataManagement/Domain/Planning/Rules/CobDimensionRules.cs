@@ -127,10 +127,10 @@ internal static class CobDimensionRules
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
         PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical,
-            95, 188);
+            95, 178);
 
         PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal,
-            83,207);
+            83,197);
 
     }
 

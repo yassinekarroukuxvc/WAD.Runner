@@ -9,6 +9,7 @@ using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Planning;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
@@ -135,30 +136,34 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         // Overlay mag/cal + payload
         // -----------------------------
 
-        public static (LayoutContext ctx, double overlayMag, string overlayCalUm) ComputeOverlayMagCalFromFl(
+        public static (LayoutContext ctx, double overlayMag, string overlayCalUm) ComputeOverlayMagCal(
             DrawingRun run,
             DrawingData drawingData)
         {
+            if (run is null) throw new ArgumentNullException(nameof(run));
+            if (drawingData is null) throw new ArgumentNullException(nameof(drawingData));
+
             var ctx = new LayoutContext(run.Wedge, drawingData);
 
-            double fl = LayoutMath.Dmm(ctx, "FL");
+            string sourceKey = GetOverlayMagnificationSourceKey(run.WedgeType);
+            double sourceValueMm = LayoutMath.Dmm(ctx, sourceKey);
 
-            if (double.IsNaN(fl) || double.IsInfinity(fl) || fl <= 0.0)
+            if (double.IsNaN(sourceValueMm) || double.IsInfinity(sourceValueMm) || sourceValueMm <= 0.0)
             {
-                Logger.Warn("[Overlay] FL missing/invalid; using fallback mag=100, cal=700 µm.");
+                Logger.Warn($"[Overlay] {sourceKey} missing/invalid for wedge type {run.WedgeType}; using fallback mag=100, cal=700 µm.");
                 return (ctx, 100.0, "700");
             }
 
             double mag;
             string calibUm;
 
-            if (fl <= 0.3403) { mag = 400; calibUm = "200.4"; }
-            else if (fl <= 0.4572) { mag = 300; calibUm = "399.6"; }
-            else if (fl <= 0.6908) { mag = 200; calibUm = "700"; }
-            else if (fl <= 1.3766) { mag = 100; calibUm = "700"; }
+            if (sourceValueMm <= 0.3403) { mag = 400; calibUm = "200.4"; }
+            else if (sourceValueMm <= 0.4572) { mag = 300; calibUm = "399.6"; }
+            else if (sourceValueMm <= 0.6908) { mag = 200; calibUm = "700"; }
+            else if (sourceValueMm <= 1.3766) { mag = 100; calibUm = "700"; }
             else { mag = 100; calibUm = "700"; }
 
-            Logger.Info($"[Overlay] FL={fl:0.####} mm → mag={mag}X, calib={calibUm} µm.");
+            Logger.Info($"[Overlay] {sourceKey}={sourceValueMm:0.####} mm → mag={mag}X, calib={calibUm} µm, wedgeType={run.WedgeType}.");
             return (ctx, mag, calibUm);
         }
 
@@ -235,14 +240,45 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 var overlayMacroPath = GetOverlayMacroPath();
 
                 var isCkvd = run.WedgeType == WedgeType.CKVD;
+                var isCob = run.WedgeType == WedgeType.COB;
 
                 var refPointSketchName = isCkvd
                     ? "ref_point_2"
                     : "ref_point_sketch";
 
+                double detailYIn = 2.4;
+                double sectionYIn = 2.4;
+
+                if (isCob)
+                {
+                    double tdfMm = GetDimMm(run, "TDF");
+                    double tdMm = GetDimMm(run, "TD");
+
+                    if (tdfMm > 0.0 && !double.IsNaN(tdMm) && !double.IsInfinity(tdMm))
+                    {
+                        double computedYmm = 2.4- (tdfMm - (tdMm / 2.0)) / 2.0;
+
+                        if (!double.IsNaN(computedYmm) && !double.IsInfinity(computedYmm) && computedYmm > 0.0)
+                        {
+                            double computedYin = MmToIn(computedYmm);
+                            detailYIn = computedYin;
+                            sectionYIn = computedYin;
+
+                            Logger.Info($"[Overlay] COB Detail/Section Y computed from TDF={tdfMm:0.####} mm and TD={tdMm:0.####} mm → Y={computedYmm:0.####} mm ({computedYin:0.####} in).");
+                        }
+                        else
+                        {
+                            Logger.Warn($"[Overlay] COB computed Y was invalid ({computedYmm:0.####} mm). Falling back to 2.4 in.");
+                        }
+                    }
+                    else
+                    {
+                        Logger.Warn($"[Overlay] Missing/invalid COB dimensions for Y calculation. TDF={tdfMm:0.####} mm, TD={tdMm:0.####} mm. Falling back to 2.4 in.");
+                    }
+                }
+
                 Logger.Info($"[Overlay] Reposition views using sketch '{refPointSketchName}' for wedge type '{run.WedgeType}'.");
 
-                // Always reposition Detail + Section
                 SecondaryViewPlacementService.RunMacroForViewIfAvailable(
                     swApp,
                     macroFile: overlayMacroPath,
@@ -258,10 +294,9 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                     logicalViewName: "Section",
                     sketchName: refPointSketchName,
                     xIn: 3.19,
-                    yIn: 2.4,
+                    yIn: sectionYIn,
                     logicalToActual: nameMap);
 
-                // Only CKVD repositions Front + Side
                 if (isCkvd)
                 {
                     SecondaryViewPlacementService.RunMacroForViewIfAvailable(
@@ -296,6 +331,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 Logger.Warn($"[Overlay] Reposition-after-scaling step failed (continuing): {ex.Message}");
             }
         }
+
         public static void DeleteFrontViewIfVrZero(DrawingService ds, IDictionary<string, string> nameMap, LayoutContext ctx)
         {
             try
@@ -393,10 +429,35 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             return candidateOutput;
         }
 
+        private static string GetOverlayMagnificationSourceKey(WedgeType wedgeType)
+        {
+            return wedgeType == WedgeType.CKVD ? "FL" : "T";
+        }
+
         private static bool UsesRefPoint2(WedgeType wedgeType)
         {
             return wedgeType == WedgeType.CKVD;
         }
+
+        private static double GetDimMm(DrawingRun run, string key)
+        {
+            try
+            {
+                if (run?.Wedge?.Dimensions == null)
+                    return double.NaN;
+
+                if (!run.Wedge.Dimensions.TryGetValue(DimensionKey.From(key), out var dim) || dim == null)
+                    return double.NaN;
+
+                return Convert.ToDouble(dim.Nominal.Value);
+            }
+            catch
+            {
+                return double.NaN;
+            }
+        }
+
+        private static double MmToIn(double mm) => mm / 25.4;
 
         // -----------------------------
         // Planning + table + annotation apply

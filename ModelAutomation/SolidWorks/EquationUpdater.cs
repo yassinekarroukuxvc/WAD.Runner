@@ -31,12 +31,12 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         // --------------------------------------------------------------------
         // CKVD policy:
         // - CKVD writes provided zeros (writeZeros=true)
-        // - AND (new) CKVD treats missing DB-driven dims as 0 (override template)
+        // - AND CKVD treats missing DB-driven dims as 0 (override template)
         // --------------------------------------------------------------------
 
         /// <summary>
         /// CKVD: keys that are expected to be DB-driven base dimensions.
-        /// If missing from effectiveDims => we overwrite template value with 0 (not for cleaned_/computed vars).
+        /// If missing from effectiveDims => overwrite template value with 0.
         /// </summary>
         private static readonly HashSet<string> CkvdDbDrivenKeys =
             new(StringComparer.OrdinalIgnoreCase)
@@ -47,8 +47,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 "FR","BR","FRX","BRX",
                 "VR","VW","VRA",
                 "TIP",
-                "k",              // if you consider it DB-driven; otherwise remove it
-                "SymmetryTolerance", // if DB-driven in your pipeline; otherwise remove it
+                "k",
+                "SymmetryTolerance",
 
                 // --- base angle dims ---
                 "BA","FA","GA","ISA"
@@ -82,7 +82,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         /// - For every key present in effectiveDims, we WRITE/UPDATE its equation line.
         /// - CKVD: writeZeros=true, so 0 values are written (override template).
         /// - Others: writeZeros=false, so 0 values DO NOT override template (keep existing line).
-        /// - CKVD (new): missing DB-driven keys => set to 0 (override template), e.g. FX missing => "FX"=0mm.
+        /// - CKVD: missing DB-driven keys => set to 0 (override template).
         /// - Overlay vars are enforced.
         /// - COB-only: compute + upsert funnel_gap.
         /// </summary>
@@ -114,7 +114,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
             var output = new List<string>(lines.Count + 64);
 
-            // Dimensions coming from caller (effective dims)
             var byKey = effectiveDims.ToDictionary(
                 kv => kv.Key.Value, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
 
@@ -125,8 +124,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                      .Select(kv => kv.Key),
                 StringComparer.OrdinalIgnoreCase);
 
-            // Keys in our provided dimension list that are effectively "do not override"
-            // if their nominal is zero (keep equation file value as-is) — ONLY when writeZeros=false
             var zeroProvidedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             if (!writeZeros)
@@ -158,9 +155,12 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             if (isOverlay)
             {
-                overlayMag = ComputeOverlayMagnificationFromFl(wedge);
+                overlayMag = ComputeOverlayMagnification(wedge, wedgeType);
                 overlayScale = GetOverlayModelViewScaleDecimal(overlayMag);
                 overlayMagStr = overlayMag.ToString("0.#####", CultureInfo.InvariantCulture);
+
+                Logger.Info(
+                    $"[ModelAutomation.EquationUpdater] Overlay magnification resolved to {overlayMagStr} for wedgeType={wedgeType}");
             }
 
             bool engravingTouched = false;
@@ -212,15 +212,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
-                // RULE:
-                // - If key exists in provided dims AND:
-                //     - writeZeros == true  => ALWAYS override (including 0)
-                //     - writeZeros == false => override only when non-zero; if zero => keep existing line
                 if (byKey.TryGetValue(key, out var dim))
                 {
                     if (!writeZeros && zeroProvidedKeys.Contains(key))
                     {
-                        // keep equation file's value (original line)
                         output.Add(line);
                         continue;
                     }
@@ -230,9 +225,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
-                // NEW RULE (CKVD):
-                // - If a DB-driven base dim key is MISSING from effectiveDims => write 0 (override template)
-                // This fixes cases like FX missing => template value must not leak into generated file.
                 if (missingAsZero && CkvdDbDrivenKeys.Contains(key) && !providedKeys.Contains(key))
                 {
                     output.Add(MakeZeroLinePreservingUnit(key, line, CkvdAngleKeys.Contains(key)));
@@ -241,15 +233,11 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
-                // Not in provided dims -> keep equation file line as-is
                 output.Add(line);
             }
 
             int appended = 0;
 
-            // Append provided dims that don't exist in the file yet.
-            // - CKVD (writeZeros=true): appends even if value == 0.
-            // - Others: skips appending zero provided dims.
             foreach (var (key, dim) in byKey)
             {
                 if (!writeZeros && zeroProvidedKeys.Contains(key))
@@ -262,7 +250,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 }
             }
 
-            // Append missing CKVD DB-driven keys as zero if they aren't in file at all.
             if (missingAsZero)
             {
                 foreach (var key in CkvdDbDrivenKeys)
@@ -277,14 +264,12 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 }
             }
 
-            // Append EngravingStart if missing
             if (!engravingTouched && !LineExists(output, "EngravingStart"))
             {
                 output.Add(engravingLine);
                 appended++;
             }
 
-            // Append overlay lines if missing
             if (isOverlay)
             {
                 if (!overlayCalTouched && !LineExists(output, "overlay_calibration1"))
@@ -301,7 +286,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
 
             // --------------------------- COB funnel_gap ---------------------------
-            // Default funnel gap is in mm. We always enforce it when this looks like a COB wedge.
             if (wedgeType == DomWedgeType.COB)
             {
                 double funnelGapMm = ComputeCobFunnelGapMm(wedge);
@@ -323,9 +307,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         ///
         /// BEHAVIOR:
         /// - CKVD: If a provided dim is zero -> DO override (write 0 into the model).
-        /// - Others: If a provided dim is zero -> DO NOT override existing equation in the model (keep it).
-        /// - CKVD (new): If a DB-driven dim is missing from provided dims, we will NOT touch it here
-        ///   because EquationMgr upsert only iterates provided dims. The file-based updater handles missing-as-zero.
+        /// - Others: If a provided dim is zero -> DO NOT override existing equation in the model.
+        /// - CKVD: If a DB-driven dim is missing from provided dims, we do not touch it here.
         /// - Special keys (EngravingStart / overlay vars) are still enforced.
         /// - COB: funnel_gap is enforced when the COB input set is present.
         /// </summary>
@@ -357,9 +340,12 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             if (isOverlay)
             {
-                overlayMag = ComputeOverlayMagnificationFromFl(wedge);
+                overlayMag = ComputeOverlayMagnification(wedge, wedgeType);
                 overlayScale = GetOverlayModelViewScaleDecimal(overlayMag);
                 overlayMagStr = overlayMag.ToString("0.#####", CultureInfo.InvariantCulture);
+
+                Logger.Info(
+                    $"[ModelAutomation.EquationUpdater] Overlay magnification resolved (model) to {overlayMagStr} for wedgeType={wedgeType}");
             }
 
             var engravingLine = BuildEngravingStartLine(wedge);
@@ -387,9 +373,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
-                // RULE:
-                // - Others: if provided value is zero -> keep existing equation (do not upsert)
-                // - CKVD: allow writing zero
                 if (!writeZeros && Math.Abs(val) < 1e-12)
                 {
                     skippedZero++;
@@ -403,7 +386,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 upserted++;
             }
 
-            // Always enforce these
             UpsertEquation(mgr, byNameIndex, "EngravingStart", engravingLine);
             upserted++;
 
@@ -453,8 +435,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
         private static string MakeZeroLinePreservingUnit(string key, string existingLine, bool isAngleKeyFallback)
         {
-            // Try to preserve mm/deg/in from the existing template line.
-            // Fallback uses known CKVD angle key list.
             string unit =
                 existingLine.IndexOf("deg", StringComparison.OrdinalIgnoreCase) >= 0 ? "deg" :
                 existingLine.IndexOf("in", StringComparison.OrdinalIgnoreCase) >= 0 ? "in" :
@@ -554,28 +534,51 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return $"\"EngravingStart\" = {F(engrMm)}mm";
         }
 
-        private static double ComputeOverlayMagnificationFromFl(DomWedgeData wedge)
+        /// <summary>
+        /// CKVD uses FL for overlay magnification.
+        /// All other wedge types use T for now.
+        /// </summary>
+        private static double ComputeOverlayMagnification(DomWedgeData wedge, DomWedgeType wedgeType)
+        {
+            return wedgeType == DomWedgeType.CKVD
+                ? ComputeOverlayMagnificationFromDimension(wedge, "FL", wedgeType)
+                : ComputeOverlayMagnificationFromDimension(wedge, "T", wedgeType);
+        }
+
+        private static double ComputeOverlayMagnificationFromDimension(
+            DomWedgeData wedge,
+            string dimensionKey,
+            DomWedgeType wedgeType)
         {
             const double defaultMag = 100.0;
 
             if (wedge?.Dimensions is null)
                 return defaultMag;
 
-            if (!wedge.Dimensions.TryGetValue(DomDimKey.From("FL"), out var flDim) ||
-                flDim is null ||
-                flDim.Nominal.Unit != DomUnitKind.Millimeter)
+            if (!wedge.Dimensions.TryGetValue(DomDimKey.From(dimensionKey), out var dim) ||
+                dim is null ||
+                dim.Nominal.Unit != DomUnitKind.Millimeter)
             {
+                Logger.Warn(
+                    $"[ModelAutomation.EquationUpdater] Overlay magnification source '{dimensionKey}' missing or not mm for wedgeType={wedgeType}. Using default {defaultMag}.");
                 return defaultMag;
             }
 
-            double fl = (double)flDim.Nominal.AsMm();
-            if (double.IsNaN(fl) || double.IsInfinity(fl) || fl <= 0.0)
+            double value = (double)dim.Nominal.AsMm();
+            if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0.0)
+            {
+                Logger.Warn(
+                    $"[ModelAutomation.EquationUpdater] Overlay magnification source '{dimensionKey}' invalid ({value}) for wedgeType={wedgeType}. Using default {defaultMag}.");
                 return defaultMag;
+            }
 
-            if (fl <= 0.3403) return 400;
-            if (fl <= 0.4572) return 300;
-            if (fl <= 0.6908) return 200;
-            if (fl <= 1.3766) return 100;
+            Logger.Info(
+                $"[ModelAutomation.EquationUpdater] Overlay magnification source '{dimensionKey}' = {value.ToString("0.#####", CultureInfo.InvariantCulture)}mm for wedgeType={wedgeType}");
+
+            if (value <= 0.3403) return 400;
+            if (value <= 0.4572) return 300;
+            if (value <= 0.6908) return 200;
+            if (value <= 1.3766) return 100;
             return 100;
         }
 
@@ -678,6 +681,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             double inside = fnd * frac - h;
             double denom = 2.0 * Math.Sin(alpha);
             if (Math.Abs(denom) < 1e-12) return DefaultGapMm;
+
             Logger.Blue($"Funnel Gap = {inside / denom}");
             return inside / denom;
         }

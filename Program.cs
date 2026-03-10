@@ -97,11 +97,9 @@ var host = Host.CreateDefaultBuilder(args)
 
                 if (!string.IsNullOrWhiteSpace(apiKey))
                 {
-                    // If your Java app expects a header, set it here (same as before).
                     http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
                 }
             })
-            // pass firma/language to the typed client constructor
             .AddTypedClient((http, sp) => new JavaLegacyWedgeTransport(http, firma, language));
 
             services.AddSingleton<IWedgeDataSource, JavaWedgeDataSource>();
@@ -353,6 +351,16 @@ switch (cmd)
                         "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
+                case WedgeType.UTUS:
+                    partTemplatePath = Path.Combine(
+                        "Resources", "Templates", "UT-US", "V1",
+                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+
+                    equationTemplatePath = Path.Combine(
+                        "Resources", "Templates", "UT-US", "V1",
+                        "wedge-auto-draw-COB-3d-equation.txt");
+                    break;
+
                 case WedgeType.OSG7:
                     partTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
                     equationTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
@@ -451,6 +459,29 @@ switch (cmd)
                         "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
+                case WedgeType.UTUS:
+                    templatePartPath = Path.Combine(
+                        "Resources", "Templates", "UT-US", "V1",
+                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+
+                    templateDrawingPath = dtype switch
+                    {
+                        DrawingType.Overlay =>
+                            Path.Combine(
+                                "Resources", "Templates", "UT-US", "V1",
+                                "wedge-auto-draw-COB-2d-overlay.SLDDRW"),
+
+                        DrawingType.Production or DrawingType.Customer or _ =>
+                            Path.Combine(
+                                "Resources", "Templates", "UT-US", "V1",
+                                "wedge-auto-draw-COB-2d-drawing.SLDDRW"),
+                    };
+
+                    equationTemplatePathForModelPhase = Path.Combine(
+                        "Resources", "Templates", "UT-US", "V1",
+                        "wedge-auto-draw-COB-3d-equation.txt");
+                    break;
+
                 case WedgeType.OSG7:
                     templatePartPath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
                     templateDrawingPath = dtype switch
@@ -531,7 +562,7 @@ switch (cmd)
                     OutputRoot = outputRootBase,
                     PartTemplatePath = templatePartPath,
                     EquationTemplatePath = equationTemplatePathForModelPhase,
-                    FileBase = plan.FileBase,              // keep same filebase so drawing uses same outputs
+                    FileBase = plan.FileBase,
                     WedgeData = wedgeData,
                     WedgeType = wedgeTypeEnum
                 };
@@ -552,7 +583,6 @@ switch (cmd)
             var sessFactory2 = host.Services.GetRequiredService<ISwSessionFactory>();
             using (var swDraw = sessFactory2.Create(visible: true))
             {
-                // keep signature expected by executors
                 Func<object?> runModelAutomation = () => modelResultPath;
 
                 switch (subclass)
@@ -632,6 +662,16 @@ switch (cmd)
                         "wedge-auto-draw-COB-3d-equation.txt");
                     break;
 
+                case WedgeType.UTUS:
+                    partTemplatePath = Path.Combine(
+                        "Resources", "Templates", "UT-US", "V1",
+                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+
+                    equationTemplatePath = Path.Combine(
+                        "Resources", "Templates", "UT-US", "V1",
+                        "wedge-auto-draw-COB-3d-equation.txt");
+                    break;
+
                 case WedgeType.OSG7:
                     partTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
                     equationTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
@@ -708,8 +748,8 @@ WAD.Runner CLI
 
 Data:
   get-wedge      --article <num> --subclass <FG|PGB>
-  get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> [--wtype CKVD|COB|OSG7]
-  plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
+  get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> [--wtype CKVD|COB|UTUS|OSG7]
+  plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|UTUS|OSG7]
 
 Diagnostics (SQLite only):
   db-info        [--limit 20]
@@ -717,13 +757,13 @@ Diagnostics (SQLite only):
   show-article   --article <num>
 
 Part Automation:
-  run-part       --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
+  run-part       --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|UTUS|OSG7]
 
 Drawing Automation:
-  run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
+  run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|UTUS|OSG7]
 
 Model Automation:
-  run-model      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|OSG7]
+  run-model      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|UTUS|OSG7]
 
 API:
   serve-api      Starts the minimal API host
@@ -762,6 +802,7 @@ static WedgeType ParseWedgeTypeEnum(string[] a)
     {
         "CKVD" => WedgeType.CKVD,
         "COB" => WedgeType.COB,
+        "UTUS" => WedgeType.UTUS,
         "OSG7" => WedgeType.OSG7,
         _ => WedgeType.CKVD
     };
