@@ -23,6 +23,7 @@ using WAD.Runner.ModelAutomation.Rules.COB;
 
 
 using WAD.Runner.ModelAutomation.Tolerances;
+using WAD.Runner.ModelAutomation.Rules.UTUS;
 
 namespace WAD.Runner.ModelAutomation.Execution
 {
@@ -128,6 +129,7 @@ namespace WAD.Runner.ModelAutomation.Execution
                 {
                     WedgeType.OSG7 => new Osg7EquationInputNormalizer(),
                     WedgeType.COB => new CobEquationInputNormalizer(),
+                    WedgeType.UTUS => new UtusEquationInputNormalizer(),
                     _ => new NoOpEquationInputNormalizer()
                 };
 

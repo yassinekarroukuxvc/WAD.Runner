@@ -41,6 +41,18 @@ public static class ProfileRegistry
 
             _ => throw new NotSupportedException($"No COB drawing profile registered for {subclass}/{type}.")
         };
+    public static DrawingProfile GetUtus(WedgeSubclass subclass, DrawingType type)
+        => (subclass, type) switch
+        {
+            (WedgeSubclass.FG, DrawingType.Production) => UtusFgProduction(),
+            (WedgeSubclass.FG, DrawingType.Customer) => UtusFgCustomer(),
+            (WedgeSubclass.FG, DrawingType.Overlay) => UtusFgOverlay(),
+
+            (WedgeSubclass.PGB, DrawingType.Production) => UtusPgbProduction(),
+            (WedgeSubclass.PGB, DrawingType.Overlay) => UtusPgbOverlay(),
+
+            _ => throw new NotSupportedException($"No UTUS drawing profile registered for {subclass}/{type}.")
+        };
 
     public static DrawingProfile GetOsg7(WedgeSubclass subclass, DrawingType type)
         => (subclass, type) switch

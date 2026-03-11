@@ -41,6 +41,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             {
                 WedgeType.COB => ProfileRegistry.GetCob(run.Wedge.Subclass, drawingData.DrawingType),
                 WedgeType.OSG7 => ProfileRegistry.GetOsg7(run.Wedge.Subclass, drawingData.DrawingType),
+                WedgeType.UTUS => ProfileRegistry.GetUtus(run.Wedge.Subclass, drawingData.DrawingType),
                 _ => ProfileRegistry.GetCkvd(run.Wedge.Subclass, drawingData.DrawingType)
             };
             Logger.Info($"[Profile] Using {profile.ProfileName} for {bannerLabel}.");
@@ -74,7 +75,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             OverlayDrawingExecutorCommon.ApplyOverlayViewScales(ds, nameMap, overlayMag);
 
             // 5) Reposition views via macro
-            Logger.Info("[5/9] Reposition all overlay views (macro)…");
+            Logger.Info("[5/9] Reposition all overlay views");
             OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(swApp, ds, run, nameMap);
 
             var isCkvd = run.WedgeType == WedgeType.CKVD;

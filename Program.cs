@@ -462,24 +462,24 @@ switch (cmd)
                 case WedgeType.UTUS:
                     templatePartPath = Path.Combine(
                         "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+                        "wedge-auto-draw-UT-US-3d-model_sw_version_2023.SLDPRT");
 
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
                             Path.Combine(
                                 "Resources", "Templates", "UT-US", "V1",
-                                "wedge-auto-draw-COB-2d-overlay.SLDDRW"),
+                                "wedge-auto-draw-UT-US-2d-overlay.SLDDRW"),
 
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine(
                                 "Resources", "Templates", "UT-US", "V1",
-                                "wedge-auto-draw-COB-2d-drawing.SLDDRW"),
+                                "wedge-auto-draw-UT-US-2d-drawing.SLDDRW"),
                     };
 
                     equationTemplatePathForModelPhase = Path.Combine(
                         "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-COB-3d-equation.txt");
+                        "wedge-auto-draw-UT-US-3d-equation.txt");
                     break;
 
                 case WedgeType.OSG7:
@@ -665,11 +665,11 @@ switch (cmd)
                 case WedgeType.UTUS:
                     partTemplatePath = Path.Combine(
                         "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+                        "wedge-auto-draw-UT-US-3d-model_sw_version_2023.SLDPRT");
 
                     equationTemplatePath = Path.Combine(
                         "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-COB-3d-equation.txt");
+                        "wedge-auto-draw-UT-US-3d-equation.txt");
                     break;
 
                 case WedgeType.OSG7:

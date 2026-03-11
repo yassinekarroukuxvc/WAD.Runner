@@ -46,9 +46,6 @@ namespace WAD.Runner.DrawingAutomation.Tables
         private static readonly Dictionary<WedgeType, Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>> _rules
             = new()
             {
-                // ==========================================================
-                // COB (starter lists — refine as you like)
-                // ==========================================================
                 [WedgeType.COB] = new Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>()
                 {
                     // FG: Production + Customer + Overlay
@@ -110,10 +107,68 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         }
                     }
                 },
+                [WedgeType.UTUS] = new Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>()
+                {
+                    // FG: Production + Customer + Overlay
+                    [WedgeSubclass.FG] = new Dictionary<DrawingType, string[]>()
+                    {
+                        [DrawingType.Production] = new[]
+                        {
+                            "TL", "TD", "TDF",
+                            "K",
+                            "T",
+                            "FD", "FL", "FRO",
+                            "ERL",
+                            "H", "HA",
+                            "VBL",
+                            "CR", "CD", "GR", "GD", "GA", "B",
+                            "G", "CGD", "CGR", "CFD",
+                            "CBRA", "CBRL","BA","ISA","RA","VR","VRA","W","VW","FR","BR","ERL","ERD","FNO"
+                        },
 
-                // TODO: Add more wedge types:
-                // [WedgeType.CKVD] = ...
-                // [WedgeType.OSG7] = ...
+                        [DrawingType.Customer] = new[]
+                        {
+                            "TL", "TD", "TDF", "W", "ISA",
+                            "K",
+                            "RA", "T",
+                            "BA",
+                            "ERL",
+                            "H", "HA", "FNA",
+                            "VBL",
+                            "FR", "BR",
+                            "CGD",
+                            "CBRA", "CBRL"
+                        },
+
+                        [DrawingType.Overlay] = new[]
+                        {
+                            "TL", "TD", "TDF", "W", "ISA",
+                            "K",
+                            "RA", "T",
+                            "BA"
+                        }
+                    },
+
+                    // PGB: Production + Overlay
+                    [WedgeSubclass.PGB] = new Dictionary<DrawingType, string[]>()
+                    {
+                        [DrawingType.Production] = new[]
+                        {
+                            "TL", "TD", "TDF", "W", "ISA",
+                            "K",
+                            "BA",
+                            "RA", "T", "FD","ISA","RA"
+                        },
+
+                        [DrawingType.Overlay] = new[]
+                        {
+                            "TL", "TD", "TDF", "W", "ISA",
+                            "K",
+                            "BA"
+                        }
+                    }
+                },
+
             };
     }
 }

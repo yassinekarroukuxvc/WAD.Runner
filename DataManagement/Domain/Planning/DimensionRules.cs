@@ -21,6 +21,7 @@ public static class DimensionRules
         {
             WedgeType.CKVD => Rules.CkvdDimensionRules.Build(ctx, diag),
             WedgeType.COB => Rules.CobDimensionRules.Build(ctx, diag),
+            WedgeType.UTUS => Rules.UtusDimensionRules.Build(ctx, diag),
 
             _ => Rules.CkvdDimensionRules.Build(ctx, diag)
         };

@@ -19,6 +19,7 @@ using WAD.Runner.DrawingAutomation.Views;
 
 using WAD.Runner.DrawingAutomation.Rules.COB;
 using WAD.Runner.DrawingAutomation.Profiles;
+using WAD.Runner.DrawingAutomation.Rules.UTUS;
 
 namespace WAD.Runner.DrawingAutomation.Executors.Common
 {
@@ -212,17 +213,25 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         /// COB delete-by-fullname plan runner (deletes annotations).
         /// Call this BEFORE ApplyAnnotationPositions so we only reposition what remains.
         /// </summary>
-        public static void RunCobAnnotationCleanup(DrawingService ds, IDictionary<string, string> nameMap, DrawingRun run, DrawingData drawingData)
+        public static void RunAnnotationCleanup(DrawingService ds, IDictionary<string, string> nameMap, DrawingRun run, DrawingData drawingData)
         {
             try
             {
-                Logger.Info("[10?/??] COB annotation cleanup (delete-by-fullname plan)…");
-                new CobAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
+                if(run.WedgeType == WedgeType.COB)
+                {
+                    Logger.Info("[10?/??] COB annotation cleanup (delete-by-fullname plan)…");
+                    new CobAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
+                }
+                if(run.WedgeType == WedgeType.UTUS)
+                {
+                    Logger.Info("[10?/??] UT/US annotation cleanup (delete-by-fullname plan)…");
+                    new UtusAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
+                }
                 ds.Rebuild();
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[COB.Cleanup] Failed (continuing): {ex.Message}");
+                Logger.Warn($"[Cleanup] Failed (continuing): {ex.Message}");
             }
         }
 

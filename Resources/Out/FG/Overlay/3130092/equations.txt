@@ -204,5 +204,5 @@
 "FLC" = 0.07366mm
 "Y" = 0.0508mm
 "EngravingStart" = 8.41248mm
-"overlay_calibration1" = 400
-"scale" = 246
+"overlay_calibration1" = 300
+"scale" = 183

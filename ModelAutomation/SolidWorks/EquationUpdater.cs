@@ -18,6 +18,7 @@ using DomWedgeData = WAD.Runner.DataManagement.Domain.Wedge.WedgeData;
 using DomDrawingType = WAD.Runner.DataManagement.Domain.Wedge.DrawingType;
 using DomUnitKind = WAD.Runner.DataManagement.Domain.Units.UnitKind;
 using DomWedgeType = WAD.Runner.DataManagement.Domain.Wedge.WedgeType;
+using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.ModelAutomation.SolidWorks
 {
@@ -286,14 +287,14 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
 
             // --------------------------- COB funnel_gap ---------------------------
-            if (wedgeType == DomWedgeType.COB)
+            if (wedgeType == DomWedgeType.COB || wedgeType == DomWedgeType.UTUS)
             {
-                double funnelGapMm = ComputeCobFunnelGapMm(wedge);
+                double funnelGapMm = ComputeFunnelGapMm(wedge);
 
                 ReplaceOrAppend(output, "funnel_gap",
                     $"\"funnel_gap\" = {F(funnelGapMm)}mm");
 
-                Logger.Info($"[ModelAutomation.EquationUpdater] COB funnel_gap computed = {funnelGapMm} mm");
+                Logger.Info($"[ModelAutomation.EquationUpdater] {wedgeType} funnel_gap computed = {funnelGapMm} mm");
             }
 
             Logger.Info($"[ModelAutomation.EquationUpdater] Rewritten={rewritten}, Appended={appended}");
@@ -403,9 +404,9 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             // --------------------------- COB funnel_gap ---------------------------
             var byKey = effectiveDims.ToDictionary(kv => kv.Key.Value, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
-            if (IsCobWedge(byKey))
+            if (wedgeType == DomWedgeType.COB || wedgeType == DomWedgeType.UTUS)
             {
-                double funnelGapMm = ComputeCobFunnelGapMm(wedge);
+                double funnelGapMm = ComputeFunnelGapMm(wedge);
                 UpsertEquation(mgr, byNameIndex, "funnel_gap", $"\"funnel_gap\" = {F(funnelGapMm)}mm");
                 upserted++;
 
@@ -658,7 +659,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                    byKey.ContainsKey("H");
         }
 
-        private static double ComputeCobFunnelGapMm(DomWedgeData wedge)
+        private static double ComputeFunnelGapMm(DomWedgeData wedge)
         {
             const double DefaultGapMm = 0.0003;
 

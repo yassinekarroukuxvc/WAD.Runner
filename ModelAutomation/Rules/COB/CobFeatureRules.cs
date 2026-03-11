@@ -31,6 +31,8 @@ namespace WAD.Runner.ModelAutomation.Rules
     /// - FG Overlay uses FG_LEFT_overlay_sketch.
     /// - Both FG and PGB Overlay use the same front overlay sketches:
     ///   PGB_STD_FRONT_overlay_sketch / PGB_180_DEG_REV_FRONT_overlay_sketch.
+    /// - If VR > 0 in overlay, always suppress the LEFT overlay sketch
+    ///   (FG_LEFT_overlay_sketch / PGB_LEFT_overlay_sketch).
     ///
     /// Non-overlay rule:
     /// - If drawingType is NOT Overlay: force suppress "cut_feature" and "cut_plan_feature"
@@ -63,7 +65,7 @@ namespace WAD.Runner.ModelAutomation.Rules
                 if (drawingType == DrawingType.Overlay)
                 {
                     Logger.Info("[CobFeatureRules] Subclass=PGB + Overlay → applying overlay template feature toggles.");
-                    BuildOverlayPlan(shank, suppress, unsuppress, "PGB_LEFT_overlay_sketch");
+                    BuildOverlayPlan(wedge, shank, suppress, unsuppress, "PGB_LEFT_overlay_sketch");
                 }
 
                 // If NOT overlay → force suppress cut features
@@ -103,7 +105,7 @@ namespace WAD.Runner.ModelAutomation.Rules
             if (drawingType == DrawingType.Overlay)
             {
                 Logger.Info("[CobFeatureRules] Subclass=FG + Overlay → applying FG overlay template feature toggles.");
-                BuildOverlayPlan(shank, fgSuppress, fgUnsuppress, "FG_LEFT_overlay_sketch");
+                BuildOverlayPlan(wedge, shank, fgSuppress, fgUnsuppress, "FG_LEFT_overlay_sketch");
             }
 
             Logger.Info($"[CobFeatureRules] Parsed → Subclass=FG, Shank={shank}, Foot={foot}");
@@ -191,6 +193,7 @@ namespace WAD.Runner.ModelAutomation.Rules
         // Shared overlay plan for PGB + FG
         // --------------------------------------------
         private static void BuildOverlayPlan(
+            WedgeData wedge,
             CobShankType shank,
             HashSet<string> suppress,
             HashSet<string> unsuppress,
@@ -205,9 +208,23 @@ namespace WAD.Runner.ModelAutomation.Rules
             unsuppress.Add("cut_plan_feature");
             unsuppress.Add("cut_feature");
 
-            // Left overlay sketch depends on subclass/template family
+            // If VR > 0 in overlay, always suppress the LEFT overlay sketch
+            bool vrPositive = IsDimPositive(wedge, "VR");
+
             if (!string.IsNullOrWhiteSpace(leftOverlaySketch))
-                unsuppress.Add(leftOverlaySketch);
+            {
+                if (vrPositive)
+                {
+                    suppress.Add(leftOverlaySketch);
+                    unsuppress.Remove(leftOverlaySketch);
+
+                    Logger.Info($"[CobFeatureRules] Overlay rule: VR > 0 → suppress '{leftOverlaySketch}'.");
+                }
+                else
+                {
+                    unsuppress.Add(leftOverlaySketch);
+                }
+            }
 
             // Shank-specific overlay FRONT SKETCH
             // Same real names for both FG and PGB templates

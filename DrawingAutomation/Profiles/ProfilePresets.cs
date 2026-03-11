@@ -100,6 +100,47 @@ public static class ProfilePresets
         Section: "Drawing View2"
     );
 
+    // UTUS = same as COB
+    private static ViewNames UtusFgProductionViews() => new(
+        Front: "Drawing View7",
+        Side: "Drawing View6",
+        Top: "Drawing View8",
+        Detail: "Drawing View9",
+        Section: "Section View AF-AF"
+    );
+
+    private static ViewNames UtusFgCustomerViews() => new(
+        Front: "Drawing View2",
+        Side: "Drawing View1",
+        Top: "Drawing View3",
+        Detail: "Drawing View4",
+        Section: "Section View AE-AE"
+    );
+
+    private static ViewNames UtusFgOverlayViews() => new(
+        Front: "COB_FG_Ovl_Front",
+        Side: "COB_FG_Ovl_Side",
+        Top: "COB_FG_Ovl_Top",
+        Detail: "Drawing View3",
+        Section: "Drawing View4"
+    );
+
+    private static ViewNames UtusPgbProductionViews() => new(
+        Front: "Drawing View12",
+        Side: "Drawing View11",
+        Top: "Drawing View13",
+        Detail: "Drawing View14",
+        Section: "Section View AG-AG"
+    );
+
+    private static ViewNames UtusPgbOverlayViews() => new(
+        Front: "COB_PGB_Ovl_Front",
+        Side: "COB_PGB_Ovl_Side",
+        Top: "COB_PGB_Ovl_Top",
+        Detail: "Drawing View1",
+        Section: "Drawing View2"
+    );
+
     // OSG7
     private static ViewNames Osg7FgProductionViews() => new(
         Front: "Drawing View3",
@@ -317,6 +358,61 @@ public static class ProfilePresets
         SheetSelector: Prefer("PGB"),
         ViewsOrder: StdOrder,
         Views: CobPgbOverlayViews(),
+        UseBreaklinesForView: v => false,
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile UtusFgProduction() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
+        ProfileName: "UTUS FG Production",
+        SheetSelector: Prefer("PRODUCTION"),
+        ViewsOrder: StdOrder,
+        Views: UtusFgProductionViews(),
+        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile UtusFgCustomer() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Customer),
+        ProfileName: "UTUS FG Customer",
+        SheetSelector: Prefer("CUSTOMER"),
+        ViewsOrder: StdOrder,
+        Views: UtusFgCustomerViews(),
+        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile UtusFgOverlay() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay),
+        ProfileName: "UTUS FG Overlay",
+        SheetSelector: Prefer("FG"),
+        ViewsOrder: StdOrder,
+        Views: UtusFgOverlayViews(),
+        UseBreaklinesForView: v => false,
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile UtusPgbProduction() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Production),
+        ProfileName: "UTUS PGB Production",
+        SheetSelector: Prefer("PGB"),
+        ViewsOrder: StdOrder,
+        Views: UtusPgbProductionViews(),
+        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
+        ScaleForView: (_, fb) => Keep(fb),
+        Scale: DefaultScale
+    );
+
+    public static DrawingProfile UtusPgbOverlay() => new(
+        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Overlay),
+        ProfileName: "UTUS PGB Overlay",
+        SheetSelector: Prefer("PGB"),
+        ViewsOrder: StdOrder,
+        Views: UtusPgbOverlayViews(),
         UseBreaklinesForView: v => false,
         ScaleForView: (_, fb) => Keep(fb),
         Scale: DefaultScale

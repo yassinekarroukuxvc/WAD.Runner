@@ -39,6 +39,7 @@ namespace WAD.Runner.ModelAutomation.Execution
             {
                 WedgeType.CKVD => new CkvdFeatureRules(),
                 WedgeType.COB => new CobFeatureRules(),
+                WedgeType.UTUS => new UtusFeatureRules(),
                 _ => new DefaultFeatureRules()
             };
 
