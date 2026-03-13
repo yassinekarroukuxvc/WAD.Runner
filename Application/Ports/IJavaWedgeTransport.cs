@@ -17,4 +17,6 @@ public interface IJavaWedgeTransport
     // ---- PGB (PGB-*) ----
     Task<PgbSpec1Dto> GetPgbSpec1Async(string article, CancellationToken ct);
     Task<IReadOnlyList<PgbSpec2RowDto>> GetPgbSpec2Async(string article, CancellationToken ct);
+
+    Task<string?> GetArticleDescriptionAsync(string article, CancellationToken ct);
 }

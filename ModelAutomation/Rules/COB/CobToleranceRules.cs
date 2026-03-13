@@ -28,7 +28,7 @@ namespace WAD.Runner.ModelAutomation.Rules.COB
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
 
             // Only requested scenario for now.
-            if (subclass != WedgeSubclass.PGB || drawingType != DrawingType.Overlay)
+            if (drawingType != DrawingType.Overlay)
                 return TolerancePlan.Empty;
 
             var shank = ResolveShankType(wedge); // STD vs 180_DEG_REV

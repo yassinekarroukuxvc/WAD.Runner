@@ -1,67 +1,100 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Remove="Ressources\**" />
-    <EmbeddedResource Remove="Ressources\**" />
-    <None Remove="Ressources\**" />
-  </ItemGroup>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 	</ItemGroup>
-	
-  <ItemGroup>
-    <Folder Include="Application\Services\" />
-    <Folder Include="Resources\Out\FG\Production\" />
-    <Folder Include="Resources\Solidworks\" />
-  </ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="Application\Services\" />
+		<Folder Include="Resources\Out\FG\Production\" />
+		<Folder Include="Resources\Solidworks\" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.10" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
 		<PackageReference Include="System.Net.Http.Json" Version="8.0.0" />
 	</ItemGroup>
+
 	<ItemGroup>
-	  <Reference Include="SolidWorks.Interop.sldworks">
-	    <HintPath>Resources\Solidworks\SolidWorks.Interop.sldworks.dll</HintPath>
-	  </Reference>
-	  <Reference Include="SolidWorks.Interop.sw3dprinter">
-	    <HintPath>Resources\Solidworks\SolidWorks.Interop.sw3dprinter.dll</HintPath>
-	  </Reference>
-	  <Reference Include="SolidWorks.Interop.swcommands">
-	    <HintPath>Resources\Solidworks\SolidWorks.Interop.swcommands.dll</HintPath>
-	  </Reference>
-	  <Reference Include="SolidWorks.Interop.swconst">
-	    <HintPath>Resources\Solidworks\SolidWorks.Interop.swconst.dll</HintPath>
-	  </Reference>
-	  <Reference Include="SolidWorks.Interop.swdimxpert">
-	    <HintPath>Resources\Solidworks\SolidWorks.Interop.swdimxpert.dll</HintPath>
-	  </Reference>
-	  <Reference Include="SolidWorks.Interop.swdocumentmgr">
-	    <HintPath>Resources\Solidworks\SolidWorks.Interop.swdocumentmgr.dll</HintPath>
-	  </Reference>
-	  <Reference Include="SolidWorks.Interop.swmotionstudy">
-	    <HintPath>Resources\Solidworks\SolidWorks.Interop.swmotionstudy.dll</HintPath>
-	  </Reference>
-	  <Reference Include="SolidWorks.Interop.swpublished">
-	    <HintPath>Resources\Solidworks\SolidWorks.Interop.swpublished.dll</HintPath>
-	  </Reference>
-	  <Reference Include="SolidWorks.Interop.SWRoutingLib">
-	    <HintPath>Resources\Solidworks\SolidWorks.Interop.SWRoutingLib.dll</HintPath>
-	  </Reference>
+		<Reference Include="SolidWorks.Interop.sldworks">
+			<HintPath>Resources\Solidworks\SolidWorks.Interop.sldworks.dll</HintPath>
+		</Reference>
+		<Reference Include="SolidWorks.Interop.sw3dprinter">
+			<HintPath>Resources\Solidworks\SolidWorks.Interop.sw3dprinter.dll</HintPath>
+		</Reference>
+		<Reference Include="SolidWorks.Interop.swcommands">
+			<HintPath>Resources\Solidworks\SolidWorks.Interop.swcommands.dll</HintPath>
+		</Reference>
+		<Reference Include="SolidWorks.Interop.swconst">
+			<HintPath>Resources\Solidworks\SolidWorks.Interop.swconst.dll</HintPath>
+		</Reference>
+		<Reference Include="SolidWorks.Interop.swdimxpert">
+			<HintPath>Resources\Solidworks\SolidWorks.Interop.swdimxpert.dll</HintPath>
+		</Reference>
+		<Reference Include="SolidWorks.Interop.swdocumentmgr">
+			<HintPath>Resources\Solidworks\SolidWorks.Interop.swdocumentmgr.dll</HintPath>
+		</Reference>
+		<Reference Include="SolidWorks.Interop.swmotionstudy">
+			<HintPath>Resources\Solidworks\SolidWorks.Interop.swmotionstudy.dll</HintPath>
+		</Reference>
+		<Reference Include="SolidWorks.Interop.swpublished">
+			<HintPath>Resources\Solidworks\SolidWorks.Interop.swpublished.dll</HintPath>
+		</Reference>
+		<Reference Include="SolidWorks.Interop.SWRoutingLib">
+			<HintPath>Resources\Solidworks\SolidWorks.Interop.SWRoutingLib.dll</HintPath>
+		</Reference>
 	</ItemGroup>
 
-	<!-- Keep this line down below it is important -->
-
+	<!-- Runtime resources -->
 	<ItemGroup>
-		<None Include="Resources\Macros\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+		<None Include="Resources\Macros\**\*.*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
+
+		<None Include="Resources\Database\**\*.*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
+
+		<None Include="Resources\Solidworks\**\*.*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
+
+		<None Include="Resources\Out\**\*.*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
+
+		<None Include="Resources\Templates\**\*.*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
+
+		<None Update="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
+
+		<None Update="appsettings.Development.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
+
+		<None Include="Resources\Config\**\*.*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
 	</ItemGroup>
 
 </Project>

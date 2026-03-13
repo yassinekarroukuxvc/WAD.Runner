@@ -1,6 +1,6 @@
 ﻿"TD" = 1.58496mm
 "TD@TD_sketch" = "TD"
-"TL" = 21.0312mm
+"TL" = 30mm
 "D1@TL_feature" = "TL"
 "TD@TDF_STD_sketch" = "TD"
 "TDF" = 1.1684mm
@@ -207,3 +207,5 @@
 "MO" = 0.00762mm
 "Y" = 0.05842mm
 "EngravingStart" = 8.41248mm
+"overlay_calibration1" = 300
+"scale" = 183

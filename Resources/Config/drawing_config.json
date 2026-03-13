@@ -1,0 +1,198 @@
+{
+  "//": "Units: positions/sizes in mm, angles in deg, scales are unitless",
+
+  "Defaults": {
+    "Views": {
+      "Front": {
+        "PositionMm": [ 35, 100 ],
+        "Scale": 3.0
+      },
+      "Side": {
+        "PositionMm": [ 85, 100 ],
+        "Scale": 3.0
+      },
+      "Top": {
+        "PositionMm": [ 85, 195 ],
+        "Scale": 3.0
+      },
+      "Detail": {
+        "PositionMm": [ 170, 200 ],
+        "Scale": 45.0
+      },
+      "Section": {
+        "PositionMm": [ 220, 200 ],
+        "Scale": 45.0
+      }
+    },
+
+    "Tables": {
+      "TitleBlock": { "PositionMm": [ 15, 15 ] },
+      "DimTable": { "PositionMm": [ 194.22618, 129.58064 ] },
+      "HowToOrder": { "PositionMm": [ 109.73054, 72.34174 ] }
+    },
+
+    "Metadata": {
+      "Company": "SPT",
+      "DrawingTemplate": "Standard-A4"
+    }
+  },
+
+  "Sections": {
+    "Production": {
+      "Common": { "Metadata": { "Watermark": "" } },
+
+      "FG": { "Common": { "Metadata": { "SheetTitle": "FG Production Drawing" } } },
+      "PGB": { "Common": { "Metadata": { "SheetTitle": "PGB Production Drawing" } } },
+
+      "WedgeTypeOverrides": {
+        "CKVD": {
+          "Common": {
+            "Views": {
+              "Front": { "Params": { "BreaklineGap": 7.5 } },
+              "Section": { "PositionMm": [ 240, 200 ] }
+            },
+            "Metadata": { "SpecialNote": "CKVD production override" }
+          }
+        },
+
+        "COB": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
+            },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 120 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+            },
+
+            "Metadata": { "SpecialNote": "COB production override" }
+          }
+        },
+
+        "UTUS": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
+            },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 120 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+            },
+
+            "Metadata": { "SpecialNote": "UTUS production override" }
+          }
+        }
+      }
+    },
+
+    "Customer": {
+      "Common": { "Metadata": { "Watermark": "CUSTOMER" } },
+
+      "FG": { "Common": { "Metadata": { "SheetTitle": "FG Customer Drawing" } } },
+      "PGB": { "Common": { "Metadata": { "SheetTitle": "PGB Customer Drawing" } } },
+
+      "WedgeTypeOverrides": {
+        "CKVD": {
+          "Common": {
+            "Views": {
+              "Section": { "PositionMm": [ 240, 200 ] }
+            }
+          }
+        },
+
+        "COB": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
+            },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 130 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+            },
+
+            "Metadata": { "SpecialNote": "COB customer override" }
+          }
+        },
+
+        "UTUS": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
+            },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 130 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+            },
+
+            "Metadata": { "SpecialNote": "UTUS customer override" }
+          }
+        }
+      }
+    },
+
+    "Overlay": {
+      "Common": {
+        "Views": {
+          "Front": { "PositionMm": [ 150, 120 ] },
+          "Section": { "PositionMm": [ 150, 70 ] }
+        },
+        "Metadata": { "Watermark": "OVERLAY" }
+      },
+
+      "FG": { "Common": { "Metadata": { "SheetTitle": "FG Overlay Drawing" } } },
+      "PGB": { "Common": { "Metadata": { "SheetTitle": "PGB Overlay Drawing" } } },
+
+      "WedgeTypeOverrides": {
+        "COB": {
+          "Common": {
+            "Views": { "Side": { "Params": { "BreaklineGap": 8.0 } } },
+            "Metadata": { "SpecialNote": "COB overlay tuning" }
+          }
+        },
+
+        "UTUS": {
+          "Common": {
+            "Views": { "Side": { "Params": { "BreaklineGap": 8.0 } } },
+            "Metadata": { "SpecialNote": "UTUS overlay tuning" }
+          }
+        }
+      }
+    }
+  }
+}

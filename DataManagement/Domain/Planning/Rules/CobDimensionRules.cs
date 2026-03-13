@@ -259,8 +259,10 @@ internal static class CobDimensionRules
 
         PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
             233, 165);
+        PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,
+            253, 175);
 
-        
+
     }
 
     // ============================================================

@@ -42,6 +42,9 @@ public sealed class JavaWedgeHttpClient : IJavaWedgeTransport
     public async Task<IReadOnlyList<PgbSpec2RowDto>> GetPgbSpec2Async(string article, CancellationToken ct)
         => await GetRequiredAsync<IReadOnlyList<PgbSpec2RowDto>>($"api/dbprobe/pgb/spec2?article={Uri.EscapeDataString(article)}", ct);
 
+    public async Task<string?> GetArticleDescriptionAsync(string article, CancellationToken ct)
+    => await GetOptionalAsync<string>($"api/dbprobe/artdesc?article={Uri.EscapeDataString(article)}", ct);
+
     // -------------------- Helpers --------------------
 
     private async Task<T> GetRequiredAsync<T>(string relativeUrl, CancellationToken ct)

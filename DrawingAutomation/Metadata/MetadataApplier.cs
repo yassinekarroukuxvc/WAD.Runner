@@ -173,10 +173,11 @@ namespace WAD.Runner.DrawingAutomation.Metadata
                 // DESCRIPTION – multi-line version for overlay drawings
                 ["DESCRIPTION"] = BuildOverlayDescription(wdp),
 
-                // COINING (from DB/template)
-                ["COINING"] = FirstNonEmpty(
-                    Get(md, "COINING"),
-                    Get(wdp, "coining")),
+                // COINING (from DB/template) -> convert "150-00152-MA;;;;;" to "FOR COINING USE 150-00152-MA"
+                ["COINING"] = BuildCoiningText(
+                    FirstNonEmpty(
+                        Get(md, "COINING"),
+                        Get(wdp, "Wed-Coining"))),
 
                 // ENGRAVING_NOTE (default if nothing provided)
                 ["ENGRAVING_NOTE"] = FirstNonEmpty(
@@ -285,7 +286,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
                 var extra = (currentLen == 0 ? 0 : 1) + word.Length; // +1 for space
                 if (currentLen + extra > maxLineLength)
                 {
-                    sb.Append('\n');          // newline for SolidWorks note
+                    sb.Append('\n');
                     sb.Append(word);
                     currentLen = word.Length;
                 }
@@ -303,6 +304,28 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             }
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Converts raw coining payloads like:
+        ///   "150-00152-MA;;;;;"
+        /// into:
+        ///   "FOR COINING USE 150-00152-MA"
+        /// </summary>
+        private static string BuildCoiningText(string? rawCoining)
+        {
+            if (string.IsNullOrWhiteSpace(rawCoining))
+                return string.Empty;
+
+            var firstToken = rawCoining
+                .Split(';', StringSplitOptions.None)
+                .FirstOrDefault()?
+                .Trim();
+
+            if (string.IsNullOrWhiteSpace(firstToken))
+                return string.Empty;
+
+            return $"FOR COINING USE {firstToken}";
         }
     }
 }

@@ -1,5 +1,4 @@
-﻿// WAD.Runner.Api/ApiHost.cs
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -16,6 +15,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
 using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.SolidWorks;
 
@@ -24,13 +24,14 @@ using WAD.Runner.Application.UseCases;
 
 using WAD.Runner.DataManagement.Infrastructure.Serialization;
 using WAD.Runner.DataManagement.Infrastructure.Adapters;
-using WAD.Runner.DataManagement.Infrastructure.Sqlite;   // ProAlphaRepository, SqliteWedgeDataSource
+using WAD.Runner.DataManagement.Infrastructure.Sqlite;
+using WAD.Runner.DataManagement.Infrastructure.Transport;
 
 using WAD.Runner.PartAutomation.Interfaces;
 using WAD.Runner.PartAutomation.Execution;
 
 using WAD.Runner.SolidWorks.Adapters;
-using WAD.Runner.Solidworks.Adapters;                  // ISwSessionFactory, SwServiceFactory
+using WAD.Runner.Solidworks.Adapters;
 
 namespace WAD.Runner.Api;
 
@@ -56,12 +57,12 @@ public record RunRequest
     // Single-type fallback
     public string? DrawingType { get; init; } = "Production";
 
-    public string Subclass { get; init; } = "FG";       // FG | PGB
+    public string Subclass { get; init; } = "FG"; // FG | PGB
 
-    // NOTE: We still validate it, but /run will force OutputFolder into JobsRoot/<jobId>/results.
+    // NOTE: validated, but /run will force OutputFolder into JobsRoot/<jobId>/results.
     public string? OutputFolder { get; init; }
 
-    // Legacy style (your web app currently uses Options["drawingTypes"])
+    // Legacy style (web app currently uses Options["drawingTypes"])
     public Dictionary<string, string>? Options { get; init; }
 }
 
@@ -78,8 +79,6 @@ public static class RunRequestValidator
         if (subclass is not ("FG" or "PGB"))
             errors.Add("subclass must be either 'FG' or 'PGB'.");
 
-        // Keep this requirement if you want, but note: we override OutputFolder anyway.
-        // If you'd rather let the API force it, you can remove this validation later.
         if (string.IsNullOrWhiteSpace(r.OutputFolder))
             errors.Add("outputFolder is required.");
 
@@ -266,6 +265,7 @@ public static class ApiHost
         // ---------- Configuration ----------
         builder.Configuration
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
 
         builder.Services.AddOptions<RunnerOptions>()
@@ -297,22 +297,62 @@ public static class ApiHost
                 FullMode = BoundedChannelFullMode.Wait
             }));
 
-        // ProAlpha repository (SQLite)
-        var cs = builder.Configuration.GetConnectionString("ProAlphaSqlite")
-                 ?? throw new InvalidOperationException("Missing ConnectionStrings:ProAlphaSqlite for API host.");
-        builder.Services.AddSingleton(new ProAlphaRepository(cs));
+        // ============================================================
+        // WEDGE DATA SOURCE SWITCH: Java API vs SQLite
+        // ============================================================
+        var useJava = builder.Configuration.GetValue<bool>("Runner:UseJavaDbApi", false);
 
-        var firma = builder.Configuration.GetValue<int>("ProAlpha:Firma", 1);
-        var language = builder.Configuration.GetValue<string>("ProAlpha:Language", "E");
+        if (useJava)
+        {
+            var baseUrl = builder.Configuration.GetValue<string>("Runner:JavaDbApi:BaseUrl")
+                          ?? throw new InvalidOperationException("Missing Runner:JavaDbApi:BaseUrl");
 
-        builder.Services.AddSingleton<IWedgeDataSource>(sp =>
-            new SqliteWedgeDataSource(
-                sp.GetRequiredService<ProAlphaRepository>(),
-                firma,
-                language,
-                sp.GetService<ILogger<SqliteWedgeDataSource>>()
-            )
-        );
+            var timeoutSec = builder.Configuration.GetValue<int?>("Runner:JavaDbApi:TimeoutSeconds") ?? 45;
+            var apiKey = builder.Configuration.GetValue<string>("Runner:JavaDbApi:ApiKey");
+
+            var firma = builder.Configuration.GetValue<int?>("ProAlpha:Firma") ?? 200;
+            var language = builder.Configuration.GetValue<string>("ProAlpha:Language", "E");
+
+            builder.Services.AddHttpClient("JavaLegacyWedgeTransport", http =>
+            {
+                http.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
+                http.Timeout = TimeSpan.FromSeconds(timeoutSec);
+
+                if (!http.DefaultRequestHeaders.Accept.Any(h => h.MediaType == "application/json"))
+                    http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+
+                if (!string.IsNullOrWhiteSpace(apiKey))
+                    http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+            });
+
+            builder.Services.AddSingleton<IJavaWedgeTransport>(sp =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                var http = factory.CreateClient("JavaLegacyWedgeTransport");
+                return new JavaLegacyWedgeTransport(http, firma, language);
+            });
+
+            builder.Services.AddSingleton<IWedgeDataSource, JavaWedgeDataSource>();
+        }
+        else
+        {
+            var cs = builder.Configuration.GetConnectionString("ProAlphaSqlite")
+                     ?? throw new InvalidOperationException("Missing ConnectionStrings:ProAlphaSqlite for API host.");
+
+            builder.Services.AddSingleton(new ProAlphaRepository(cs));
+
+            var firma = builder.Configuration.GetValue<int>("ProAlpha:Firma", 1);
+            var language = builder.Configuration.GetValue<string>("ProAlpha:Language", "E");
+
+            builder.Services.AddSingleton<IWedgeDataSource>(sp =>
+                new SqliteWedgeDataSource(
+                    sp.GetRequiredService<ProAlphaRepository>(),
+                    firma,
+                    language,
+                    sp.GetService<ILogger<SqliteWedgeDataSource>>()
+                )
+            );
+        }
 
         // Drawing config (JSON)
         var drawingCfgPath = builder.Configuration["DrawingConfig:Path"] ?? "Infrastructure/Config/drawing_config.json";
@@ -379,10 +419,6 @@ public static class ApiHost
             if (errors.Count > 0)
                 return Results.BadRequest(new { errors });
 
-            // IMPORTANT: normalize drawing types with legacy support:
-            // 1) body.DrawingTypes
-            // 2) body.Options["drawingTypes"]   (your web app)
-            // 3) body.DrawingType
             var drawingTypes = NormalizeDrawingTypes(body);
 
             var jobsRootLocal = cfg.GetValue<string>("JobsRoot") ?? @"C:\WedgeJobs";
@@ -391,7 +427,6 @@ public static class ApiHost
             var resultsDir = Path.Combine(jobDir, "results");
             Directory.CreateDirectory(resultsDir);
 
-            // Force OutputFolder into per-job results directory
             var payload = new RunRequest
             {
                 ArticleNumbers = body.ArticleNumbers,
@@ -473,35 +508,187 @@ public static class ApiHost
             int firma,
             string article,
             string? subclass,
-            ProAlphaRepository repo) =>
+            IServiceProvider sp,
+            IConfiguration cfg) =>
         {
+            var subclassNorm = (subclass ?? "FG").Trim().ToUpperInvariant();
+            var useJavaLocal = cfg.GetValue<bool>("Runner:UseJavaDbApi", false);
+
+            if (useJavaLocal)
+            {
+                var api = sp.GetRequiredService<IJavaWedgeTransport>();
+
+                if (subclassNorm == "PGB")
+                {
+                    var spec1Dto = await api.GetPgbSpec1Async(article, CancellationToken.None);
+                    var spec2Dto = await api.GetPgbSpec2Async(article, CancellationToken.None);
+
+                    var spec1 = new List<object?>()
+                    {
+                        new { Template = "PGB-Spec1", XRow = "PGB-Polish",      ColumnId = spec1Dto.Polish },
+                        new { Template = "PGB-Spec1", XRow = "PGB-PS",          ColumnId = spec1Dto.PS },
+                        new { Template = "PGB-Spec1", XRow = "PGB-Remarks",     ColumnId = spec1Dto.Remarks },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Engrave",     ColumnId = spec1Dto.Engrave },
+                        new { Template = "PGB-Spec1", XRow = "Wed-FL-Blank",    ColumnId = spec1Dto.FLBlank },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Dwg-Text1",   ColumnId = spec1Dto.DwgText1 },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Dwg-Text2",   ColumnId = spec1Dto.DwgText2 },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Dwg-Text3",   ColumnId = spec1Dto.DwgText3 },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Dwg-Text4",   ColumnId = spec1Dto.DwgText4 },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Dwg-Text5",   ColumnId = spec1Dto.DwgText5 },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Dwg-Text6",   ColumnId = spec1Dto.DwgText6 },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Dwg-Text7",   ColumnId = spec1Dto.DwgText7 },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Type",        ColumnId = spec1Dto.WedType },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Foot_Option", ColumnId = spec1Dto.WedFootOption },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Wire_Exit",   ColumnId = spec1Dto.WedWireExit },
+                        new { Template = "PGB-Spec1", XRow = "Wed-Feed_H/Slot", ColumnId = spec1Dto.WedFeedHSlot }
+                    }
+                    .Where(x => x?.GetType().GetProperty("ColumnId")?.GetValue(x) is not null)
+                    .ToList();
+
+                    var spec2 = spec2Dto
+                        .Select(r => new { Template = "PGB-Spec2", XRow = r.Key, ColumnId = r.Payload })
+                        .ToList();
+
+                    var all = spec1.Cast<object>().Concat(spec2).ToList();
+
+                    return Results.Ok(new
+                    {
+                        firma,
+                        article,
+                        subclass = subclassNorm,
+                        partSpec = "(via Java API)",
+                        spec1,
+                        spec2,
+                        all
+                    });
+                }
+                else
+                {
+                    var spec1Dto = await api.GetWedSpec1Async(article, CancellationToken.None);
+                    var spec2Dto = await api.GetWedSpec2Async(article, CancellationToken.None);
+                    var kvalueDto = await api.GetWedKValueAsync(article, CancellationToken.None);
+                    var markingDto = await api.GetWedMarkingAsync(article, CancellationToken.None);
+                    var description = await api.GetArticleDescriptionAsync(article, CancellationToken.None);
+
+                    var spec1 = new List<object?>()
+                    {
+                        new { Template = "Wed-Spec1", XRow = "Wed-Polish",      ColumnId = spec1Dto.WedPolish },
+                        new { Template = "Wed-Spec1", XRow = "Wed-PS",          ColumnId = spec1Dto.WedPS },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Notes",       ColumnId = spec1Dto.WedNotes },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Overlay",     ColumnId = spec1Dto.WedOverlay },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Engrave",     ColumnId = spec1Dto.WedEngrave },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Coining",     ColumnId = spec1Dto.WedCoining },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Type",        ColumnId = spec1Dto.WedType },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Foot_Option", ColumnId = spec1Dto.WedFootOption },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Wire_Exit",   ColumnId = spec1Dto.WedWireExit },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Feed_H/Slot", ColumnId = spec1Dto.WedFeedHSlot },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text1",   ColumnId = spec1Dto.DwgText1 },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text2",   ColumnId = spec1Dto.DwgText2 },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text3",   ColumnId = spec1Dto.DwgText3 },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text4",   ColumnId = spec1Dto.DwgText4 },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text5",   ColumnId = spec1Dto.DwgText5 },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text6",   ColumnId = spec1Dto.DwgText6 },
+                        new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text7",   ColumnId = spec1Dto.DwgText7 },
+                        new { Template = "Article",   XRow = "Description",     ColumnId = description }
+                    }
+                    .Where(x => x?.GetType().GetProperty("ColumnId")?.GetValue(x) is not null)
+                    .ToList();
+
+                    var spec2 = spec2Dto
+                        .Select(r => new { Template = "Wed-Spec2", XRow = r.Key, ColumnId = r.Payload })
+                        .ToList();
+
+                    var kvaluePayload = TryGetWedKValuePayload(kvalueDto);
+                    if (!string.IsNullOrWhiteSpace(kvaluePayload))
+                    {
+                        spec2.Add(new { Template = "Wed-Spec2", XRow = "Wed_K-Value", ColumnId = kvaluePayload });
+                    }
+
+                    var marking = markingDto
+                        .Select(r => new { Template = "Wed-Marking", XRow = r.XRow, ColumnId = r.Text })
+                        .ToList();
+
+                    var all = spec1.Cast<object>().Concat(spec2).Concat(marking).ToList();
+
+                    return Results.Ok(new
+                    {
+                        firma,
+                        article,
+                        subclass = subclassNorm,
+                        partSpec = "(via Java API)",
+                        spec1,
+                        spec2,
+                        marking,
+                        all
+                    });
+                }
+            }
+
+            var repo = sp.GetService<ProAlphaRepository>();
+            if (repo is null)
+            {
+                return Results.BadRequest(new
+                {
+                    error = "ProAlphaRepository is not registered."
+                });
+            }
+
             var partSpec = await repo.GetPartSpecAsync(firma, article, CancellationToken.None);
             if (string.IsNullOrWhiteSpace(partSpec))
                 return Results.NotFound(new { error = "PartSpec not found for article", firma, article });
 
-            var spec1Rows = await repo.GetRowsAsync(firma, partSpec, "Wed-Spec1", CancellationToken.None);
-            var spec2Rows = await repo.GetRowsAsync(firma, partSpec, "Wed-Spec2", CancellationToken.None);
-
-            var spec1 = spec1Rows
-                .Select(r => new { Template = "Wed-Spec1", XRow = r.XRow, ColumnId = r.Payload })
-                .ToList();
-
-            var spec2 = spec2Rows
-                .Select(r => new { Template = "Wed-Spec2", XRow = r.XRow, ColumnId = r.Payload })
-                .ToList();
-
-            var all = spec1.Concat(spec2).ToList();
-
-            return Results.Ok(new
+            if (subclassNorm == "PGB")
             {
-                firma,
-                article,
-                subclass = (subclass ?? "FG").ToUpperInvariant(),
-                partSpec,
-                spec1,
-                spec2,
-                all
-            });
+                var spec1Rows = await repo.GetRowsAsync(firma, partSpec, "PGB-Spec1", CancellationToken.None);
+                var spec2Rows = await repo.GetRowsAsync(firma, partSpec, "PGB-Spec2", CancellationToken.None);
+
+                var spec1 = spec1Rows
+                    .Select(r => new { Template = "PGB-Spec1", XRow = r.XRow, ColumnId = r.Payload })
+                    .ToList();
+
+                var spec2 = spec2Rows
+                    .Select(r => new { Template = "PGB-Spec2", XRow = r.XRow, ColumnId = r.Payload })
+                    .ToList();
+
+                var all = spec1.Concat(spec2).ToList();
+
+                return Results.Ok(new
+                {
+                    firma,
+                    article,
+                    subclass = subclassNorm,
+                    partSpec,
+                    spec1,
+                    spec2,
+                    all
+                });
+            }
+            else
+            {
+                var spec1Rows = await repo.GetRowsAsync(firma, partSpec, "Wed-Spec1", CancellationToken.None);
+                var spec2Rows = await repo.GetRowsAsync(firma, partSpec, "Wed-Spec2", CancellationToken.None);
+
+                var spec1 = spec1Rows
+                    .Select(r => new { Template = "Wed-Spec1", XRow = r.XRow, ColumnId = r.Payload })
+                    .ToList();
+
+                var spec2 = spec2Rows
+                    .Select(r => new { Template = "Wed-Spec2", XRow = r.XRow, ColumnId = r.Payload })
+                    .ToList();
+
+                var all = spec1.Concat(spec2).ToList();
+
+                return Results.Ok(new
+                {
+                    firma,
+                    article,
+                    subclass = subclassNorm,
+                    partSpec,
+                    spec1,
+                    spec2,
+                    all
+                });
+            }
         });
 
         await app.RunAsync();
@@ -509,7 +696,6 @@ public static class ApiHost
 
     private static List<string> NormalizeDrawingTypes(RunRequest body)
     {
-        // 1) New style
         if (body.DrawingTypes is { Count: > 0 })
             return body.DrawingTypes
                 .Where(s => !string.IsNullOrWhiteSpace(s))
@@ -517,7 +703,6 @@ public static class ApiHost
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-        // 2) Legacy style: Options["drawingTypes"]="Production,Customer,Overlay"
         if (body.Options is not null &&
             body.Options.TryGetValue("drawingTypes", out var csv) &&
             !string.IsNullOrWhiteSpace(csv))
@@ -529,8 +714,39 @@ public static class ApiHost
                 .ToList();
         }
 
-        // 3) Fallback
         var single = string.IsNullOrWhiteSpace(body.DrawingType) ? "Production" : body.DrawingType!;
         return new List<string> { single.Trim() };
+    }
+
+    private static string? TryGetWedKValuePayload(object? dto)
+    {
+        if (dto is null) return null;
+
+        try
+        {
+            var t = dto.GetType();
+
+            foreach (var name in new[] { "Raw", "Value", "Payload", "KValue", "Text" })
+            {
+                var p = t.GetProperty(name);
+                if (p?.GetValue(dto) is string s && !string.IsNullOrWhiteSpace(s))
+                    return s;
+            }
+
+            var props = t.GetProperties()
+                .Where(p => p.PropertyType == typeof(string))
+                .ToArray();
+
+            if (props.Length == 1)
+            {
+                if (props[0].GetValue(dto) is string s && !string.IsNullOrWhiteSpace(s))
+                    return s;
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
     }
 }

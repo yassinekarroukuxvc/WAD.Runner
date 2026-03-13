@@ -44,19 +44,29 @@ public sealed class JavaWedgeDataSource : IWedgeDataSource
                     var spec2 = await _api.GetWedSpec2Async(articleNumber, ct);
                     var kvalue = await _api.GetWedKValueAsync(articleNumber, ct);
                     var marking = await _api.GetWedMarkingAsync(articleNumber, ct);
+                    var description = await _api.GetArticleDescriptionAsync(articleNumber, ct);
 
                     if (spec2 is null || spec2.Count == 0)
                         throw new InvalidOperationException($"No Wed-Spec2 rows returned for article {articleNumber}.");
 
-                    // NOTE:
-                    // The client mappings (Wed-Engrave, Wed-Dwg-Text1..7, Wed-Coining) are handled in the
-                    // DataManagement mapping layer (WedgeDataAssembler) PROVIDED the transport returns them
-                    // as part of Wed-Spec1.
-                    //
-                    // If the Java API already returns those fields in spec1, no extra work is needed here.
-                    // If not, the transport DTO must be extended to include them.
-
                     var wd = WedgeDataAssembler.BuildForWed(spec1, spec2, kvalue, marking);
+
+                    if (!string.IsNullOrWhiteSpace(description))
+                    {
+                        var props = new Dictionary<string, string?>(wd.Properties, StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["article_description"] = description
+                        };
+
+                        wd = new WedgeData(
+                            wd.ArticleNumber,
+                            wd.Subclass,
+                            wd.Dimensions,
+                            wd.KValue,
+                            wd.Marking,
+                            props);
+                    }
+
                     _log?.LogInformation("Loaded FG wedge data: {Article} with {DimCount} dims", wd.ArticleNumber, wd.Dimensions.Count);
                     return wd;
                 }
@@ -66,20 +76,32 @@ public sealed class JavaWedgeDataSource : IWedgeDataSource
                 {
                     var spec1 = await _api.GetPgbSpec1Async(articleNumber, ct);
                     var spec2 = await _api.GetPgbSpec2Async(articleNumber, ct);
+                    var description = await _api.GetArticleDescriptionAsync(articleNumber, ct);
 
                     if (spec2 is null || spec2.Count == 0)
                         throw new InvalidOperationException($"No PGB-Spec2 rows returned for article {articleNumber}.");
 
-                    // NOTE:
-                    // The client mappings (Wed-Engrave, Wed-Dwg-Text1..7, Wed-FL-Blank) should be returned
-                    // by the Java API as part of PGB-Spec1. As long as the transport DTO is updated to
-                    // include these fields, WedgeDataAssembler will normalize them into WedgeData.Properties.
-
                     var wd = WedgeDataAssembler.BuildForPgb(spec1, spec2);
+
+                    if (!string.IsNullOrWhiteSpace(description))
+                    {
+                        var props = new Dictionary<string, string?>(wd.Properties, StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["article_description"] = description
+                        };
+
+                        wd = new WedgeData(
+                            wd.ArticleNumber,
+                            wd.Subclass,
+                            wd.Dimensions,
+                            wd.KValue,
+                            wd.Marking,
+                            props);
+                    }
+
                     _log?.LogInformation("Loaded PGB wedge data: {Article} with {DimCount} dims", wd.ArticleNumber, wd.Dimensions.Count);
                     return wd;
                 }
-
             default:
                 throw new NotSupportedException($"Subclass '{subclass}' is not supported.");
         }

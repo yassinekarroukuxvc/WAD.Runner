@@ -64,6 +64,8 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
         [JsonPropertyName("rows")] public List<SpecRowDto> Rows { get; set; } = new();
     }
 
+
+
     // ==============================
     // IJavaWedgeTransport (NEW surface)
     // ==============================
@@ -246,6 +248,16 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
                 XRow: r.XRow ?? string.Empty,
                 Text: string.IsNullOrWhiteSpace(r.ColumnId) ? null : r.ColumnId))
             .ToList();
+    }
+    public async Task<string?> GetArticleDescriptionAsync(string article, CancellationToken ct)
+    {
+        var url = $"api/dbprobe/artdesc?firma={_firma}&article={Uri.EscapeDataString(article)}&language={Uri.EscapeDataString(_language)}";
+        using var resp = await _http.GetAsync(url, ct);
+        await EnsureSuccessWithBodyHint(resp, url, ct);
+
+        await using var s = await resp.Content.ReadAsStreamAsync(ct);
+        var dto = await JsonSerializer.DeserializeAsync<ArtDescResp>(s, JsonOpts, ct);
+        return dto?.Description;
     }
 
     // ==============================

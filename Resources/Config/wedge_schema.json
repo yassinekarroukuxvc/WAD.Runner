@@ -1,0 +1,60 @@
+﻿{
+  "//": "Schema for transport→domain normalization and template requirements.",
+
+  "KeyPolicy": {
+    "NormalizePrefixes": [ "Wed-", "PGB-" ],
+    "AngleKeys": [ "BA", "FA", "ISA", "GA", "VRA" ],
+    "Aliases": {
+      // transport key (after prefix strip) → domain key
+      // use only when a transport key name is awkward or must be merged
+      "cleaned_VR": "VR",
+      "W": "VW" // example only if DB sometimes uses 'W' for 'VW'
+    }
+  },
+
+  "SubclassTemplates": {
+    "FG": {
+      "Required": [
+        "Wed-Spec2",
+        "Wed-Spec1"
+      ],
+      "Optional": [
+        "Wed-Marking",
+        "Wed_Marking",
+        "Wed_K-Value"
+      ]
+    },
+    "PGB": {
+      "Required": [
+        "PGB-Spec2",
+        "PGB-Spec1"
+      ],
+      "Optional": []
+    }
+  },
+
+  "Properties": {
+    // FG (Wed-Spec1)
+    "Wed-Polish": { "Canonical": "Polish" },
+    "Wed-PS": { "Canonical": "PS" },
+    "Wed-Notes": { "Canonical": "Notes" },
+    "Wed-Overlay": { "Canonical": "Overlay" },
+
+    // PGB (PGB-Spec1)
+    "PGB-Polish": { "Canonical": "Polish" },
+    "PGB-PS": { "Canonical": "PS" },
+    "PGB-Remarks": { "Canonical": "Remarks" }
+  },
+
+  "Marking": {
+    "TemplateNames": [ "Wed-Marking", "Wed_Marking" ],
+    "OverlayKey": "Marking-Overlay",
+    "TextKey": "Marking-Text",
+    "TBKeys": [ "Marking-TB-1", "Marking-TB-2", "Marking-TB-3", "Marking-TB-4", "Marking-TB-5", "Marking-TB-6", "Marking-TB-7" ]
+  },
+
+  "KValue": {
+    "TemplateName": "Wed_K-Value",
+    "PayloadShape": "k_mm;comment;;;;;;"
+  }
+}
