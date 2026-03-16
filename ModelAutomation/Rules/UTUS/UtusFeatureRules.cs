@@ -34,10 +34,16 @@ namespace WAD.Runner.ModelAutomation.Rules
     /// - FG Overlay uses FG_LEFT_overlay_sketch.
     /// - Both FG and PGB Overlay use the same front overlay sketches:
     ///   PGB_STD_FRONT_overlay_sketch / PGB_180_DEG_REV_FRONT_overlay_sketch.
+    /// - If VR > 0 in overlay, always suppress the LEFT overlay sketch
+    ///   (FG_LEFT_overlay_sketch / PGB_LEFT_overlay_sketch).
     ///
     /// Non-overlay rule:
     /// - If drawingType is NOT Overlay: force suppress "cut_feature" and "cut_plan_feature"
     ///   (and remove them from unsuppress if they were added).
+    ///
+    /// Additional UTUS rule:
+    /// - When shank type is STD, force suppress H_180_DEG_REV_feature
+    ///   (and related sketch variants) to prevent leakage.
     /// </summary>
     public sealed class UtusFeatureRules : IFeatureRuleSet
     {
@@ -66,11 +72,14 @@ namespace WAD.Runner.ModelAutomation.Rules
                 if (drawingType == DrawingType.Overlay)
                 {
                     Logger.Info("[UtusFeatureRules] Subclass=PGB + Overlay → applying overlay template feature toggles.");
-                    BuildOverlayPlan(shank, suppress, unsuppress, "PGB_LEFT_overlay_sketch");
+                    BuildOverlayPlan(wedge, shank, suppress, unsuppress, "PGB_LEFT_overlay_sketch");
                 }
 
                 // UTUS special rule: ROUND_BR always suppressed for both shanks
                 ForceSuppressRoundBrAllShanks(suppress, unsuppress);
+
+                // UTUS special rule: when STD, force suppress H_180_DEG_REV_feature
+                ForceSuppressH180DegRevWhenStd(shank, suppress, unsuppress);
 
                 // If NOT overlay → force suppress cut features
                 EnforceCutFeaturesByDrawingType(drawingType, suppress, unsuppress);
@@ -109,7 +118,7 @@ namespace WAD.Runner.ModelAutomation.Rules
             if (drawingType == DrawingType.Overlay)
             {
                 Logger.Info("[UtusFeatureRules] Subclass=FG + Overlay → applying FG overlay template feature toggles.");
-                BuildOverlayPlan(shank, fgSuppress, fgUnsuppress, "FG_LEFT_overlay_sketch");
+                BuildOverlayPlan(wedge, shank, fgSuppress, fgUnsuppress, "FG_LEFT_overlay_sketch");
             }
 
             Logger.Info($"[UtusFeatureRules] Parsed → Subclass=FG, Shank={shank}, Foot={foot}");
@@ -118,6 +127,9 @@ namespace WAD.Runner.ModelAutomation.Rules
 
             // UTUS special rule: ROUND_BR always suppressed for both shanks
             ForceSuppressRoundBrAllShanks(fgSuppress, fgUnsuppress);
+
+            // UTUS special rule: when STD, force suppress H_180_DEG_REV_feature
+            ForceSuppressH180DegRevWhenStd(shank, fgSuppress, fgUnsuppress);
 
             // If NOT overlay → force suppress cut features
             EnforceCutFeaturesByDrawingType(drawingType, fgSuppress, fgUnsuppress);
@@ -155,7 +167,7 @@ namespace WAD.Runner.ModelAutomation.Rules
         }
 
         // --------------------------------------------
-        // UTUS special rule
+        // UTUS special rules
         // --------------------------------------------
         private static void ForceSuppressRoundBrAllShanks(
             HashSet<string> suppress,
@@ -171,6 +183,27 @@ namespace WAD.Runner.ModelAutomation.Rules
                 nm.StartsWith("ROUND_BR_", StringComparison.OrdinalIgnoreCase));
 
             Logger.Info("[UtusFeatureRules] Special rule applied: ROUND_BR forced suppressed for STD and 180_DEG_REV.");
+        }
+
+        private static void ForceSuppressH180DegRevWhenStd(
+            UtusShankType shank,
+            HashSet<string> suppress,
+            HashSet<string> unsuppress)
+        {
+            if (shank != UtusShankType.Std)
+                return;
+
+            suppress.Add("H_180_DEG_REV_feature");
+            suppress.Add("H_180_DEG_REV_sketch");
+            suppress.Add("H_180_DEG_REV_Sketch");
+            suppress.Add("H_180_DEG_REV_SKETCH");
+
+            unsuppress.Remove("H_180_DEG_REV_feature");
+            unsuppress.Remove("H_180_DEG_REV_sketch");
+            unsuppress.Remove("H_180_DEG_REV_Sketch");
+            unsuppress.Remove("H_180_DEG_REV_SKETCH");
+
+            Logger.Info("[UtusFeatureRules] Special rule applied: STD shank → force suppress H_180_DEG_REV_feature and related sketch variants.");
         }
 
         // --------------------------------------------
@@ -219,6 +252,7 @@ namespace WAD.Runner.ModelAutomation.Rules
         // Shared overlay plan for PGB + FG
         // --------------------------------------------
         private static void BuildOverlayPlan(
+            WedgeData wedge,
             UtusShankType shank,
             HashSet<string> suppress,
             HashSet<string> unsuppress,
@@ -232,8 +266,24 @@ namespace WAD.Runner.ModelAutomation.Rules
             unsuppress.Add("cut_plan_feature");
             unsuppress.Add("cut_feature");
 
+            bool hasVr = IsDimPositive(wedge, "VR");
+
+            // New rule:
+            // If VR > 0 in overlay, always suppress LEFT overlay sketch.
             if (!string.IsNullOrWhiteSpace(leftOverlaySketch))
-                unsuppress.Add(leftOverlaySketch);
+            {
+                if (hasVr)
+                {
+                    suppress.Add(leftOverlaySketch);
+                    unsuppress.Remove(leftOverlaySketch);
+
+                    Logger.Info($"[UtusFeatureRules] Overlay rule: VR > 0 → force suppress LEFT overlay sketch '{leftOverlaySketch}'.");
+                }
+                else
+                {
+                    unsuppress.Add(leftOverlaySketch);
+                }
+            }
 
             // Same real names for both FG and PGB templates
             const string StdFront = "PGB_STD_FRONT_overlay_sketch";

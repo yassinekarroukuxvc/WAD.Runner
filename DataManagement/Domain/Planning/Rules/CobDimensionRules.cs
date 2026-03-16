@@ -222,10 +222,22 @@ internal static class CobDimensionRules
         PlaceDim(ctx, diag, outList, "FR_C", Section, DimAxis.Horizontal,
             171, 152);
 
+        PlaceDim(ctx, diag, outList, "FR_VG", Section, DimAxis.Horizontal,
+            171, 152);
+
+        PlaceDim(ctx, diag, outList, "FR_CG", Section, DimAxis.Horizontal,
+            171, 152);
+
         PlaceDim(ctx, diag, outList, "FR_G", Section, DimAxis.Horizontal,
             171,152);
 
         PlaceDim(ctx, diag, outList, "BR_C", Section, DimAxis.Horizontal,
+            195, 152);
+
+        PlaceDim(ctx, diag, outList, "BR_VG", Section, DimAxis.Horizontal,
+            195, 152);
+
+        PlaceDim(ctx, diag, outList, "BR_CG", Section, DimAxis.Horizontal,
             195, 152);
 
         PlaceDim(ctx, diag, outList, "BR_G", Section, DimAxis.Horizontal,

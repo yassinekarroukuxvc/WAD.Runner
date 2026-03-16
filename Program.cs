@@ -54,6 +54,7 @@ using WAD.Runner.Api;
 using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.SolidWorks;
 using WAD.Runner.ModelAutomation.Common;
+using Microsoft.Data.Sqlite;
 
 Logger.Info("[Boot] Building host…");
 
@@ -87,7 +88,7 @@ var host = Host.CreateDefaultBuilder(args)
             var firma = ctx.Configuration.GetValue<int?>("ProAlpha:Firma") ?? 200;
             var language = ctx.Configuration.GetValue<string>("ProAlpha:Language", "E");
 
-            services.AddHttpClient<IJavaWedgeTransport, JavaLegacyWedgeTransport>(http =>
+            services.AddHttpClient("JavaLegacyWedgeTransport", http =>
             {
                 http.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
                 http.Timeout = TimeSpan.FromSeconds(timeoutSec);
@@ -96,11 +97,15 @@ var host = Host.CreateDefaultBuilder(args)
                     http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
 
                 if (!string.IsNullOrWhiteSpace(apiKey))
-                {
                     http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
-                }
-            })
-            .AddTypedClient((http, sp) => new JavaLegacyWedgeTransport(http, firma, language));
+            });
+
+            services.AddSingleton<IJavaWedgeTransport>(sp =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                var http = factory.CreateClient("JavaLegacyWedgeTransport");
+                return new JavaLegacyWedgeTransport(http, firma, language);
+            });
 
             services.AddSingleton<IWedgeDataSource, JavaWedgeDataSource>();
         }
@@ -108,8 +113,12 @@ var host = Host.CreateDefaultBuilder(args)
         {
             Logger.Info("[Boot] IWedgeDataSource = SQLite");
 
-            var cs = ctx.Configuration.GetConnectionString("ProAlphaSqlite")
-                     ?? throw new InvalidOperationException("Missing ConnectionStrings:ProAlphaSqlite");
+            var rawCs = ctx.Configuration.GetConnectionString("ProAlphaSqlite")
+           ?? throw new InvalidOperationException("Missing ConnectionStrings:ProAlphaSqlite");
+
+            var cs = ResolveSqliteConnectionString(rawCs, ctx.HostingEnvironment.ContentRootPath);
+
+            Logger.Info($"[Boot] SQLite DB path = '{new SqliteConnectionStringBuilder(cs).DataSource}'");
 
             services.AddSingleton(new ProAlphaRepository(cs));
 
@@ -165,7 +174,12 @@ var jsonOpts = new JsonSerializerOptions { WriteIndented = true };
 jsonOpts.Converters.Add(new DimensionKeyJsonConverter());
 
 var cmd = args.FirstOrDefault()?.ToLowerInvariant();
-Logger.Info($"[CLI] Command = '{cmd ?? "(none)"}'");
+
+// Default behavior: dotnet run => serve-api
+if (string.IsNullOrWhiteSpace(cmd))
+    cmd = "serve-api";
+
+Logger.Info($"[CLI] Command = '{cmd}'");
 
 switch (cmd)
 {
@@ -746,6 +760,9 @@ static void PrintHelp()
     Console.WriteLine("""
 WAD.Runner CLI
 
+Default:
+  dotnet run     Starts the minimal API host
+
 Data:
   get-wedge      --article <num> --subclass <FG|PGB>
   get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> [--wtype CKVD|COB|UTUS|OSG7]
@@ -769,6 +786,7 @@ API:
   serve-api      Starts the minimal API host
 
 Examples:
+  dotnet run
   dotnet run -- get-wedge --article 3118724 --subclass FG
   dotnet run -- run-drawing --article 3118724 --subclass FG --dtype Production --wtype OSG7
 """);
@@ -806,4 +824,16 @@ static WedgeType ParseWedgeTypeEnum(string[] a)
         "OSG7" => WedgeType.OSG7,
         _ => WedgeType.CKVD
     };
+}
+static string ResolveSqliteConnectionString(string rawConnectionString, string contentRootPath)
+{
+    var builder = new SqliteConnectionStringBuilder(rawConnectionString);
+
+    if (string.IsNullOrWhiteSpace(builder.DataSource))
+        throw new InvalidOperationException("ConnectionStrings:ProAlphaSqlite has no Data Source.");
+
+    if (!Path.IsPathRooted(builder.DataSource))
+        builder.DataSource = Path.GetFullPath(Path.Combine(contentRootPath, builder.DataSource));
+
+    return builder.ToString();
 }

@@ -219,10 +219,22 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "FR_G", Section, DimAxis.Horizontal,
             171, 152);
 
+        PlaceDim(ctx, diag, outList, "FR_VG", Section, DimAxis.Horizontal,
+            171, 152);
+
+        PlaceDim(ctx, diag, outList, "FR_CG", Section, DimAxis.Horizontal,
+            171, 152);
+
         PlaceDim(ctx, diag, outList, "BR_C", Section, DimAxis.Horizontal,
             195, 152);
 
         PlaceDim(ctx, diag, outList, "BR_G", Section, DimAxis.Horizontal,
+            195, 152);
+
+        PlaceDim(ctx, diag, outList, "BR_VG", Section, DimAxis.Horizontal,
+            195, 152);
+
+        PlaceDim(ctx, diag, outList, "BR_CG", Section, DimAxis.Horizontal,
             195, 152);
 
         PlaceDim(ctx, diag, outList, "FRO", Section, DimAxis.Horizontal,
@@ -254,6 +266,8 @@ internal static class UtusDimensionRules
 
         PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
             233, 165);
+        PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,
+            253, 175);
     }
 
     // ============================================================

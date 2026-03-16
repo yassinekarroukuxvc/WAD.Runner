@@ -54,47 +54,50 @@
 		</Reference>
 	</ItemGroup>
 
+	<!-- Explicitly publish appsettings -->
+	<ItemGroup>
+		<Content Include="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>Always</CopyToPublishDirectory>
+		</Content>
+
+		<Content Include="appsettings.Development.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>Always</CopyToPublishDirectory>
+		</Content>
+	</ItemGroup>
+
 	<!-- Runtime resources -->
 	<ItemGroup>
-		<None Include="Resources\Macros\**\*.*">
+		<Content Include="Resources\Macros\**\*.*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</None>
+		</Content>
 
-		<None Include="Resources\Database\**\*.*">
+		<Content Include="Resources\Database\**\*.*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</None>
+		</Content>
 
-		<None Include="Resources\Solidworks\**\*.*">
+		<Content Include="Resources\Solidworks\**\*.*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</None>
+		</Content>
 
-		<None Include="Resources\Out\**\*.*">
+		<Content Include="Resources\Out\**\*.*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</None>
+		</Content>
 
-		<None Include="Resources\Templates\**\*.*">
+		<Content Include="Resources\Templates\**\*.*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</None>
+		</Content>
 
-		<None Update="appsettings.json">
+		<Content Include="Resources\Config\**\*.*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</None>
-
-		<None Update="appsettings.Development.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</None>
-
-		<None Include="Resources\Config\**\*.*">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</None>
+		</Content>
 	</ItemGroup>
 
 </Project>
