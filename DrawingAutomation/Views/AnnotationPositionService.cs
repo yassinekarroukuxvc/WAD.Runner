@@ -2,7 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+
 using SolidWorks.Interop.sldworks;
+using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;                          // Logger
 using WAD.Runner.DataManagement.Domain.Drawing;       // DrawingData
@@ -13,7 +15,6 @@ using WAD.Runner.DrawingAutomation.SolidWorks;        // DrawingService
 
 // Resolve SolidWorks vs Domain type name clash:
 using SwDimension = SolidWorks.Interop.sldworks.Dimension;
-using SolidWorks.Interop.swconst;
 
 namespace WAD.Runner.DrawingAutomation.Views
 {
@@ -22,6 +23,12 @@ namespace WAD.Runner.DrawingAutomation.Views
     /// - Plan positions are sheet millimeters; API uses meters.
     /// - Moves the note box via Annotation.SetPosition2.
     /// - Matching: exact token (before '@') → relaxed name → numeric; pick nearest when multiple.
+    ///
+    /// PERFORMANCE NOTES:
+    /// - Enumerate each view only once.
+    /// - Cache parsed dimension metadata per view.
+    /// - Avoid repeated COM calls during matching.
+    /// - Rebuild once at the end.
     /// </summary>
     public sealed class AnnotationPositioner
     {
@@ -50,25 +57,42 @@ namespace WAD.Runner.DrawingAutomation.Views
                 return;
             }
 
-            var byView = planned.GroupBy(p => p.View, StringComparer.OrdinalIgnoreCase);
+            var grouped = planned
+                .Where(p => p != null && p.PositionMm != null && p.PositionMm.Length >= 2)
+                .GroupBy(p => p.View, StringComparer.OrdinalIgnoreCase);
 
-            int applied = 0, missed = 0;
+            int applied = 0;
+            int missed = 0;
 
-            foreach (var grp in byView)
+            foreach (var grp in grouped)
             {
                 var view = FindView(dd, grp.Key);
                 if (view == null)
                 {
+                    int missCount = 0;
                     foreach (var p in grp)
+                    {
                         Logger.Warn($"[DimPos] View '{grp.Key}' not found (id='{p.Id}', key='{p.Key.Value}').");
-                    missed += grp.Count();
+                        missCount++;
+                    }
+
+                    missed += missCount;
                     continue;
                 }
 
-                // enumerate once per view
-                var dimsInView = EnumerateDisplayDimensionsFromAnnotations(view);
+                var dimsInView = ReadDisplayDimensionInfos(view);
                 if (dimsInView.Count == 0)
-                    dimsInView = EnumerateDisplayDimensionsLegacy(view);
+                {
+                    int missCount = 0;
+                    foreach (var p in grp)
+                    {
+                        Logger.Warn($"[DimPos] No display dimensions found in view '{grp.Key}' (id='{p.Id}', key='{p.Key.Value}').");
+                        missCount++;
+                    }
+
+                    missed += missCount;
+                    continue;
+                }
 
                 foreach (var p in grp)
                 {
@@ -76,13 +100,13 @@ namespace WAD.Runner.DrawingAutomation.Views
                     if (target == null)
                     {
                         Logger.Warn($"[DimPos] No match in view '{grp.Key}' for key='{p.Key.Value}' (id='{p.Id}').");
-                        if (DebugDumpOnMiss) DumpViewDimensions(grp.Key, dimsInView);
+                        if (DebugDumpOnMiss)
+                            DumpViewDimensions(grp.Key, dimsInView);
                         missed++;
                         continue;
                     }
 
-                    var ann = target.GetAnnotation() as Annotation;
-                    if (ann == null)
+                    if (target.Annotation == null)
                     {
                         Logger.Warn($"[DimPos] DisplayDimension has no Annotation (view='{grp.Key}', key='{p.Key.Value}').");
                         missed++;
@@ -95,17 +119,14 @@ namespace WAD.Runner.DrawingAutomation.Views
                     try
                     {
                         // Move twice to counter post-solve nudge
-                        ann.SetPosition2(x_m, y_m, 0.0);
-                        ann.SetPosition2(x_m, y_m, 0.0);
+                        target.Annotation.SetPosition2(x_m, y_m, 0.0);
+                        target.Annotation.SetPosition2(x_m, y_m, 0.0);
 
-                        // NEW: center all non-angle dimensions (CenterText = true)
+                        // Center all non-angle dimensions
                         try
                         {
-                            if (TryGetDimensionNumeric(target, out _, out var unit) &&
-                                unit != UnitKind.Degree)
-                            {
-                                target.CenterText = true;
-                            }
+                            if (target.HasNumericValue && target.Unit != UnitKind.Degree)
+                                target.DisplayDimension.CenterText = true;
                         }
                         catch (Exception exCenter)
                         {
@@ -123,7 +144,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                 }
             }
 
-            try { _ds.Rebuild(); } catch { /* best effort */ }
+            try { _ds.Rebuild(redraw: false); } catch { }
 
             Logger.Success($"[DimPos] Applied={applied}, Missed={missed}.");
         }
@@ -133,10 +154,10 @@ namespace WAD.Runner.DrawingAutomation.Views
         public sealed class Plan
         {
             public string Id { get; init; } = Guid.NewGuid().ToString("N");
-            public string View { get; init; } = "Front";           // "Front","Side","Detail","Section"
+            public string View { get; init; } = "Front";
             public DimensionKey Key { get; init; } = DimensionKey.From("TL");
             public double[] PositionMm { get; init; } = new[] { 0.0, 0.0 };
-            public Quantity Nominal { get; init; } = Quantity.MmOf(0m); // Unit-aware nominal
+            public Quantity Nominal { get; init; } = Quantity.MmOf(0m);
 
             public static Plan From(dynamic d) => new()
             {
@@ -148,6 +169,22 @@ namespace WAD.Runner.DrawingAutomation.Views
             };
         }
 
+        // --------------------------- Cached view dimension info ---------------------------
+
+        private sealed class DisplayDimensionInfo
+        {
+            public required DisplayDimension DisplayDimension { get; init; }
+            public Annotation? Annotation { get; init; }
+            public string Token { get; init; } = string.Empty;
+            public string FullName { get; init; } = string.Empty;
+            public double PositionXmm { get; init; }
+            public double PositionYmm { get; init; }
+            public bool HasPosition { get; init; }
+            public bool HasNumericValue { get; init; }
+            public double NumericValue { get; init; }
+            public UnitKind Unit { get; init; } = UnitKind.Millimeter;
+        }
+
         // --------------------------- Finders ---------------------------
 
         private View? FindView(DrawingDoc dd, string logicalViewName)
@@ -155,7 +192,8 @@ namespace WAD.Runner.DrawingAutomation.Views
             try
             {
                 var actual = _nameMap.TryGetValue(logicalViewName, out var mapped) && !string.IsNullOrWhiteSpace(mapped)
-                    ? mapped : logicalViewName;
+                    ? mapped
+                    : logicalViewName;
 
                 var v = dd.IGetFirstView();
                 if (v == null) return null;
@@ -169,6 +207,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                     if (!string.IsNullOrWhiteSpace(vn) &&
                         string.Equals(vn, actual, StringComparison.OrdinalIgnoreCase))
                         return v;
+
                     v = v.IGetNextView();
                 }
             }
@@ -176,7 +215,94 @@ namespace WAD.Runner.DrawingAutomation.Views
             {
                 Logger.Warn($"[DimPos] FindView('{logicalViewName}') failed: {ex.Message}");
             }
+
             return null;
+        }
+
+        private static IReadOnlyList<DisplayDimensionInfo> ReadDisplayDimensionInfos(View v)
+        {
+            var dims = EnumerateDisplayDimensionsFromAnnotations(v);
+            if (dims.Count == 0)
+                dims = EnumerateDisplayDimensionsLegacy(v);
+
+            if (dims.Count == 0)
+                return Array.Empty<DisplayDimensionInfo>();
+
+            var result = new List<DisplayDimensionInfo>(dims.Count);
+
+            for (int i = 0; i < dims.Count; i++)
+            {
+                var dd = dims[i];
+                if (dd == null) continue;
+
+                string token = string.Empty;
+                string fullName = string.Empty;
+                bool hasNumeric = false;
+                double numericValue = 0.0;
+                UnitKind unit = UnitKind.Millimeter;
+                Annotation? ann = null;
+                bool hasPos = false;
+                double posXmm = 0.0;
+                double posYmm = 0.0;
+
+                try
+                {
+                    var swDim = dd.GetDimension() as SwDimension;
+                    if (swDim != null)
+                    {
+                        fullName = swDim.FullName ?? swDim.Name ?? string.Empty;
+                        token = ExtractToken(fullName);
+
+                        if (TryGetDimensionNumeric(swDim, out var val, out var uk))
+                        {
+                            hasNumeric = true;
+                            numericValue = val;
+                            unit = uk;
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore
+                }
+
+                try
+                {
+                    ann = dd.GetAnnotation() as Annotation;
+                    if (ann != null)
+                    {
+                        var raw = ann.GetPosition() as object[];
+                        if (raw != null && raw.Length >= 2 &&
+                            raw[0] is double dx &&
+                            raw[1] is double dy)
+                        {
+                            posXmm = dx * 1000.0;
+                            posYmm = dy * 1000.0;
+                            hasPos = true;
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore
+                }
+
+                result.Add(new DisplayDimensionInfo
+                {
+                    DisplayDimension = dd,
+                    Annotation = ann,
+                    Token = token,
+                    FullName = fullName,
+                    PositionXmm = posXmm,
+                    PositionYmm = posYmm,
+                    HasPosition = hasPos,
+                    HasNumericValue = hasNumeric,
+                    NumericValue = numericValue,
+                    Unit = unit
+                });
+            }
+
+            return result;
         }
 
         /// <summary>Preferred enumeration via annotations.</summary>
@@ -193,13 +319,17 @@ namespace WAD.Runner.DrawingAutomation.Views
                     foreach (var o in arr)
                     {
                         if (o is not Annotation a) continue;
+
                         var spec = a.GetSpecificAnnotation();
                         if (spec is DisplayDimension dd)
                             list.Add(dd);
                     }
                 }
             }
-            catch { /* best-effort */ }
+            catch
+            {
+                // best effort
+            }
 
             return list;
         }
@@ -216,135 +346,134 @@ namespace WAD.Runner.DrawingAutomation.Views
                 if (raw is object[] arr)
                 {
                     foreach (var o in arr)
-                        if (o is DisplayDimension dd) list.Add(dd);
+                    {
+                        if (o is DisplayDimension dd)
+                            list.Add(dd);
+                    }
                 }
             }
-            catch { /* best-effort */ }
+            catch
+            {
+                // best effort
+            }
 
             return list;
         }
 
         // --------------------------- Matching (token → nearest) ---------------------------
 
-        private static DisplayDimension? FindDisplayDimensionSmart(IReadOnlyList<DisplayDimension> inView, Plan p)
+        private static DisplayDimensionInfo? FindDisplayDimensionSmart(IReadOnlyList<DisplayDimensionInfo> inView, Plan p)
         {
-            if (inView == null || inView.Count == 0) return null;
+            if (inView == null || inView.Count == 0)
+                return null;
 
             // A) exact token before '@'
-            var exactMatches = new List<DisplayDimension>();
+            var exactMatches = new List<DisplayDimensionInfo>();
             for (int i = 0; i < inView.Count; i++)
             {
-                var token = GetDimToken(inView[i]);
-                if (token != null && token.Equals(p.Key.Value, StringComparison.OrdinalIgnoreCase))
-                    exactMatches.Add(inView[i]);
+                var info = inView[i];
+                if (!string.IsNullOrWhiteSpace(info.Token) &&
+                    info.Token.Equals(p.Key.Value, StringComparison.OrdinalIgnoreCase))
+                {
+                    exactMatches.Add(info);
+                }
             }
+
             if (exactMatches.Count == 1) return exactMatches[0];
             if (exactMatches.Count > 1) return PickNearest(exactMatches, p.PositionMm);
 
-            // B) relaxed name (prefix/contains)
-            var relaxed = new List<DisplayDimension>();
+            // B) relaxed full name
+            var relaxedMatches = new List<DisplayDimensionInfo>();
             for (int i = 0; i < inView.Count; i++)
             {
-                var full = GetDimFullName(inView[i]);
+                var full = inView[i].FullName;
                 if (string.IsNullOrWhiteSpace(full)) continue;
 
                 if (full.StartsWith(p.Key.Value, StringComparison.OrdinalIgnoreCase) ||
                     full.IndexOf(p.Key.Value, StringComparison.OrdinalIgnoreCase) >= 0)
-                    relaxed.Add(inView[i]);
+                {
+                    relaxedMatches.Add(inView[i]);
+                }
             }
-            if (relaxed.Count == 1) return relaxed[0];
-            if (relaxed.Count > 1) return PickNearest(relaxed, p.PositionMm);
+
+            if (relaxedMatches.Count == 1) return relaxedMatches[0];
+            if (relaxedMatches.Count > 1) return PickNearest(relaxedMatches, p.PositionMm);
 
             // C) numeric fallback
             if (TryGetTargetNumeric(p, out var targetVal, out var targetUnit))
             {
                 const double epsMm = 0.0005;
                 const double epsDeg = 1e-4;
-                var numeric = new List<DisplayDimension>();
+
+                var numericMatches = new List<DisplayDimensionInfo>();
                 for (int i = 0; i < inView.Count; i++)
                 {
-                    if (TryGetDimensionNumeric(inView[i], out var val, out var unit))
+                    var info = inView[i];
+                    if (!info.HasNumericValue) continue;
+
+                    if (targetUnit == UnitKind.Millimeter &&
+                        info.Unit == UnitKind.Millimeter &&
+                        Math.Abs(info.NumericValue - targetVal) <= epsMm)
                     {
-                        if (targetUnit == UnitKind.Millimeter && unit == UnitKind.Millimeter && Math.Abs(val - targetVal) <= epsMm)
-                            numeric.Add(inView[i]);
-                        else if (targetUnit == UnitKind.Degree && unit == UnitKind.Degree && Math.Abs(val - targetVal) <= epsDeg)
-                            numeric.Add(inView[i]);
+                        numericMatches.Add(info);
+                    }
+                    else if (targetUnit == UnitKind.Degree &&
+                             info.Unit == UnitKind.Degree &&
+                             Math.Abs(info.NumericValue - targetVal) <= epsDeg)
+                    {
+                        numericMatches.Add(info);
                     }
                 }
-                if (numeric.Count == 1) return numeric[0];
-                if (numeric.Count > 1) return PickNearest(numeric, p.PositionMm);
+
+                if (numericMatches.Count == 1) return numericMatches[0];
+                if (numericMatches.Count > 1) return PickNearest(numericMatches, p.PositionMm);
             }
 
             return null;
         }
 
-        private static DisplayDimension PickNearest(IReadOnlyList<DisplayDimension> candidates, double[] planMm)
+        private static DisplayDimensionInfo PickNearest(IReadOnlyList<DisplayDimensionInfo> candidates, double[] planMm)
         {
-            DisplayDimension best = candidates[0];
+            var best = candidates[0];
             double bestD2 = double.PositiveInfinity;
 
-            foreach (var dd in candidates)
+            for (int i = 0; i < candidates.Count; i++)
             {
-                try
+                var c = candidates[i];
+                if (!c.HasPosition) continue;
+
+                double dx = c.PositionXmm - planMm[0];
+                double dy = c.PositionYmm - planMm[1];
+                double d2 = dx * dx + dy * dy;
+
+                if (d2 < bestD2)
                 {
-                    var ann = dd.GetAnnotation() as Annotation;
-                    if (ann == null) continue;
-
-                    // Get current position via Annotation.GetPosition() → object[] {x,y,z} in meters
-                    double x = 0, y = 0;
-                    var raw = ann.GetPosition() as object[];
-                    if (raw != null && raw.Length >= 2 && raw[0] is double dx && raw[1] is double dy)
-                    {
-                        x = dx; y = dy;
-                    }
-                    else
-                    {
-                        // if not available, treat as far
-                        continue;
-                    }
-
-                    double dxm = (x * 1000.0) - planMm[0];
-                    double dym = (y * 1000.0) - planMm[1];
-                    double d2 = dxm * dxm + dym * dym;
-
-                    if (d2 < bestD2) { bestD2 = d2; best = dd; }
+                    bestD2 = d2;
+                    best = c;
                 }
-                catch { /* ignore */ }
             }
+
             return best;
         }
 
-        private static string? GetDimToken(DisplayDimension dd)
+        private static string ExtractToken(string? full)
         {
-            try
-            {
-                var swDim = dd?.GetDimension() as SwDimension;
-                var full = swDim?.FullName ?? swDim?.Name;
-                if (string.IsNullOrWhiteSpace(full)) return null;
-                var idx = full.IndexOf('@');
-                return idx > 0 ? full.Substring(0, idx) : full; // token before '@'
-            }
-            catch { return null; }
-        }
+            if (string.IsNullOrWhiteSpace(full))
+                return string.Empty;
 
-        private static string? GetDimFullName(DisplayDimension dd)
-        {
-            try
-            {
-                var swDim = dd?.GetDimension() as SwDimension;
-                return swDim?.FullName ?? swDim?.Name;
-            }
-            catch { return null; }
+            var idx = full.IndexOf('@');
+            return idx > 0 ? full[..idx] : full;
         }
 
         // --------------------------- Numeric helpers ---------------------------
 
-        private static bool TryGetDimensionNumeric(DisplayDimension dd, out double value, out UnitKind unit)
+        private static bool TryGetDimensionNumeric(SwDimension dim, out double value, out UnitKind unit)
         {
-            value = 0; unit = UnitKind.Millimeter;
+            value = 0;
+            unit = UnitKind.Millimeter;
+
             try
             {
-                var dim = dd?.GetDimension() as SwDimension;
                 if (dim == null) return false;
 
                 int type = dim.GetType();     // 1 = angular, 2 = linear
@@ -363,12 +492,16 @@ namespace WAD.Runner.DrawingAutomation.Views
                 value = raw * 1000.0;
                 return true;
             }
-            catch { return false; }
+            catch
+            {
+                return false;
+            }
         }
 
         private static bool TryGetTargetNumeric(Plan p, out double value, out UnitKind unit)
         {
-            value = 0; unit = UnitKind.Millimeter;
+            value = 0;
+            unit = UnitKind.Millimeter;
 
             if (p.Nominal.Unit == UnitKind.Millimeter)
             {
@@ -376,6 +509,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                 value = (double)p.Nominal.Value;
                 return true;
             }
+
             if (p.Nominal.Unit == UnitKind.Degree)
             {
                 unit = UnitKind.Degree;
@@ -388,26 +522,37 @@ namespace WAD.Runner.DrawingAutomation.Views
 
         // --------------------------- debug dump ---------------------------
 
-        private static void DumpViewDimensions(string viewName, IReadOnlyList<DisplayDimension> list)
+        private static void DumpViewDimensions(string viewName, IReadOnlyList<DisplayDimensionInfo> list)
         {
             try
             {
                 Logger.Info($"[DimPos] View '{viewName}' dimension dump ({list.Count} items):");
-                foreach (var dd in list)
+                foreach (var info in list)
                 {
-                    var name = GetDimFullName(dd) ?? "(no-name)";
                     string valStr = "?";
-                    if (TryGetDimensionNumeric(dd, out var v, out var u))
-                        valStr = u == UnitKind.Millimeter ? $"{v:F4} mm" : $"{v:F4} deg";
-                    Logger.Info($"    • {name}  =  {valStr}");
+                    if (info.HasNumericValue)
+                        valStr = info.Unit == UnitKind.Millimeter
+                            ? $"{info.NumericValue:F4} mm"
+                            : $"{info.NumericValue:F4} deg";
+
+                    Logger.Info($"    • {info.FullName}  =  {valStr}");
                 }
             }
-            catch { /* ignore */ }
+            catch
+            {
+                // ignore
+            }
         }
 
         // --------------------------- misc ---------------------------
 
         private static string SafeName(View v)
+        {
+            try { return v?.Name ?? "(null)"; }
+            catch { return "(ex)"; }
+        }
+
+        private static string SafeNameStatic(View v)
         {
             try { return v?.Name ?? "(null)"; }
             catch { return "(ex)"; }
@@ -479,10 +624,10 @@ namespace WAD.Runner.DrawingAutomation.Views
         }
 
         public object? InsertMarkedAnnotationsStrictInView(
-    string logicalViewName,
-    int source = 0,
-    bool includeItemsFromHiddenFeatures = false,
-    bool includeItemsFromHiddenSketches = false)
+            string logicalViewName,
+            int source = 0,
+            bool includeItemsFromHiddenFeatures = false,
+            bool includeItemsFromHiddenSketches = false)
         {
             if (string.IsNullOrWhiteSpace(logicalViewName))
                 throw new ArgumentException("View name is required.", nameof(logicalViewName));
@@ -506,15 +651,12 @@ namespace WAD.Runner.DrawingAutomation.Views
 
             try
             {
-                // Snapshot BEFORE (per-view)
                 var before = SnapshotDisplayDimensionsByView(dd);
 
-                // Make target view the ACTIVE drawing view (this is key)
-                try { dd.ActivateView(actualViewName); } catch { /* best effort */ }
+                try { dd.ActivateView(actualViewName); } catch { }
 
                 model.ClearSelection2(true);
 
-                // Select view (helps some SW versions)
                 bool selected = model.Extension.SelectByID2(
                     actualViewName,
                     "DRAWINGVIEW",
@@ -527,33 +669,32 @@ namespace WAD.Runner.DrawingAutomation.Views
                 if (!selected)
                     Logger.Warn($"[AnnIns] Could not select view '{actualViewName}'. InsertModelAnnotations3 may target the wrong view.");
 
-                // Insert ONLY "Marked for Drawing" (no allTypes spray)
                 object? inserted = dd.InsertModelAnnotations3(
                     source,
                     (int)swInsertAnnotation_e.swInsertDimensionsMarkedForDrawing,
-                    /*allTypes*/ false,
-                    /*addToAllViews*/ false,
+                    false,
+                    false,
                     includeItemsFromHiddenFeatures,
                     includeItemsFromHiddenSketches);
 
-                // Snapshot AFTER
                 var after = SnapshotDisplayDimensionsByView(dd);
 
-                // Compute "newly inserted" dimensions per view
-                var targetKey = actualViewName; // actual SW name
-                int kept = 0, removed = 0;
+                var targetKey = actualViewName;
+                int kept = 0;
+                int removed = 0;
 
-                foreach (var (viewName, afterSet) in after)
+                foreach (var kv in after)
                 {
+                    var viewName = kv.Key;
+                    var afterSet = kv.Value;
+
                     before.TryGetValue(viewName, out var beforeSet);
 
-                    // new = after - before
                     foreach (var ddim in afterSet)
                     {
                         if (beforeSet != null && beforeSet.Contains(ddim))
                             continue;
 
-                        // If it didn't land in the target view, delete it
                         if (!string.Equals(viewName, targetKey, StringComparison.OrdinalIgnoreCase))
                         {
                             TryDeleteDisplayDimension(ddim);
@@ -567,7 +708,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                 }
 
                 Logger.Info($"[AnnIns] InsertModelAnnotations3 requested for '{actualViewName}'. Kept={kept}, RemovedOutsideTarget={removed}.");
-                try { _ds.Rebuild(); } catch { }
+                try { _ds.Rebuild(redraw: false); } catch { }
 
                 return inserted;
             }
@@ -586,6 +727,7 @@ namespace WAD.Runner.DrawingAutomation.Views
 
             View v = dd.IGetFirstView();
             if (v == null) return map;
+
             v = v.IGetNextView(); // skip sheet
 
             int guard = 0;
@@ -594,14 +736,17 @@ namespace WAD.Runner.DrawingAutomation.Views
                 var name = SafeNameStatic(v);
 
                 var set = new HashSet<DisplayDimension>(ReferenceEqualityComparer<DisplayDimension>.Instance);
+
                 foreach (var d in EnumerateDisplayDimensionsFromAnnotations(v))
                     set.Add(d);
+
                 if (set.Count == 0)
+                {
                     foreach (var d in EnumerateDisplayDimensionsLegacy(v))
                         set.Add(d);
+                }
 
                 map[name] = set;
-
                 v = v.IGetNextView();
             }
 
@@ -620,11 +765,9 @@ namespace WAD.Runner.DrawingAutomation.Views
 
                 model.ClearSelection2(true);
 
-                // Select the annotation (not the dimension)
                 bool ok = ann.Select3(false, null);
                 if (!ok) return;
 
-                // Delete selected annotation(s)
                 model.Extension.DeleteSelection2((int)swDeleteSelectionOptions_e.swDelete_Absorbed);
             }
             catch
@@ -637,14 +780,11 @@ namespace WAD.Runner.DrawingAutomation.Views
         private sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T> where T : class
         {
             public static readonly ReferenceEqualityComparer<T> Instance = new();
-            public bool Equals(T? x, T? y) => ReferenceEquals(x, y);
-            public int GetHashCode(T obj) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
-        }
 
-        private static string SafeNameStatic(View v)
-        {
-            try { return v?.Name ?? "(null)"; }
-            catch { return "(ex)"; }
+            public bool Equals(T? x, T? y) => ReferenceEquals(x, y);
+
+            public int GetHashCode(T obj)
+                => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
         }
     }
 }

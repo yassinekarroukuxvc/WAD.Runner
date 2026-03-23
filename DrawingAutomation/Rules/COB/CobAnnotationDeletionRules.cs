@@ -30,6 +30,10 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB;
 ///   - FootOption CC: keep C-detail (CR/CD) + CG-detail (G/CGD/CGR) in DETAIL view.
 ///   - For 180_DEG_REV CGD/CGR, support both sketch name variants:
 ///       ANNOT_180_DEG_REV_FRONT_sketch  and  ANNOT_180_DEG_REV_FRONT_FRONT_sketch
+///
+/// ✅ NEW:
+/// - Section View foot-option rules updated:
+///   - FootOption C, CC, CG: keep FR_C and BR_C in SECTION view for both shank types.
 /// </summary>
 public static class CobAnnotationDeletionRules
 {
@@ -748,6 +752,13 @@ public static class CobAnnotationDeletionRules
             case FootOption.CG:
                 // ✅ NEW: CG dims are in DETAIL view sourced from shank FRONT sketch
                 AddCgFootOptionKeep_AsDetail(keep, shank);
+
+                if (opt.HasFrBr)
+                {
+                    var frbr = FrBrSketch(shank);
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"FR_C@{frbr}"));
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"BR_C@{frbr}"));
+                }
                 break;
 
             case FootOption.CC:
@@ -755,6 +766,13 @@ public static class CobAnnotationDeletionRules
                 //keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 AddCgFootOptionKeep_AsDetail(keep, shank);
+
+                if (opt.HasFrBr)
+                {
+                    var frbr = FrBrSketch(shank);
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"FR_C@{frbr}"));
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"BR_C@{frbr}"));
+                }
                 break;
 
             case FootOption.C_WITH_CBR:
@@ -823,12 +841,26 @@ public static class CobAnnotationDeletionRules
             case FootOption.CG:
                 // ✅ NEW: CG dims in DETAIL
                 AddCgFootOptionKeep_AsDetail(keep, shank);
+
+                if (opt.HasFrBr)
+                {
+                    var frbr = FrBrSketch(shank);
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"FR_C@{frbr}"));
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"BR_C@{frbr}"));
+                }
                 break;
 
             case FootOption.CC:
                 // ✅ NEW: CC = C + CG, but Customer still doesn't keep CR/CD.
                 // Only keep CG portion in DETAIL.
                 AddCgFootOptionKeep_AsDetail(keep, shank);
+
+                if (opt.HasFrBr)
+                {
+                    var frbr = FrBrSketch(shank);
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"FR_C@{frbr}"));
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"BR_C@{frbr}"));
+                }
                 break;
 
             case FootOption.C_WITH_CBR:

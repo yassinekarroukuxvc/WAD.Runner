@@ -7,12 +7,11 @@ using SolidWorks.Interop.sldworks;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
-
 using WAD.Runner.DrawingAutomation.Executors.Common;
 using WAD.Runner.DrawingAutomation.Overlay;
 using WAD.Runner.DrawingAutomation.Profiles;
-using WAD.Runner.DrawingAutomation.Views;
 using WAD.Runner.DrawingAutomation.SolidWorks;
+using WAD.Runner.DrawingAutomation.Views;
 
 namespace WAD.Runner.DrawingAutomation.Executors.PGB
 {
@@ -50,62 +49,69 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
             Logger.Info($"[Profile] Using {profile.ProfileName} for {bannerLabel}.");
 
             // 1) Part automation
-            Logger.Info("[1/10] Part Automation…");
+            Logger.Info("[1/9] Part Automation…");
             _ = runPartAutomation();
 
-            // 2) Open + relink + sheet prep + nameMap
-            Logger.Info("[2/10] Open + relink + sheet prep…");
+            // 2) Open + relink + overlay sheet prep + nameMap
+            Logger.Info("[2/9] Open + relink + sheet prep…");
             var ds = OverlayDrawingExecutorCommon.OpenRelinkAndPrepareOverlaySheet(
                 swApp,
                 run,
                 drawingData,
                 out var nameMap);
+            var isCkvd = run.WedgeType == WedgeType.CKVD;
 
-            // 2b) ✅ PGB-specific step
-            Logger.Info("[2b/10] PGB overlay: bind view referenced configurations…");
-            //TryBindReferencedConfigsForPgbOverlay(ds, nameMap, run, drawingData);
+            if (isCkvd)
+            {
+                Logger.Info("[2/10] Bind Views To PGB Config");
+                TryBindReferencedConfigsForPgbOverlay(ds, nameMap, run, drawingData);
+            }
 
             // 3) Compute overlay mag/cal + payload
-            Logger.Info("[3/10] Compute overlay magnification/calibration…");
+            Logger.Info("[3/9] Compute overlay magnification/calibration…");
             var (ctx, overlayMag, overlayCalUm) = OverlayDrawingExecutorCommon.ComputeOverlayMagCal(run, drawingData);
 
-            Logger.Info("[3b/10] Build overlay payload for dimension table…");
+            Logger.Info("[3b/9] Build overlay payload for dimension table…");
             var overlayKeys = OverlayDrawingExecutorCommon.DefaultOverlayDimKeys(run.WedgeType);
             var overlayData = OverlayDrawingExecutorCommon.BuildOverlayPayload(run, drawingData, overlayKeys);
 
             ds.Rebuild();
 
             // 4) Apply overlay scales
-            Logger.Info("[4/10] Apply overlay view scales…");
+            Logger.Info("[4/9] Apply overlay view scales…");
             OverlayDrawingExecutorCommon.ApplyOverlayViewScales(ds, nameMap, overlayMag);
 
             // 5) Reposition views via macro
-            Logger.Info("[5/10] Reposition all overlay views (macro)…");
-            //OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(swApp, ds, run, nameMap);
+            Logger.Info("[5/9] Reposition all overlay views");
+            OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(swApp, ds, run, nameMap);
 
-            // 6) Delete Front view when VR == 0
-            Logger.Info("[6/10] Delete Front view if VR=0…");
-            //OverlayDrawingExecutorCommon.DeleteFrontViewIfVrZero(ds, nameMap, ctx);
+            
+            if (isCkvd)
+            {
+                // 6) Delete Front view when VR == 0
+                Logger.Info("[6/9] Delete Front view if VR=0…");
+                OverlayDrawingExecutorCommon.DeleteFrontViewIfVrZero(ds, nameMap, ctx);
+            }
 
             ds.Rebuild();
             ds.ZoomToSheet();
 
             // 7) Plan dims
-            Logger.Info("[7/10] Plan overlay dimensions…");
+            Logger.Info("[7/9] Plan overlay dimensions…");
             var (dims, planned) = OverlayDrawingExecutorCommon.PlanOverlayDimensions(ctx, run.WedgeType, plannedDims);
 
-            // 8) Table
-            Logger.Info("[8/10] Create overlay dimension table…");
+            // 8) Create overlay dimension table
+            Logger.Info("[8/9] Create overlay dimension table…");
             OverlayDrawingExecutorCommon.TryCreateOverlayDimTable(swApp, ds, drawingData, overlayData);
 
             // 9) Apply positions + metadata + cleanup + final
-            Logger.Info("[9/10] Apply annotation positions…");
+            Logger.Info("[9/9] Apply annotation positions…");
             OverlayDrawingExecutorCommon.TryApplyAnnotationPositions(ds, nameMap, run, drawingData, planned);
 
-            Logger.Info("[9b/10] Apply overlay metadata…");
+            Logger.Info("[9b/9] Apply overlay metadata…");
             OverlayDrawingExecutorCommon.TryApplyOverlayMetadata(ds, drawingData, run);
 
-            Logger.Info("[9c/10] Cleanup zero-valued overlay dimensions…");
+            Logger.Info("[9c/9] Cleanup zero-valued overlay dimensions…");
             OverlayDrawingExecutorCommon.TryCleanupZeroDims(ds, nameMap, ctx, drawingData, dims);
 
             Logger.Info("[Final-Prep] Draw calibration box + note…");
@@ -158,5 +164,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
                 Logger.Warn($"[PGB/Overlay] Config binding failed (continuing): {ex.Message}");
             }
         }
+
     }
 }

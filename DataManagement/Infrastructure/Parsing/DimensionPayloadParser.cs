@@ -23,6 +23,7 @@ namespace WAD.Runner.DataManagement.Infrastructure.Parsing;
 /// - Tolerates punctuation/noise around style tokens
 /// - Preserves meaningful style markers into the returned comment
 /// - Optional tolerance slots never throw for known non-numeric tokens
+/// - Any unknown/random non-numeric tolerance token defaults to REF
 /// - Negative tolerances are normalized to positive values
 /// </summary>
 public static class DimensionPayloadParser
@@ -32,6 +33,7 @@ public static class DimensionPayloadParser
     /// <summary>
     /// Parse a LENGTH row. Returns nominal in mm, tolerance in mm, optional comment.
     /// Missing or empty tolerances default to 0.
+    /// Unknown/random non-numeric tolerance markers default to REF.
     /// </summary>
     public static (Quantity nominalMm, Tolerance tolMm, string? comment) ParseLengthRow(string payload)
     {
@@ -39,8 +41,8 @@ public static class DimensionPayloadParser
 
         var (nomMm, note) = ParseNominalFlexibleToMm(p[0]);
 
-        var lt = ParseOptionalDecimal(p[1]);
-        var ut = ParseOptionalDecimal(p[2]);
+        var lt = ParseOptionalDecimalOrDefaultRef(p[1], out var ltMarker);
+        var ut = ParseOptionalDecimalOrDefaultRef(p[2], out var utMarker);
 
         lt = decimal.Abs(lt);
         ut = decimal.Abs(ut);
@@ -50,7 +52,8 @@ public static class DimensionPayloadParser
         if (!string.IsNullOrWhiteSpace(note))
             cmt = string.IsNullOrWhiteSpace(cmt) ? note : $"{cmt} (source={note})";
 
-        cmt = AppendStyleMarkersToCommentIfAny(cmt, p[0], p[1], p[2]);
+        cmt = AppendStyleMarkersToCommentIfAny(cmt, p[0]);
+        cmt = AppendCanonicalMarkersToCommentIfAny(cmt, ltMarker, utMarker);
 
         return (Quantity.MmOf(nomMm), Tolerance.Mm(lt, ut), cmt);
     }
@@ -58,6 +61,7 @@ public static class DimensionPayloadParser
     /// <summary>
     /// Parse an ANGLE row. Returns nominal in degrees and ZERO length tolerance.
     /// Any numeric values in Ltol/Utol are ignored at this stage.
+    /// Unknown/random style-like tolerance tokens are normalized to REF in comment.
     /// </summary>
     public static (Quantity nominalDeg, Tolerance tolMm, string? comment) ParseAngleRow(string payload)
     {
@@ -70,8 +74,11 @@ public static class DimensionPayloadParser
 
         var nomDeg = ParseRequiredDecimal(nomToken, "nominal (deg)", payload);
 
+        var _ = ParseOptionalDecimalOrDefaultRef(p[1], out var ltMarker);
+        var __ = ParseOptionalDecimalOrDefaultRef(p[2], out var utMarker);
+
         var cmt = NormalizeComment(p[3]);
-        cmt = AppendStyleMarkersToCommentIfAny(cmt, p[1], p[2]);
+        cmt = AppendCanonicalMarkersToCommentIfAny(cmt, ltMarker, utMarker);
 
         return (Quantity.DegOf(nomDeg), Tolerance.Zero, cmt);
     }
@@ -113,26 +120,34 @@ public static class DimensionPayloadParser
     /// <summary>
     /// Optional numeric fields:
     /// - empty => 0
-    /// - known style tokens => 0
+    /// - known style tokens => 0 + canonical marker
+    /// - unknown/random non-numeric text => 0 + REF marker
     /// - tolerant of comma decimals
-    /// - does not throw for recognized noisy DB placeholders
+    /// - never throws for tolerance garbage coming from DB
     /// </summary>
-    private static decimal ParseOptionalDecimal(string s)
+    private static decimal ParseOptionalDecimalOrDefaultRef(string s, out string? styleMarker)
     {
+        styleMarker = null;
+
         if (string.IsNullOrWhiteSpace(s))
             return 0m;
 
         var t = s.Trim();
 
         if (IsStyleToken(t))
+        {
+            styleMarker = CanonicalStyleToken(t);
             return 0m;
+        }
 
         t = NormalizeNumericToken(t);
 
         if (decimal.TryParse(t, NumberStyles.Float, CI, out var v))
             return v;
 
-        throw new FormatException($"Invalid numeric token '{t}' in tolerance field.");
+        // Any random tolerance garbage defaults to REF
+        styleMarker = "REF";
+        return 0m;
     }
 
     private static string NormalizeNumericToken(string s)
@@ -243,6 +258,25 @@ public static class DimensionPayloadParser
             return comment;
 
         var joined = string.Join(",", markers);
+        return string.IsNullOrWhiteSpace(comment) ? joined : $"{comment} ({joined})";
+    }
+
+    private static string? AppendCanonicalMarkersToCommentIfAny(string? comment, params string?[] markers)
+    {
+        if (markers is null || markers.Length == 0)
+            return comment;
+
+        var filtered = markers
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .Select(m => m!.Trim())
+            .Where(t => t is "REF" or "MIN" or "MAX" or "N/A" or "NONE" or "NULL" or "TBD")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (filtered.Count == 0)
+            return comment;
+
+        var joined = string.Join(",", filtered);
         return string.IsNullOrWhiteSpace(comment) ? joined : $"{comment} ({joined})";
     }
 

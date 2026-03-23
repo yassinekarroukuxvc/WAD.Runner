@@ -31,6 +31,9 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS;
 ///   - FootOption CC: keep C-detail (CR/CD) + CG-detail (G/CGD/CGR) in DETAIL view.
 ///   - For 180_DEG_REV CGD/CGR, support both sketch name variants:
 ///       ANNOT_180_DEG_REV_FRONT_sketch  and  ANNOT_180_DEG_REV_FRONT_FRONT_sketch
+///
+/// ✅ Section View foot-option rules update:
+///   - FootOption C, CC, CG: keep FR_C and BR_C in SECTION view for both shank types.
 /// </summary>
 public static class UtusAnnotationDeletionRules
 {
@@ -691,11 +694,25 @@ public static class UtusAnnotationDeletionRules
 
             case FootOption.CG:
                 AddCgFootOptionKeep_AsDetail(keep, shank);
+
+                if (opt.HasFrBr)
+                {
+                    var frbr = FrBrSketch(shank);
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"FR_C@{frbr}"));
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"BR_C@{frbr}"));
+                }
                 break;
 
             case FootOption.CC:
                 keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch"));
                 AddCgFootOptionKeep_AsDetail(keep, shank);
+
+                if (opt.HasFrBr)
+                {
+                    var frbr = FrBrSketch(shank);
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"FR_C@{frbr}"));
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"BR_C@{frbr}"));
+                }
                 break;
 
             case FootOption.C_WITH_CBR:
@@ -752,10 +769,24 @@ public static class UtusAnnotationDeletionRules
 
             case FootOption.CG:
                 AddCgFootOptionKeep_AsDetail(keep, shank);
+
+                if (opt.HasFrBr)
+                {
+                    var frbr = FrBrSketch(shank);
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"FR_C@{frbr}"));
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"BR_C@{frbr}"));
+                }
                 break;
 
             case FootOption.CC:
                 AddCgFootOptionKeep_AsDetail(keep, shank);
+
+                if (opt.HasFrBr)
+                {
+                    var frbr = FrBrSketch(shank);
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"FR_C@{frbr}"));
+                    keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"BR_C@{frbr}"));
+                }
                 break;
 
             case FootOption.C_WITH_CBR:
