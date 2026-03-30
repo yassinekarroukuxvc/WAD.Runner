@@ -390,6 +390,7 @@ public static class UtusAnnotationDeletionRules
     {
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "TL@ANNOT_LEFT_sketch"));
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "K@ANNOT_LEFT_sketch"));
+        set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "VR@ANNOT_LEFT_sketch"));
     }
 
     private static void AddFrontAlways(HashSet<AnnotationDeletionCore.Ann> set, Options opt)
@@ -401,6 +402,9 @@ public static class UtusAnnotationDeletionRules
             : "K@ANNOT_LEFT_sketch";
 
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, kName));
+
+        if (opt.HasVwVr)
+            set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "VR@ANNOT_LEFT_sketch"));
     }
 
     // ============================================================
@@ -529,7 +533,7 @@ public static class UtusAnnotationDeletionRules
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Side, $"BA@{FrontSketch(shank)}"));
 
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"RA@{FrontSketch(shank)}"));
-        keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"ERL@{FrontSketch(shank)}"));
+        //keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"ERL@{FrontSketch(shank)}"));
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"T@{FrontSketch(shank)}"));
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"H@{FrontSketch(shank)}"));
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"HA@{FrontSketch(shank)}"));
@@ -537,7 +541,7 @@ public static class UtusAnnotationDeletionRules
 
         if (opt.HasRa2)
             keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"RA2@{FrontSketch(shank)}"));
-
+        /*
         if (opt.HasErd)
         {
             var erdName = !string.IsNullOrWhiteSpace(opt.ErdAnnotationFullName)
@@ -546,7 +550,7 @@ public static class UtusAnnotationDeletionRules
 
             keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, erdName));
         }
-
+        */
         AddFootOptionKeep_Customer(keep, shank, foot, opt);
     }
 

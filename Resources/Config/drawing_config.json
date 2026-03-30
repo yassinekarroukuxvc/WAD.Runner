@@ -70,8 +70,8 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 120 ] },
-              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+              "DimTable": { "PositionMm": [ 193, 125 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
             },
 
             "Metadata": { "SpecialNote": "COB production override" }
@@ -93,8 +93,8 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 120 ] },
-              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+              "DimTable": { "PositionMm": [ 193, 125 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
             },
 
             "Metadata": { "SpecialNote": "UTUS production override" }
@@ -133,8 +133,8 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 130 ] },
-              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+              "DimTable": { "PositionMm": [ 193, 125 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
             },
 
             "Metadata": { "SpecialNote": "COB customer override" }
@@ -156,8 +156,8 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 130 ] },
-              "HowToOrder": { "PositionMm": [ 109.73054, 58 ] }
+              "DimTable": { "PositionMm": [ 193, 125 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
             },
 
             "Metadata": { "SpecialNote": "UTUS customer override" }

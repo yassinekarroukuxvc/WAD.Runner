@@ -125,7 +125,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                         // Center all non-angle dimensions
                         try
                         {
-                            if (target.HasNumericValue && target.Unit != UnitKind.Degree)
+                            if (target.HasNumericValue)
                                 target.DisplayDimension.CenterText = true;
                         }
                         catch (Exception exCenter)

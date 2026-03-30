@@ -113,6 +113,10 @@ internal static class CobDimensionRules
         var bias = (0.05 * TL * fsv + GetBreakline(ctx, Front, 2.0) * fsv + 0.02 * TL) / 2.0;
         PlaceDim(ctx, diag, outList, "K", Front, DimAxis.Horizontal,
             F[0] + fsv * TD / 2.0 + 12.0, F[1] + L_front / 2.0 - bias);
+
+        var VR = LayoutMath.Dmm(ctx, "VR");
+        PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
+            F[0] + fsv * TD / 2.0 + 5.0, F[1] - L_front / 2.0 + VR * fsv / 2.0);
     }
 
     // ----------------- TOP -----------------
@@ -127,7 +131,7 @@ internal static class CobDimensionRules
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
         PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical,
-            95, 178);
+            75, 172);
 
         PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal,
             83,197);
@@ -232,16 +236,16 @@ internal static class CobDimensionRules
             171,152);
 
         PlaceDim(ctx, diag, outList, "BR_C", Section, DimAxis.Horizontal,
-            195, 152);
+            205, 152);
 
         PlaceDim(ctx, diag, outList, "BR_VG", Section, DimAxis.Horizontal,
-            195, 152);
+            205, 152);
 
         PlaceDim(ctx, diag, outList, "BR_CG", Section, DimAxis.Horizontal,
-            195, 152);
+            205, 152);
 
         PlaceDim(ctx, diag, outList, "BR_G", Section, DimAxis.Horizontal,
-            195,152);
+            205,152);
 
         PlaceDim(ctx, diag, outList, "FRO", Section, DimAxis.Horizontal,
             170,148 );

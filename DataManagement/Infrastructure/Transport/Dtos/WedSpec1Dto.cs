@@ -7,7 +7,6 @@
     string? WedEngrave,
     string? WedCoining,
 
-    // NEW (COB/UT-US)
     string? WedType,
     string? WedFootOption,
     string? WedWireExit,
@@ -19,5 +18,6 @@
     string? DwgText4,
     string? DwgText5,
     string? DwgText6,
-    string? DwgText7
+    string? DwgText7,
+    string? WedFgStyle // maps the wedge type : CKVD,COB...
 );

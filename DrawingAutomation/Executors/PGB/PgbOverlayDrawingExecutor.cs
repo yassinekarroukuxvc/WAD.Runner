@@ -38,7 +38,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
 
             const string bannerLabel = "PGB/Overlay";
             Logger.Info($"=== WAD ▶ {bannerLabel} (executor-owned pipeline) ===");
-
+            //WedgeDebug.DumpWedgeData(run.Wedge, tag: "PGB/Overlay");
             var profile = run.WedgeType switch
             {
                 WedgeType.COB => ProfileRegistry.GetCob(run.Wedge.Subclass, drawingData.DrawingType),

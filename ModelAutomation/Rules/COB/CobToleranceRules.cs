@@ -1,5 +1,4 @@
-﻿// ModelAutomation/Rules/COB/CobToleranceRules.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -19,7 +18,10 @@ namespace WAD.Runner.ModelAutomation.Rules.COB
     /// - Tolerances are always mm and stored on Dimension.Tol (Lower/Upper).
     ///
     /// Current scope:
-    /// - COB + PGB + Overlay: push W / FD / T tolerances into overlay sketch parameters.
+    /// - COB Overlay: push W / FD / T tolerances into overlay sketch parameters.
+    /// - Target sketch names depend on subclass:
+    ///   - FG  -> FG_...
+    ///   - PGB -> PGB_...
     /// </summary>
     public sealed class CobToleranceRules : IToleranceRuleSet
     {
@@ -27,40 +29,41 @@ namespace WAD.Runner.ModelAutomation.Rules.COB
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
 
-            // Only requested scenario for now.
             if (drawingType != DrawingType.Overlay)
                 return TolerancePlan.Empty;
 
             var shank = ResolveShankType(wedge); // STD vs 180_DEG_REV
             var updates = new List<ToleranceUpdate>();
 
+            var prefix = subclass == WedgeSubclass.FG ? "FG" : "PGB";
+
             // Common for both shanks
             AddTolPairMm(updates, wedge, dimKey: "W",
-                utolTarget: "W_UTOL@PGB_LEFT_overlay_sketch",
-                ltolTarget: "W_LTOL@PGB_LEFT_overlay_sketch");
+                utolTarget: $"W_UTOL@{prefix}_LEFT_overlay_sketch",
+                ltolTarget: $"W_LTOL@{prefix}_LEFT_overlay_sketch");
 
             if (shank == CobShankType.Std)
             {
                 AddTolPairMm(updates, wedge, dimKey: "FD",
-                    utolTarget: "FD_UTOL@PGB_STD_FRONT_overlay_sketch",
-                    ltolTarget: "FD_LTOL@PGB_STD_FRONT_overlay_sketch");
+                    utolTarget: $"FD_UTOL@PGB_STD_FRONT_overlay_sketch",
+                    ltolTarget: $"FD_LTOL@PGB_STD_FRONT_overlay_sketch");
 
                 AddTolPairMm(updates, wedge, dimKey: "T",
-                    utolTarget: "T_UTOL@PGB_STD_FRONT_overlay_sketch",
-                    ltolTarget: "T_LTOL@PGB_STD_FRONT_overlay_sketch");
+                    utolTarget: $"T_UTOL@PGB_STD_FRONT_overlay_sketch",
+                    ltolTarget: $"T_LTOL@PGB_STD_FRONT_overlay_sketch");
             }
             else
             {
                 AddTolPairMm(updates, wedge, dimKey: "FD",
-                    utolTarget: "FD_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
-                    ltolTarget: "FD_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
+                    utolTarget: $"FD_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
+                    ltolTarget: $"FD_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
 
                 AddTolPairMm(updates, wedge, dimKey: "T",
-                    utolTarget: "T_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
-                    ltolTarget: "T_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
+                    utolTarget: $"T_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
+                    ltolTarget: $"T_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
             }
 
-            Logger.Info($"[CobToleranceRules] PGB Overlay → planned updates={updates.Count} (Shank={shank})");
+            Logger.Info($"[CobToleranceRules] {subclass} Overlay → planned updates={updates.Count} (Shank={shank})");
             return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
         }
 
@@ -81,8 +84,6 @@ namespace WAD.Runner.ModelAutomation.Rules.COB
                 return;
             }
 
-            // You asked: "push values from DB to the following params"
-            // UTOL target receives Upper (positive), LTOL target receives Lower (usually negative or 0).
             updates.Add(new ToleranceUpdate(utolTarget, utolMm, ToleranceUnit.LengthMm));
             updates.Add(new ToleranceUpdate(ltolTarget, ltolMm, ToleranceUnit.LengthMm));
 
@@ -106,19 +107,15 @@ namespace WAD.Runner.ModelAutomation.Rules.COB
             if (dim is null)
                 return false;
 
-            // Guard: must be a length dimension (nominal in mm).
             if (dim.Nominal.Unit != UnitKind.Millimeter)
             {
                 Logger.Warn($"[CobToleranceRules] '{dimKey}' nominal unit is {dim.Nominal.Unit} (expected Millimeter).");
                 return false;
             }
 
-            // Tolerances always in mm by type contract.
             lowerMm = dim.Tol.Lower.Value;
             upperMm = dim.Tol.Upper.Value;
 
-            // Optional: if both are 0, still allow (depends on your template expectation).
-            // Keeping it allowed because overlay sketches may want explicit zeros.
             return true;
         }
 

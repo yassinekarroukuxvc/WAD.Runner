@@ -59,8 +59,20 @@ public static class WedgeDataAssembler
             ["Wed-Foot_Option"] = NullIfWhite(spec1.WedFootOption),
             ["Wed-Wire_Exit"] = NullIfWhite(spec1.WedWireExit),
             ["Wed-Feed_H/Slot"] = NullIfWhite(spec1.WedFeedHSlot),
+            ["Wed-FG-Style"] = NullIfWhite(spec1.WedFgStyle),
         };
+        var rawStyle = spec1.WedFgStyle;
+        var sanitizedStyle = WedgeStyleParser.SanitizeRaw(rawStyle);
 
+        if (!string.IsNullOrWhiteSpace(sanitizedStyle))
+        {
+            props["wedge_style"] = sanitizedStyle;
+        }
+
+        if (WedgeStyleParser.TryParseWedgeType(rawStyle, out var parsedWedgeType))
+        {
+            props["wedge_type"] = parsedWedgeType.ToString();
+        }
 
         return new WedgeData(
             articleNumber: spec1.ArticleNumber,
@@ -105,9 +117,20 @@ public static class WedgeDataAssembler
             ["Wed-Foot_Option"] = NullIfWhite(spec1.WedFootOption),
             ["Wed-Wire_Exit"] = NullIfWhite(spec1.WedWireExit),
             ["Wed-Feed_H/Slot"] = NullIfWhite(spec1.WedFeedHSlot),
-
+            ["PGB-FG-Style"] = NullIfWhite(spec1.PgbFgStyle),
         };
+        var rawStyle = spec1.PgbFgStyle;
+        var sanitizedStyle = WedgeStyleParser.SanitizeRaw(rawStyle);
 
+        if (!string.IsNullOrWhiteSpace(sanitizedStyle))
+        {
+            props["wedge_style"] = sanitizedStyle;
+        }
+
+        if (WedgeStyleParser.TryParseWedgeType(rawStyle, out var parsedWedgeType))
+        {
+            props["wedge_type"] = parsedWedgeType.ToString();
+        }
 
         return new WedgeData(
             articleNumber: spec1.ArticleNumber,

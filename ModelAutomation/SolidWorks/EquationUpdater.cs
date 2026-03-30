@@ -661,30 +661,47 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
         private static double ComputeFunnelGapMm(DomWedgeData wedge)
         {
-            const double DefaultGapMm = 0.0003;
+            const double DefaultGapMm = 0.00762; // 0.0003 inch
 
-            if (!TryGetMm(wedge, "FNO", out var fno) || fno <= 0)
+            if (!TryGetMm(wedge, "FNO", out var fno) || fno <= 0.0)
                 return DefaultGapMm;
 
             if (!TryGetDeg(wedge, "FNA", out var fna) ||
                 !TryGetDeg(wedge, "BA", out var ba) ||
                 !TryGetDeg(wedge, "RA", out var ra) ||
-                !TryGetMm(wedge, "FND", out var fnd) ||
                 !TryGetMm(wedge, "H", out var h))
                 return DefaultGapMm;
 
             double alpha = (fna / 2.0) * Math.PI / 180.0;
             double k = (ba + ra) * Math.PI / 180.0;
 
-            double t2 = Math.Tan(alpha) * Math.Tan(alpha) * Math.Tan(k) * Math.Tan(k);
-            double frac = (1 - t2) / (1 + t2);
+            double sinAlpha = Math.Sin(alpha);
+            if (Math.Abs(sinAlpha) < 1e-12)
+                return DefaultGapMm;
 
-            double inside = fnd * frac - h;
-            double denom = 2.0 * Math.Sin(alpha);
-            if (Math.Abs(denom) < 1e-12) return DefaultGapMm;
+            double tanA = Math.Tan(alpha);
+            double tanK = Math.Tan(k);
 
-            Logger.Blue($"Funnel Gap = {inside / denom}");
-            return inside / denom;
+            double tanA2 = tanA * tanA;
+            double tanK2 = tanK * tanK;
+
+            double denomFrac = 1.0 + (tanA * tanK);
+            if (Math.Abs(denomFrac) < 1e-12)
+                return DefaultGapMm;
+
+            double frac = (1.0 - (tanA2 * tanK2)) / denomFrac;
+
+            // bracket = FNO * frac - H
+            double bracket = (fno * frac) - h;
+
+            // funnel_gap = 1 / (2 * sin(alpha)) * bracket
+            double fg = (1.0 / (2.0 * sinAlpha)) * bracket;
+
+            if (double.IsNaN(fg) || double.IsInfinity(fg) || fg <= 0.0)
+                return DefaultGapMm;
+
+            Logger.Blue($"Funnel Gap = {fg}");
+            return fg;
         }
 
         private static bool TryGetMm(DomWedgeData wedge, string key, out double value)

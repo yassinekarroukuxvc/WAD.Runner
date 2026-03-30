@@ -653,7 +653,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         {
             try
             {
-                MetadataApplier.ApplyOverlay(ds, drawingData, run.Wedge);
+                MetadataApplier.ApplyOverlay(ds, drawingData, run.Wedge,run.WedgeType);
                 ds.Rebuild();
             }
             catch (Exception ex)

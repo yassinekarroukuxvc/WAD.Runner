@@ -90,7 +90,7 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
             WedFootOption: Get(spec1, "Wed-Foot_Option"),
             WedWireExit: Get(spec1, "Wed-Wire_Exit"),
             WedFeedHSlot: Get(spec1, "Wed-Feed_H/Slot"),
-
+            WedFgStyle: Get(spec1, "Wed-FG-Style"),
             DwgText1: Get(spec1, "Wed-Dwg-Text1"),
             DwgText2: Get(spec1, "Wed-Dwg-Text2"),
             DwgText3: Get(spec1, "Wed-Dwg-Text3"),
@@ -170,7 +170,7 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
             DwgText5: Get(spec1, "Wed-Dwg-Text5"),
             DwgText6: Get(spec1, "Wed-Dwg-Text6"),
             DwgText7: Get(spec1, "Wed-Dwg-Text7"),
-
+            PgbFgStyle: Get(spec1, "PGB-FG-Style"),
             WedType: Get(spec1, "Wed-Type"),
             WedFootOption: Get(spec1, "Wed-Foot_Option"),
             WedWireExit: Get(spec1, "Wed-Wire_Exit"),

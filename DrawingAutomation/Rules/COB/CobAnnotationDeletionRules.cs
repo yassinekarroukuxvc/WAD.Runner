@@ -394,6 +394,7 @@ public static class CobAnnotationDeletionRules
     {
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "TL@ANNOT_LEFT_sketch"));
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "K@ANNOT_LEFT_sketch"));
+        set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "VR@ANNOT_LEFT_sketch"));
     }
 
     private static void AddFrontAlways(HashSet<AnnotationDeletionCore.Ann> set, Options opt)
@@ -405,6 +406,9 @@ public static class CobAnnotationDeletionRules
             : "K@ANNOT_LEFT_sketch";
 
         set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, kName));
+
+        if (opt.HasVwVr)
+            set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Front, "VR@ANNOT_LEFT_sketch"));
     }
 
     // ============================================================
@@ -512,7 +516,7 @@ public static class CobAnnotationDeletionRules
 
         if (opt.HasRa2)
             keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"RA2@{FrontSketch(shank)}"));
-
+        
         if (opt.HasErd)
         {
             var erdName = !string.IsNullOrWhiteSpace(opt.ErdAnnotationFullName)
@@ -521,7 +525,7 @@ public static class CobAnnotationDeletionRules
 
             keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, erdName));
         }
-
+        
         // Foot option dims:
         AddFootOptionKeep_Production(keep, shank, foot, opt);
     }
@@ -562,7 +566,7 @@ public static class CobAnnotationDeletionRules
         // Section base (Customer reduced)
         // Keep: RA, ERL, T, H, HA, FNA (and optionally RA2, ERD)
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"RA@{FrontSketch(shank)}"));
-        keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"ERL@{FrontSketch(shank)}"));
+        //keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"ERL@{FrontSketch(shank)}"));
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"T@{FrontSketch(shank)}"));
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"H@{FrontSketch(shank)}"));
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"HA@{FrontSketch(shank)}"));
@@ -570,7 +574,7 @@ public static class CobAnnotationDeletionRules
 
         if (opt.HasRa2)
             keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"RA2@{FrontSketch(shank)}"));
-
+        /*
         if (opt.HasErd)
         {
             var erdName = !string.IsNullOrWhiteSpace(opt.ErdAnnotationFullName)
@@ -579,7 +583,7 @@ public static class CobAnnotationDeletionRules
 
             keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, erdName));
         }
-
+        */
         // Foot / CG rules (Customer)
         AddFootOptionKeep_Customer(keep, shank, foot, opt);
 
@@ -595,7 +599,7 @@ public static class CobAnnotationDeletionRules
 
     private static void AddFrontSketchCavitySuperset_AsSection(HashSet<AnnotationDeletionCore.Ann> set, ShankType shank)
     {
-        foreach (var key in new[] { "FD", "FL", "ERL", "RA", "H", "HA", "FNA", "BA" })
+        foreach (var key in new[] { "FD", "FL","ERL", "RA", "H", "HA", "FNA", "BA" })
             set.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"{key}@{FrontSketch(shank)}"));
     }
 

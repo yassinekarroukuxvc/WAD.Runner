@@ -419,9 +419,33 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 if (allowed != null && !allowed.Contains(key))
                     continue;
 
-                if (DimensionKeyPolicy.IsAngle(key)) continue;
-
                 var d = kv.Value;
+                bool isAngle = DimensionKeyPolicy.IsAngle(key);
+
+                // Overlay table is handled elsewhere; keep this filtered table focused on Production/Customer behavior
+                if (drawingType == DrawingType.Overlay && isAngle)
+                    continue;
+
+                if (isAngle)
+                {
+                    if (!d.Nominal.IsDeg) continue;
+
+                    var deg = d.Nominal.AsDeg();
+                    if (deg == 0m) continue;
+
+                    var degStr = deg.ToString("0.###", CultureInfo.InvariantCulture);
+                    var tolDeg = FormatTolDeg(d.Tol);
+                    var refFlag = IsZeroTol(d.Tol);
+
+                    var text = string.IsNullOrEmpty(tolDeg)
+                        ? $"{key}={degStr}°"
+                        : $"{key}={degStr}° {tolDeg}";
+
+                    if (refFlag) text += " (REF)";
+
+                    rows.Add(text);
+                    continue;
+                }
 
                 if (!d.Nominal.IsMm) continue;
                 var mm = d.Nominal.AsMm();
@@ -436,19 +460,25 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 var tolIn = FormatTolInches(d.Tol, removeLeadingZero: true);
                 var tolMm = FormatTolMm(d.Tol);
 
-                var refFlag = IsZeroTol(d.Tol);
+                var refFlagLength = IsZeroTol(d.Tol);
 
                 var left = $"{key}={inchStr}";
                 var right = $"[{mmStr}{(string.IsNullOrEmpty(tolMm) ? "" : " " + tolMm)}]";
                 var middle = string.IsNullOrEmpty(tolIn) ? "" : " " + tolIn;
 
-                var text = (left + middle + " " + right).Trim();
-                if (refFlag) text += " (REF)";
+                var rowText = (left + middle + " " + right).Trim();
+                if (refFlagLength) rowText += " (REF)";
 
-                rows.Add(text);
+                rows.Add(rowText);
             }
 
             return rows;
+        }
+        private static string FormatTolDeg(Tolerance tol)
+        {
+            if (tol == null || (tol.Lower.Value == 0m && tol.Upper.Value == 0m)) return "";
+            var maxAbs = Math.Max(Math.Abs(tol.Lower.Value), Math.Abs(tol.Upper.Value));
+            return $"±{maxAbs:0.###}°";
         }
         private static List<string> ReadLinesFromMetadata(DrawingData draw, string metaKey)
         {
@@ -469,12 +499,10 @@ namespace WAD.Runner.DrawingAutomation.Tables
         /// <summary>
         /// Builds display strings for overlay dimension rows.
         /// Requirements:
-        /// - Use only millimeters (no inches).
-        /// - Skip zero-valued dimensions (builder already does that).
-        /// - If both tolerances are zero → mark as REF:
-        ///     FL=.0354 (REF)
-        /// - Otherwise: show ± tolerance in mm:
-        ///     FL=.0354 ±.0010
+        /// - Length dimensions are shown in inches.
+        /// - Angle dimensions remain in degrees.
+        /// - If both tolerances are zero -> mark as REF.
+        /// - Otherwise: show ± tolerance in inches for length dimensions.
         /// </summary>
         private static List<string> BuildOverlayDimensionRowStrings(IReadOnlyList<OverlayDimensionRow> dims)
         {
@@ -485,13 +513,14 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 if (row.Nominal.IsMm)
                 {
                     var mm = row.Nominal.AsMm();
-                    var mmStr = TrimLeadingZero(mm.ToString("0.0000", CultureInfo.InvariantCulture));
+                    var inch = MmToIn(mm);
+                    var inchStr = TrimLeadingZero(inch.ToString("0.0000", CultureInfo.InvariantCulture));
 
                     string text;
 
                     if (row.IsZeroTolerance)
                     {
-                        text = $"{row.Key}={mmStr} (REF)";
+                        text = $"{row.Key}={inchStr} (REF)";
                     }
                     else
                     {
@@ -499,15 +528,16 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         var upperMm = row.TolUpper.IsMm ? row.TolUpper.AsMm() : 0m;
 
                         var maxAbsMm = Math.Max(Math.Abs(lowerMm), Math.Abs(upperMm));
+                        var maxAbsIn = MmToIn(maxAbsMm);
 
-                        if (maxAbsMm == 0m)
+                        if (maxAbsIn == 0m)
                         {
-                            text = $"{row.Key}={mmStr} (REF)";
+                            text = $"{row.Key}={inchStr} (REF)";
                         }
                         else
                         {
-                            var tolStr = TrimLeadingZero(maxAbsMm.ToString("0.0000", CultureInfo.InvariantCulture));
-                            text = $"{row.Key}={mmStr} ±{tolStr}";
+                            var tolStr = TrimLeadingZero(maxAbsIn.ToString("0.0000", CultureInfo.InvariantCulture));
+                            text = $"{row.Key}={inchStr} ±{tolStr}";
                         }
                     }
 

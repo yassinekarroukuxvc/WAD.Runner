@@ -481,7 +481,7 @@ public static class ApiHost
             });
         });
 
-        app.MapGet("/jobs/{id:guid}/download", (Guid id, JobStore store) =>
+        app.MapGet("/jobs/{id:guid}/download", (Guid id, JobStore store, HttpContext httpContext) =>
         {
             if (!store.TryGet(id, out var job))
                 return Results.NotFound(new { error = "Job not found" });
@@ -493,15 +493,38 @@ public static class ApiHost
             if (string.IsNullOrWhiteSpace(resultsPath) || !Directory.Exists(resultsPath))
                 return Results.NotFound(new { error = "Results folder not found." });
 
-            var tmp = Path.GetTempFileName();
-            var zipPath = Path.ChangeExtension(tmp, ".zip");
-            File.Move(tmp, zipPath, overwrite: true);
+            var zipPath = Path.Combine(
+                Path.GetTempPath(),
+                $"job-{id:N}-{Guid.NewGuid():N}.zip");
 
-            ZipFile.CreateFromDirectory(resultsPath, zipPath, CompressionLevel.Optimal, includeBaseDirectory: false);
+            ZipFile.CreateFromDirectory(
+                resultsPath,
+                zipPath,
+                CompressionLevel.Optimal,
+                includeBaseDirectory: false);
+
+            httpContext.Response.OnCompleted(() =>
+            {
+                try
+                {
+                    if (System.IO.File.Exists(zipPath))
+                        System.IO.File.Delete(zipPath);
+                }
+                catch
+                {
+                }
+
+                return Task.CompletedTask;
+            });
 
             var fileName = $"job-{id:N}.zip";
-            var stream = File.OpenRead(zipPath);
-            return Results.File(stream, "application/zip", fileDownloadName: fileName, enableRangeProcessing: true);
+            var stream = System.IO.File.OpenRead(zipPath);
+
+            return Results.File(
+                stream,
+                "application/zip",
+                fileDownloadName: fileName,
+                enableRangeProcessing: true);
         });
 
         app.MapGet("/specs/{firma:int}/{article}", async (
@@ -540,7 +563,8 @@ public static class ApiHost
                         new { Template = "PGB-Spec1", XRow = "Wed-Type",        ColumnId = spec1Dto.WedType },
                         new { Template = "PGB-Spec1", XRow = "Wed-Foot_Option", ColumnId = spec1Dto.WedFootOption },
                         new { Template = "PGB-Spec1", XRow = "Wed-Wire_Exit",   ColumnId = spec1Dto.WedWireExit },
-                        new { Template = "PGB-Spec1", XRow = "Wed-Feed_H/Slot", ColumnId = spec1Dto.WedFeedHSlot }
+                        new { Template = "PGB-Spec1", XRow = "Wed-Feed_H/Slot", ColumnId = spec1Dto.WedFeedHSlot },
+                        new { Template = "PGB-Spec1", XRow = "PGB-FG-Style", ColumnId = spec1Dto.PgbFgStyle },
                     }
                     .Where(x => x?.GetType().GetProperty("ColumnId")?.GetValue(x) is not null)
                     .ToList();
@@ -589,7 +613,8 @@ public static class ApiHost
                         new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text5",   ColumnId = spec1Dto.DwgText5 },
                         new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text6",   ColumnId = spec1Dto.DwgText6 },
                         new { Template = "Wed-Spec1", XRow = "Wed-Dwg-Text7",   ColumnId = spec1Dto.DwgText7 },
-                        new { Template = "Article",   XRow = "Description",     ColumnId = description }
+                        new { Template = "Article",   XRow = "Description",     ColumnId = description },
+                        new { Template = "Wed-Spec1", XRow = "Wed-FG-Style", ColumnId = spec1Dto.WedFgStyle },
                     }
                     .Where(x => x?.GetType().GetProperty("ColumnId")?.GetValue(x) is not null)
                     .ToList();

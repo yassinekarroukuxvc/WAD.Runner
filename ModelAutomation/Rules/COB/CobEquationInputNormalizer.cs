@@ -80,11 +80,11 @@ namespace WAD.Runner.ModelAutomation.Rules.COB
 
         private static decimal ComputeFunnelGapMmOrDefault(WedgeData wedge)
         {
-            // If FND is missing or zero => default
-            if (!TryGetNominalMm(wedge, "FND", out var fndMm) || fndMm <= 0m)
+            // If FNO is missing or zero => default
+            if (!TryGetNominalMm(wedge, "FNO", out var fnoMm) || fnoMm <= 0m)
                 return DefaultFunnelGapMm;
 
-            // Need the other inputs; if any missing => default (safer than partial math)
+            // Need the other inputs; if any missing => default
             if (!TryGetNominalDeg(wedge, "FNA", out var fnaDeg)) return DefaultFunnelGapMm;
             if (!TryGetNominalDeg(wedge, "BA", out var baDeg)) return DefaultFunnelGapMm;
             if (!TryGetNominalDeg(wedge, "RA", out var raDeg)) return DefaultFunnelGapMm;
@@ -106,14 +106,14 @@ namespace WAD.Runner.ModelAutomation.Rules.COB
             var tanA2 = tanA * tanA;
             var tanK2 = tanK * tanK;
 
-            var denom = 1.0 + (tanA2 * tanK2);
+            var denom = 1.0 + (tanA * tanK);
             if (Math.Abs(denom) <= Eps)
                 return DefaultFunnelGapMm;
 
             var frac = (1.0 - (tanA2 * tanK2)) / denom;
 
-            // bracket = FND * frac - H
-            var bracketMm = ((double)fndMm * frac) - (double)hMm;
+            // bracket = FNO * frac - H
+            var bracketMm = ((double)fnoMm * frac) - (double)hMm;
 
             // funnel_gap = 1/(2*sin(alpha)) * bracket
             var fg = (1.0 / (2.0 * sinAlpha)) * bracketMm;

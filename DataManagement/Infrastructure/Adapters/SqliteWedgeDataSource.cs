@@ -98,7 +98,7 @@ public sealed class SqliteWedgeDataSource : IWedgeDataSource
 
             WedEngrave: Get(spec1Rows, "Wed-Engrave"),
             WedCoining: Get(spec1Rows, "Wed-Coining"),
-
+            WedFgStyle: Get(spec1Rows, "Wed-FG-Style"),
             // NEW (COB / UT-US metadata fields)
             WedType: Get(spec1Rows, "Wed-Type"),
             WedFootOption: Get(spec1Rows, "Wed-Foot_Option"),
@@ -154,7 +154,7 @@ public sealed class SqliteWedgeDataSource : IWedgeDataSource
 
             Engrave: Get(spec1Rows, "Wed-Engrave"),
             FLBlank: Get(spec1Rows, "Wed-FL-Blank"),
-
+            PgbFgStyle: Get(spec1Rows, "PGB-FG-Style"),
             DwgText1: Get(spec1Rows, "Wed-Dwg-Text1"),
             DwgText2: Get(spec1Rows, "Wed-Dwg-Text2"),
             DwgText3: Get(spec1Rows, "Wed-Dwg-Text3"),

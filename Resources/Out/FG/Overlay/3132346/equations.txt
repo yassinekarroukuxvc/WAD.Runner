@@ -133,7 +133,7 @@
 "funnel_final_section" = 0.098425
 "T@CAVITY_STD_sketch" = "T"
 "BA@CAVITY_STD_sketch" = "BA"
-"funnel_gap" = 0.0003mm
+"funnel_gap" = 0.06121mm
 "funnel_final_section@CAVITY_STD_sketch" = "funnel_final_section"
 "funnel_gap@CAVITY_STD_sketch" = "funnel_gap"
 "erw" = 0.04318mm
@@ -207,5 +207,5 @@
 "MI" = 0.00762mm
 "Y" = 0.03048mm
 "EngravingStart" = 8.41248mm
-"overlay_calibration1" = 400
-"scale" = 246
+"overlay_calibration1" = 300
+"scale" = 183

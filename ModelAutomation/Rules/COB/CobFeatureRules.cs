@@ -33,6 +33,7 @@ namespace WAD.Runner.ModelAutomation.Rules
     ///   PGB_STD_FRONT_overlay_sketch / PGB_180_DEG_REV_FRONT_overlay_sketch.
     /// - If VR > 0 in overlay, always suppress the LEFT overlay sketch
     ///   (FG_LEFT_overlay_sketch / PGB_LEFT_overlay_sketch).
+    /// - For PGB Overlay, always suppress FRO.
     ///
     /// Non-overlay rule:
     /// - If drawingType is NOT Overlay: force suppress "cut_feature" and "cut_plan_feature"
@@ -61,11 +62,17 @@ namespace WAD.Runner.ModelAutomation.Rules
                 // PGB mandatory shank plan
                 BuildPgbPlan(shank, suppress, unsuppress);
 
+                foreach (var nm in BuildNameCandidatesWithSketches("FRO", CobShankType.Std))
+                    suppress.Add(nm);
+
+                foreach (var nm in BuildNameCandidatesWithSketches("FRO", CobShankType.Rev180))
+                    suppress.Add(nm);
                 // PGB Overlay template rules
                 if (drawingType == DrawingType.Overlay)
                 {
                     Logger.Info("[CobFeatureRules] Subclass=PGB + Overlay → applying overlay template feature toggles.");
                     BuildOverlayPlan(wedge, shank, suppress, unsuppress, "PGB_LEFT_overlay_sketch");
+                    Logger.Info("[CobFeatureRules] PGB Overlay rule → suppress FRO (STD + 180_DEG_REV).");
                 }
 
                 // If NOT overlay → force suppress cut features

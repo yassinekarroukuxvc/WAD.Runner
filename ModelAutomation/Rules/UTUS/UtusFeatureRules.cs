@@ -68,6 +68,11 @@ namespace WAD.Runner.ModelAutomation.Rules
                 // PGB mandatory shank plan
                 BuildPgbPlan(shank, suppress, unsuppress);
 
+                foreach (var nm in BuildNameCandidatesWithSketches("FRO", UtusShankType.Std))
+                    suppress.Add(nm);
+
+                foreach (var nm in BuildNameCandidatesWithSketches("FRO", UtusShankType.Rev180))
+                    suppress.Add(nm);
                 // PGB Overlay template rules
                 if (drawingType == DrawingType.Overlay)
                 {

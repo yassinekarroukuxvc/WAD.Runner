@@ -20,5 +20,6 @@ public sealed record PgbSpec1Dto(
     string? WedType,
     string? WedFootOption,
     string? WedWireExit,
-    string? WedFeedHSlot
+    string? WedFeedHSlot,
+    string? PgbFgStyle //maps the wedge type : CKVD,COB...
 );
