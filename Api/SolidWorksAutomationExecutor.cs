@@ -165,6 +165,29 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             "wedge-auto-draw-UT-US-3d-equation.txt");
                         break;
 
+                    case WedgeType.FP:
+                        templatePartPath = Path.Combine(
+                            "Resources", "Templates", "FP",
+                            "wedge-auto-draw-FP-3d-model_sw_version_2023.SLDPRT");
+
+                        templateDrawingPath = dtype switch
+                        {
+                            DrawingType.Overlay =>
+                                Path.Combine(
+                                    "Resources", "Templates", "FP",
+                                    "wedge-auto-draw-FP-2d-overlay.SLDDRW"),
+
+                            DrawingType.Production or DrawingType.Customer or _ =>
+                                Path.Combine(
+                                    "Resources", "Templates", "FP",
+                                    "wedge-auto-draw-FP-2d-drawing.SLDDRW"),
+                        };
+
+                        equationTemplatePathForModelPhase = Path.Combine(
+                            "Resources", "Templates", "FP",
+                            "wedge-auto-draw-FP-3d-equation.txt");
+                        break;
+
                     case WedgeType.OSG7:
                         templatePartPath = Path.Combine(
                             "Resources", "Templates", "OSG7",

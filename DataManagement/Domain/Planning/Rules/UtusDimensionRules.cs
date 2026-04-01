@@ -13,8 +13,9 @@ namespace WAD.Runner.DataManagement.Domain.Planning.Rules;
 /// UTUS-specific dimension placement rules.
 ///
 /// TEMPORARY:
-/// - Uses the same placement logic as COB today.
-/// - Later, replace view blocks with true UTUS logic if needed.
+/// - Uses the same placement logic as COB today,
+///   but the rules LIVE HERE and are organized by view.
+/// - Later, replace view blocks with true UTUS logic.
 /// </summary>
 internal static class UtusDimensionRules
 {
@@ -130,7 +131,7 @@ internal static class UtusDimensionRules
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
         PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical,
-            95, 178);
+            75, 172);
 
         PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal,
             83, 197);
@@ -173,7 +174,7 @@ internal static class UtusDimensionRules
             121, 147);
 
         PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal,
-            D[0] + 15.0, bandMidY + dsv * GD + 15.0);
+            121,155);
 
         PlaceDim(ctx, diag, outList, "VRR", Detail, DimAxis.Horizontal,
             0, 0);
@@ -220,13 +221,13 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "FR_C", Section, DimAxis.Horizontal,
             171, 152);
 
-        PlaceDim(ctx, diag, outList, "FR_G", Section, DimAxis.Horizontal,
-            171, 152);
-
         PlaceDim(ctx, diag, outList, "FR_VG", Section, DimAxis.Horizontal,
             171, 152);
 
         PlaceDim(ctx, diag, outList, "FR_CG", Section, DimAxis.Horizontal,
+            171, 152);
+
+        PlaceDim(ctx, diag, outList, "FR_G", Section, DimAxis.Horizontal,
             171, 152);
 
         PlaceDim(ctx, diag, outList, "BR_C", Section, DimAxis.Horizontal,
@@ -270,6 +271,7 @@ internal static class UtusDimensionRules
 
         PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
             233, 165);
+
         PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,
             253, 175);
     }
@@ -279,6 +281,7 @@ internal static class UtusDimensionRules
     // ============================================================
     private static void AddOverlayBaseline(LayoutContext ctx, PlannerDiagnostics diag, List<DimensionSpec> outList)
     {
+        // Views (kept for symmetry / future extension)
         _ = LayoutMath.View(ctx, Front);
         _ = LayoutMath.View(ctx, Top);
         _ = LayoutMath.View(ctx, Side);

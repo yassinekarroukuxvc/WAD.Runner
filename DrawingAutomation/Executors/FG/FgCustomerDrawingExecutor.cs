@@ -32,6 +32,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 WedgeType.COB => ProfileRegistry.GetCob(run.Wedge.Subclass, drawingData.DrawingType),
                 WedgeType.OSG7 => ProfileRegistry.GetOsg7(run.Wedge.Subclass, drawingData.DrawingType),
                 WedgeType.UTUS => ProfileRegistry.GetUtus(run.Wedge.Subclass, drawingData.DrawingType),
+                WedgeType.FP => ProfileRegistry.GetUtus(run.Wedge.Subclass, drawingData.DrawingType),
                 _ => ProfileRegistry.GetCkvd(run.Wedge.Subclass, drawingData.DrawingType)
             };
 
@@ -64,7 +65,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 DrawingExecutorPipeline.DeleteZeroValuedAnnotations(st.Ds, st.NameMap, replanned.Context, drawingData, replanned.Dims);
 
             // cleanup if applicable
-            if (run.WedgeType == WedgeType.COB || run.WedgeType == WedgeType.UTUS)
+            if (run.WedgeType == WedgeType.COB || run.WedgeType == WedgeType.UTUS || run.WedgeType == WedgeType.FP)
                 DrawingExecutorPipeline.RunAnnotationCleanup(st.Ds, st.NameMap, run, drawingData);
 
             // 9) Reposition what remains

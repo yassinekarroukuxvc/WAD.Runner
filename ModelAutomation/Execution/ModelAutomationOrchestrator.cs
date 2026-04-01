@@ -24,6 +24,7 @@ using WAD.Runner.ModelAutomation.Rules.COB;
 
 using WAD.Runner.ModelAutomation.Tolerances;
 using WAD.Runner.ModelAutomation.Rules.UTUS;
+using WAD.Runner.ModelAutomation.Rules.FP;
 
 namespace WAD.Runner.ModelAutomation.Execution
 {
@@ -130,6 +131,7 @@ namespace WAD.Runner.ModelAutomation.Execution
                     WedgeType.OSG7 => new Osg7EquationInputNormalizer(),
                     WedgeType.COB => new CobEquationInputNormalizer(),
                     WedgeType.UTUS => new UtusEquationInputNormalizer(),
+                    WedgeType.FP => new FpEquationInputNormalizer(),
                     _ => new NoOpEquationInputNormalizer()
                 };
 
@@ -234,7 +236,7 @@ namespace WAD.Runner.ModelAutomation.Execution
         private static string ResolveConfiguration(WedgeType wedgeType, WedgeSubclass subclass, DrawingType drawingType, WedgeData? wedge)
         {
             // Only COB has the special config mapping requested here.
-            if (wedgeType == WedgeType.COB)
+            if (wedgeType == WedgeType.COB || wedgeType == WedgeType.UTUS || wedgeType == WedgeType.FP)
             {
                 // COB + PGB: config depends on shank type
                 if (subclass == WedgeSubclass.PGB)

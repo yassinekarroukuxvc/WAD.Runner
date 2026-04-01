@@ -1,4 +1,4 @@
-﻿// Domain/Planning/Rules/CobDimensionRules.cs
+﻿// Domain/Planning/Rules/FpDimensionRules.cs
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -10,14 +10,13 @@ using WAD.Runner.DataManagement.Domain.Wedge;
 namespace WAD.Runner.DataManagement.Domain.Planning.Rules;
 
 /// <summary>
-/// COB-specific dimension placement rules.
+/// FP-specific dimension placement rules.
 ///
 /// TEMPORARY:
-/// - Uses the same placement logic as CKVD today,
-///   but the rules LIVE HERE and are organized by view.
-/// - Later, replace view blocks with true COB logic.
+/// - Uses the same placement logic as UTUS today.
+/// - Later, replace view blocks with true FP logic if needed.
 /// </summary>
-internal static class CobDimensionRules
+internal static class FpDimensionRules
 {
     private const string Front = "Front";
     private const string Top = "Top";
@@ -27,7 +26,7 @@ internal static class CobDimensionRules
 
     public static List<DimensionSpec> Build(LayoutContext ctx, PlannerDiagnostics diag)
     {
-        Logger.Info($"[Plan] Enter CobDimensionRules.Build (dtype={ctx.Drawing.DrawingType})");
+        Logger.Info($"[Plan] Enter FpDimensionRules.Build (dtype={ctx.Drawing.DrawingType})");
 
         var dims = new List<DimensionSpec>();
 
@@ -134,8 +133,7 @@ internal static class CobDimensionRules
             75, 172);
 
         PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal,
-            83,197);
-
+            83, 197);
     }
 
     // ----------------- DETAIL -----------------
@@ -157,9 +155,7 @@ internal static class CobDimensionRules
             D[0], bandMidY - 10.0);
 
         PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal,
-            121,145);
-        PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal,
-            121,155);
+            121, 145);
 
         var W = LayoutMath.Dmm(ctx, "W");
         var GD = LayoutMath.Dmm(ctx, "GD");
@@ -174,21 +170,22 @@ internal static class CobDimensionRules
             108, 162);
 
         PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal,
-            121,147);
+            121, 147);
+
+        PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal,
+           121, 155);
 
         PlaceDim(ctx, diag, outList, "VRR", Detail, DimAxis.Horizontal,
             0, 0);
 
         PlaceDim(ctx, diag, outList, "CD", Detail, DimAxis.Horizontal,
-            146,162);
+            146, 162);
 
         PlaceDim(ctx, diag, outList, "CR", Detail, DimAxis.Horizontal,
             119, 162);
-        
+
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
             127, 177);
-
-        
     }
 
     // ----------------- SIDE -----------------
@@ -205,9 +202,7 @@ internal static class CobDimensionRules
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
 
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
-            92,
-            114);
-
+            92, 114);
     }
 
     // ----------------- SECTION -----------------
@@ -232,7 +227,7 @@ internal static class CobDimensionRules
             171, 152);
 
         PlaceDim(ctx, diag, outList, "FR_G", Section, DimAxis.Horizontal,
-            171,152);
+            171, 152);
 
         PlaceDim(ctx, diag, outList, "BR_C", Section, DimAxis.Horizontal,
             205, 152);
@@ -244,10 +239,10 @@ internal static class CobDimensionRules
             205, 152);
 
         PlaceDim(ctx, diag, outList, "BR_G", Section, DimAxis.Horizontal,
-            205,152);
+            205, 152);
 
         PlaceDim(ctx, diag, outList, "FRO", Section, DimAxis.Horizontal,
-            170,148 );
+            170, 148);
 
         PlaceDim(ctx, diag, outList, "ERL", Section, DimAxis.Horizontal,
             193, 143);
@@ -269,15 +264,15 @@ internal static class CobDimensionRules
 
         PlaceDim(ctx, diag, outList, "CA", Section, DimAxis.Horizontal,
             196, 158);
+
         PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
             232, 177);
 
         PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
             233, 165);
+
         PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,
             253, 175);
-
-
     }
 
     // ============================================================
@@ -346,14 +341,14 @@ internal static class CobDimensionRules
     }
 
     private static void PlaceDim(
-    LayoutContext ctx,
-    PlannerDiagnostics diag,
-    List<DimensionSpec> outList,
-    string key,
-    string view,
-    DimAxis axis,
-    double x,
-    double y)
+        LayoutContext ctx,
+        PlannerDiagnostics diag,
+        List<DimensionSpec> outList,
+        string key,
+        string view,
+        DimAxis axis,
+        double x,
+        double y)
     {
         if (!ctx.Drawing.Views.ContainsKey(view))
         {
@@ -378,7 +373,7 @@ internal static class CobDimensionRules
 
                 // placeholders (not used by repositioning)
                 Nominal = Quantity.MmOf(0.01m),
-                Tol = default,         // <-- if this doesn't compile, replace with Tolerance.None / Tolerance.Zero / new Tolerance(...)
+                Tol = default,
                 Comment = null,
                 Style = DimStyle.None
             });

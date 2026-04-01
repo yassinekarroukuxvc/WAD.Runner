@@ -70,11 +70,34 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 125 ] },
+              "DimTable": { "PositionMm": [ 193, 135 ] },
               "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
             },
 
             "Metadata": { "SpecialNote": "COB production override" }
+          }
+        },
+
+        "FP": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
+            },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 135 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
+            },
+
+            "Metadata": { "SpecialNote": "FP production override" }
           }
         },
 
@@ -93,7 +116,7 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 125 ] },
+              "DimTable": { "PositionMm": [ 193, 135 ] },
               "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
             },
 
@@ -133,11 +156,34 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 125 ] },
+              "DimTable": { "PositionMm": [ 193, 135 ] },
               "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
             },
 
             "Metadata": { "SpecialNote": "COB customer override" }
+          }
+        },
+
+        "FP": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [ 130, 200 ],
+                "Scale": 60.0
+              },
+              "Section": { "Scale": 60.0 },
+              "Top": {
+                "PositionMm": [ 85, 185 ]
+              }
+            },
+
+            "Tables": {
+              "TitleBlock": { "PositionMm": [ 15, 15 ] },
+              "DimTable": { "PositionMm": [ 193, 135 ] },
+              "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
+            },
+
+            "Metadata": { "SpecialNote": "FP customer override" }
           }
         },
 
@@ -156,7 +202,7 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 193, 125 ] },
+              "DimTable": { "PositionMm": [ 193, 135 ] },
               "HowToOrder": { "PositionMm": [ 109.73054, 78 ] }
             },
 
@@ -183,6 +229,13 @@
           "Common": {
             "Views": { "Side": { "Params": { "BreaklineGap": 8.0 } } },
             "Metadata": { "SpecialNote": "COB overlay tuning" }
+          }
+        },
+
+        "FP": {
+          "Common": {
+            "Views": { "Side": { "Params": { "BreaklineGap": 8.0 } } },
+            "Metadata": { "SpecialNote": "FP overlay tuning" }
           }
         },
 

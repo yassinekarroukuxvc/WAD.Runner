@@ -1,5 +1,4 @@
-﻿// ModelAutomation/Rules/UTUS/UtusToleranceRules.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -9,62 +8,62 @@ using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Tolerances;
 
-namespace WAD.Runner.ModelAutomation.Rules.UTUS
+namespace WAD.Runner.ModelAutomation.Rules.FP
 {
     /// <summary>
-    /// UTUS tolerances planning (pure logic).
+    /// FP tolerances planning (pure logic).
     ///
     /// Domain contract:
     /// - Lengths nominal in mm, angles in deg.
     /// - Tolerances are always mm and stored on Dimension.Tol (Lower/Upper).
     ///
     /// Current scope:
-    /// - UTUS + PGB + Overlay: push W / FD / T tolerances into overlay sketch parameters.
-    ///
-    /// Current behavior intentionally matches COB tolerance rules.
+    /// - FP Overlay: push W / FD / T tolerances into overlay sketch parameters.
+    /// - Target sketch names depend on subclass:
+    ///   - FG  -> FG_...
+    ///   - PGB -> PGB_...
     /// </summary>
-    public sealed class UtusToleranceRules : IToleranceRuleSet
+    public sealed class FpToleranceRules : IToleranceRuleSet
     {
         public TolerancePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
 
-            // Only requested scenario for now.
             if (drawingType != DrawingType.Overlay)
                 return TolerancePlan.Empty;
 
             var shank = ResolveShankType(wedge); // STD vs 180_DEG_REV
             var updates = new List<ToleranceUpdate>();
-            var prefix = subclass == WedgeSubclass.FG ? "FG" : "PGB";
 
+            var prefix = subclass == WedgeSubclass.FG ? "FG" : "PGB";
 
             // Common for both shanks
             AddTolPairMm(updates, wedge, dimKey: "W",
                 utolTarget: $"W_UTOL@{prefix}_LEFT_overlay_sketch",
                 ltolTarget: $"W_LTOL@{prefix}_LEFT_overlay_sketch");
 
-            if (shank == UtusShankType.Std)
+            if (shank == CobShankType.Std)
             {
                 AddTolPairMm(updates, wedge, dimKey: "FD",
-                    utolTarget: "FD_UTOL@PGB_STD_FRONT_overlay_sketch",
-                    ltolTarget: "FD_LTOL@PGB_STD_FRONT_overlay_sketch");
+                    utolTarget: $"FD_UTOL@PGB_STD_FRONT_overlay_sketch",
+                    ltolTarget: $"FD_LTOL@PGB_STD_FRONT_overlay_sketch");
 
                 AddTolPairMm(updates, wedge, dimKey: "T",
-                    utolTarget: "T_UTOL@PGB_STD_FRONT_overlay_sketch",
-                    ltolTarget: "T_LTOL@PGB_STD_FRONT_overlay_sketch");
+                    utolTarget: $"T_UTOL@PGB_STD_FRONT_overlay_sketch",
+                    ltolTarget: $"T_LTOL@PGB_STD_FRONT_overlay_sketch");
             }
             else
             {
                 AddTolPairMm(updates, wedge, dimKey: "FD",
-                    utolTarget: "FD_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
-                    ltolTarget: "FD_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
+                    utolTarget: $"FD_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
+                    ltolTarget: $"FD_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
 
                 AddTolPairMm(updates, wedge, dimKey: "T",
-                    utolTarget: "T_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
-                    ltolTarget: "T_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
+                    utolTarget: $"T_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
+                    ltolTarget: $"T_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
             }
 
-            Logger.Info($"[UtusToleranceRules] PGB Overlay → planned updates={updates.Count} (Shank={shank})");
+            Logger.Info($"[FpToleranceRules] {subclass} Overlay → planned updates={updates.Count} (Shank={shank})");
             return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
         }
 
@@ -81,15 +80,14 @@ namespace WAD.Runner.ModelAutomation.Rules.UTUS
         {
             if (!TryGetLengthToleranceMm(wedge, dimKey, out var ltolMm, out var utolMm))
             {
-                Logger.Warn($"[UtusToleranceRules] Missing/invalid tolerance for '{dimKey}' (skipping: {ltolTarget}, {utolTarget})");
+                Logger.Warn($"[FpToleranceRules] Missing/invalid tolerance for '{dimKey}' (skipping: {ltolTarget}, {utolTarget})");
                 return;
             }
 
-            // UTOL target receives Upper (positive), LTOL target receives Lower (usually negative or 0).
             updates.Add(new ToleranceUpdate(utolTarget, utolMm, ToleranceUnit.LengthMm));
             updates.Add(new ToleranceUpdate(ltolTarget, ltolMm, ToleranceUnit.LengthMm));
 
-            Logger.Info($"[UtusToleranceRules] {dimKey}: LTOL={ltolMm}mm → {ltolTarget}, UTOL={utolMm}mm → {utolTarget}");
+            Logger.Info($"[FpToleranceRules] {dimKey}: LTOL={ltolMm}mm → {ltolTarget}, UTOL={utolMm}mm → {utolTarget}");
         }
 
         /// <summary>
@@ -109,14 +107,12 @@ namespace WAD.Runner.ModelAutomation.Rules.UTUS
             if (dim is null)
                 return false;
 
-            // Guard: must be a length dimension (nominal in mm).
             if (dim.Nominal.Unit != UnitKind.Millimeter)
             {
-                Logger.Warn($"[UtusToleranceRules] '{dimKey}' nominal unit is {dim.Nominal.Unit} (expected Millimeter).");
+                Logger.Warn($"[FpToleranceRules] '{dimKey}' nominal unit is {dim.Nominal.Unit} (expected Millimeter).");
                 return false;
             }
 
-            // Tolerances always in mm by type contract.
             lowerMm = dim.Tol.Lower.Value;
             upperMm = dim.Tol.Upper.Value;
 
@@ -124,9 +120,9 @@ namespace WAD.Runner.ModelAutomation.Rules.UTUS
         }
 
         // ------------------------------------------------------------
-        // Shank resolve (same behavior as COB)
+        // Shank resolve
         // ------------------------------------------------------------
-        private static UtusShankType ResolveShankType(WedgeData wedge)
+        private static CobShankType ResolveShankType(WedgeData wedge)
         {
             var raw =
                 GetPropLoose(wedge, "Wed-Type") ??
@@ -147,9 +143,9 @@ namespace WAD.Runner.ModelAutomation.Rules.UTUS
                     "180REV",
                     "REV",
                     "REVERSE"))
-                return UtusShankType.Rev180;
+                return CobShankType.Rev180;
 
-            return UtusShankType.Std;
+            return CobShankType.Std;
         }
 
         private static string NormalizeDbToken(string s)
@@ -207,6 +203,6 @@ namespace WAD.Runner.ModelAutomation.Rules.UTUS
             return false;
         }
 
-        private enum UtusShankType { Std, Rev180 }
+        private enum CobShankType { Std, Rev180 }
     }
 }

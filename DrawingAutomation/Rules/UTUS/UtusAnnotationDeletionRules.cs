@@ -532,8 +532,8 @@ public static class UtusAnnotationDeletionRules
 
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Side, $"BA@{FrontSketch(shank)}"));
 
+        
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"RA@{FrontSketch(shank)}"));
-        //keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"ERL@{FrontSketch(shank)}"));
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"T@{FrontSketch(shank)}"));
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"H@{FrontSketch(shank)}"));
         keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"HA@{FrontSketch(shank)}"));
@@ -541,19 +541,9 @@ public static class UtusAnnotationDeletionRules
 
         if (opt.HasRa2)
             keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, $"RA2@{FrontSketch(shank)}"));
-        /*
-        if (opt.HasErd)
-        {
-            var erdName = !string.IsNullOrWhiteSpace(opt.ErdAnnotationFullName)
-                ? opt.ErdAnnotationFullName!.Trim()
-                : $"ERD@{FrontSketch(shank)}";
 
-            keep.Add(new AnnotationDeletionCore.Ann(AnnotationDeletionCore.ViewKind.Section, erdName));
-        }
-        */
         AddFootOptionKeep_Customer(keep, shank, foot, opt);
     }
-
     // ============================================================
     // FRONT-SKETCH CAVITY SET
     // ============================================================

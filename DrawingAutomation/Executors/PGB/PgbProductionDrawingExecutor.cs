@@ -32,6 +32,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
                 WedgeType.COB => ProfileRegistry.GetCob(run.Wedge.Subclass, drawingData.DrawingType),
                 WedgeType.OSG7 => ProfileRegistry.GetOsg7(run.Wedge.Subclass, drawingData.DrawingType),
                 WedgeType.UTUS => ProfileRegistry.GetUtus(run.Wedge.Subclass, drawingData.DrawingType),
+                WedgeType.FP => ProfileRegistry.GetUtus(run.Wedge.Subclass, drawingData.DrawingType),
                 _ => ProfileRegistry.GetCkvd(run.Wedge.Subclass, drawingData.DrawingType)
             };
 

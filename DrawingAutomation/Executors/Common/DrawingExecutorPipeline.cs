@@ -227,6 +227,11 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                     Logger.Info("[10?/??] UT/US annotation cleanup (delete-by-fullname plan)…");
                     new UtusAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
                 }
+                if (run.WedgeType == WedgeType.FP)
+                {
+                    Logger.Info("[10?/??] FP annotation cleanup (delete-by-fullname plan)…");
+                    new UtusAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
+                }
                 ds.Rebuild();
             }
             catch (Exception ex)

@@ -287,7 +287,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
 
             // --------------------------- COB funnel_gap ---------------------------
-            if (wedgeType == DomWedgeType.COB || wedgeType == DomWedgeType.UTUS)
+            if (wedgeType == DomWedgeType.COB || wedgeType == DomWedgeType.UTUS || wedgeType == DomWedgeType.FP)
             {
                 double funnelGapMm = ComputeFunnelGapMm(wedge);
 
@@ -402,15 +402,15 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 upserted++;
             }
 
-            // --------------------------- COB funnel_gap ---------------------------
+            // --------------------------- funnel_gap ---------------------------
             var byKey = effectiveDims.ToDictionary(kv => kv.Key.Value, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
-            if (wedgeType == DomWedgeType.COB || wedgeType == DomWedgeType.UTUS)
+            if (wedgeType == DomWedgeType.COB || wedgeType == DomWedgeType.UTUS || wedgeType == DomWedgeType.FP)
             {
                 double funnelGapMm = ComputeFunnelGapMm(wedge);
                 UpsertEquation(mgr, byNameIndex, "funnel_gap", $"\"funnel_gap\" = {F(funnelGapMm)}mm");
                 upserted++;
 
-                Logger.Info($"[ModelAutomation.EquationUpdater] COB funnel_gap computed (model) = {funnelGapMm} mm");
+                Logger.Info($"[ModelAutomation.EquationUpdater] funnel_gap computed (model) = {funnelGapMm} mm");
             }
 
             if (rebuild)

@@ -27,6 +27,8 @@ public enum WedgeType
 
     UTUS = 6,
 
+    FP = 7,
+
     /// <summary>Other special or test wedge types.</summary>
     Other = 99
 }
