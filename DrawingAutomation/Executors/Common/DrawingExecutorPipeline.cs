@@ -20,6 +20,7 @@ using WAD.Runner.DrawingAutomation.Views;
 using WAD.Runner.DrawingAutomation.Rules.COB;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.Rules.UTUS;
+using WAD.Runner.DrawingAutomation.Rules.FP;
 
 namespace WAD.Runner.DrawingAutomation.Executors.Common
 {
@@ -230,7 +231,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 if (run.WedgeType == WedgeType.FP)
                 {
                     Logger.Info("[10?/??] FP annotation cleanup (delete-by-fullname plan)…");
-                    new UtusAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
+                    new FpAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
                 }
                 ds.Rebuild();
             }

@@ -151,10 +151,10 @@ internal static class CobDimensionRules
             D[0] + 3.5, D[1]);
 
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
-            D[0], bandMidY);
+            D[0], 125);
 
         PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal,
-            D[0], bandMidY - 10.0);
+            D[0],135);
 
         PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal,
             121,145);
