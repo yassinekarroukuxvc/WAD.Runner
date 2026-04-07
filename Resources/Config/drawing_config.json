@@ -59,12 +59,21 @@
           "Common": {
             "Views": {
               "Detail": {
-                "PositionMm": [ 130, 200 ],
-                "Scale": 60.0
+                "PositionMm": [ 130, 210 ],
+                "Scale": 100.0
               },
-              "Section": { "Scale": 60.0 },
+              "Section": {
+                "Scale": 100.0,
+                "PositionMm": [ 230, 210 ]
+              },
               "Top": {
-                "PositionMm": [ 85, 185 ]
+                "PositionMm": [ 75, 185 ]
+              },
+              "Front": {
+                "PositionMm": [ 25, 100 ]
+              },
+              "Side": {
+                "PositionMm": [ 75, 100 ]
               }
             },
 
@@ -83,11 +92,20 @@
             "Views": {
               "Detail": {
                 "PositionMm": [ 130, 200 ],
-                "Scale": 60.0
+                "Scale": 100.0
               },
-              "Section": { "Scale": 60.0 },
+              "Section": {
+                "Scale": 100.0,
+                "PositionMm": [ 230, 200 ]
+              },
               "Top": {
-                "PositionMm": [ 85, 185 ]
+                "PositionMm": [ 75, 185 ]
+              },
+              "Front": {
+                "PositionMm": [ 25, 100 ]
+              },
+              "Side": {
+                "PositionMm": [ 75, 100 ]
               }
             },
 
@@ -106,11 +124,20 @@
             "Views": {
               "Detail": {
                 "PositionMm": [ 130, 200 ],
-                "Scale": 60.0
+                "Scale": 100.0
               },
-              "Section": { "Scale": 60.0 },
+              "Section": {
+                "Scale": 100.0,
+                "PositionMm": [ 230, 200 ]
+              },
               "Top": {
-                "PositionMm": [ 85, 185 ]
+                "PositionMm": [ 75, 185 ]
+              },
+              "Front": {
+                "PositionMm": [ 25, 100 ]
+              },
+              "Side": {
+                "PositionMm": [ 75, 100 ]
               }
             },
 

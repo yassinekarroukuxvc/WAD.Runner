@@ -59,10 +59,10 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 table.CellTextHorizontalJustification[i + 1, 0] = (int)swTextJustification_e.swTextJustificationLeft;
             }
 
-            SetTableFontSize(table, 7);
+            SetTableFontSize(table, 6);
             TryApplyTypeface(table, "Monospac821 BT", scaleCharHeight: 0.90);
-            SetTableRowHeights(table, rowHeightMm: 3.048, includeTitle: true);
-
+            SetTableRowHeights(table, rowHeightMm: 2.0, includeTitle: true);  // was 3.048
+            ShrinkTableHeight(table, includeTitle: true);                      // push to floor
             TrimTrailingEmptyRows(table);
 
             return true;

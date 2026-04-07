@@ -420,6 +420,12 @@ namespace WAD.Runner.ModelAutomation.Rules
             yield return $"{baseName}_{suffix}_Sketch";
             yield return $"{baseName}_{suffix}_SKETCH";
 
+            if (baseName.Equals("FRO", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return $"FRO_{suffix}_feature_1";
+                yield return $"FRO_{suffix}_feature_2";
+            }
+
             if (baseName.Equals("RA2", StringComparison.OrdinalIgnoreCase) && shank == CobShankType.Rev180)
             {
                 yield return "RA2_180_DEF_REV_feature";
@@ -439,8 +445,13 @@ namespace WAD.Runner.ModelAutomation.Rules
         {
             var suffix = BuildSuffix(shank);
 
+            yield return $"H_{suffix}_feature";
             yield return $"H_{suffix}_cut_feature";
             yield return $"H_{suffix}_fix_feature";
+
+            yield return $"H_{suffix}_sketch";
+            yield return $"H_{suffix}_Sketch";
+            yield return $"H_{suffix}_SKETCH";
 
             yield return $"H_{suffix}_cut_sketch";
             yield return $"H_{suffix}_cut_Sketch";

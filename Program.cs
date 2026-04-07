@@ -452,8 +452,8 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     templatePartPath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V4",
-                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                        "COB.SLDPRT");
 
                     templateDrawingPath = dtype switch
                     {
@@ -464,19 +464,19 @@ switch (cmd)
 
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine(
-                                "Resources", "Templates", "COB", "COB template 02-14-2026", "V4",
-                                "wedge-auto-draw-COB-2d-drawing.SLDDRW"),
+                                "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                                "COB_drawings.SLDDRW"),
                     };
 
                     equationTemplatePathForModelPhase = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V4",
-                        "wedge-auto-draw-COB-3d-equation.txt");
+                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                        "equations.txt");
                     break;
 
                 case WedgeType.UTUS:
                     templatePartPath = Path.Combine(
                         "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-UT-US-3d-model_sw_version_2023.SLDPRT");
+                        "COB.SLDPRT");
 
                     templateDrawingPath = dtype switch
                     {
@@ -488,12 +488,12 @@ switch (cmd)
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine(
                                 "Resources", "Templates", "UT-US", "V1",
-                                "wedge-auto-draw-UT-US-2d-drawing.SLDDRW"),
+                                "COB_drawings.SLDDRW"),
                     };
 
                     equationTemplatePathForModelPhase = Path.Combine(
                         "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-UT-US-3d-equation.txt");
+                        "equations.txt");
                     break;
 
                 case WedgeType.FP:
@@ -691,22 +691,22 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     partTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V4",
-                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
+                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                        "COB.SLDPRT");
 
                     equationTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V4",
-                        "wedge-auto-draw-COB-3d-equation.txt");
+                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                        "equations.txt");
                     break;
 
                 case WedgeType.UTUS:
                     partTemplatePath = Path.Combine(
                         "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-UT-US-3d-model_sw_version_2023.SLDPRT");
+                        "COB.SLDPRT");
 
                     equationTemplatePath = Path.Combine(
                         "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-UT-US-3d-equation.txt");
+                        "equations.txt");
                     break;
 
                 case WedgeType.FP:

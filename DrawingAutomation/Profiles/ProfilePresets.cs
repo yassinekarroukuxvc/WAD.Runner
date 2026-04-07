@@ -61,11 +61,11 @@ public static class ProfilePresets
     );
 
     private static ViewNames CobFgProductionViews() => new(
-        Front: "Drawing View7",
-        Side: "Drawing View6",
-        Top: "Drawing View8",
-        Detail: "Drawing View9",
-        Section: "Section View AF-AF"
+        Front: "Drawing View17",
+        Side: "Drawing View16",
+        Top: "Drawing View18",
+        Detail: "Drawing View19",
+        Section: "Section View AA-AA"
     );
 
     private static ViewNames CobFgCustomerViews() => new(
@@ -73,7 +73,7 @@ public static class ProfilePresets
         Side: "Drawing View1",
         Top: "Drawing View3",
         Detail: "Drawing View4",
-        Section: "Section View AE-AE"
+        Section: "Section View AA-AA"
     );
 
     private static ViewNames CobFgOverlayViews() => new(
@@ -85,11 +85,11 @@ public static class ProfilePresets
     );
 
     private static ViewNames CobPgbProductionViews() => new(
-        Front: "Drawing View12",
-        Side: "Drawing View11",
-        Top: "Drawing View13",
-        Detail: "Drawing View14",
-        Section: "Section View AG-AG"
+        Front: "Drawing View22",
+        Side: "Drawing View21",
+        Top: "Drawing View23",
+        Detail: "Drawing View24",
+        Section: "Section View AA-AA"
     );
 
     private static ViewNames CobPgbOverlayViews() => new(
@@ -102,11 +102,11 @@ public static class ProfilePresets
 
     // UTUS = same as COB
     private static ViewNames UtusFgProductionViews() => new(
-        Front: "Drawing View7",
-        Side: "Drawing View6",
-        Top: "Drawing View8",
-        Detail: "Drawing View9",
-        Section: "Section View AF-AF"
+        Front: "Drawing View17",
+        Side: "Drawing View16",
+        Top: "Drawing View18",
+        Detail: "Drawing View19",
+        Section: "Section View AA-AA"
     );
 
     private static ViewNames UtusFgCustomerViews() => new(
@@ -114,7 +114,7 @@ public static class ProfilePresets
         Side: "Drawing View1",
         Top: "Drawing View3",
         Detail: "Drawing View4",
-        Section: "Section View AE-AE"
+        Section: "Section View AA-AA"
     );
 
     private static ViewNames UtusFgOverlayViews() => new(
@@ -126,11 +126,11 @@ public static class ProfilePresets
     );
 
     private static ViewNames UtusPgbProductionViews() => new(
-        Front: "Drawing View12",
-        Side: "Drawing View11",
-        Top: "Drawing View13",
-        Detail: "Drawing View14",
-        Section: "Section View AG-AG"
+        Front: "Drawing View22",
+        Side: "Drawing View21",
+        Top: "Drawing View23",
+        Detail: "Drawing View24",
+        Section: "Section View AA-AA"
     );
 
     private static ViewNames UtusPgbOverlayViews() => new(
@@ -352,7 +352,7 @@ public static class ProfilePresets
     public static DrawingProfile CobFgProduction() => new(
         Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
         ProfileName: "COB FG Production",
-        SheetSelector: Prefer("PRODUCTION"),
+        SheetSelector: Prefer("PRODCUTION"),
         ViewsOrder: StdOrder,
         Views: CobFgProductionViews(),
         UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
@@ -407,7 +407,7 @@ public static class ProfilePresets
     public static DrawingProfile UtusFgProduction() => new(
         Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
         ProfileName: "UTUS FG Production",
-        SheetSelector: Prefer("PRODUCTION"),
+        SheetSelector: Prefer("PRODCUTION"),
         ViewsOrder: StdOrder,
         Views: UtusFgProductionViews(),
         UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",

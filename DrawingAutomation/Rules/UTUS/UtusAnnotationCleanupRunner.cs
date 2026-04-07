@@ -27,8 +27,6 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
     /// - Applies deletions via AnnotationCleanupService.RemoveDimensionsByFullNamesInView(...)
     ///
     /// Designed to be called near the end of the drawing pipeline, before export.
-    ///
-    /// Current behavior intentionally matches COB cleanup logic.
     /// </summary>
     public sealed class UtusAnnotationCleanupRunner : IDrawingCleanupRunner
     {
@@ -67,13 +65,11 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
                     Section = ResolveActualViewName(nameMap, "Section"),
                 };
 
-                var (shank, foot) = ResolveUtusShankAndFoot(run.Wedge);
-                var rulesDrawingType = ResolveUtusRulesDrawingType(run, drawingData);
+                var (shank, foot) = ResolveCobShankAndFoot(run.Wedge);
+                var rulesDrawingType = ResolveCobRulesDrawingType(run, drawingData);
+                var options = BuildCobOptionsFromWedgeDimensions(run.Wedge);
 
-                // ✅ Options inferred from WedgeData DIMENSIONS by VALUE (>0)
-                // ✅ Updated to use typed access like ModelAutomation.EquationUpdater
-                var options = BuildUtusOptionsFromWedgeDimensions(run.Wedge);
-                Logger.Blue($"[UTUS.Cleanup] Shank={shank}, Foot={foot}");
+                Logger.Blue($"[UTUS.Cleanup] DrawingType={rulesDrawingType}, Shank={shank}, Foot={foot}");
 
                 var deletions = UtusAnnotationDeletionRules.PlanDeletionsFromDrawing(
                     model,
@@ -87,7 +83,8 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
                 if (deletions == null || deletions.Count == 0)
                 {
                     Logger.Warn("[UTUS.Plan] Planned deletions = 0. Dumping existing dims by view for debugging...");
-                    UtusAnnotationDeletionRules.DumpExistingDisplayDimensionFullNamesFromDrawing(model, viewNames, activateEachView: activateEachView);
+                    UtusAnnotationDeletionRules.DumpExistingDisplayDimensionFullNamesFromDrawing(
+                        model, viewNames, activateEachView: activateEachView);
                     return;
                 }
 
@@ -119,54 +116,88 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
             }
         }
 
-        // ============================================================
-        // Options builder (VALUE-BASED: >0 checks)  ✅ TYPED LIKE EquationUpdater
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
+        // OPTIONS BUILDER
+        // Each flag is independently gated on its own dimension being > 0.
+        // ════════════════════════════════════════════════════════════════
 
-        private static UtusAnnotationDeletionRules.Options BuildUtusOptionsFromWedgeDimensions(WedgeData wedge)
+        private static UtusAnnotationDeletionRules.Options BuildCobOptionsFromWedgeDimensions(WedgeData wedge)
         {
             bool Pos(string key) => IsDimPositive(wedge, key);
 
+            // Front / Side
             var hasVwVr = Pos("VR") && Pos("VW");
-            var hasW2 = Pos("W2");
-            var hasF = Pos("F");
             var hasSlb = Pos("VBL");
-            var hasFrBr = Pos("FR") && Pos("BR");
-            var hasErd = Pos("ERD");
-            var hasK = Pos("K");
+
+            // Detail
+            var hasW2 = Pos("W2");
+            var hasGa = Pos("GA");
+            var hasCd = Pos("CD");
+            var hasGd = Pos("GD");
+            var hasGr = Pos("GR");
+            var hasB = Pos("B");
+
+            // Section
             var hasRa2 = Pos("RA2");
+            var hasErd = Pos("ERD");
+            var hasFrBr = Pos("FR") && Pos("BR");
+            var hasF = Pos("F");
+            var hasG = Pos("G");
+            var hasCgr = Pos("CGR");
+            var hasCgd = Pos("CGD");
+            var hasCbra = Pos("CBRA");
+            var hasCbrl = Pos("CBRL");
 
-            Logger.Blue($"[UTUS.Options] VW/VR={hasVwVr}, W2={hasW2}, F={hasF}, VBL(SLB)={hasSlb}, FR/BR={hasFrBr}, ERD={hasErd}, K={hasK}, RA2={hasRa2}");
+            Logger.Blue(
+                $"[UTUS.Options] " +
+                $"VW/VR={hasVwVr}, VBL={hasSlb}, " +
+                $"W2={hasW2}, GA={hasGa}, CD={hasCd}, GD={hasGd}, GR={hasGr}, B={hasB}, " +
+                $"RA2={hasRa2}, ERD={hasErd}, FR/BR={hasFrBr}, " +
+                $"F={hasF}, G={hasG}, CGR={hasCgr}, CGD={hasCgd}, CBRA={hasCbra}, CBRL={hasCbrl}");
 
-            // Extra debug (helps confirm loader issues vs positivity logic issues)
-            DumpDim(wedge, "VW");
-            DumpDim(wedge, "VR");
-            DumpDim(wedge, "W2");
-            DumpDim(wedge, "F");
-            DumpDim(wedge, "VBL");
-            DumpDim(wedge, "FR");
-            DumpDim(wedge, "BR");
-            DumpDim(wedge, "ERD");
-            DumpDim(wedge, "K");
-            DumpDim(wedge, "RA2");
+            // Extra debug dump
+            foreach (var key in new[]
+            {
+                "VW", "VR", "VBL",
+                "W2", "GA", "CD", "GD", "GR", "B",
+                "RA2", "ERD", "FR", "BR",
+                "F", "G", "CGR", "CGD", "CBRA", "CBRL"
+            })
+                DumpDim(wedge, key);
 
             return new UtusAnnotationDeletionRules.Options
             {
+                // Front / Side
                 HasVwVr = hasVwVr,
-                HasW2 = hasW2,
                 HasSlb = hasSlb,
-                HasRa2 = hasRa2,
 
+                // Detail
+                HasW2 = hasW2,
+                HasGa = hasGa,
+                HasCd = hasCd,
+                HasGd = hasGd,
+                HasGr = hasGr,
+                HasB = hasB,
+
+                // Section
+                HasRa2 = hasRa2,
+                HasErd = hasErd,
                 HasFrBr = hasFrBr,
                 HasF = hasF,
+                HasG = hasG,
+                HasCgr = hasCgr,
+                HasCgd = hasCgd,
+                HasCbra = hasCbra,
+                HasCbrl = hasCbrl,
 
-                HasK = hasK,
                 KAnnotationFullName = null,
-
-                HasErd = hasErd,
                 ErdAnnotationFullName = null
             };
         }
+
+        // ════════════════════════════════════════════════════════════════
+        // DIM HELPERS
+        // ════════════════════════════════════════════════════════════════
 
         private static void DumpDim(WedgeData wedge, string key)
         {
@@ -213,8 +244,7 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
 
         /// <summary>
         /// Typed lookup like ModelAutomation.EquationUpdater:
-        /// - Try direct wedge.Dimensions.TryGetValue(DimensionKey.From(key))
-        /// - Fallback scan by kv.Key.Value case-insensitive
+        ///   1. Scan wedge.Dimensions by normalized base key (case-insensitive).
         /// </summary>
         private static bool TryGetDim(WedgeData wedge, string key, out DomDim? dim)
         {
@@ -247,25 +277,25 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
 
             var s = raw.Trim().ToUpperInvariant();
 
+            // Strip sketch qualifier if present (e.g. "VBL@ANNOT_STD_FRONT_sketch" → "VBL")
             var at = s.IndexOf('@');
             if (at >= 0) s = s.Substring(0, at);
 
             s = s.Replace("-", "_").Replace(" ", "_");
             s = s.Replace("(", "_").Replace(")", "");
 
-            var us = s.IndexOf('_');
-            if (us > 0) s = s.Substring(0, us);
-
+            // Keep only letters/digits
             s = new string(s.Where(char.IsLetterOrDigit).ToArray());
 
             return s;
         }
 
-        // ============================================================
-        // DrawingType resolution
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
+        // DRAWING TYPE RESOLUTION
+        // ════════════════════════════════════════════════════════════════
 
-        private static UtusAnnotationDeletionRules.DrawingType ResolveUtusRulesDrawingType(DrawingRun run, DrawingData dd)
+        private static UtusAnnotationDeletionRules.DrawingType ResolveCobRulesDrawingType(
+            DrawingRun run, DrawingData dd)
         {
             if (run?.Wedge?.Subclass == WedgeSubclass.PGB)
                 return UtusAnnotationDeletionRules.DrawingType.Pgb;
@@ -278,14 +308,19 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
             return UtusAnnotationDeletionRules.DrawingType.Production;
         }
 
-        private static (UtusAnnotationDeletionRules.ShankType Shank, UtusAnnotationDeletionRules.FootOption Foot) ResolveUtusShankAndFoot(WedgeData wedge)
+        // ════════════════════════════════════════════════════════════════
+        // SHANK + FOOT RESOLUTION
+        // ════════════════════════════════════════════════════════════════
+
+        private static (UtusAnnotationDeletionRules.ShankType Shank, UtusAnnotationDeletionRules.FootOption Foot)
+            ResolveCobShankAndFoot(WedgeData wedge)
         {
             var wedType = TryGetPropLoose(wedge, "Wed-Type");
             var footOpt = TryGetPropLoose(wedge, "Wed-Foot_Option");
-            Logger.Blue($"UTUS FOOOOOT OPTIIIIOOON : {footOpt}");
+            Logger.Blue($"[UTUS.Resolve] Wed-Type={wedType ?? "(null)"}, Wed-Foot_Option={footOpt ?? "(null)"}");
 
-            var shank = ParseUtusShankType(wedType);
-            var foot = ResolveUtusFootOption(wedge, footOpt);
+            var shank = ParseCobShankType(wedType);
+            var foot = ResolveCobFootOption(wedge, footOpt);
 
             return (shank, foot);
         }
@@ -300,9 +335,9 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
             return logical;
         }
 
-        // ============================================================
-        // Property helpers
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
+        // PROPERTY HELPERS
+        // ════════════════════════════════════════════════════════════════
 
         private static string? TryGetPropLoose(WedgeData wedge, string key)
         {
@@ -323,25 +358,31 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
             return null;
         }
 
-        // ============================================================
-        // Shank parsing
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
+        // SHANK PARSING
+        // ════════════════════════════════════════════════════════════════
 
-        private static UtusAnnotationDeletionRules.ShankType ParseUtusShankType(string? wedType)
+        private static UtusAnnotationDeletionRules.ShankType ParseCobShankType(string? wedType)
         {
             var s = (wedType ?? string.Empty).Trim().ToUpperInvariant();
+
             if (s.Contains("180") || s.Contains("REV"))
                 return UtusAnnotationDeletionRules.ShankType.Deg180Rev;
 
             return UtusAnnotationDeletionRules.ShankType.Std;
         }
 
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
         // FOOT OPTION RESOLUTION
-        // ============================================================
+        //
+        // Raw value from wedge property → normalized token → FootOption enum.
+        // C_WITH_CBR is detected when raw=SW_C and CBRA+CBRL+CBRD all > 0.
+        // ════════════════════════════════════════════════════════════════
 
-        private static UtusAnnotationDeletionRules.FootOption ResolveUtusFootOption(WedgeData wedge, string? rawFootOption)
+        private static UtusAnnotationDeletionRules.FootOption ResolveCobFootOption(
+            WedgeData wedge, string? rawFootOption)
         {
+            // Probe multiple possible property key spellings
             var s =
                 NormalizeToken(rawFootOption) ??
                 NormalizeToken(TryGetPropLoose(wedge, "Wed-Foot_Option")) ??
@@ -352,27 +393,27 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
             if (string.IsNullOrWhiteSpace(s))
                 return UtusAnnotationDeletionRules.FootOption.None;
 
-            UtusAnnotationDeletionRules.FootOption baseFoot =
-                s switch
-                {
-                    "SW_C" => UtusAnnotationDeletionRules.FootOption.C,
-                    "SW_G" => UtusAnnotationDeletionRules.FootOption.G,
-                    "SW_VG" => UtusAnnotationDeletionRules.FootOption.VG,
-                    "SW_CG" => UtusAnnotationDeletionRules.FootOption.CG,
-                    "SW_CC" => UtusAnnotationDeletionRules.FootOption.CC,
-                    _ => UtusAnnotationDeletionRules.FootOption.None
-                };
-
-            if (baseFoot == UtusAnnotationDeletionRules.FootOption.C && s == "SW_C")
+            var baseFoot = s switch
             {
-                bool allPositive =
+                "SW_C" => UtusAnnotationDeletionRules.FootOption.C,
+                "SW_G" => UtusAnnotationDeletionRules.FootOption.G,
+                "SW_VG" => UtusAnnotationDeletionRules.FootOption.VG,
+                "SW_CG" => UtusAnnotationDeletionRules.FootOption.CG,
+                "SW_CC" => UtusAnnotationDeletionRules.FootOption.CC,
+                _ => UtusAnnotationDeletionRules.FootOption.None
+            };
+
+            // C_WITH_CBR: raw=SW_C and all three CBR dims are positive
+            if (baseFoot == UtusAnnotationDeletionRules.FootOption.C)
+            {
+                bool allCbrPositive =
                     IsDimPositive(wedge, "CBRA") &&
                     IsDimPositive(wedge, "CBRL") &&
                     IsDimPositive(wedge, "CBRD");
 
-                if (allPositive)
+                if (allCbrPositive)
                 {
-                    Logger.Info("[UTUS.Cleanup] Foot rule: raw=SW_C and (CBRA/CBRL/CBRD all > 0) → using C_WITH_CBR.");
+                    Logger.Info("[UTUS.Cleanup] Foot rule: raw=SW_C + (CBRA/CBRL/CBRD all > 0) → C_WITH_CBR.");
                     return UtusAnnotationDeletionRules.FootOption.C_WITH_CBR;
                 }
             }
@@ -385,9 +426,7 @@ namespace WAD.Runner.DrawingAutomation.Rules.UTUS
             if (string.IsNullOrWhiteSpace(s)) return null;
 
             var t = s.Trim().ToUpperInvariant();
-
             t = t.Replace("-", "_").Replace(" ", "_");
-
             t = new string(t.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
 
             return string.IsNullOrWhiteSpace(t) ? null : t;

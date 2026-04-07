@@ -131,64 +131,60 @@ internal static class CobDimensionRules
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
         PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical,
-            75, 172);
+            85, 172);
 
         PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal,
-            83,197);
+            75,197);
 
     }
 
     // ----------------- DETAIL -----------------
     private static void AddDetail(
-        LayoutContext ctx,
-        PlannerDiagnostics diag,
-        List<DimensionSpec> outList,
-        double[] D,
-        double dsv,
-        double bandMidY)
+    LayoutContext ctx,
+    PlannerDiagnostics diag,
+    List<DimensionSpec> outList,
+    double[] D,
+    double dsv,
+    double bandMidY)
     {
         PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
-            D[0] + 3.5, D[1]);
+            D[0] + 3.5, 215);
 
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
-            D[0], 125);
+            D[0], 135);
 
         PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal,
-            D[0],135);
+            D[0], 145);
 
         PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal,
-            121,145);
+            D[0], 155);
+
         PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal,
-            121,155);
+            D[0], 165);
 
         var W = LayoutMath.Dmm(ctx, "W");
         var GD = LayoutMath.Dmm(ctx, "GD");
 
         PlaceDim(ctx, diag, outList, "GD", Detail, DimAxis.Vertical,
-            D[0] - W / 2.0 * dsv - 20.0, bandMidY + dsv * GD / 2.0);
+            D[0] - W / 2.0 * dsv - 20.0, bandMidY + dsv * GD / 2.0 + 10.0);
 
         PlaceDim(ctx, diag, outList, "GR", Detail, DimAxis.Horizontal,
-            D[0] + 15.0, bandMidY + dsv * GD + 15.0);
+            D[0] + 15.0, bandMidY + dsv * GD + 25.0);
 
         PlaceDim(ctx, diag, outList, "VR", Detail, DimAxis.Horizontal,
-            108, 162);
+            108, 172);
 
         PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal,
-            121,147);
-
-        PlaceDim(ctx, diag, outList, "VRR", Detail, DimAxis.Horizontal,
-            0, 0);
+            D[0], 157);
 
         PlaceDim(ctx, diag, outList, "CD", Detail, DimAxis.Horizontal,
-            146,162);
+            146, 172);
 
         PlaceDim(ctx, diag, outList, "CR", Detail, DimAxis.Horizontal,
-            119, 162);
-        
-        PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
-            127, 177);
+            119, 172);
 
-        
+        PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
+            D[0], 195);
     }
 
     // ----------------- SIDE -----------------
@@ -205,79 +201,91 @@ internal static class CobDimensionRules
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
 
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
-            92,
+            82,
             114);
 
     }
 
     // ----------------- SECTION -----------------
     private static void AddSection(
-        LayoutContext ctx,
-        PlannerDiagnostics diag,
-        List<DimensionSpec> outList,
-        double[] Sec,
-        double scv)
+    LayoutContext ctx,
+    PlannerDiagnostics diag,
+    List<DimensionSpec> outList,
+    double[] Sec,
+    double scv)
     {
         var FL = LayoutMath.Dmm(ctx, "FL");
 
-        PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal, 186, 146);
+        PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal, 186, 156);
 
         PlaceDim(ctx, diag, outList, "FR_C", Section, DimAxis.Horizontal,
-            171, 152);
+            171, 162);
 
         PlaceDim(ctx, diag, outList, "FR_VG", Section, DimAxis.Horizontal,
-            171, 152);
+            171, 162);
 
         PlaceDim(ctx, diag, outList, "FR_CG", Section, DimAxis.Horizontal,
-            171, 152);
+            171, 162);
 
         PlaceDim(ctx, diag, outList, "FR_G", Section, DimAxis.Horizontal,
-            171,152);
+            171, 162);
 
         PlaceDim(ctx, diag, outList, "BR_C", Section, DimAxis.Horizontal,
-            205, 152);
+            205, 162);
 
         PlaceDim(ctx, diag, outList, "BR_VG", Section, DimAxis.Horizontal,
-            205, 152);
+            205, 162);
 
         PlaceDim(ctx, diag, outList, "BR_CG", Section, DimAxis.Horizontal,
-            205, 152);
+            205, 162);
 
         PlaceDim(ctx, diag, outList, "BR_G", Section, DimAxis.Horizontal,
-            205,152);
+            205, 162);
 
         PlaceDim(ctx, diag, outList, "FRO", Section, DimAxis.Horizontal,
-            170,148 );
+            170, 158);
 
         PlaceDim(ctx, diag, outList, "ERL", Section, DimAxis.Horizontal,
-            193, 143);
+            193, 153);
 
         PlaceDim(ctx, diag, outList, "FD", Section, DimAxis.Horizontal,
-            175, 140);
+            175, 150);
 
         PlaceDim(ctx, diag, outList, "T", Section, DimAxis.Horizontal,
-            195, 138);
+            195, 148);
 
         PlaceDim(ctx, diag, outList, "ERD", Section, DimAxis.Horizontal,
-            212, 156);
+            212, 166);
 
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
-            220, 163);
+            220, 173);
 
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
-            228, 157);
+            228, 167);
 
         PlaceDim(ctx, diag, outList, "CA", Section, DimAxis.Horizontal,
-            196, 158);
+            196, 168);
+
         PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
-            232, 177);
+            232, 187);
 
         PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
-            233, 165);
+            233, 175);
+
         PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,
-            253, 175);
+            253, 185);
 
+        PlaceDim(ctx, diag, outList, "F_C", Section, DimAxis.Horizontal,
+            212, 156);
 
+        PlaceDim(ctx, diag, outList, "F_G", Section, DimAxis.Horizontal,
+            212, 156);
+
+        PlaceDim(ctx, diag, outList, "F_VG", Section, DimAxis.Horizontal,
+            212, 156);
+
+        PlaceDim(ctx, diag, outList, "CBRL", Section, DimAxis.Horizontal,
+            216, 159);
     }
 
     // ============================================================

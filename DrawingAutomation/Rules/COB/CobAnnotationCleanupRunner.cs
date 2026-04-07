@@ -67,11 +67,10 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
 
                 var (shank, foot) = ResolveCobShankAndFoot(run.Wedge);
                 var rulesDrawingType = ResolveCobRulesDrawingType(run, drawingData);
-
-                // ✅ Options inferred from WedgeData DIMENSIONS by VALUE (>0)
-                // ✅ Updated to use typed access like ModelAutomation.EquationUpdater
                 var options = BuildCobOptionsFromWedgeDimensions(run.Wedge);
-                Logger.Blue($"[COB.Cleanup] Shank={shank}, Foot={foot}");
+
+                Logger.Blue($"[COB.Cleanup] DrawingType={rulesDrawingType}, Shank={shank}, Foot={foot}");
+
                 var deletions = CobAnnotationDeletionRules.PlanDeletionsFromDrawing(
                     model,
                     rulesDrawingType,
@@ -84,7 +83,8 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
                 if (deletions == null || deletions.Count == 0)
                 {
                     Logger.Warn("[COB.Plan] Planned deletions = 0. Dumping existing dims by view for debugging...");
-                    CobAnnotationDeletionRules.DumpExistingDisplayDimensionFullNamesFromDrawing(model, viewNames, activateEachView: activateEachView);
+                    CobAnnotationDeletionRules.DumpExistingDisplayDimensionFullNamesFromDrawing(
+                        model, viewNames, activateEachView: activateEachView);
                     return;
                 }
 
@@ -116,54 +116,88 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             }
         }
 
-        // ============================================================
-        // Options builder (VALUE-BASED: >0 checks)  ✅ TYPED LIKE EquationUpdater
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
+        // OPTIONS BUILDER
+        // Each flag is independently gated on its own dimension being > 0.
+        // ════════════════════════════════════════════════════════════════
 
         private static CobAnnotationDeletionRules.Options BuildCobOptionsFromWedgeDimensions(WedgeData wedge)
         {
             bool Pos(string key) => IsDimPositive(wedge, key);
 
+            // Front / Side
             var hasVwVr = Pos("VR") && Pos("VW");
-            var hasW2 = Pos("W2");
-            var hasF = Pos("F");
             var hasSlb = Pos("VBL");
-            var hasFrBr = Pos("FR") && Pos("BR");
-            var hasErd = Pos("ERD");
-            var hasK = Pos("K");
+
+            // Detail
+            var hasW2 = Pos("W2");
+            var hasGa = Pos("GA");
+            var hasCd = Pos("CD");
+            var hasGd = Pos("GD");
+            var hasGr = Pos("GR");
+            var hasB = Pos("B");
+
+            // Section
             var hasRa2 = Pos("RA2");
+            var hasErd = Pos("ERD");
+            var hasFrBr = Pos("FR") && Pos("BR");
+            var hasF = Pos("F");
+            var hasG = Pos("G");
+            var hasCgr = Pos("CGR");
+            var hasCgd = Pos("CGD");
+            var hasCbra = Pos("CBRA");
+            var hasCbrl = Pos("CBRL");
 
-            Logger.Blue($"[COB.Options] VW/VR={hasVwVr}, W2={hasW2}, F={hasF}, VBL(SLB)={hasSlb}, FR/BR={hasFrBr}, ERD={hasErd}, K={hasK}, RA2={hasRa2}");
+            Logger.Blue(
+                $"[COB.Options] " +
+                $"VW/VR={hasVwVr}, VBL={hasSlb}, " +
+                $"W2={hasW2}, GA={hasGa}, CD={hasCd}, GD={hasGd}, GR={hasGr}, B={hasB}, " +
+                $"RA2={hasRa2}, ERD={hasErd}, FR/BR={hasFrBr}, " +
+                $"F={hasF}, G={hasG}, CGR={hasCgr}, CGD={hasCgd}, CBRA={hasCbra}, CBRL={hasCbrl}");
 
-            // Extra debug (helps confirm loader issues vs positivity logic issues)
-            DumpDim(wedge, "VW");
-            DumpDim(wedge, "VR");
-            DumpDim(wedge, "W2");
-            DumpDim(wedge, "F");
-            DumpDim(wedge, "VBL");
-            DumpDim(wedge, "FR");
-            DumpDim(wedge, "BR");
-            DumpDim(wedge, "ERD");
-            DumpDim(wedge, "K");
-            DumpDim(wedge, "RA2");
+            // Extra debug dump
+            foreach (var key in new[]
+            {
+                "VW", "VR", "VBL",
+                "W2", "GA", "CD", "GD", "GR", "B",
+                "RA2", "ERD", "FR", "BR",
+                "F", "G", "CGR", "CGD", "CBRA", "CBRL"
+            })
+                DumpDim(wedge, key);
 
             return new CobAnnotationDeletionRules.Options
             {
+                // Front / Side
                 HasVwVr = hasVwVr,
-                HasW2 = hasW2,
                 HasSlb = hasSlb,
-                HasRa2 = hasRa2,
 
+                // Detail
+                HasW2 = hasW2,
+                HasGa = hasGa,
+                HasCd = hasCd,
+                HasGd = hasGd,
+                HasGr = hasGr,
+                HasB = hasB,
+
+                // Section
+                HasRa2 = hasRa2,
+                HasErd = hasErd,
                 HasFrBr = hasFrBr,
                 HasF = hasF,
+                HasG = hasG,
+                HasCgr = hasCgr,
+                HasCgd = hasCgd,
+                HasCbra = hasCbra,
+                HasCbrl = hasCbrl,
 
-                HasK = hasK,
                 KAnnotationFullName = null,
-
-                HasErd = hasErd,
                 ErdAnnotationFullName = null
             };
         }
+
+        // ════════════════════════════════════════════════════════════════
+        // DIM HELPERS
+        // ════════════════════════════════════════════════════════════════
 
         private static void DumpDim(WedgeData wedge, string key)
         {
@@ -210,8 +244,7 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
 
         /// <summary>
         /// Typed lookup like ModelAutomation.EquationUpdater:
-        /// - Try direct wedge.Dimensions.TryGetValue(DimensionKey.From(key))
-        /// - Fallback scan by kv.Key.Value case-insensitive
+        ///   1. Scan wedge.Dimensions by normalized base key (case-insensitive).
         /// </summary>
         private static bool TryGetDim(WedgeData wedge, string key, out DomDim? dim)
         {
@@ -224,7 +257,6 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
 
             foreach (var kv in wedge.Dimensions)
             {
-                // DimensionKey is a struct => kv.Key is never null
                 var haveRaw = kv.Key.Value ?? kv.Key.ToString() ?? string.Empty;
                 var have = NormalizeBaseKey(haveRaw);
 
@@ -245,15 +277,12 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
 
             var s = raw.Trim().ToUpperInvariant();
 
-            // If your keys sometimes include qualifiers, strip common separators
+            // Strip sketch qualifier if present (e.g. "VBL@ANNOT_STD_FRONT_sketch" → "VBL")
             var at = s.IndexOf('@');
             if (at >= 0) s = s.Substring(0, at);
 
             s = s.Replace("-", "_").Replace(" ", "_");
             s = s.Replace("(", "_").Replace(")", "");
-
-            var us = s.IndexOf('_');
-            if (us > 0) s = s.Substring(0, us);
 
             // Keep only letters/digits
             s = new string(s.Where(char.IsLetterOrDigit).ToArray());
@@ -261,11 +290,12 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             return s;
         }
 
-        // ============================================================
-        // DrawingType resolution
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
+        // DRAWING TYPE RESOLUTION
+        // ════════════════════════════════════════════════════════════════
 
-        private static CobAnnotationDeletionRules.DrawingType ResolveCobRulesDrawingType(DrawingRun run, DrawingData dd)
+        private static CobAnnotationDeletionRules.DrawingType ResolveCobRulesDrawingType(
+            DrawingRun run, DrawingData dd)
         {
             if (run?.Wedge?.Subclass == WedgeSubclass.PGB)
                 return CobAnnotationDeletionRules.DrawingType.Pgb;
@@ -278,11 +308,17 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             return CobAnnotationDeletionRules.DrawingType.Production;
         }
 
-        private static (CobAnnotationDeletionRules.ShankType Shank, CobAnnotationDeletionRules.FootOption Foot) ResolveCobShankAndFoot(WedgeData wedge)
+        // ════════════════════════════════════════════════════════════════
+        // SHANK + FOOT RESOLUTION
+        // ════════════════════════════════════════════════════════════════
+
+        private static (CobAnnotationDeletionRules.ShankType Shank, CobAnnotationDeletionRules.FootOption Foot)
+            ResolveCobShankAndFoot(WedgeData wedge)
         {
             var wedType = TryGetPropLoose(wedge, "Wed-Type");
-            var footOpt = TryGetPropLoose(wedge, "Wed-Foot_Option"); // we’ll also probe other spellings
-            Logger.Blue($"FOOOOOT OPTIIIIOOON : {footOpt}");
+            var footOpt = TryGetPropLoose(wedge, "Wed-Foot_Option");
+            Logger.Blue($"[COB.Resolve] Wed-Type={wedType ?? "(null)"}, Wed-Foot_Option={footOpt ?? "(null)"}");
+
             var shank = ParseCobShankType(wedType);
             var foot = ResolveCobFootOption(wedge, footOpt);
 
@@ -299,15 +335,14 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             return logical;
         }
 
-        // ============================================================
-        // Property helpers
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
+        // PROPERTY HELPERS
+        // ════════════════════════════════════════════════════════════════
 
         private static string? TryGetPropLoose(WedgeData wedge, string key)
         {
             if (wedge == null || string.IsNullOrWhiteSpace(key)) return null;
 
-            // 1) Direct Properties dictionary (case-insensitive)
             if (wedge.Properties != null)
             {
                 if (wedge.Properties.TryGetValue(key, out var v))
@@ -323,26 +358,31 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             return null;
         }
 
-        // ============================================================
-        // Shank parsing
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
+        // SHANK PARSING
+        // ════════════════════════════════════════════════════════════════
 
         private static CobAnnotationDeletionRules.ShankType ParseCobShankType(string? wedType)
         {
             var s = (wedType ?? string.Empty).Trim().ToUpperInvariant();
+
             if (s.Contains("180") || s.Contains("REV"))
                 return CobAnnotationDeletionRules.ShankType.Deg180Rev;
 
             return CobAnnotationDeletionRules.ShankType.Std;
         }
 
-        // ============================================================
-        // ✅ FOOT OPTION RESOLUTION (UPDATED per your correction)
-        // ============================================================
+        // ════════════════════════════════════════════════════════════════
+        // FOOT OPTION RESOLUTION
+        //
+        // Raw value from wedge property → normalized token → FootOption enum.
+        // C_WITH_CBR is detected when raw=SW_C and CBRA+CBRL+CBRD all > 0.
+        // ════════════════════════════════════════════════════════════════
 
-        private static CobAnnotationDeletionRules.FootOption ResolveCobFootOption(WedgeData wedge, string? rawFootOption)
+        private static CobAnnotationDeletionRules.FootOption ResolveCobFootOption(
+            WedgeData wedge, string? rawFootOption)
         {
-            // probe multiple possible keys (since data sometimes varies)
+            // Probe multiple possible property key spellings
             var s =
                 NormalizeToken(rawFootOption) ??
                 NormalizeToken(TryGetPropLoose(wedge, "Wed-Foot_Option")) ??
@@ -353,29 +393,27 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             if (string.IsNullOrWhiteSpace(s))
                 return CobAnnotationDeletionRules.FootOption.None;
 
-            // base mapping
-            CobAnnotationDeletionRules.FootOption baseFoot =
-                s switch
-                {
-                    "SW_C" => CobAnnotationDeletionRules.FootOption.C,
-                    "SW_G" => CobAnnotationDeletionRules.FootOption.G,
-                    "SW_VG" => CobAnnotationDeletionRules.FootOption.VG,
-                    "SW_CG" => CobAnnotationDeletionRules.FootOption.CG,
-                    "SW_CC" => CobAnnotationDeletionRules.FootOption.CC,
-                    _ => CobAnnotationDeletionRules.FootOption.None
-                };
-
-            // ✅ your corrected rule for C_WITH_CBR
-            if (baseFoot == CobAnnotationDeletionRules.FootOption.C && s == "SW_C")
+            var baseFoot = s switch
             {
-                bool allPositive =
+                "SW_C" => CobAnnotationDeletionRules.FootOption.C,
+                "SW_G" => CobAnnotationDeletionRules.FootOption.G,
+                "SW_VG" => CobAnnotationDeletionRules.FootOption.VG,
+                "SW_CG" => CobAnnotationDeletionRules.FootOption.CG,
+                "SW_CC" => CobAnnotationDeletionRules.FootOption.CC,
+                _ => CobAnnotationDeletionRules.FootOption.None
+            };
+
+            // C_WITH_CBR: raw=SW_C and all three CBR dims are positive
+            if (baseFoot == CobAnnotationDeletionRules.FootOption.C)
+            {
+                bool allCbrPositive =
                     IsDimPositive(wedge, "CBRA") &&
                     IsDimPositive(wedge, "CBRL") &&
                     IsDimPositive(wedge, "CBRD");
 
-                if (allPositive)
+                if (allCbrPositive)
                 {
-                    Logger.Info("[COB.Cleanup] Foot rule: raw=SW_C and (CBRA/CBRL/CBRD all > 0) → using C_WITH_CBR.");
+                    Logger.Info("[COB.Cleanup] Foot rule: raw=SW_C + (CBRA/CBRL/CBRD all > 0) → C_WITH_CBR.");
                     return CobAnnotationDeletionRules.FootOption.C_WITH_CBR;
                 }
             }
@@ -388,12 +426,7 @@ namespace WAD.Runner.DrawingAutomation.Rules.COB
             if (string.IsNullOrWhiteSpace(s)) return null;
 
             var t = s.Trim().ToUpperInvariant();
-
-            // unify separators
             t = t.Replace("-", "_").Replace(" ", "_");
-
-            // ✅ strip any garbage like ";;;;" or other punctuation
-            // keep only [A-Z0-9_]
             t = new string(t.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
 
             return string.IsNullOrWhiteSpace(t) ? null : t;
