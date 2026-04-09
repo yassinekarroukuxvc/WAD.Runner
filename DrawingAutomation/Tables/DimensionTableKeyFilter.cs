@@ -53,30 +53,43 @@ namespace WAD.Runner.DrawingAutomation.Tables
                     {
                         [DrawingType.Production] = new[]
                         {
-                            "TL", "TD", "TDF",
-                            "K",
-                            "T",
-                            "FD", "FL", "FRO",
-                            "ERL","ERW",
-                            "H", "HA",
-                            "VBL","CA",
-                            "CR", "CD", "GR", "GD", "GA", "B",
-                            "G", "CGD", "CGR", "CFD",
-                            "CBRA", "CBRL","BA","ISA","RA","VR","VRA","W","VW","FR","BR","ERL","ERD","FNO"
+                            //"TL", "TD", "TDF",
+                            //"K",
+                            "T","F",
+                            "FD", "FL",
+                            //"FRO",
+                            "ERL",
+                            //"ERW",
+                            "H",
+                            //"HA",
+                            "VBL",
+                            //"CA",
+                            "RC", "CD", "GR", "GD",
+                            //"GA",
+                            "B","BF",
+                            "G",
+                            //"CGD", "CGR", "CFD",
+                            //"CBRA",
+                            "CBRL",
+                            //"BA","ISA","RA",
+                            "VR",
+                            //"VRA",
+                            "W","VW","W2","FR","BR","ERD",
                         },
 
                         [DrawingType.Customer] = new[]
                         {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "RA", "T",
-                            "BA",
-                            "ISA","ERW",
-                            "H", "HA", "FNA",
-                            "VBL","CA",
-                            "FR", "BR",
-                            "CGD",
-                            "CBRA", "CBRL"
+                            "T","F",
+                            "FD", "FL",
+                            "ERL",
+                            "H",
+                            "VBL",
+                            "RC", "CD", "GR", "GD",
+                            "B","BF",
+                            "G",
+                            "CBRL",
+                            "VR",
+                            "W","VW","W2","FR","BR","ERD",
                         },
 
                         [DrawingType.Overlay] = new[]
@@ -93,10 +106,8 @@ namespace WAD.Runner.DrawingAutomation.Tables
                     {
                         [DrawingType.Production] = new[]
                         {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "BA",
-                            "RA", "T", "FD","ISA","RA"
+                            "W", "ISA",
+                            "T", "FD"
                         },
 
                         [DrawingType.Overlay] = new[]
@@ -110,35 +121,48 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                 [WedgeType.UTUS] = new Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>()
                 {
-                    // FG: Production + Customer + Overlay
+                    // UTUS = same as COB
                     [WedgeSubclass.FG] = new Dictionary<DrawingType, string[]>()
                     {
                         [DrawingType.Production] = new[]
                         {
-                            "TL", "TD", "TDF",
-                            "K",
-                            "T",
-                            "FD", "FL", "FRO",
-                            "ERL","ERW",
-                            "H", "HA",
-                            "VBL","CA",
-                            "CR", "CD", "GR", "GD", "GA", "B",
-                            "G", "CGD", "CGR", "CFD",
-                            "CBRA", "CBRL","BA","ISA","RA","VR","VRA","W","VW","FR","BR","ERL","ERD","FNO"
+                            //"TL", "TD", "TDF",
+                            //"K",
+                            "T","F",
+                            "FD", "FL",
+                            //"FRO",
+                            "ERL",
+                            //"ERW",
+                            "H",
+                            //"HA",
+                            "VBL",
+                            //"CA",
+                            "RC", "CD", "GR", "GD",
+                            //"GA",
+                            "B","BF",
+                            "G",
+                            //"CGD", "CGR", "CFD",
+                            //"CBRA",
+                            "CBRL",
+                            //"BA","ISA","RA",
+                            "VR",
+                            //"VRA",
+                            "W","VW","W2","FR","BR","ERD",
                         },
 
                         [DrawingType.Customer] = new[]
                         {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "RA", "T",
-                            "BA",
-                            "ISA","ERW",
-                            "H", "HA", "FNA",
-                            "VBL","CA",
-                            "FR", "BR",
-                            "CGD",
-                            "CBRA", "CBRL"
+                            "T","F",
+                            "FD", "FL",
+                            "ERL",
+                            "H",
+                            "VBL",
+                            "RC", "CD", "GR", "GD",
+                            "B","BF",
+                            "G",
+                            "CBRL",
+                            "VR",
+                            "W","VW","W2","FR","BR","ERD",
                         },
 
                         [DrawingType.Overlay] = new[]
@@ -150,15 +174,13 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         }
                     },
 
-                    // PGB: Production + Overlay
+                    // PGB = same as COB
                     [WedgeSubclass.PGB] = new Dictionary<DrawingType, string[]>()
                     {
                         [DrawingType.Production] = new[]
                         {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "BA",
-                            "RA", "T", "FD","ISA","RA"
+                            "W", "ISA",
+                            "T", "FD"
                         },
 
                         [DrawingType.Overlay] = new[]
@@ -172,35 +194,48 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                 [WedgeType.FP] = new Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>()
                 {
-                    // FP = same as UTUS
+                    // FP = same as COB
                     [WedgeSubclass.FG] = new Dictionary<DrawingType, string[]>()
                     {
                         [DrawingType.Production] = new[]
                         {
-                            "TL", "TD", "TDF",
-                            "K",
-                            "T",
-                            "FD", "FL", "FRO",
-                            "ERL","ERW",
-                            "H", "HA",
-                            "VBL","CA",
-                            "CR", "CD", "GR", "GD", "GA", "B",
-                            "G", "CGD", "CGR", "CFD",
-                            "CBRA", "CBRL","BA","ISA","RA","VR","VRA","W","VW","FR","BR","ERL","ERD","FNO"
+                            //"TL", "TD", "TDF",
+                            //"K",
+                            "T","F",
+                            "FD", "FL",
+                            //"FRO",
+                            "ERL",
+                            //"ERW",
+                            "H",
+                            //"HA",
+                            "VBL",
+                            //"CA",
+                            "RC", "CD", "GR", "GD",
+                            //"GA",
+                            "B","BF",
+                            "G",
+                            //"CGD", "CGR", "CFD",
+                            //"CBRA",
+                            "CBRL",
+                            //"BA","ISA","RA",
+                            "VR",
+                            //"VRA",
+                            "W","VW","W2","FR","BR","ERD",
                         },
 
                         [DrawingType.Customer] = new[]
                         {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "RA", "T",
-                            "BA",
-                            "ISA","ERW",
-                            "H", "HA", "FNA",
-                            "VBL","CA",
-                            "FR", "BR",
-                            "CGD",
-                            "CBRA", "CBRL"
+                            "T","F",
+                            "FD", "FL",
+                            "ERL",
+                            "H",
+                            "VBL",
+                            "RC", "CD", "GR", "GD",
+                            "B","BF",
+                            "G",
+                            "CBRL",
+                            "VR",
+                            "W","VW","W2","FR","BR","ERD",
                         },
 
                         [DrawingType.Overlay] = new[]
@@ -212,15 +247,13 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         }
                     },
 
-                    // PGB: Production + Overlay
+                    // PGB = same as COB
                     [WedgeSubclass.PGB] = new Dictionary<DrawingType, string[]>()
                     {
                         [DrawingType.Production] = new[]
                         {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "BA",
-                            "RA", "T", "FD","ISA","RA"
+                            "W", "ISA",
+                            "T", "FD"
                         },
 
                         [DrawingType.Overlay] = new[]

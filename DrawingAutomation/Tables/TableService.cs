@@ -44,10 +44,21 @@ namespace WAD.Runner.DrawingAutomation.Tables
             var rows = BuildDimensionRows_Filtered(wedge, draw, wedgeType);
             if (rows.Count == 0) return false;
 
-            var widthM = ResolveWidthM(cfg, fallbackM: 0.08);
+            // Derive width from content, capped between a min and the config value
+            var configWidthM = ResolveWidthM(cfg, fallbackM: 0.08);
+            var contentWidthM = EstimateMonospaceWidthM(rows, header, fontSizePt: 6.0, scaleCharHeight: 0.90,charWidthRatio: 0.8);
+            var widthM = Math.Min(configWidthM, Math.Max(contentWidthM, 0.03)); // floor at 30mm
+
             var posM = ToMeters(cfg.PositionMm);
 
-            var table = CreateOneColumnTable(posM.x, posM.y, rows.Count + 1, "Dimensions", widthM);
+            // Shift Y so the table grows upward from the config anchor point.
+            // If your anchor is the TOP-LEFT corner of the table (SW default),
+            // and you want it to grow downward, skip this and use posM.y directly.
+            double tableHeightM = EstimateTableHeightM(rows.Count, rowHeightMm: 3.5, includeTitle: true);
+            double adjustedY = posM.y + tableHeightM;
+
+            var table = CreateOneColumnTable(posM.x, adjustedY, rows.Count + 1, "Dimensions", widthM);
+
             if (table is null) return false;
 
             table.set_Text(0, 0, header);
@@ -61,8 +72,8 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
             SetTableFontSize(table, 6);
             TryApplyTypeface(table, "Monospac821 BT", scaleCharHeight: 0.90);
-            SetTableRowHeights(table, rowHeightMm: 2.0, includeTitle: true);  // was 3.048
-            ShrinkTableHeight(table, includeTitle: true);                      // push to floor
+            SetTableRowHeights(table, rowHeightMm: 2.0, includeTitle: true);
+            ShrinkTableHeight(table, includeTitle: true);
             TrimTrailingEmptyRows(table);
 
             return true;
@@ -733,6 +744,51 @@ namespace WAD.Runner.DrawingAutomation.Tables
             catch
             {
             }
+        }
+
+        /// <summary>
+        /// Estimates the required column width in meters for a monospaced font table,
+        /// based on the longest string across all rows and the header.
+        /// 
+        /// Monospac821 BT at 6pt with scaleCharHeight=0.90 produces a glyph whose
+        /// advance width is roughly 60% of the character height (typical for monospace).
+        /// We add a small fixed padding (2mm each side) to avoid the text touching borders.
+        /// </summary>
+        private static double EstimateMonospaceWidthM(
+            IReadOnlyList<string> rows,
+            string header,
+            double fontSizePt,
+            double? scaleCharHeight,
+            double charWidthRatio = 0.60,
+            double paddingMm = 8.0)
+        {
+            int maxChars = string.IsNullOrEmpty(header) ? 0 : header.Length;
+            foreach (var r in rows)
+                if (r != null && r.Length > maxChars)
+                    maxChars = r.Length;
+
+            if (maxChars == 0) return 0.03;
+
+            // Character height in meters (same formula as PointsToMeters)
+            double charHeightM = fontSizePt * 0.0003527777778;
+            if (scaleCharHeight.HasValue)
+                charHeightM *= scaleCharHeight.Value;
+
+            double charWidthM = charHeightM * charWidthRatio;
+            double contentM = charWidthM * maxChars;
+            double paddingM = paddingMm / 1000.0;
+
+            return contentM + paddingM;
+        }
+
+        /// <summary>
+        /// Computes the total rendered height of the table in meters.
+        /// Used to reposition the table anchor so it grows in a predictable direction.
+        /// </summary>
+        private static double EstimateTableHeightM(int dataRowCount, double rowHeightMm, bool includeTitle)
+        {
+            int totalRows = dataRowCount + (includeTitle ? 1 : 0); // +1 for header row
+            return (totalRows * rowHeightMm) / 1000.0;
         }
     }
 }

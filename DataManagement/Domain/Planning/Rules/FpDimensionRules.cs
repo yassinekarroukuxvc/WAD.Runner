@@ -1,13 +1,10 @@
-﻿// Domain/Planning/Rules/FpDimensionRules.cs
-using SolidWorks.Interop.sldworks;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using static System.Reflection.Metadata.BlobBuilder;
 
 namespace WAD.Runner.DataManagement.Domain.Planning.Rules;
 
@@ -15,7 +12,8 @@ namespace WAD.Runner.DataManagement.Domain.Planning.Rules;
 /// FP-specific dimension placement rules.
 ///
 /// TEMPORARY:
-/// - Uses the same placement logic as COB today.
+/// - Uses the same placement logic as UT/US today,
+///   but the rules LIVE HERE and are organized by view.
 /// - Later, replace view blocks with true FP logic if needed.
 /// </summary>
 internal static class FpDimensionRules
@@ -32,7 +30,6 @@ internal static class FpDimensionRules
 
         var dims = new List<DimensionSpec>();
 
-        // Basic sanity
         var TL = LayoutMath.Dmm(ctx, "TL");
         var TD = LayoutMath.Dmm(ctx, "TD");
         if (TL <= 0) diag.Suspicious("PLN003", "TL <= 0 detected.");
@@ -57,19 +54,14 @@ internal static class FpDimensionRules
         return dims;
     }
 
-    // ============================================================
-    // PRODUCTION / CUSTOMER  (organized by view)
-    // ============================================================
     private static void AddProductionCustomer(LayoutContext ctx, PlannerDiagnostics diag, List<DimensionSpec> outList)
     {
-        // Views
         var F = LayoutMath.View(ctx, Front);
         var T = LayoutMath.View(ctx, Top);
         var S = LayoutMath.View(ctx, Side);
         var D = LayoutMath.View(ctx, Detail);
         var Sec = LayoutMath.View(ctx, Section);
 
-        // Scales
         var fsv = LayoutMath.Scale(ctx, Front);
         var tsv = LayoutMath.Scale(ctx, Top);
         var ssv = LayoutMath.Scale(ctx, Side);
@@ -78,26 +70,22 @@ internal static class FpDimensionRules
 
         Logger.Info($"[Plan] Scales → Front={fsv:0.###}, Side={ssv:0.###}, Top={tsv:0.###}, Detail={dsv:0.###}, Section={scv:0.###}");
 
-        // Common values
         var TL = LayoutMath.Dmm(ctx, "TL");
         var TD = LayoutMath.Dmm(ctx, "TD");
         var L_front = LayoutMath.WedgeLength(ctx, TL, fsv);
         var L_side = LayoutMath.WedgeLength(ctx, TL, ssv);
 
-        // Detail breakline defaults
-        double detailLower = 40.0;
+        double detailLower = 60.0;
         double detailBreak = GetBreakline(ctx, Detail, defaultMm: 50.0);
         var bandMidY = D[1] - (detailBreak + detailLower) / 2.0;
 
-        // ----- VIEW BLOCKS -----
         AddFront(ctx, diag, outList, F, fsv, TL, TD, L_front);
         AddTop(ctx, diag, outList, T, tsv, TD);
         AddDetail(ctx, diag, outList, D, dsv, bandMidY);
         AddSide(ctx, diag, outList, S, ssv, TD, L_side);
-        AddSection(ctx, diag, outList, Sec, scv);
+        AddSection(ctx, diag, outList, Sec, scv, bandMidY);
     }
 
-    // ----------------- FRONT -----------------
     private static void AddFront(
         LayoutContext ctx,
         PlannerDiagnostics diag,
@@ -120,7 +108,6 @@ internal static class FpDimensionRules
             F[0] + fsv * TD / 2.0 + 5.0, F[1] - L_front / 2.0 + VR * fsv / 2.0);
     }
 
-    // ----------------- TOP -----------------
     private static void AddTop(
         LayoutContext ctx,
         PlannerDiagnostics diag,
@@ -132,13 +119,12 @@ internal static class FpDimensionRules
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
         PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical,
-            85, 172);
+            55, 172);
 
         PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal,
-            75, 197);
+            45, 197);
     }
 
-    // ----------------- DETAIL -----------------
     private static void AddDetail(
         LayoutContext ctx,
         PlannerDiagnostics diag,
@@ -147,47 +133,52 @@ internal static class FpDimensionRules
         double dsv,
         double bandMidY)
     {
-        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
-            D[0] + 3.5, 205);
-
-        PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
-            D[0], 125);
-
-        PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal,
-            D[0], 135);
-
-        PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal,
-            D[0], 145);
-
-        PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal,
-            D[0], 155);
-
         var W = LayoutMath.Dmm(ctx, "W");
         var GD = LayoutMath.Dmm(ctx, "GD");
+        var TD = LayoutMath.Dmm(ctx, "TD");
+        var VR = LayoutMath.Dmm(ctx, "VR");
+        var VW = LayoutMath.Dmm(ctx, "VW");
+        var GR = LayoutMath.Dmm(ctx, "GR");
+        var CD = LayoutMath.Dmm(ctx, "CD");
+        var CR = LayoutMath.Dmm(ctx, "CR");
 
-        PlaceDim(ctx, diag, outList, "GD", Detail, DimAxis.Vertical,
-            D[0] - W / 2.0 * dsv - 20.0, bandMidY + dsv * GD / 2.0);
-
-        PlaceDim(ctx, diag, outList, "GR", Detail, DimAxis.Horizontal,
-            D[0] + 15.0, bandMidY + dsv * GD + 15.0);
-
-        PlaceDim(ctx, diag, outList, "VR", Detail, DimAxis.Horizontal,
-            108, 162);
-
-        PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal,
-            D[0], 147);
-
-        PlaceDim(ctx, diag, outList, "CD", Detail, DimAxis.Horizontal,
-            146, 162);
-
-        PlaceDim(ctx, diag, outList, "CR", Detail, DimAxis.Horizontal,
-            119, 162);
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
+            D[0], D[1] + 30);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
-            D[0], 185);
+            D[0], D[1] + 20);
+
+        PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
+            D[0], bandMidY - 30);
+
+        PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal,
+            D[0], bandMidY - 10);
+
+        PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal,
+            D[0], bandMidY - 20);
+
+        PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal,
+            D[0], bandMidY - 15);
+
+        PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal,
+            D[0], bandMidY - 25);
+
+        PlaceDim(ctx, diag, outList, "GD", Detail, DimAxis.Vertical,
+            D[0] + (W / 2.0 * dsv) + 10.0, bandMidY + dsv * GD / 2.0);
+
+        PlaceDim(ctx, diag, outList, "GR", Detail, DimAxis.Horizontal,
+            D[0] - (W / 2.0 * dsv) - 10.0, bandMidY + 20);
+
+        PlaceDim(ctx, diag, outList, "VR", Detail, DimAxis.Horizontal,
+            D[0] - (VW * dsv / 2) - 10, bandMidY + (VR / 2) * dsv);
+
+        PlaceDim(ctx, diag, outList, "CD", Detail, DimAxis.Horizontal,
+            D[0] + (W / 2.0 * dsv) + 5, bandMidY + dsv * CD / 2.0);
+
+        PlaceDim(ctx, diag, outList, "CR", Detail, DimAxis.Horizontal,
+            119, 132);
     }
 
-    // ----------------- SIDE -----------------
     private static void AddSide(
         LayoutContext ctx,
         PlannerDiagnostics diag,
@@ -201,95 +192,116 @@ internal static class FpDimensionRules
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
 
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
-            82,
-            104);
+            52,
+            114);
     }
 
-    // ----------------- SECTION -----------------
     private static void AddSection(
         LayoutContext ctx,
         PlannerDiagnostics diag,
         List<DimensionSpec> outList,
         double[] Sec,
-        double scv)
+        double scv,
+        double bandMidY)
     {
         var FL = LayoutMath.Dmm(ctx, "FL");
+        var TD = LayoutMath.Dmm(ctx, "TD");
+        var TDF = LayoutMath.Dmm(ctx, "TDF");
+        var T = LayoutMath.Dmm(ctx, "T");
+        var FD = LayoutMath.Dmm(ctx, "FD");
+        var G = LayoutMath.Dmm(ctx, "G");
+        var ERD = LayoutMath.Dmm(ctx, "ERD");
+        var CGD = LayoutMath.Dmm(ctx, "CGD");
+        var FR = LayoutMath.Dmm(ctx, "FR");
+        var F = LayoutMath.Dmm(ctx, "F");
+        var ERL = LayoutMath.Dmm(ctx, "ERL");
+        var HA = LayoutMath.Ddeg(ctx, "HA");
+        var RA = LayoutMath.Ddeg(ctx, "RA");
 
-        PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal, 186, 156);
+        PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + FL / 2 * scv, bandMidY - 25);
+
+        PlaceDim(ctx, diag, outList, "G", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + G / 2 * scv, bandMidY - 20);
 
         PlaceDim(ctx, diag, outList, "FR_C", Section, DimAxis.Horizontal,
-            171, 162);
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 5);
 
         PlaceDim(ctx, diag, outList, "FR_VG", Section, DimAxis.Horizontal,
-            171, 162);
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 5);
 
         PlaceDim(ctx, diag, outList, "FR_CG", Section, DimAxis.Horizontal,
-            171, 162);
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 5);
 
         PlaceDim(ctx, diag, outList, "FR_G", Section, DimAxis.Horizontal,
-            171, 162);
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 5);
 
         PlaceDim(ctx, diag, outList, "BR_C", Section, DimAxis.Horizontal,
-            205, 162);
+            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 5);
 
         PlaceDim(ctx, diag, outList, "BR_VG", Section, DimAxis.Horizontal,
-            205, 162);
+            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 5);
 
         PlaceDim(ctx, diag, outList, "BR_CG", Section, DimAxis.Horizontal,
-            205, 162);
+            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 5);
 
         PlaceDim(ctx, diag, outList, "BR_G", Section, DimAxis.Horizontal,
-            205, 162);
+            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 5);
 
         PlaceDim(ctx, diag, outList, "FRO", Section, DimAxis.Horizontal,
-            170, 158);
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY);
 
         PlaceDim(ctx, diag, outList, "ERL", Section, DimAxis.Horizontal,
-            193, 153);
+            Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY - 35);
 
         PlaceDim(ctx, diag, outList, "FD", Section, DimAxis.Horizontal,
-            175, 150);
+            Sec[0] - (TDF / 2) * scv + FD / 2 * scv, bandMidY - 30);
 
         PlaceDim(ctx, diag, outList, "T", Section, DimAxis.Horizontal,
-            195, 148);
+            Sec[0] - (TDF / 2) * scv + T / 2 * scv, bandMidY - 40);
 
         PlaceDim(ctx, diag, outList, "ERD", Section, DimAxis.Horizontal,
-            212, 166);
+            Sec[0] - (TDF / 2) * scv + T * scv + 10, bandMidY + ERD * scv / 2);
 
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
-            220, 173);
+            240, 133);
+
+        Logger.Blue($"(((T - FD) * scv) * Math.Tan(RA)) /2  = {(((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2} |||||||||||| Tan(RA) = {Math.Tan(RA * (Math.PI / 180.0))} ||||||| RA = {RA}");
 
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
-            228, 167);
+            Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + (((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2);
 
         PlaceDim(ctx, diag, outList, "CA", Section, DimAxis.Horizontal,
-            196, 168);
+            Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY + ERD / 2 * scv);
 
         PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
-            232, 187);
+            252, 147);
 
         PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
-            233, 175);
+            Sec[0] - (TDF / 2) * scv + T * scv + 20, bandMidY + 10);
 
         PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,
-            253, 185);
+            273, 145);
 
         PlaceDim(ctx, diag, outList, "F_C", Section, DimAxis.Horizontal,
-            212, 156);
+            Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 15);
 
         PlaceDim(ctx, diag, outList, "F_G", Section, DimAxis.Horizontal,
-            212, 156);
+            Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 15);
 
         PlaceDim(ctx, diag, outList, "F_VG", Section, DimAxis.Horizontal,
-            212, 156);
+            Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 15);
 
         PlaceDim(ctx, diag, outList, "CBRL", Section, DimAxis.Horizontal,
-            216, 159);
+            180, bandMidY - 10);
+
+        PlaceDim(ctx, diag, outList, "CGD", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY + CGD / 2 * scv);
+
+        PlaceDim(ctx, diag, outList, "CGR", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv, bandMidY + 10);
     }
 
-    // ============================================================
-    // OVERLAY (organized by view)
-    // ============================================================
     private static void AddOverlayBaseline(LayoutContext ctx, PlannerDiagnostics diag, List<DimensionSpec> outList)
     {
         _ = LayoutMath.View(ctx, Front);
@@ -321,9 +333,6 @@ internal static class FpDimensionRules
             132.08 + 5, 8.3566 - FSTscale * TD / 2.0 - 4.0);
     }
 
-    // ============================================================
-    // HELPERS
-    // ============================================================
     private static double GetBreakline(LayoutContext ctx, string view, double defaultMm)
     {
         if (!ctx.Drawing.Views.TryGetValue(view, out var v) || v is null) return defaultMm;
