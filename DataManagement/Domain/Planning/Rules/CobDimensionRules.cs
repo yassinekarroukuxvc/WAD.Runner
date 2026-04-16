@@ -311,6 +311,7 @@ internal static class CobDimensionRules
 
         var FSTscale = 2.0 / 3.0;
         var TD = LayoutMath.Dmm(ctx, "TD");
+        var W = LayoutMath.Dmm(ctx, "W");
 
         PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, 152.4, 60.0);
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal, 106.68, 60.0);
@@ -322,7 +323,10 @@ internal static class CobDimensionRules
         PlaceDim(ctx, diag, outList, "X", Side, DimAxis.Horizontal, 76.2, 14.732);
         PlaceDim(ctx, diag, outList, "FX", Side, DimAxis.Horizontal, 76.2, 14.732);
 
-        PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal, 152.4, 13.462);
+        //PlaceDim(ctx, diag, outList, "VR_MAX", Detail, DimAxis.Horizontal, 0, 0);
+        //PlaceDim(ctx, diag, outList, "VR_MIN", Detail, DimAxis.Horizontal, 0, 0);
+        //PlaceDim(ctx, diag, outList, "VRR_MAX", Detail, DimAxis.Horizontal, 0, 61 + 20);
+        //PlaceDim(ctx, diag, outList, "VRR_MIN", Detail, DimAxis.Horizontal, 0, 61 + 10);
 
         var FAdeg = LayoutMath.TryDdeg(ctx, "FA");
         PlaceDim(ctx, diag, outList, "FA", Side, DimAxis.Horizontal,

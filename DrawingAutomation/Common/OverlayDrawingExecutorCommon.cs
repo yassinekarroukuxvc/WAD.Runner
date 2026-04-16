@@ -253,6 +253,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 var isCkvd = run.WedgeType == WedgeType.CKVD;
                 var isCob = run.WedgeType == WedgeType.COB;
                 var isUtUs = run.WedgeType == WedgeType.UTUS;
+                var isFp = run.WedgeType == WedgeType.FP;
 
                 var refPointSketchName = isCkvd
                     ? "ref_point_2"
@@ -266,7 +267,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 double detailYIn = 2.4;
                 double sectionYIn = 2.4;
 
-                if (isCob || isUtUs)
+                if (isCob || isUtUs || isFp)
                 {
                     var shankType = ResolveShankType(run.Wedge);
 
@@ -767,6 +768,89 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 400 => 246.0,
                 _ => 60.8
             };
+        }
+
+        public static void TryBindOverlayViewConfigurations(
+            DrawingService ds,
+            DrawingRun run,
+            IDictionary<string, string> nameMap)
+        {
+            try
+            {
+                if (ds?.Model is not ModelDoc2 model)
+                {
+                    Logger.Warn("[Overlay] Config binding skipped: drawing model is null.");
+                    return;
+                }
+
+                if (run?.Wedge == null)
+                {
+                    Logger.Warn("[Overlay] Config binding skipped: run or wedge is null.");
+                    return;
+                }
+
+                if (nameMap == null || nameMap.Count == 0)
+                {
+                    Logger.Warn("[Overlay] Config binding skipped: nameMap is null or empty.");
+                    return;
+                }
+
+                bool hasVw = HasPositiveDimension(run, "VW");
+                bool hasVr = HasPositiveDimension(run, "VR");
+
+                var logicalViewsToBind = new[] { "Front", "Side", "Top", "Detail", "Section" };
+
+                var actualViewNames = logicalViewsToBind
+                    .Where(nameMap.ContainsKey)
+                    .Select(k => nameMap[k])
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+                if (actualViewNames.Length == 0)
+                {
+                    Logger.Warn("[Overlay] Config binding skipped: no mapped overlay views were found.");
+                    return;
+                }
+
+                Logger.Info(
+                    $"[Overlay] Binding view configurations for subclass={run.Wedge.Subclass}, " +
+                    $"drawingType=Overlay, wedgeType={run.WedgeType}, hasVW={hasVw}, hasVR={hasVr}.");
+
+                var ok = DrawingViewConfigBinder.SetReferencedConfigurationForViews(
+                    model,
+                    run.Wedge.Subclass,
+                    DrawingType.Overlay,
+                    run.WedgeType,
+                    hasVw,
+                    hasVr,
+                    actualViewNames);
+
+                if (ok)
+                    Logger.Info("[Overlay] View configuration binding completed.");
+                else
+                    Logger.Warn("[Overlay] View configuration binding reported no successful assignments.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[Overlay] Config binding failed (continuing): {ex.Message}");
+            }
+        }
+
+        private static bool HasPositiveDimension(DrawingRun run, string key)
+        {
+            try
+            {
+                double valueMm = GetDimMm(run, key);
+
+                return !double.IsNaN(valueMm)
+                    && !double.IsInfinity(valueMm)
+                    && Math.Abs(valueMm) > 1e-6;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static int NormalizeScalingToken(object? overlayScaling)

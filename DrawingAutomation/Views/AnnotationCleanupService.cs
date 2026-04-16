@@ -94,11 +94,11 @@ public static class AnnotationCleanupService
     /// even if no DimensionSpec exists for them.
     /// </summary>
     public static void RemoveZeroDimensionsFromDrawing(
-        DrawingService ds,
-        IDictionary<string, string> nameMap,
-        LayoutContext ctx,
-        DrawingData drawingData,
-        IEnumerable<DimensionSpec> dims)
+    DrawingService ds,
+    IDictionary<string, string> nameMap,
+    LayoutContext ctx,
+    DrawingData drawingData,
+    IEnumerable<DimensionSpec> dims)
     {
         if (ds?.Model is not ModelDoc2 model) return;
         if (ds.Drawing is not DrawingDoc) return;
@@ -106,10 +106,17 @@ public static class AnnotationCleanupService
         if (ctx == null) return;
         if (dims == null) return;
 
+        // Only evaluate REAL numeric keys here.
+        // Do NOT include VR_MAX / VR_MIN / VRR_MAX / VRR_MIN as standalone keys.
         var candidateKeyStrings = dims
             .Select(d => d.Key.ToString())
             .Concat(new[] { "FX", "VR", "VRR" })
             .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Where(s =>
+                !s.Equals("VR_MAX", StringComparison.OrdinalIgnoreCase) &&
+                !s.Equals("VR_MIN", StringComparison.OrdinalIgnoreCase) &&
+                !s.Equals("VRR_MAX", StringComparison.OrdinalIgnoreCase) &&
+                !s.Equals("VRR_MIN", StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -141,6 +148,23 @@ public static class AnnotationCleanupService
 
         Logger.Info($"[ZeroCleanup] Keys with zero value (mm/deg): {string.Join(", ", zeroKeys)}");
 
+        
+        var prefixesToDelete = new HashSet<string>(zeroKeys, StringComparer.OrdinalIgnoreCase);
+
+        if (zeroKeys.Contains("VR"))
+        {
+            prefixesToDelete.Add("VR_MAX");
+            prefixesToDelete.Add("VR_MIN");
+        }
+
+        if (zeroKeys.Contains("VRR"))
+        {
+            prefixesToDelete.Add("VRR_MAX");
+            prefixesToDelete.Add("VRR_MIN");
+        }
+
+        Logger.Info($"[ZeroCleanup] Annotation prefixes to delete: {string.Join(", ", prefixesToDelete)}");
+
         int totalDeleted = 0;
 
         foreach (var logicalViewName in drawingData.Views.Keys)
@@ -159,8 +183,8 @@ public static class AnnotationCleanupService
             int deletedInView = DeleteDimensionsByPredicate(
                 model,
                 infos,
-                info => zeroKeys.Contains(info.Prefix),
-                (info) => $"[ZeroCleanup] Deleted dim '{info.FullName}' in view '{logicalViewName}' for key '{info.Prefix}'.",
+                info => prefixesToDelete.Contains(info.Prefix),
+                info => $"[ZeroCleanup] Deleted dim '{info.FullName}' in view '{logicalViewName}' for key '{info.Prefix}'.",
                 (info, ex) => $"[ZeroCleanup] Failed to delete dim '{info.FullName}' in view '{logicalViewName}' (key='{info.Prefix}'): {ex.Message}");
 
             totalDeleted += deletedInView;

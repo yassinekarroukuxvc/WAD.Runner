@@ -33,6 +33,16 @@ namespace WAD.Runner.ModelAutomation.Rules
     ///   PGB_STD_FRONT_overlay_sketch / PGB_180_DEG_REV_FRONT_overlay_sketch.
     /// - If VR > 0 in overlay, always suppress the LEFT overlay sketch
     ///   (FG_LEFT_overlay_sketch / PGB_LEFT_overlay_sketch).
+    /// - If VR > 0 in overlay, unsuppress VW_LEFT_case_1_overlay_sketch or
+    ///   VW_LEFT_case_2_overlay_sketch depending on whether VW == W (case 2) or not (case 1).
+    /// - If RA2H > 0 in overlay, unsuppress shank-matching front overlay sketch:
+    ///   RA2H_STD_FRONT_overlay_sketch / RA2H_180_DEG_REV_FRONT_overlay_sketch.
+    /// - If RA2 > 0 in overlay, suppress PGB_STD_FRONT_overlay_sketch.
+    /// - If VBL > 0 in overlay, unsuppress shank-matching SLB overlay sketch:
+    ///   SLB_STD_overlay_sketch / SLB_180_DEG_REV_overlay_sketch.
+    /// - If VBL > 0 in overlay, also suppress the shank-matching front overlay sketch:
+    ///   PGB_STD_FRONT_overlay_sketch / PGB_180_DEG_REV_FRONT_overlay_sketch.
+    /// - If VBL > 0 in overlay, also suppress 10BA for the active shank.
     /// - For PGB Overlay, always suppress FRO.
     ///
     /// Non-overlay rule:
@@ -67,6 +77,7 @@ namespace WAD.Runner.ModelAutomation.Rules
 
                 foreach (var nm in BuildNameCandidatesWithSketches("FRO", CobShankType.Rev180))
                     suppress.Add(nm);
+
                 // PGB Overlay template rules
                 if (drawingType == DrawingType.Overlay)
                 {
@@ -112,6 +123,15 @@ namespace WAD.Runner.ModelAutomation.Rules
             if (drawingType == DrawingType.Overlay)
             {
                 Logger.Info("[CobFeatureRules] Subclass=FG + Overlay → applying FG overlay template feature toggles.");
+
+                // Prevent template leakage from PGB overlay sketch
+                fgSuppress.Add("PGB_LEFT_overlay_sketch");
+                fgUnsuppress.Remove("PGB_LEFT_overlay_sketch");
+
+                // Ensure FG overlay sketch is the active one
+                fgUnsuppress.Add("FG_LEFT_overlay_sketch");
+                fgSuppress.Remove("FG_LEFT_overlay_sketch");
+
                 BuildOverlayPlan(wedge, shank, fgSuppress, fgUnsuppress, "FG_LEFT_overlay_sketch");
             }
 
@@ -215,9 +235,14 @@ namespace WAD.Runner.ModelAutomation.Rules
             unsuppress.Add("cut_plan_feature");
             unsuppress.Add("cut_feature");
 
-            // If VR > 0 in overlay, always suppress the LEFT overlay sketch
             bool vrPositive = IsDimPositive(wedge, "VR");
+            bool ra2Positive = IsDimPositive(wedge, "RA2");
+            bool ra2hPositive = IsDimPositive(wedge, "RA2H");
+            bool slbEnabled = ResolveOptionalEnabled(wedge, "SLB"); // VBL > 0
+            bool isStd = shank == CobShankType.Std;
 
+            // LEFT overlay sketch:
+            // if VR > 0 => suppress LEFT overlay sketch
             if (!string.IsNullOrWhiteSpace(leftOverlaySketch))
             {
                 if (vrPositive)
@@ -238,7 +263,7 @@ namespace WAD.Runner.ModelAutomation.Rules
             const string StdFront = "PGB_STD_FRONT_overlay_sketch";
             const string RevFront = "PGB_180_DEG_REV_FRONT_overlay_sketch";
 
-            if (shank == CobShankType.Std)
+            if (isStd)
             {
                 unsuppress.Add(StdFront);
                 suppress.Add(RevFront); // prevent leakage
@@ -247,6 +272,125 @@ namespace WAD.Runner.ModelAutomation.Rules
             {
                 unsuppress.Add(RevFront);
                 suppress.Add(StdFront); // prevent leakage
+            }
+
+            // --------------------------------------------------------
+            // RA2 overlay rule
+            // If RA2 > 0, suppress PGB_STD_FRONT_overlay_sketch
+            // --------------------------------------------------------
+            if (ra2Positive)
+            {
+                suppress.Add(StdFront);
+                unsuppress.Remove(StdFront);
+
+                Logger.Info("[CobFeatureRules] Overlay rule: RA2 > 0 → suppress PGB_STD_FRONT_overlay_sketch.");
+            }
+
+            // --------------------------------------------------------
+            // RA2H overlay sketch by shank type, only when RA2H > 0
+            // --------------------------------------------------------
+            const string Ra2hStdFront = "RA2H_STD_FRONT_overlay_sketch";
+            const string Ra2hRevFront = "RA2H_180_DEG_REV_FRONT_overlay_sketch";
+
+            if (ra2hPositive)
+            {
+                if (isStd)
+                {
+                    unsuppress.Add(Ra2hStdFront);
+                    suppress.Add(Ra2hRevFront);
+                }
+                else
+                {
+                    unsuppress.Add(Ra2hRevFront);
+                    suppress.Add(Ra2hStdFront);
+                }
+
+                Logger.Info($"[CobFeatureRules] Overlay rule: RA2H > 0 → unsuppress {(isStd ? Ra2hStdFront : Ra2hRevFront)}.");
+            }
+            else
+            {
+                suppress.Add(Ra2hStdFront);
+                suppress.Add(Ra2hRevFront);
+            }
+
+            // --------------------------------------------------------
+            // VW LEFT overlay case sketches, only when VR > 0.
+            // Case selection: VW == W → case_2, else → case_1.
+            // --------------------------------------------------------
+            const string VwLeftCase1 = "VW_LEFT_case_1_overlay_sketch";
+            const string VwLeftCase2 = "VW_LEFT_case_2_overlay_sketch";
+
+            if (vrPositive)
+            {
+                bool vwEqualsW = IsDimEqualTo(wedge, "VW", wedge, "W");
+
+                if (vwEqualsW)
+                {
+                    unsuppress.Add(VwLeftCase2);
+                    suppress.Add(VwLeftCase1);
+                    Logger.Info("[CobFeatureRules] Overlay rule: VR > 0 and VW == W → unsuppress VW_LEFT_case_2_overlay_sketch.");
+                }
+                else
+                {
+                    unsuppress.Add(VwLeftCase1);
+                    suppress.Add(VwLeftCase2);
+                    Logger.Info("[CobFeatureRules] Overlay rule: VR > 0 and VW != W → unsuppress VW_LEFT_case_1_overlay_sketch.");
+                }
+            }
+            else
+            {
+                suppress.Add(VwLeftCase1);
+                suppress.Add(VwLeftCase2);
+            }
+
+            // --------------------------------------------------------
+            // SLB overlay sketch by shank type, only when SLB is enabled (VBL > 0).
+            // When SLB is enabled: also suppress 10BA for the active shank.
+            // --------------------------------------------------------
+            const string SlbStdOverlay = "SLB_STD_overlay_sketch";
+            const string SlbRevOverlay = "SLB_180_DEG_REV_overlay_sketch";
+
+            if (slbEnabled)
+            {
+                if (isStd)
+                {
+                    unsuppress.Add(SlbStdOverlay);
+                    suppress.Add(SlbRevOverlay);
+
+                    // Suppress the matching front overlay sketch
+                    suppress.Add(StdFront);
+                    unsuppress.Remove(StdFront);
+
+                    // Suppress 10BA for the active (STD) shank
+                    foreach (var nm in BuildNameCandidatesWithSketches("10BA", CobShankType.Std))
+                    {
+                        suppress.Add(nm);
+                        unsuppress.Remove(nm);
+                    }
+                }
+                else
+                {
+                    unsuppress.Add(SlbRevOverlay);
+                    suppress.Add(SlbStdOverlay);
+
+                    // Suppress the matching front overlay sketch
+                    suppress.Add(RevFront);
+                    unsuppress.Remove(RevFront);
+
+                    // Suppress 10BA for the active (180_DEG_REV) shank
+                    foreach (var nm in BuildNameCandidatesWithSketches("10BA", CobShankType.Rev180))
+                    {
+                        suppress.Add(nm);
+                        unsuppress.Remove(nm);
+                    }
+                }
+
+                Logger.Info($"[CobFeatureRules] Overlay rule: SLB enabled → unsuppress {(isStd ? SlbStdOverlay : SlbRevOverlay)}, suppress matching front overlay sketch and 10BA.");
+            }
+            else
+            {
+                suppress.Add(SlbStdOverlay);
+                suppress.Add(SlbRevOverlay);
             }
         }
 
@@ -385,7 +529,6 @@ namespace WAD.Runner.ModelAutomation.Rules
             yield return $"{baseName}_{suffix}_Sketch";
             yield return $"{baseName}_{suffix}_SKETCH";
 
-            
             if (baseName.Equals("FRO", StringComparison.OrdinalIgnoreCase))
             {
                 yield return $"FRO_{suffix}_feature_1";
@@ -526,6 +669,23 @@ namespace WAD.Runner.ModelAutomation.Rules
                 return false;
 
             return dim.Nominal.Value > 0m;
+        }
+
+        /// <summary>
+        /// Returns true when the nominal values of two dimensions are equal.
+        /// Treats a missing dimension as 0.
+        /// </summary>
+        private static bool IsDimEqualTo(WedgeData wedgeA, string dimKeyA, WedgeData wedgeB, string dimKeyB)
+        {
+            decimal GetNominal(WedgeData w, string key)
+            {
+                if (w?.Dimensions is null) return 0m;
+                if (!w.Dimensions.TryGetValue(DimensionKey.From(key), out var d) || d is null)
+                    return 0m;
+                return d.Nominal.Value;
+            }
+
+            return GetNominal(wedgeA, dimKeyA) == GetNominal(wedgeB, dimKeyB);
         }
 
         private static string NormalizeDbToken(string s)

@@ -60,7 +60,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 out var nameMap);
 
             // 2b) FG-specific hook area
-
+            OverlayDrawingExecutorCommon.TryBindOverlayViewConfigurations(ds, run, nameMap);
             // 3) Compute overlay mag/cal + payload
             Logger.Info("[3/9] Compute overlay magnification/calibration…");
             var (ctx, overlayMag, overlayCalUm) = OverlayDrawingExecutorCommon.ComputeOverlayMagCal(run, drawingData);

@@ -2,9 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
@@ -12,11 +10,37 @@ namespace WAD.Runner.DrawingAutomation.Overlay;
 
 public static class DrawingViewConfigBinder
 {
+    /// <summary>
+    /// Backward-compatible overload.
+    /// Uses the old behavior with no wedge-specific overlay cut logic.
+    /// </summary>
     public static bool SetReferencedConfigurationForView(
         ModelDoc2 model,
         string viewName,
         WedgeSubclass subclass,
         DrawingType drawingType)
+    {
+        return SetReferencedConfigurationForView(
+            model,
+            viewName,
+            subclass,
+            drawingType,
+            wedgeType: null,
+            hasVw: false,
+            hasVr: false);
+    }
+
+    /// <summary>
+    /// New overload with wedge-specific overlay rules.
+    /// </summary>
+    public static bool SetReferencedConfigurationForView(
+        ModelDoc2 model,
+        string viewName,
+        WedgeSubclass subclass,
+        DrawingType drawingType,
+        WedgeType? wedgeType,
+        bool hasVw,
+        bool hasVr)
     {
         if (model is null || string.IsNullOrWhiteSpace(viewName))
             return false;
@@ -34,27 +58,24 @@ public static class DrawingViewConfigBinder
             return false;
         }
 
-        // Resolve target config name using the same mapping as PartAutomationService.ActivateConfiguration
-        var target = GetConfigName(subclass, drawingType);
+        var target = GetConfigName(viewName, subclass, drawingType, wedgeType, hasVw, hasVr);
         if (string.IsNullOrWhiteSpace(target))
         {
-            Logger.Warn($"[ConfigBind] No config resolved for {subclass}+{drawingType}.");
+            Logger.Warn(
+                $"[ConfigBind] No config resolved for View='{viewName}', Subclass='{subclass}', DrawingType='{drawingType}', WedgeType='{wedgeType}'.");
             return false;
         }
 
-        Logger.Info($"[ConfigBind] Target configuration → '{target}'.");
+        Logger.Info($"[ConfigBind] Target configuration for view '{viewName}' → '{target}'.");
 
-        // Set immediate base first (inheritance), then this view
         var baseView = v.GetBaseView() as View;
         if (baseView != null)
             TrySetConfig(baseView, target, $"base('{SafeName(baseView)}')");
 
         TrySetConfig(v, target, $"view('{SafeName(v)}')");
 
-        // Rebuild via ModelDoc2
         TryRebuild(model);
 
-        // Verify
         var actual = SafeGetRefConfig(v);
         var baseActual = baseView != null ? SafeGetRefConfig(baseView) : string.Empty;
 
@@ -68,15 +89,51 @@ public static class DrawingViewConfigBinder
             || (baseView != null && baseActual.Equals(target, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Backward-compatible overload.
+    /// </summary>
     public static bool SetReferencedConfigurationForViews(
         ModelDoc2 model,
         WedgeSubclass subclass,
         DrawingType drawingType,
         params string[] viewNames)
     {
+        return SetReferencedConfigurationForViews(
+            model,
+            subclass,
+            drawingType,
+            wedgeType: null,
+            hasVw: false,
+            hasVr: false,
+            viewNames);
+    }
+
+    /// <summary>
+    /// New overload with wedge-specific overlay rules.
+    /// </summary>
+    public static bool SetReferencedConfigurationForViews(
+        ModelDoc2 model,
+        WedgeSubclass subclass,
+        DrawingType drawingType,
+        WedgeType? wedgeType,
+        bool hasVw,
+        bool hasVr,
+        params string[] viewNames)
+    {
         var any = false;
+
         foreach (var n in viewNames.Where(s => !string.IsNullOrWhiteSpace(s)))
-            any |= SetReferencedConfigurationForView(model, n!, subclass, drawingType);
+        {
+            any |= SetReferencedConfigurationForView(
+                model,
+                n!,
+                subclass,
+                drawingType,
+                wedgeType,
+                hasVw,
+                hasVr);
+        }
+
         return any;
     }
 
@@ -100,7 +157,6 @@ public static class DrawingViewConfigBinder
     {
         for (var v = dd.GetFirstView() as View; v != null; v = v.GetNextView() as View)
         {
-            // Only yield real drawing views (with a referenced model)
             if (v.ReferencedDocument is ModelDoc2)
                 yield return v;
         }
@@ -121,8 +177,8 @@ public static class DrawingViewConfigBinder
 
     private static void TryRebuild(ModelDoc2 model)
     {
-        try { model.ForceRebuild3(false); } catch { /* ignore */ }
-        try { model.EditRebuild3(); } catch { /* ignore */ }
+        try { model.ForceRebuild3(false); } catch { }
+        try { model.EditRebuild3(); } catch { }
     }
 
     private static string SafeGetRefConfig(View v)
@@ -140,20 +196,87 @@ public static class DrawingViewConfigBinder
     private static string Normalize(string? s)
         => Regex.Replace(s ?? string.Empty, @"\s+", " ").Trim().ToLowerInvariant();
 
+    private static bool IsOverlayCutWedgeType(WedgeType? wedgeType)
+    {
+        if (wedgeType is null)
+            return false;
+
+        var name = wedgeType.Value.ToString().Replace("/", "").Replace("_", "").Replace("-", "").ToUpperInvariant();
+        return name is "COB" or "FP" or "UTUS";
+    }
+
+    private static bool IsDetailView(string viewName)
+    {
+        var normalized = Normalize(viewName);
+        return normalized.Contains("detail");
+    }
+
+    private static bool IsSectionView(string viewName)
+    {
+        var normalized = Normalize(viewName);
+        return normalized.Contains("section");
+    }
+
     /// <summary>
-    /// Configuration resolver aligned with PartAutomationService.ActivateConfiguration.
+    /// View-aware configuration resolver.
+    ///
+    /// Rules:
+    /// - PGB overlay remains unchanged.
+    /// - FG overlay remains unchanged except for COB/FP/UTUS:
+    ///   * if no VW and no VR => detail + section use std_cut
+    ///   * if VW and VR both present => detail uses non_std_cut
     /// </summary>
-    private static string GetConfigName(WedgeSubclass subclass, DrawingType type)
-        => (subclass, type) switch
+    private static string GetConfigName(
+        string viewName,
+        WedgeSubclass subclass,
+        DrawingType drawingType,
+        WedgeType? wedgeType,
+        bool hasVw,
+        bool hasVr)
+    {
+        // Non-overlay behavior stays unchanged.
+        if (drawingType != DrawingType.Overlay)
         {
-            (WedgeSubclass.PGB, DrawingType.Overlay) => "PGB_OVERLAY",
-            (WedgeSubclass.PGB, DrawingType.Customer) => "PGB_CUSTOMER_DRAWING",
-            (WedgeSubclass.PGB, DrawingType.Production) => "PGB_DRAWING",
+            return (subclass, drawingType) switch
+            {
+                (WedgeSubclass.PGB, DrawingType.Customer) => "PGB_CUSTOMER_DRAWING",
+                (WedgeSubclass.PGB, DrawingType.Production) => "PGB_DRAWING",
 
-            (WedgeSubclass.FG, DrawingType.Overlay) => "FG_OVERLAY",
-            (WedgeSubclass.FG, DrawingType.Customer) => "FG_CUSTOMER_DRAWING",
-            (WedgeSubclass.FG, DrawingType.Production) => "FG_PRODUCTION_DRAWING",
+                (WedgeSubclass.FG, DrawingType.Customer) => "FG_CUSTOMER_DRAWING",
+                (WedgeSubclass.FG, DrawingType.Production) => "FG_PRODUCTION_DRAWING",
 
-            _ => string.Empty
-        };
+                _ => string.Empty
+            };
+        }
+
+        // Overlay behavior
+        if (subclass == WedgeSubclass.PGB)
+        {
+            // PGB overlay rules remain unchanged.
+            return "PGB_OVERLAY";
+        }
+
+        if (subclass == WedgeSubclass.FG)
+        {
+            // FG overlay: apply extra cut configs only for COB / FP / UTUS.
+            if (IsOverlayCutWedgeType(wedgeType))
+            {
+                var isDetail = IsDetailView(viewName);
+                var isSection = IsSectionView(viewName);
+
+                // If there is no VW and no VR, section + detail use std_cut.
+                if (!hasVw && !hasVr && (isDetail || isSection))
+                    return "std_cut";
+
+                // If both VW and VR are present, detail uses non_std_cut.
+                if (hasVw && hasVr && isDetail)
+                    return "non_std_cut";
+            }
+
+            // Otherwise FG overlay remains unchanged.
+            return "FG_OVERLAY";
+        }
+
+        return string.Empty;
+    }
 }

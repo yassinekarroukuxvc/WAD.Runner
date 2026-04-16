@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
@@ -22,7 +23,8 @@ namespace WAD.Runner.DrawingAutomation.Metadata
     /// 
     /// For overlay drawings, use <see cref="ApplyOverlay"/> which targets the
     /// overlay-specific properties:
-    /// DIMENSIONS, OVERLAY_TITLE, DESCRIPTION, COINING, ENGRAVING_NOTE.
+    /// DIMENSIONS, OVERLAY_TITLE, DESCRIPTION, COINING, ENGRAVING_NOTE,
+    /// ACAD FILE #, DATE, DRAWING #.
     /// </summary>
     public static class MetadataApplier
     {
@@ -49,7 +51,8 @@ namespace WAD.Runner.DrawingAutomation.Metadata
         /// <summary>
         /// Metadata application for OVERLAY drawings.
         /// Overlay templates use a different set of custom properties:
-        /// DIMENSIONS, OVERLAY_TITLE, DESCRIPTION, COINING, ENGRAVING_NOTE.
+        /// DIMENSIONS, OVERLAY_TITLE, DESCRIPTION, COINING, ENGRAVING_NOTE,
+        /// ACAD FILE #, DATE, DRAWING #.
         /// </summary>
         public static void ApplyOverlay(
             DrawingService ds,
@@ -149,7 +152,8 @@ namespace WAD.Runner.DrawingAutomation.Metadata
 
         /// <summary>
         /// Build overlay-specific title block properties:
-        /// DIMENSIONS, OVERLAY_TITLE, DESCRIPTION, COINING, ENGRAVING_NOTE.
+        /// DIMENSIONS, OVERLAY_TITLE, DESCRIPTION, COINING, ENGRAVING_NOTE,
+        /// ACAD FILE #, DATE, DRAWING #.
         /// </summary>
         private static IReadOnlyDictionary<string, string> BuildOverlayTitleBlockProps(
             DrawingData drawing,
@@ -159,6 +163,10 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             var md = drawing.Metadata ?? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             var wdp = wedge.Properties ?? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
+            var overlayTitle = BuildTitle(md, drawing);
+            var generationDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var overlayDrawingNumber = BuildOverlayDrawingNumber(overlayTitle);
+
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["DIMENSIONS"] = FirstNonEmpty(
@@ -166,8 +174,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
                     Get(md, "dimensions"),
                     Get(wdp, "dimensions")),
 
-                ["OVERLAY_TITLE"] = FirstNonEmpty(
-                    BuildTitle(md, drawing)),
+                ["OVERLAY_TITLE"] = overlayTitle,
 
                 ["DESCRIPTION"] = BuildOverlayDescription(wedge, wedgeType),
 
@@ -180,7 +187,11 @@ namespace WAD.Runner.DrawingAutomation.Metadata
                     Get(md, "ENGRAVING_NOTE"),
                     Get(md, "engraving_note"),
                     Get(wdp, "engraving_note"),
-                    "ENGRAVED PER DWG")
+                    "ENGRAVED PER DWG"),
+
+                ["ACAD FILE #"] = overlayTitle,
+                ["DATE"] = generationDate,
+                ["DRAWING #"] = overlayDrawingNumber
             };
 
             return map.Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
@@ -199,6 +210,31 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             return string.IsNullOrWhiteSpace(revision)
                 ? $"{number}TF"
                 : $"{number} Rev {revision} - {drawing.DrawingType}";
+        }
+
+        private static string BuildOverlayDrawingNumber(string overlayTitle)
+        {
+            if (string.IsNullOrWhiteSpace(overlayTitle))
+                return string.Empty;
+
+            var baseTitle = overlayTitle.Trim();
+
+            // Remove a trailing TF, optionally preceded by separators/spaces.
+            // Examples:
+            // 12345TF      -> 12345
+            // 12345-TF     -> 12345
+            // 12345 TF     -> 12345
+            baseTitle = Regex.Replace(
+                baseTitle,
+                @"(?:[\s\-_]*)TF\s*$",
+                string.Empty,
+                RegexOptions.IgnoreCase);
+
+            baseTitle = baseTitle.Trim().TrimEnd('-', '_', ' ');
+
+            return string.IsNullOrWhiteSpace(baseTitle)
+                ? string.Empty
+                : $"{baseTitle}-DW";
         }
 
         private static string BuildScaleToken(DrawingData drawing)

@@ -78,10 +78,13 @@ internal static class CkvdDimensionRules
             F[0] - fsv * TD / 2.0 - 13.5, F[1]);
 
         PlaceDim(ctx, diag, outList, "VW", Front, DimAxis.Horizontal,
-            F[0] - fsv * TD / 2.0 - 8.0, F[1] - L_front / 2.0 - 3.0);
+            F[0], F[1] - L_front / 2.0 - 3.0);
+
+        PlaceDim(ctx, diag, outList, "W", Front, DimAxis.Horizontal,
+            F[0], F[1] - L_front / 2.0 - 5.0);
 
         var VR = LayoutMath.Dmm(ctx, "VR");
-        PlaceDim(ctx, diag, outList, "cleaned_VR", Front, DimAxis.Horizontal,
+        PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
             F[0] + fsv * TD / 2.0 + 5.0, F[1] - L_front / 2.0 + VR * fsv / 2.0);
 
         // Front bias uses 2 mm default via GetBreakline on Front
@@ -141,18 +144,19 @@ internal static class CkvdDimensionRules
             S[1] + (BAdeg < 6.0 && !double.IsNaN(BAdeg) ? 55.0 : 15.0));
 
         var E = LayoutMath.Dmm(ctx, "E");
+        var X = LayoutMath.Dmm(ctx, "X");
 
         PlaceDim(ctx, diag, outList, "E", Side, DimAxis.Horizontal,
-            S[0] + ssv * TD / 2.0 + 5.0,
+            S[0] + ssv * TD / 2.0 + 3.0,
             S[1] - L_side / 2.0 + E * ssv / 2.0);
 
         PlaceDim(ctx, diag, outList, "X", Side, DimAxis.Horizontal,
-            S[0] + ssv * TD / 2.0 + 10.0,
-            S[1] - L_side / 2.0 - 8.0);
+            S[0] + ssv * TD / 2.0 + X * ssv / 2,
+            S[1] - L_side / 2.0 - 4.0);
 
         var TIP = LayoutMath.Dmm(ctx, "TIP");
         PlaceDim(ctx, diag, outList, "CRMET", Side, DimAxis.Horizontal,
-            S[0] - ssv * TD / 2.0 - 10.0,
+            S[0] - ssv * TD / 2.0 - 6.0,
             S[1] - L_side / 2.0 - 8.0);
 
         PlaceDim(ctx, diag, outList, "TIP", Side, DimAxis.Horizontal,

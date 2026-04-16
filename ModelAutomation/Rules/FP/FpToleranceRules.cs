@@ -19,9 +19,15 @@ namespace WAD.Runner.ModelAutomation.Rules.FP
     ///
     /// Current scope:
     /// - FP Overlay: push W / FD / T tolerances into overlay sketch parameters.
-    /// - Target sketch names depend on subclass:
-    ///   - FG  -> FG_...
-    ///   - PGB -> PGB_...
+    /// - When RA2H > 0: push T / RA2H / FL tolerances into the RA2H shank-specific sketch.
+    /// - When SLB is enabled (VBL > 0): push T / FL tolerances into the SLB shank-specific sketch.
+    /// - When VR > 0 (VW feature active):
+    ///   - Compute VR_MAX/MIN (VR_NOM ± VR_UTOL/LTOL) and VRR_MAX/MIN (VRR_NOM ± VRR_UTOL/LTOL).
+    ///   - If VW == W → push VW tolerances into VW_LEFT_case_2_overlay_sketch.
+    ///   - Else        → push W, VW tolerances + computed VR/VRR bounds into VW_LEFT_case_1_overlay_sketch.
+    /// - Target sketch names depend on subclass for the LEFT sketch:
+    ///   - FG  -> FG_LEFT_overlay_sketch
+    ///   - PGB -> PGB_LEFT_overlay_sketch
     /// </summary>
     public sealed class FpToleranceRules : IToleranceRuleSet
     {
@@ -32,44 +38,135 @@ namespace WAD.Runner.ModelAutomation.Rules.FP
             if (drawingType != DrawingType.Overlay)
                 return TolerancePlan.Empty;
 
-            var shank = ResolveShankType(wedge); // STD vs 180_DEG_REV
+            var shank = ResolveShankType(wedge);
             var updates = new List<ToleranceUpdate>();
 
             var prefix = subclass == WedgeSubclass.FG ? "FG" : "PGB";
+            bool isStd = shank == CobShankType.Std;
+            string frontSketch = isStd ? "PGB_STD_FRONT_overlay_sketch" : "PGB_180_DEG_REV_FRONT_overlay_sketch";
 
-            // Common for both shanks
+            // ----------------------------------------------------------------
+            // W tolerances → LEFT overlay sketch (always, both subclasses)
+            // ----------------------------------------------------------------
             AddTolPairMm(updates, wedge, dimKey: "W",
                 utolTarget: $"W_UTOL@{prefix}_LEFT_overlay_sketch",
                 ltolTarget: $"W_LTOL@{prefix}_LEFT_overlay_sketch");
 
-            if (shank == CobShankType.Std)
+            // ----------------------------------------------------------------
+            // FD + T tolerances → shank-matching FRONT overlay sketch (always)
+            // ----------------------------------------------------------------
+            AddTolPairMm(updates, wedge, dimKey: "FD",
+                utolTarget: $"FD_UTOL@{frontSketch}",
+                ltolTarget: $"FD_LTOL@{frontSketch}");
+
+            AddTolPairMm(updates, wedge, dimKey: "T",
+                utolTarget: $"T_UTOL@{frontSketch}",
+                ltolTarget: $"T_LTOL@{frontSketch}");
+
+            // ----------------------------------------------------------------
+            // RA2H sketch tolerances (when RA2H > 0)
+            // ----------------------------------------------------------------
+            bool ra2hPositive = IsDimPositive(wedge, "RA2H");
+
+            if (ra2hPositive)
             {
-                AddTolPairMm(updates, wedge, dimKey: "FD",
-                    utolTarget: $"FD_UTOL@PGB_STD_FRONT_overlay_sketch",
-                    ltolTarget: $"FD_LTOL@PGB_STD_FRONT_overlay_sketch");
+                string ra2hSketch = isStd
+                    ? "RA2H_STD_FRONT_overlay_sketch"
+                    : "RA2H_180_DEG_REV_FRONT_overlay_sketch";
+
+                AddTolPairMm(updates, wedge, dimKey: "FL",
+                    utolTarget: $"FL_UTOL@{ra2hSketch}",
+                    ltolTarget: $"FL_LTOL@{ra2hSketch}");
+
+                AddTolPairMm(updates, wedge, dimKey: "RA2H",
+                    utolTarget: $"RA2H_UTOL@{ra2hSketch}",
+                    ltolTarget: $"RA2H_LTOL@{ra2hSketch}");
 
                 AddTolPairMm(updates, wedge, dimKey: "T",
-                    utolTarget: $"T_UTOL@PGB_STD_FRONT_overlay_sketch",
-                    ltolTarget: $"T_LTOL@PGB_STD_FRONT_overlay_sketch");
+                    utolTarget: $"T_UTOL@{ra2hSketch}",
+                    ltolTarget: $"T_LTOL@{ra2hSketch}");
+
+                Logger.Info($"[FpToleranceRules] RA2H > 0 → planned tolerances for {ra2hSketch}.");
             }
-            else
+
+            // ----------------------------------------------------------------
+            // SLB sketch tolerances (when VBL > 0)
+            // ----------------------------------------------------------------
+            bool slbEnabled = IsDimPositive(wedge, "VBL");
+
+            if (slbEnabled)
             {
-                AddTolPairMm(updates, wedge, dimKey: "FD",
-                    utolTarget: $"FD_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
-                    ltolTarget: $"FD_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
+                string slbSketch = isStd
+                    ? "SLB_STD_overlay_sketch"
+                    : "SLB_180_DEG_REV_overlay_sketch";
+
+                AddTolPairMm(updates, wedge, dimKey: "FL",
+                    utolTarget: $"FL_UTOL@{slbSketch}",
+                    ltolTarget: $"FL_LTOL@{slbSketch}");
 
                 AddTolPairMm(updates, wedge, dimKey: "T",
-                    utolTarget: $"T_UTOL@PGB_180_DEG_REV_FRONT_overlay_sketch",
-                    ltolTarget: $"T_LTOL@PGB_180_DEG_REV_FRONT_overlay_sketch");
+                    utolTarget: $"T_UTOL@{slbSketch}",
+                    ltolTarget: $"T_LTOL@{slbSketch}");
+
+                Logger.Info($"[FpToleranceRules] SLB enabled (VBL > 0) → planned tolerances for {slbSketch}.");
+            }
+
+            // ----------------------------------------------------------------
+            // VW sketch tolerances (when VR > 0)
+            // Case 2 (VW == W): VW_UTOL, VW_LTOL → VW_LEFT_case_2_overlay_sketch
+            // Case 1 (VW != W): W_UTOL, W_LTOL, VW_UTOL, VW_LTOL + computed
+            //                   VR_MAX/MIN, VRR_MAX/MIN → VW_LEFT_case_1_overlay_sketch
+            // ----------------------------------------------------------------
+            bool vrPositive = IsDimPositive(wedge, "VR");
+
+            if (vrPositive)
+            {
+                bool vwEqualsW = IsDimNominalEqual(wedge, "VW", wedge, "W");
+
+                if (vwEqualsW)
+                {
+                    // Case 2: only VW tolerances needed
+                    AddTolPairMm(updates, wedge, dimKey: "VW",
+                        utolTarget: "VW_UTOL@VW_LEFT_case_2_overlay_sketch",
+                        ltolTarget: "VW_LTOL@VW_LEFT_case_2_overlay_sketch");
+
+                    Logger.Info("[FpToleranceRules] VW case 2 (VW == W) → planned VW tolerances for VW_LEFT_case_2_overlay_sketch.");
+                }
+                else
+                {
+                    // Case 1: W tolerances, VW tolerances, and computed VR/VRR bounds
+                    const string Case1Sketch = "VW_LEFT_case_1_overlay_sketch";
+
+                    AddTolPairMm(updates, wedge, dimKey: "W",
+                        utolTarget: $"W_UTOL@{Case1Sketch}",
+                        ltolTarget: $"W_LTOL@{Case1Sketch}");
+
+                    AddTolPairMm(updates, wedge, dimKey: "VW",
+                        utolTarget: $"VW_UTOL@{Case1Sketch}",
+                        ltolTarget: $"VW_LTOL@{Case1Sketch}");
+
+                    AddComputedBoundsMm(updates, wedge, nomKey: "VR",
+                        maxTarget: $"VR_MAX@{Case1Sketch}",
+                        minTarget: $"VR_MIN@{Case1Sketch}");
+
+                    AddComputedBoundsMm(updates, wedge, nomKey: "VRR",
+                        maxTarget: $"VRR_MAX@{Case1Sketch}",
+                        minTarget: $"VRR_MIN@{Case1Sketch}");
+
+                    Logger.Info($"[FpToleranceRules] VW case 1 (VW != W) → planned W, VW, VR bounds, VRR bounds for {Case1Sketch}.");
+                }
             }
 
             Logger.Info($"[FpToleranceRules] {subclass} Overlay → planned updates={updates.Count} (Shank={shank})");
             return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
         }
 
+        // ----------------------------------------------------------------
+        // Tolerance helpers
+        // ----------------------------------------------------------------
+
         /// <summary>
-        /// Adds (UTOL, LTOL) updates from wedge dimension tolerances.
-        /// Tolerances are always mm in the domain model.
+        /// Adds (UTOL, LTOL) updates from wedge dimension tolerances (always mm).
         /// </summary>
         private static void AddTolPairMm(
             List<ToleranceUpdate> updates,
@@ -91,8 +188,53 @@ namespace WAD.Runner.ModelAutomation.Rules.FP
         }
 
         /// <summary>
-        /// Extracts length tolerances in mm from the domain model:
-        /// Dimension.Tol.Lower/Upper are Quantity(Millimeter).
+        /// Computes NOM + UTOL (max bound) and NOM - LTOL (min bound) for a dimension
+        /// and pushes them as individual scalar updates.
+        /// This is used for VR and VRR in the VW case-1 overlay sketch.
+        /// </summary>
+        private static void AddComputedBoundsMm(
+            List<ToleranceUpdate> updates,
+            WedgeData wedge,
+            string nomKey,
+            string maxTarget,
+            string minTarget)
+        {
+            if (wedge?.Dimensions is null)
+            {
+                Logger.Warn($"[FpToleranceRules] Cannot compute bounds for '{nomKey}': dimensions null.");
+                return;
+            }
+
+            var key = DimensionKey.From(nomKey);
+            var dim = wedge.TryGet(key);
+
+            if (dim is null)
+            {
+                Logger.Warn($"[FpToleranceRules] Missing dimension '{nomKey}' for bound computation (skipping: {maxTarget}, {minTarget}).");
+                return;
+            }
+
+            if (dim.Nominal.Unit != UnitKind.Millimeter)
+            {
+                Logger.Warn($"[FpToleranceRules] '{nomKey}' nominal unit is {dim.Nominal.Unit} (expected Millimeter).");
+                return;
+            }
+
+            decimal nom = dim.Nominal.Value;
+            decimal utol = dim.Tol.Upper.Value;
+            decimal ltol = dim.Tol.Lower.Value;
+
+            decimal maxVal = nom + utol;
+            decimal minVal = nom - ltol;
+
+            updates.Add(new ToleranceUpdate(maxTarget, maxVal, ToleranceUnit.LengthMm));
+            updates.Add(new ToleranceUpdate(minTarget, minVal, ToleranceUnit.LengthMm));
+
+            Logger.Info($"[FpToleranceRules] {nomKey}: NOM={nom}, UTOL={utol}, LTOL={ltol} → MAX={maxVal} → {maxTarget}, MIN={minVal} → {minTarget}");
+        }
+
+        /// <summary>
+        /// Extracts length tolerances in mm from the domain model.
         /// Ensures the dimension is a length (nominal mm) because tolerances are length-only.
         /// </summary>
         private static bool TryGetLengthToleranceMm(WedgeData wedge, string dimKey, out decimal lowerMm, out decimal upperMm)
@@ -119,9 +261,39 @@ namespace WAD.Runner.ModelAutomation.Rules.FP
             return true;
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------
+        // Dimension comparison helper
+        // ----------------------------------------------------------------
+
+        /// <summary>
+        /// Returns true when the nominal values of two named dimensions are equal.
+        /// Treats a missing dimension as 0.
+        /// </summary>
+        private static bool IsDimNominalEqual(WedgeData wedgeA, string dimKeyA, WedgeData wedgeB, string dimKeyB)
+        {
+            decimal GetNominal(WedgeData w, string key)
+            {
+                if (w?.Dimensions is null) return 0m;
+                if (!w.Dimensions.TryGetValue(DimensionKey.From(key), out var d) || d is null)
+                    return 0m;
+                return d.Nominal.Value;
+            }
+
+            return GetNominal(wedgeA, dimKeyA) == GetNominal(wedgeB, dimKeyB);
+        }
+
+        private static bool IsDimPositive(WedgeData wedge, string dimKey)
+        {
+            if (wedge?.Dimensions is null) return false;
+            if (!wedge.Dimensions.TryGetValue(DimensionKey.From(dimKey), out var dim) || dim is null)
+                return false;
+
+            return dim.Nominal.Value > 0m;
+        }
+
+        // ----------------------------------------------------------------
         // Shank resolve
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------
         private static CobShankType ResolveShankType(WedgeData wedge)
         {
             var raw =

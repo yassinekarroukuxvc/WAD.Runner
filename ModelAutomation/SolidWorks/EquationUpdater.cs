@@ -65,6 +65,22 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             };
 
         // --------------------------------------------------------------------
+        // Key aliases: DB name -> model name.
+        // Used when the 3D model designer used a different name than the DB.
+        // --------------------------------------------------------------------
+
+        /// <summary>
+        /// Maps a DB dimension key to the equation key name used in the SolidWorks model.
+        /// All lookups are case-insensitive.
+        /// </summary>
+        private static readonly Dictionary<string, string> DbToModelKeyAlias =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                // DB calls it "RC"; the model uses "CR".
+                { "RC", "CR" }
+            };
+
+        // --------------------------------------------------------------------
         // Public API (wedgeType-aware, deterministic)
         // --------------------------------------------------------------------
 
@@ -85,7 +101,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         /// - Others: writeZeros=false, so 0 values DO NOT override template (keep existing line).
         /// - CKVD: missing DB-driven keys => set to 0 (override template).
         /// - Overlay vars are enforced.
-        /// - COB-only: compute + upsert funnel_gap.
+        /// - Non-CKVD: compute + upsert funnel_gap.
         /// </summary>
         public static void UpdateEquationFile(
             string equationFilePath,
@@ -115,8 +131,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
             var output = new List<string>(lines.Count + 64);
 
-            var byKey = effectiveDims.ToDictionary(
-                kv => kv.Key.Value, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+            // Build key->dim map, applying DB-to-model key aliases.
+            var byKey = BuildByKey(effectiveDims);
 
             var providedKeys = new HashSet<string>(byKey.Keys, StringComparer.OrdinalIgnoreCase);
 
@@ -286,8 +302,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 }
             }
 
-            // --------------------------- COB funnel_gap ---------------------------
-            if (wedgeType == DomWedgeType.COB || wedgeType == DomWedgeType.UTUS || wedgeType == DomWedgeType.FP)
+            // funnel_gap: computed for all non-CKVD wedge types.
+            if (wedgeType != DomWedgeType.CKVD)
             {
                 double funnelGapMm = ComputeFunnelGapMm(wedge);
 
@@ -311,7 +327,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         /// - Others: If a provided dim is zero -> DO NOT override existing equation in the model.
         /// - CKVD: If a DB-driven dim is missing from provided dims, we do not touch it here.
         /// - Special keys (EngravingStart / overlay vars) are still enforced.
-        /// - COB: funnel_gap is enforced when the COB input set is present.
+        /// - Non-CKVD: funnel_gap is enforced when the required input dims are present.
         /// </summary>
         public static void UpsertEquationsInModel(
             ModelDoc2 model,
@@ -354,10 +370,11 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             int upserted = 0;
             int skippedZero = 0;
 
-            foreach (var (keyObj, dim) in effectiveDims)
-            {
-                var key = keyObj.Value;
+            // Apply DB-to-model key aliases before iterating.
+            var byKey = BuildByKey(effectiveDims);
 
+            foreach (var (key, dim) in byKey)
+            {
                 if (string.Equals(key, "EngravingStart", StringComparison.OrdinalIgnoreCase))
                     continue;
 
@@ -402,9 +419,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 upserted++;
             }
 
-            // --------------------------- funnel_gap ---------------------------
-            var byKey = effectiveDims.ToDictionary(kv => kv.Key.Value, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
-            if (wedgeType == DomWedgeType.COB || wedgeType == DomWedgeType.UTUS || wedgeType == DomWedgeType.FP)
+            // funnel_gap: computed for all non-CKVD wedge types.
+            if (wedgeType != DomWedgeType.CKVD)
             {
                 double funnelGapMm = ComputeFunnelGapMm(wedge);
                 UpsertEquation(mgr, byNameIndex, "funnel_gap", $"\"funnel_gap\" = {F(funnelGapMm)}mm");
@@ -431,6 +447,37 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
         private static bool ShouldTreatMissingAsZero(DomWedgeType wedgeType)
             => wedgeType == DomWedgeType.CKVD;
+
+        // --------------------------------------------------------------------
+        // Key alias resolution
+        // --------------------------------------------------------------------
+
+        /// <summary>
+        /// Builds a string->Dim dictionary from effectiveDims, remapping any DB key
+        /// that has an entry in <see cref="DbToModelKeyAlias"/> to its model-side name.
+        /// </summary>
+        private static Dictionary<string, DomDim> BuildByKey(
+            IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims)
+        {
+            var result = new Dictionary<string, DomDim>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var kv in effectiveDims)
+            {
+                string key = kv.Key.Value;
+
+                if (DbToModelKeyAlias.TryGetValue(key, out var alias))
+                {
+                    key = alias;
+                    Logger.Info(
+                        $"[ModelAutomation.EquationUpdater] Key alias applied: '{kv.Key.Value}' → '{alias}'");
+                }
+
+                // Last writer wins if somehow both the original and alias are present.
+                result[key] = kv.Value;
+            }
+
+            return result;
+        }
 
         // ------------------------- helpers -------------------------
 
