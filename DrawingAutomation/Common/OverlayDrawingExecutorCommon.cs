@@ -432,6 +432,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 Logger.Warn($"[Overlay] Reposition-after-scaling step failed (continuing): {ex.Message}");
             }
         }
+
         public static void DeleteFrontViewIfVrZero(DrawingService ds, IDictionary<string, string> nameMap, LayoutContext ctx)
         {
             try
@@ -654,7 +655,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         {
             try
             {
-                MetadataApplier.ApplyOverlay(ds, drawingData, run.Wedge,run.WedgeType);
+                MetadataApplier.ApplyOverlay(ds, drawingData, run.Wedge, run.WedgeType);
                 ds.Rebuild();
             }
             catch (Exception ex)
@@ -800,33 +801,33 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
 
                 var logicalViewsToBind = new[] { "Front", "Side", "Top", "Detail", "Section" };
 
-                var actualViewNames = logicalViewsToBind
-                    .Where(nameMap.ContainsKey)
-                    .Select(k => nameMap[k])
-                    .Where(v => !string.IsNullOrWhiteSpace(v))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
-
-                if (actualViewNames.Length == 0)
-                {
-                    Logger.Warn("[Overlay] Config binding skipped: no mapped overlay views were found.");
-                    return;
-                }
-
                 Logger.Info(
                     $"[Overlay] Binding view configurations for subclass={run.Wedge.Subclass}, " +
                     $"drawingType=Overlay, wedgeType={run.WedgeType}, hasVW={hasVw}, hasVR={hasVr}.");
 
-                var ok = DrawingViewConfigBinder.SetReferencedConfigurationForViews(
-                    model,
-                    run.Wedge.Subclass,
-                    DrawingType.Overlay,
-                    run.WedgeType,
-                    hasVw,
-                    hasVr,
-                    actualViewNames);
+                bool any = false;
 
-                if (ok)
+                foreach (var logicalView in logicalViewsToBind)
+                {
+                    if (!nameMap.TryGetValue(logicalView, out var actualViewName) ||
+                        string.IsNullOrWhiteSpace(actualViewName))
+                    {
+                        Logger.Warn($"[Overlay] Config binding skipped for logical view '{logicalView}' because no mapped actual view name was found.");
+                        continue;
+                    }
+
+                    any |= DrawingViewConfigBinder.SetReferencedConfigurationForLogicalView(
+                        model,
+                        logicalViewName: logicalView,
+                        actualViewName: actualViewName,
+                        subclass: run.Wedge.Subclass,
+                        drawingType: DrawingType.Overlay,
+                        wedgeType: run.WedgeType,
+                        hasVw: hasVw,
+                        hasVr: hasVr);
+                }
+
+                if (any)
                     Logger.Info("[Overlay] View configuration binding completed.");
                 else
                     Logger.Warn("[Overlay] View configuration binding reported no successful assignments.");
@@ -921,6 +922,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             k = k.Trim();
             return k.Replace("-", "").Replace("_", "").Replace(" ", "");
         }
+
         private static string NormalizeDbToken(string s)
         {
             if (string.IsNullOrWhiteSpace(s)) return string.Empty;
@@ -932,6 +934,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
 
             return s.Trim();
         }
+
         private static bool EqualsAny(string value, params string[] options)
             => options.Any(o => string.Equals(value, o, StringComparison.OrdinalIgnoreCase));
 
@@ -960,6 +963,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
 
             return ShankType.Std;
         }
+
         private enum ShankType { Std, Rev180 }
     }
 }

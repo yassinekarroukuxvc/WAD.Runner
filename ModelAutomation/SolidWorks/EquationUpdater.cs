@@ -18,7 +18,6 @@ using DomWedgeData = WAD.Runner.DataManagement.Domain.Wedge.WedgeData;
 using DomDrawingType = WAD.Runner.DataManagement.Domain.Wedge.DrawingType;
 using DomUnitKind = WAD.Runner.DataManagement.Domain.Units.UnitKind;
 using DomWedgeType = WAD.Runner.DataManagement.Domain.Wedge.WedgeType;
-using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.ModelAutomation.SolidWorks
 {
@@ -29,20 +28,33 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
         private static string F(double v) => v.ToString("0.#####", CultureInfo.InvariantCulture);
 
-        // --------------------------------------------------------------------
-        // CKVD policy:
-        // - CKVD writes provided zeros (writeZeros=true)
-        // - AND CKVD treats missing DB-driven dims as 0 (override template)
-        // --------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
+        // Write policy
+        // ─────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// CKVD: keys that are expected to be DB-driven base dimensions.
-        /// If missing from effectiveDims => overwrite template value with 0.
+        /// Controls how zero and missing dimension values are treated when writing the equation file.
+        /// CKVD differs from all other wedge types: it must write zeros to override the template.
+        /// </summary>
+        private sealed record WritePolicy(bool WriteZeros, bool MissingDbKeysAsZero)
+        {
+            public static WritePolicy For(DomWedgeType wedgeType)
+            {
+                bool isCkvd = wedgeType == DomWedgeType.CKVD;
+                return new WritePolicy(WriteZeros: isCkvd, MissingDbKeysAsZero: isCkvd);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // CKVD-specific key sets
+        // ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// DB-driven dimensions for CKVD. Missing keys are written as 0 to override the template.
         /// </summary>
         private static readonly HashSet<string> CkvdDbDrivenKeys =
             new(StringComparer.OrdinalIgnoreCase)
             {
-                // --- base mm dims ---
                 "TL","TD","TDF",
                 "B","E","ER","F","FL","FX","W","X","GD","GR",
                 "FR","BR","FRX","BRX",
@@ -50,39 +62,25 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 "TIP",
                 "k",
                 "SymmetryTolerance",
-
-                // --- base angle dims ---
                 "BA","FA","GA","ISA"
             };
 
-        /// <summary>
-        /// CKVD: keys that are angle-based (deg). Used when we need to emit 0 for missing keys.
-        /// </summary>
         private static readonly HashSet<string> CkvdAngleKeys =
-            new(StringComparer.OrdinalIgnoreCase)
-            {
-                "BA","FA","GA","ISA"
-            };
+            new(StringComparer.OrdinalIgnoreCase) { "BA", "FA", "GA", "ISA" };
 
-        // --------------------------------------------------------------------
-        // Key aliases: DB name -> model name.
-        // Used when the 3D model designer used a different name than the DB.
-        // --------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
+        // Key alias map (DB name → model name)
+        // ─────────────────────────────────────────────────────────────────────
 
-        /// <summary>
-        /// Maps a DB dimension key to the equation key name used in the SolidWorks model.
-        /// All lookups are case-insensitive.
-        /// </summary>
         private static readonly Dictionary<string, string> DbToModelKeyAlias =
             new(StringComparer.OrdinalIgnoreCase)
             {
-                // DB calls it "RC"; the model uses "CR".
                 { "RC", "CR" }
             };
 
-        // --------------------------------------------------------------------
-        // Public API (wedgeType-aware, deterministic)
-        // --------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
+        // Public API
+        // ─────────────────────────────────────────────────────────────────────
 
         public static void UpdateEquationFile(
             string equationFilePath,
@@ -94,15 +92,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             UpdateEquationFile(equationFilePath, wedge.Dimensions, wedge, wedgeType, drawingType);
         }
 
-        /// <summary>
-        /// Writes equations.txt so that:
-        /// - For every key present in effectiveDims, we WRITE/UPDATE its equation line.
-        /// - CKVD: writeZeros=true, so 0 values are written (override template).
-        /// - Others: writeZeros=false, so 0 values DO NOT override template (keep existing line).
-        /// - CKVD: missing DB-driven keys => set to 0 (override template).
-        /// - Overlay vars are enforced.
-        /// - Non-CKVD: compute + upsert funnel_gap.
-        /// </summary>
         public static void UpdateEquationFile(
             string equationFilePath,
             IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims,
@@ -112,222 +101,105 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         {
             if (string.IsNullOrWhiteSpace(equationFilePath) || !File.Exists(equationFilePath))
                 throw new FileNotFoundException("Equation file not found.", equationFilePath);
-
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
             if (effectiveDims is null) throw new ArgumentNullException(nameof(effectiveDims));
 
             DumpEffectiveDims("EquationUpdater.UpdateEquationFile", effectiveDims);
 
-            bool writeZeros = ShouldWriteZeroDims(wedgeType);
-            bool missingAsZero = ShouldTreatMissingAsZero(wedgeType);
+            var policy = WritePolicy.For(wedgeType);
+            var byKey = BuildByKey(effectiveDims);
+            var special = BuildSpecialKeyMap(wedge, wedgeType, drawingType);
 
             Logger.Info(
-                $"[ModelAutomation.EquationUpdater] UpdateEquationFile → '{equationFilePath}', drawingType={drawingType}, wedgeType={wedgeType}, writeZeros={writeZeros}, missingAsZero={missingAsZero}");
+                $"[EquationUpdater] UpdateEquationFile → '{equationFilePath}', " +
+                $"drawingType={drawingType}, wedgeType={wedgeType}, " +
+                $"writeZeros={policy.WriteZeros}, missingAsZero={policy.MissingDbKeysAsZero}");
 
             var encoding = GetFileEncoding(equationFilePath);
             var raw = File.ReadAllText(equationFilePath, encoding);
             var newline = DetectNewline(raw);
-
             var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
             var output = new List<string>(lines.Count + 64);
 
-            // Build key->dim map, applying DB-to-model key aliases.
-            var byKey = BuildByKey(effectiveDims);
-
-            var providedKeys = new HashSet<string>(byKey.Keys, StringComparer.OrdinalIgnoreCase);
-
-            var angleKeys = new HashSet<string>(
-                byKey.Where(kv => kv.Value.Nominal.Unit == DomUnitKind.Degree)
-                     .Select(kv => kv.Key),
-                StringComparer.OrdinalIgnoreCase);
-
-            var zeroProvidedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            if (!writeZeros)
-            {
-                foreach (var (k, dim) in byKey)
-                {
-                    try
-                    {
-                        var v = dim.Nominal.Unit == DomUnitKind.Degree
-                            ? (double)dim.Nominal.AsDeg()
-                            : (double)dim.Nominal.AsMm();
-
-                        if (Math.Abs(v) < 1e-12)
-                            zeroProvidedKeys.Add(k);
-                    }
-                    catch
-                    {
-                        zeroProvidedKeys.Add(k);
-                    }
-                }
-            }
-
-            var engravingLine = BuildEngravingStartLine(wedge);
-
-            bool isOverlay = drawingType == DomDrawingType.Overlay;
-            double overlayMag = 100.0;
-            double overlayScale = 60.8;
-            string overlayMagStr = "100";
-
-            if (isOverlay)
-            {
-                overlayMag = ComputeOverlayMagnification(wedge, wedgeType);
-                overlayScale = GetOverlayModelViewScaleDecimal(overlayMag);
-                overlayMagStr = overlayMag.ToString("0.#####", CultureInfo.InvariantCulture);
-
-                Logger.Info(
-                    $"[ModelAutomation.EquationUpdater] Overlay magnification resolved to {overlayMagStr} for wedgeType={wedgeType}");
-            }
-
-            bool engravingTouched = false;
-            bool overlayCalTouched = false;
-            bool scaleTouched = false;
+            var zeroProvidedKeys = policy.WriteZeros
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : CollectZeroKeys(byKey);
 
             int rewritten = 0;
 
+            // ── Pass 1: rewrite existing lines ───────────────────────────────
             foreach (var line in lines)
             {
                 var m = LineRx.Match(line);
-                if (!m.Success)
-                {
-                    output.Add(line);
-                    continue;
-                }
+                if (!m.Success) { output.Add(line); continue; }
 
                 var key = m.Groups["key"].Value;
 
-                // Always-managed special keys
-                if (key.Equals("EngravingStart", StringComparison.OrdinalIgnoreCase))
+                // Special keys always win
+                if (special.TryGetValue(key, out var specialLine))
                 {
-                    output.Add(engravingLine);
-                    engravingTouched = true;
+                    output.Add(specialLine);
                     rewritten++;
                     continue;
                 }
 
-                if (isOverlay && key.Equals("overlay_calibration1", StringComparison.OrdinalIgnoreCase))
-                {
-                    output.Add($"\"overlay_calibration1\" = {overlayMagStr}");
-                    overlayCalTouched = true;
-                    rewritten++;
-                    continue;
-                }
-
-                if (isOverlay && key.Equals("scale", StringComparison.OrdinalIgnoreCase))
-                {
-                    output.Add($"\"scale\" = {F(overlayScale)}");
-                    scaleTouched = true;
-                    rewritten++;
-                    continue;
-                }
-
-                if (isOverlay && key.Equals("TL", StringComparison.OrdinalIgnoreCase))
-                {
-                    output.Add($"\"TL\" = {F(30)}mm");
-                    rewritten++;
-                    continue;
-                }
-
+                // DB-driven dim
                 if (byKey.TryGetValue(key, out var dim))
                 {
-                    if (!writeZeros && zeroProvidedKeys.Contains(key))
+                    if (zeroProvidedKeys.Contains(key))
                     {
-                        output.Add(line);
+                        output.Add(line); // keep template value for zeros
                         continue;
                     }
 
-                    WriteDim(output, key, dim, angleKeys.Contains(key));
+                    WriteDim(output, key, dim);
                     rewritten++;
                     continue;
                 }
 
-                if (missingAsZero && CkvdDbDrivenKeys.Contains(key) && !providedKeys.Contains(key))
+                // CKVD: missing DB-driven keys → zero
+                if (policy.MissingDbKeysAsZero && CkvdDbDrivenKeys.Contains(key))
                 {
-                    output.Add(MakeZeroLinePreservingUnit(key, line, CkvdAngleKeys.Contains(key)));
+                    output.Add(MakeZeroLine(key, line));
                     rewritten++;
-                    Logger.Info($"[ModelAutomation.EquationUpdater] CKVD missing key -> zero: {key}");
+                    Logger.Info($"[EquationUpdater] CKVD missing key → zero: {key}");
                     continue;
                 }
 
                 output.Add(line);
             }
 
+            // ── Pass 2: append anything not already in the file ──────────────
             int appended = 0;
+
+            foreach (var (key, line) in special)
+                if (!LineExists(output, key)) { output.Add(line); appended++; }
 
             foreach (var (key, dim) in byKey)
             {
-                if (!writeZeros && zeroProvidedKeys.Contains(key))
-                    continue;
-
-                if (!LineExists(output, key))
-                {
-                    WriteDim(output, key, dim, angleKeys.Contains(key));
-                    appended++;
-                }
+                if (zeroProvidedKeys.Contains(key)) continue;
+                if (!LineExists(output, key)) { WriteDim(output, key, dim); appended++; }
             }
 
-            if (missingAsZero)
+            if (policy.MissingDbKeysAsZero)
             {
                 foreach (var key in CkvdDbDrivenKeys)
                 {
-                    if (!LineExists(output, key))
-                    {
-                        var isAngle = CkvdAngleKeys.Contains(key);
-                        output.Add($"\"{key}\" = 0{(isAngle ? "deg" : "mm")}");
-                        appended++;
-                        Logger.Info($"[ModelAutomation.EquationUpdater] CKVD missing line appended as zero: {key}");
-                    }
-                }
-            }
-
-            if (!engravingTouched && !LineExists(output, "EngravingStart"))
-            {
-                output.Add(engravingLine);
-                appended++;
-            }
-
-            if (isOverlay)
-            {
-                if (!overlayCalTouched && !LineExists(output, "overlay_calibration1"))
-                {
-                    output.Add($"\"overlay_calibration1\" = {overlayMagStr}");
+                    if (LineExists(output, key)) continue;
+                    output.Add($"\"{key}\" = 0{(CkvdAngleKeys.Contains(key) ? "deg" : "mm")}");
                     appended++;
-                }
-
-                if (!scaleTouched && !LineExists(output, "scale"))
-                {
-                    output.Add($"\"scale\" = {F(overlayScale)}");
-                    appended++;
+                    Logger.Info($"[EquationUpdater] CKVD missing line appended as zero: {key}");
                 }
             }
 
-            // funnel_gap: computed for all non-CKVD wedge types.
-            if (wedgeType != DomWedgeType.CKVD)
-            {
-                double funnelGapMm = ComputeFunnelGapMm(wedge);
-
-                ReplaceOrAppend(output, "funnel_gap",
-                    $"\"funnel_gap\" = {F(funnelGapMm)}mm");
-
-                Logger.Info($"[ModelAutomation.EquationUpdater] {wedgeType} funnel_gap computed = {funnelGapMm} mm");
-            }
-
-            Logger.Info($"[ModelAutomation.EquationUpdater] Rewritten={rewritten}, Appended={appended}");
+            Logger.Info($"[EquationUpdater] Rewritten={rewritten}, Appended={appended}");
             File.WriteAllText(equationFilePath, string.Join(newline, output), encoding);
-            Logger.Success($"[ModelAutomation.EquationUpdater] Equation file updated: {equationFilePath}");
+            Logger.Success($"[EquationUpdater] Equation file updated: {equationFilePath}");
         }
 
         /// <summary>
-        /// Direct upsert into model EquationMgr (fallback/alternate).
-        /// IMPORTANT: no rebuild here. Orchestrator will do the single rebuild at the end.
-        ///
-        /// BEHAVIOR:
-        /// - CKVD: If a provided dim is zero -> DO override (write 0 into the model).
-        /// - Others: If a provided dim is zero -> DO NOT override existing equation in the model.
-        /// - CKVD: If a DB-driven dim is missing from provided dims, we do not touch it here.
-        /// - Special keys (EngravingStart / overlay vars) are still enforced.
-        /// - Non-CKVD: funnel_gap is enforced when the required input dims are present.
+        /// Direct upsert into model EquationMgr (fallback / alternate path).
+        /// No rebuild here — orchestrator owns the single rebuild at the end.
         /// </summary>
         public static void UpsertEquationsInModel(
             ModelDoc2 model,
@@ -341,121 +213,269 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             if (effectiveDims is null) throw new ArgumentNullException(nameof(effectiveDims));
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
 
-            bool writeZeros = ShouldWriteZeroDims(wedgeType);
+            var policy = WritePolicy.For(wedgeType);
+            var byKey = BuildByKey(effectiveDims);
+            var special = BuildSpecialKeyMap(wedge, wedgeType, drawingType);
 
-            var mgr = (EquationMgr)model.GetEquationMgr();
-            if (mgr is null)
-                throw new InvalidOperationException("EquationMgr is null.");
+            var mgr = (EquationMgr)model.GetEquationMgr()
+                ?? throw new InvalidOperationException("EquationMgr is null.");
 
-            var byNameIndex = BuildEquationIndex(mgr);
-
-            bool isOverlay = drawingType == DomDrawingType.Overlay;
-
-            double overlayMag = 100.0;
-            double overlayScale = 60.8;
-            string overlayMagStr = "100";
-
-            if (isOverlay)
-            {
-                overlayMag = ComputeOverlayMagnification(wedge, wedgeType);
-                overlayScale = GetOverlayModelViewScaleDecimal(overlayMag);
-                overlayMagStr = overlayMag.ToString("0.#####", CultureInfo.InvariantCulture);
-
-                Logger.Info(
-                    $"[ModelAutomation.EquationUpdater] Overlay magnification resolved (model) to {overlayMagStr} for wedgeType={wedgeType}");
-            }
-
-            var engravingLine = BuildEngravingStartLine(wedge);
-
+            var index = BuildEquationIndex(mgr);
             int upserted = 0;
             int skippedZero = 0;
 
-            // Apply DB-to-model key aliases before iterating.
-            var byKey = BuildByKey(effectiveDims);
-
+            // ── DB-driven dims ────────────────────────────────────────────────
             foreach (var (key, dim) in byKey)
             {
                 if (string.Equals(key, "EngravingStart", StringComparison.OrdinalIgnoreCase))
-                    continue;
+                    continue; // handled via special map
 
                 bool isAngle = dim.Nominal.Unit == DomUnitKind.Degree;
-
                 double val;
-                try
-                {
-                    val = (double)(isAngle ? dim.Nominal.AsDeg() : dim.Nominal.AsMm());
-                }
-                catch
-                {
-                    skippedZero++;
-                    continue;
-                }
+                try { val = (double)(isAngle ? dim.Nominal.AsDeg() : dim.Nominal.AsMm()); }
+                catch { skippedZero++; continue; }
 
-                if (!writeZeros && Math.Abs(val) < 1e-12)
-                {
-                    skippedZero++;
-                    continue;
-                }
+                if (!policy.WriteZeros && Math.Abs(val) < 1e-12)
+                { skippedZero++; continue; }
 
-                string rhs = isAngle ? $"{F(val)}deg" : $"{F(val)}mm";
-                string eqText = $"\"{key}\" = {rhs}";
-
-                UpsertEquation(mgr, byNameIndex, key, eqText);
+                UpsertEquation(mgr, index, key, $"\"{key}\" = {(isAngle ? $"{F(val)}deg" : $"{F(val)}mm")}");
                 upserted++;
             }
 
-            UpsertEquation(mgr, byNameIndex, "EngravingStart", engravingLine);
-            upserted++;
-
-            if (isOverlay)
+            // ── Special keys ──────────────────────────────────────────────────
+            foreach (var (key, line) in special)
             {
-                UpsertEquation(mgr, byNameIndex, "overlay_calibration1", $"\"overlay_calibration1\" = {overlayMagStr}");
-                upserted++;
-
-                UpsertEquation(mgr, byNameIndex, "scale", $"\"scale\" = {F(overlayScale)}");
-                upserted++;
-
-                UpsertEquation(mgr, byNameIndex, "TL", $"\"TL\" = {F(30)}mm");
+                UpsertEquation(mgr, index, key, line);
                 upserted++;
             }
 
-            // funnel_gap: computed for all non-CKVD wedge types.
-            if (wedgeType != DomWedgeType.CKVD)
-            {
-                double funnelGapMm = ComputeFunnelGapMm(wedge);
-                UpsertEquation(mgr, byNameIndex, "funnel_gap", $"\"funnel_gap\" = {F(funnelGapMm)}mm");
-                upserted++;
-
-                Logger.Info($"[ModelAutomation.EquationUpdater] funnel_gap computed (model) = {funnelGapMm} mm");
-            }
-
-            if (rebuild)
-            {
-                model.EditRebuild3();
-            }
+            if (rebuild) model.EditRebuild3();
 
             Logger.Success(
-                $"[ModelAutomation.EquationUpdater] UpsertEquationsInModel → upserted={upserted}, skippedZeroOrUnreadable={skippedZero}, rebuild={rebuild}, wedgeType={wedgeType}, writeZeros={writeZeros}");
+                $"[EquationUpdater] UpsertEquationsInModel → upserted={upserted}, " +
+                $"skippedZero={skippedZero}, rebuild={rebuild}, " +
+                $"wedgeType={wedgeType}, writeZeros={policy.WriteZeros}");
         }
 
-        // --------------------------------------------------------------------
-        // Policy
-        // --------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
+        // Special key map
+        //
+        // Builds every "always-managed" key → equation line for this job.
+        // Both public methods consume this; the logic lives in exactly one place.
+        // ─────────────────────────────────────────────────────────────────────
 
-        private static bool ShouldWriteZeroDims(DomWedgeType wedgeType)
-            => wedgeType == DomWedgeType.CKVD;
+        private static Dictionary<string, string> BuildSpecialKeyMap(
+            DomWedgeData wedge,
+            DomWedgeType wedgeType,
+            DomDrawingType drawingType)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        private static bool ShouldTreatMissingAsZero(DomWedgeType wedgeType)
-            => wedgeType == DomWedgeType.CKVD;
+            // Engraving start — always present
+            map["EngravingStart"] = BuildEngravingStartLine(wedge);
 
-        // --------------------------------------------------------------------
-        // Key alias resolution
-        // --------------------------------------------------------------------
+            // Overlay-only keys
+            if (drawingType == DomDrawingType.Overlay)
+            {
+                double mag = ComputeOverlayMagnification(wedge, wedgeType);
+                double scale = GetOverlayModelViewScaleDecimal(mag);
+                string magStr = F(mag);
+
+                Logger.Info($"[EquationUpdater] Overlay magnification resolved to {magStr} for wedgeType={wedgeType}");
+
+                map["overlay_calibration1"] = $"\"overlay_calibration1\" = {magStr}";
+                map["scale"] = $"\"scale\" = {F(scale)}";
+                map["TL"] = $"\"TL\" = {F(30)}mm";
+            }
+
+            // funnel_gap — non-CKVD types; already in effectiveDims from the normalizer,
+            // but EquationUpdater recomputes it here as the authoritative file-level value.
+            if (wedgeType != DomWedgeType.CKVD)
+            {
+                double gapMm = ComputeFunnelGapMm(wedge);
+                map["funnel_gap"] = $"\"funnel_gap\" = {F(gapMm)}mm";
+                Logger.Info($"[EquationUpdater] {wedgeType} funnel_gap = {F(gapMm)} mm");
+            }
+
+            // non_std_cut — COB / UTUS / FP
+            if (wedgeType is DomWedgeType.COB or DomWedgeType.UTUS or DomWedgeType.FP)
+            {
+                double cutMm = ComputeNonStdCutMm(wedge);
+                // The key in the equation file is the full "param@sketch" form
+                map["non_std_cut"] = $"\"non_std_cut@ref_point_non_std_cut_sketch\" = {F(cutMm)}mm";
+                Logger.Info($"[EquationUpdater] {wedgeType} non_std_cut = {F(cutMm)} mm");
+            }
+
+            return map;
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Domain computations
+        // ─────────────────────────────────────────────────────────────────────
+
+        private static double ComputeFunnelGapMm(DomWedgeData wedge)
+        {
+            const double DefaultMm = 0.00762; // 0.0003 inch
+
+            if (!TryGetMm(wedge, "FNO", out var fno) || fno <= 0.0) return DefaultMm;
+            if (!TryGetDeg(wedge, "FNA", out var fna)) return DefaultMm;
+            if (!TryGetDeg(wedge, "BA", out var ba)) return DefaultMm;
+            if (!TryGetDeg(wedge, "RA", out var ra)) return DefaultMm;
+            if (!TryGetMm(wedge, "H", out var h)) return DefaultMm;
+
+            double alpha = (fna / 2.0) * Math.PI / 180.0;
+            double k = (ba + ra) * Math.PI / 180.0;
+            double sinAlpha = Math.Sin(alpha);
+
+            if (Math.Abs(sinAlpha) < 1e-12) return DefaultMm;
+
+            double tanA = Math.Tan(alpha);
+            double tanK = Math.Tan(k);
+            double denom = 1.0 + (tanA * tanK);
+
+            if (Math.Abs(denom) < 1e-12) return DefaultMm;
+
+            double frac = (1.0 - (tanA * tanA) * (tanK * tanK)) / denom;
+            double bracket = (fno * frac) - h;
+            double fg = bracket / (2.0 * sinAlpha);
+
+            if (double.IsNaN(fg) || double.IsInfinity(fg) || fg <= 0.0) return DefaultMm;
+
+            return fg;
+        }
 
         /// <summary>
-        /// Builds a string->Dim dictionary from effectiveDims, remapping any DB key
-        /// that has an entry in <see cref="DbToModelKeyAlias"/> to its model-side name.
+        /// non_std_cut must always be strictly greater than VR_MAX + VRR_MAX so the cut
+        /// covers the worst-case tolerance-expanded groove width.
+        ///
+        /// Resolution order:
+        /// 1. Use explicit VR_MAX / VRR_MAX if present in wedge dimensions.
+        /// 2. Otherwise derive from VR / VRR as NOM + UTOL.
+        /// 3. Otherwise fall back to 0.
         /// </summary>
+        private static double ComputeNonStdCutMm(DomWedgeData wedge)
+        {
+            const double MarginMm = 0.01;
+
+            double vrMax = TryGetMaxLikeMm(wedge, explicitMaxKey: "VR_MAX", baseKey: "VR", out var vrSource)
+                ? vrSource
+                : 0.0;
+
+            double vrrMax = TryGetMaxLikeMm(wedge, explicitMaxKey: "VRR_MAX", baseKey: "VRR", out var vrrSource)
+                ? vrrSource
+                : 0.0;
+
+            double result = vrMax + vrrMax + vrMax/5;
+
+            Logger.Info(
+                $"[EquationUpdater] non_std_cut = VR_MAX({F(vrMax)}) + VRR_MAX({F(vrrMax)}) + margin({F(MarginMm)}) = {F(result)} mm");
+
+            return result;
+        }
+
+        /// <summary>
+        /// Tries to resolve a max-bound length in mm.
+        /// Priority:
+        /// - explicit max dimension key (e.g. VR_MAX)
+        /// - derived as base nominal + upper tolerance (e.g. VR + VR_UTOL)
+        /// </summary>
+        private static bool TryGetMaxLikeMm(
+            DomWedgeData wedge,
+            string explicitMaxKey,
+            string baseKey,
+            out double value)
+        {
+            value = 0.0;
+
+            if (TryGetMm(wedge, explicitMaxKey, out var explicitMax))
+            {
+                value = explicitMax;
+                Logger.Info($"[EquationUpdater] Using explicit {explicitMaxKey} = {F(value)} mm");
+                return true;
+            }
+
+            if (wedge?.Dimensions is null)
+                return false;
+
+            if (!wedge.Dimensions.TryGetValue(DomDimKey.From(baseKey), out var dim) || dim is null)
+                return false;
+
+            if (dim.Nominal.Unit != DomUnitKind.Millimeter)
+                return false;
+
+            double nominal = (double)dim.Nominal.AsMm();
+            double upperTol = (double)dim.Tol.Upper.Value;
+
+            value = nominal + upperTol;
+
+            Logger.Info(
+                $"[EquationUpdater] Derived {explicitMaxKey} from {baseKey}: NOM({F(nominal)}) + UTOL({F(upperTol)}) = {F(value)} mm");
+
+            return true;
+        }
+
+        private static string BuildEngravingStartLine(DomWedgeData wedge)
+        {
+            double engrMm = 0.0;
+
+            if (wedge.KValue is not null)
+            {
+                engrMm = (double)wedge.KValue.ValueMm.AsMm();
+            }
+            else if (wedge.Dimensions.TryGetValue(DomDimKey.From("TL"), out var tl)
+                     && tl?.Nominal.Unit == DomUnitKind.Millimeter)
+            {
+                engrMm = (double)tl.Nominal.AsMm() * 0.40;
+            }
+
+            return $"\"EngravingStart\" = {F(engrMm)}mm";
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Overlay magnification
+        // ─────────────────────────────────────────────────────────────────────
+
+        private static double ComputeOverlayMagnification(DomWedgeData wedge, DomWedgeType wedgeType)
+        {
+            // CKVD uses FL; all others use T
+            string dimKey = wedgeType == DomWedgeType.CKVD ? "FL" : "T";
+            return ComputeOverlayMagnificationFromDimension(wedge, dimKey, wedgeType);
+        }
+
+        private static double ComputeOverlayMagnificationFromDimension(
+            DomWedgeData wedge, string dimKey, DomWedgeType wedgeType)
+        {
+            const double Default = 100.0;
+
+            if (!TryGetMm(wedge, dimKey, out var value) || value <= 0.0)
+            {
+                Logger.Warn(
+                    $"[EquationUpdater] Overlay mag source '{dimKey}' missing/invalid for {wedgeType}. " +
+                    $"Using default {Default}.");
+                return Default;
+            }
+
+            Logger.Info($"[EquationUpdater] Overlay mag source '{dimKey}' = {F(value)} mm for {wedgeType}");
+
+            if (value <= 0.3403) return 400;
+            if (value <= 0.4572) return 300;
+            if (value <= 0.6908) return 200;
+            return 100;
+        }
+
+        private static double GetOverlayModelViewScaleDecimal(double mag)
+            => (int)Math.Round(mag) switch
+            {
+                400 => 246.0,
+                300 => 183.0,
+                200 => 122.7,
+                _ => 60.8
+            };
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Key alias resolution
+        // ─────────────────────────────────────────────────────────────────────
+
         private static Dictionary<string, DomDim> BuildByKey(
             IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims)
         {
@@ -468,196 +488,56 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 if (DbToModelKeyAlias.TryGetValue(key, out var alias))
                 {
                     key = alias;
-                    Logger.Info(
-                        $"[ModelAutomation.EquationUpdater] Key alias applied: '{kv.Key.Value}' → '{alias}'");
+                    Logger.Info($"[EquationUpdater] Key alias: '{kv.Key.Value}' → '{alias}'");
                 }
 
-                // Last writer wins if somehow both the original and alias are present.
-                result[key] = kv.Value;
+                result[key] = kv.Value; // last writer wins
             }
 
             return result;
         }
 
-        // ------------------------- helpers -------------------------
+        // ─────────────────────────────────────────────────────────────────────
+        // File helpers
+        // ─────────────────────────────────────────────────────────────────────
 
-        private static string MakeZeroLinePreservingUnit(string key, string existingLine, bool isAngleKeyFallback)
+        private static HashSet<string> CollectZeroKeys(Dictionary<string, DomDim> byKey)
         {
-            string unit =
-                existingLine.IndexOf("deg", StringComparison.OrdinalIgnoreCase) >= 0 ? "deg" :
-                existingLine.IndexOf("in", StringComparison.OrdinalIgnoreCase) >= 0 ? "in" :
-                existingLine.IndexOf("mm", StringComparison.OrdinalIgnoreCase) >= 0 ? "mm" :
-                (isAngleKeyFallback ? "deg" : "mm");
+            var zeros = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            return $"\"{key}\" = 0{unit}";
-        }
-
-        private static void UpsertEquation(EquationMgr mgr, Dictionary<string, int> index, string key, string equationText)
-        {
-            if (index.TryGetValue(key, out var i))
+            foreach (var (k, dim) in byKey)
             {
                 try
                 {
-                    mgr.Equation[i] = equationText;
-                    return;
+                    double v = dim.Nominal.Unit == DomUnitKind.Degree
+                        ? (double)dim.Nominal.AsDeg()
+                        : (double)dim.Nominal.AsMm();
+
+                    if (Math.Abs(v) < 1e-12) zeros.Add(k);
                 }
-                catch (Exception ex)
-                {
-                    Logger.Warn($"[ModelAutomation.EquationUpdater] Failed to set Equation[{i}] for '{key}': {ex.Message}");
-                }
+                catch { zeros.Add(k); }
             }
 
-            try
-            {
-                _ = mgr.Add3(
-                    -1,
-                    equationText,
-                    true,
-                    (int)swInConfigurationOpts_e.swThisConfiguration,
-                    null);
-
-                index[key] = mgr.GetCount() - 1;
-            }
-            catch (Exception ex)
-            {
-                Logger.Warn($"[ModelAutomation.EquationUpdater] Failed to add equation for '{key}': {ex.Message}");
-            }
+            return zeros;
         }
 
-        private static Dictionary<string, int> BuildEquationIndex(EquationMgr mgr)
+        private static void WriteDim(List<string> sink, string key, DomDim dim)
         {
-            int count = mgr.GetCount();
-            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            for (int i = 0; i < count; i++)
-            {
-                var eq = mgr.Equation[i] ?? string.Empty;
-                var lhs = ExtractLhsName(eq);
-                if (string.IsNullOrWhiteSpace(lhs)) continue;
-
-                if (!map.ContainsKey(lhs))
-                    map.Add(lhs, i);
-            }
-
-            return map;
-        }
-
-        private static void ReplaceOrAppend(List<string> lines, string key, string newLine)
-        {
-            for (int i = 0; i < lines.Count; i++)
-            {
-                var m = LineRx.Match(lines[i]);
-                if (m.Success && m.Groups["key"].Value.Equals(key, StringComparison.OrdinalIgnoreCase))
-                {
-                    lines[i] = newLine;
-                    return;
-                }
-            }
-
-            lines.Add(newLine);
-        }
-
-        private static void WriteDim(List<string> sink, string key, DomDim dim, bool isAngle)
-        {
+            bool isAngle = dim.Nominal.Unit == DomUnitKind.Degree;
             double v = (double)(isAngle ? dim.Nominal.AsDeg() : dim.Nominal.AsMm());
-            string unit = isAngle ? "deg" : "mm";
-            sink.Add($"\"{key}\" = {F(v)}{unit}");
+            sink.Add($"\"{key}\" = {F(v)}{(isAngle ? "deg" : "mm")}");
         }
 
-        private static string BuildEngravingStartLine(DomWedgeData wedge)
+        /// <summary>Preserves the unit (deg/mm/in) of the existing line when zeroing a CKVD key.</summary>
+        private static string MakeZeroLine(string key, string existingLine)
         {
-            double engrMm = 0.0;
+            string unit =
+                existingLine.IndexOf("deg", StringComparison.OrdinalIgnoreCase) >= 0 ? "deg" :
+                existingLine.IndexOf("mm", StringComparison.OrdinalIgnoreCase) >= 0 ? "mm" :
+                existingLine.IndexOf("in", StringComparison.OrdinalIgnoreCase) >= 0 ? "in" :
+                (CkvdAngleKeys.Contains(key) ? "deg" : "mm");
 
-            if (wedge.KValue is not null)
-            {
-                engrMm = (double)wedge.KValue.ValueMm.AsMm();
-            }
-            else if (wedge.Dimensions.TryGetValue(DomDimKey.From("TL"), out var tl)
-                     && tl is not null
-                     && tl.Nominal.Unit == DomUnitKind.Millimeter)
-            {
-                engrMm = (double)tl.Nominal.AsMm() * 0.40;
-            }
-
-            return $"\"EngravingStart\" = {F(engrMm)}mm";
-        }
-
-        /// <summary>
-        /// CKVD uses FL for overlay magnification.
-        /// All other wedge types use T for now.
-        /// </summary>
-        private static double ComputeOverlayMagnification(DomWedgeData wedge, DomWedgeType wedgeType)
-        {
-            return wedgeType == DomWedgeType.CKVD
-                ? ComputeOverlayMagnificationFromDimension(wedge, "FL", wedgeType)
-                : ComputeOverlayMagnificationFromDimension(wedge, "T", wedgeType);
-        }
-
-        private static double ComputeOverlayMagnificationFromDimension(
-            DomWedgeData wedge,
-            string dimensionKey,
-            DomWedgeType wedgeType)
-        {
-            const double defaultMag = 100.0;
-
-            if (wedge?.Dimensions is null)
-                return defaultMag;
-
-            if (!wedge.Dimensions.TryGetValue(DomDimKey.From(dimensionKey), out var dim) ||
-                dim is null ||
-                dim.Nominal.Unit != DomUnitKind.Millimeter)
-            {
-                Logger.Warn(
-                    $"[ModelAutomation.EquationUpdater] Overlay magnification source '{dimensionKey}' missing or not mm for wedgeType={wedgeType}. Using default {defaultMag}.");
-                return defaultMag;
-            }
-
-            double value = (double)dim.Nominal.AsMm();
-            if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0.0)
-            {
-                Logger.Warn(
-                    $"[ModelAutomation.EquationUpdater] Overlay magnification source '{dimensionKey}' invalid ({value}) for wedgeType={wedgeType}. Using default {defaultMag}.");
-                return defaultMag;
-            }
-
-            Logger.Info(
-                $"[ModelAutomation.EquationUpdater] Overlay magnification source '{dimensionKey}' = {value.ToString("0.#####", CultureInfo.InvariantCulture)}mm for wedgeType={wedgeType}");
-
-            if (value <= 0.3403) return 400;
-            if (value <= 0.4572) return 300;
-            if (value <= 0.6908) return 200;
-            if (value <= 1.3766) return 100;
-            return 100;
-        }
-
-        private static double GetOverlayModelViewScaleDecimal(double overlayMagnification)
-        {
-            int token = NormalizeScalingToken(overlayMagnification);
-            return token switch
-            {
-                100 => 60.8,
-                200 => 122.7,
-                300 => 183.0,
-                400 => 246.0,
-                _ => 60.8
-            };
-        }
-
-        private static int NormalizeScalingToken(object? overlayScaling)
-        {
-            if (overlayScaling is null) return 100;
-
-            if (double.TryParse(overlayScaling.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
-            {
-                if (d < 10.0) return (int)Math.Round(d * 100.0);
-                return (int)Math.Round(d);
-            }
-
-            var s = overlayScaling.ToString()?.Trim() ?? "";
-            s = s.ToUpperInvariant().Replace(" ", "");
-            if (s.StartsWith("X")) s = s[1..];
-            if (s.EndsWith("X")) s = s[..^1];
-            return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 100;
+            return $"\"{key}\" = 0{unit}";
         }
 
         private static bool LineExists(List<string> lines, string key)
@@ -685,6 +565,49 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return "\r\n";
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // EquationMgr helpers
+        // ─────────────────────────────────────────────────────────────────────
+
+        private static void UpsertEquation(
+            EquationMgr mgr, Dictionary<string, int> index, string key, string equationText)
+        {
+            if (index.TryGetValue(key, out var i))
+            {
+                try { mgr.Equation[i] = equationText; return; }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"[EquationUpdater] Failed to set Equation[{i}] for '{key}': {ex.Message}");
+                }
+            }
+
+            try
+            {
+                _ = mgr.Add3(-1, equationText, true,
+                    (int)swInConfigurationOpts_e.swThisConfiguration, null);
+                index[key] = mgr.GetCount() - 1;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[EquationUpdater] Failed to add equation for '{key}': {ex.Message}");
+            }
+        }
+
+        private static Dictionary<string, int> BuildEquationIndex(EquationMgr mgr)
+        {
+            int count = mgr.GetCount();
+            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < count; i++)
+            {
+                var lhs = ExtractLhsName(mgr.Equation[i] ?? string.Empty);
+                if (!string.IsNullOrWhiteSpace(lhs) && !map.ContainsKey(lhs))
+                    map.Add(lhs, i);
+            }
+
+            return map;
+        }
+
         private static string ExtractLhsName(string equation)
         {
             int eqIdx = equation.IndexOf('=');
@@ -694,74 +617,16 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return lhs;
         }
 
-        // --------------------------- COB funnel_gap ---------------------------
-
-        private static bool IsCobWedge(Dictionary<string, DomDim> byKey)
-        {
-            return byKey.ContainsKey("FNO") &&
-                   byKey.ContainsKey("FNA") &&
-                   byKey.ContainsKey("BA") &&
-                   byKey.ContainsKey("RA") &&
-                   byKey.ContainsKey("FND") &&
-                   byKey.ContainsKey("H");
-        }
-
-        private static double ComputeFunnelGapMm(DomWedgeData wedge)
-        {
-            const double DefaultGapMm = 0.00762; // 0.0003 inch
-
-            if (!TryGetMm(wedge, "FNO", out var fno) || fno <= 0.0)
-                return DefaultGapMm;
-
-            if (!TryGetDeg(wedge, "FNA", out var fna) ||
-                !TryGetDeg(wedge, "BA", out var ba) ||
-                !TryGetDeg(wedge, "RA", out var ra) ||
-                !TryGetMm(wedge, "H", out var h))
-                return DefaultGapMm;
-
-            double alpha = (fna / 2.0) * Math.PI / 180.0;
-            double k = (ba + ra) * Math.PI / 180.0;
-
-            double sinAlpha = Math.Sin(alpha);
-            if (Math.Abs(sinAlpha) < 1e-12)
-                return DefaultGapMm;
-
-            double tanA = Math.Tan(alpha);
-            double tanK = Math.Tan(k);
-
-            double tanA2 = tanA * tanA;
-            double tanK2 = tanK * tanK;
-
-            double denomFrac = 1.0 + (tanA * tanK);
-            if (Math.Abs(denomFrac) < 1e-12)
-                return DefaultGapMm;
-
-            double frac = (1.0 - (tanA2 * tanK2)) / denomFrac;
-
-            // bracket = FNO * frac - H
-            double bracket = (fno * frac) - h;
-
-            // funnel_gap = 1 / (2 * sin(alpha)) * bracket
-            double fg = (1.0 / (2.0 * sinAlpha)) * bracket;
-
-            if (double.IsNaN(fg) || double.IsInfinity(fg) || fg <= 0.0)
-                return DefaultGapMm;
-
-            Logger.Blue($"Funnel Gap = {fg}");
-            return fg;
-        }
+        // ─────────────────────────────────────────────────────────────────────
+        // Dimension read helpers
+        // ─────────────────────────────────────────────────────────────────────
 
         private static bool TryGetMm(DomWedgeData wedge, string key, out double value)
         {
             value = 0;
             if (wedge?.Dimensions is null) return false;
-
-            if (!wedge.Dimensions.TryGetValue(DomDimKey.From(key), out var dim) || dim is null)
-                return false;
-
-            if (dim.Nominal.Unit != DomUnitKind.Millimeter)
-                return false;
-
+            if (!wedge.Dimensions.TryGetValue(DomDimKey.From(key), out var dim) || dim is null) return false;
+            if (dim.Nominal.Unit != DomUnitKind.Millimeter) return false;
             value = (double)dim.Nominal.AsMm();
             return true;
         }
@@ -770,28 +635,20 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         {
             value = 0;
             if (wedge?.Dimensions is null) return false;
-
-            if (!wedge.Dimensions.TryGetValue(DomDimKey.From(key), out var dim) || dim is null)
-                return false;
-
-            if (dim.Nominal.Unit != DomUnitKind.Degree)
-                return false;
-
+            if (!wedge.Dimensions.TryGetValue(DomDimKey.From(key), out var dim) || dim is null) return false;
+            if (dim.Nominal.Unit != DomUnitKind.Degree) return false;
             value = (double)dim.Nominal.AsDeg();
             return true;
         }
 
-        // --------------------------- diagnostics ---------------------------
+        // ─────────────────────────────────────────────────────────────────────
+        // Diagnostics
+        // ─────────────────────────────────────────────────────────────────────
 
         private static void DumpEffectiveDims(
-            string tag,
-            IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims)
+            string tag, IReadOnlyDictionary<DomDimKey, DomDim> effectiveDims)
         {
-            if (effectiveDims is null)
-            {
-                Logger.Warn($"[{tag}] effectiveDims = <null>");
-                return;
-            }
+            if (effectiveDims is null) { Logger.Warn($"[{tag}] effectiveDims = <null>"); return; }
 
             Logger.Info($"[{tag}] effectiveDims.Count = {effectiveDims.Count}");
 
@@ -799,27 +656,15 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             {
                 var key = kv.Key.Value ?? "<null-key>";
                 var dim = kv.Value;
-
-                if (dim is null)
-                {
-                    Logger.Warn($"[{tag}] {key} = <null-dim>");
-                    continue;
-                }
+                if (dim is null) { Logger.Warn($"[{tag}] {key} = <null-dim>"); continue; }
 
                 try
                 {
-                    var unit = dim.Nominal.Unit;
-                    double nominal = unit == DomUnitKind.Degree
-                        ? (double)dim.Nominal.AsDeg()
-                        : (double)dim.Nominal.AsMm();
-
-                    var unitStr = unit == DomUnitKind.Degree ? "deg" : "mm";
-                    Logger.Info($"[{tag}] {key} = {nominal.ToString("0.#####", CultureInfo.InvariantCulture)}{unitStr}");
+                    bool deg = dim.Nominal.Unit == DomUnitKind.Degree;
+                    double v = deg ? (double)dim.Nominal.AsDeg() : (double)dim.Nominal.AsMm();
+                    Logger.Info($"[{tag}] {key} = {F(v)}{(deg ? "deg" : "mm")}");
                 }
-                catch (Exception ex)
-                {
-                    Logger.Warn($"[{tag}] {key} = <failed to read nominal> : {ex.Message}");
-                }
+                catch (Exception ex) { Logger.Warn($"[{tag}] {key} = <read error>: {ex.Message}"); }
             }
         }
     }

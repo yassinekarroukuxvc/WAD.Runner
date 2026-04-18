@@ -20,8 +20,8 @@
 "G"=0.00212
 "CGD"=0.0004
 "FRO" = 0.02794mm
-"CR"=0.00312623
-"RC" = 0.12446mm
+"CR" = 0.12446mm
+"RC" = 0.16764mm
 "CD" = 0.00381mm
 "GR"=0.0003
 "GD"=0.0003
@@ -163,3 +163,5 @@
 "D2@Engraving"=0.015
 "ref_point@ref_point_sketch" = 2.01175 / "scale"
 "ref_point@ref_point_180_DEG_REV_sketch"="T"/2
+
+"non_std_cut@ref_point_non_std_cut_sketch" = 0.48768mm

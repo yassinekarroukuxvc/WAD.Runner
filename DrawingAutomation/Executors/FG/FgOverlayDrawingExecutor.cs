@@ -46,7 +46,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 _ => ProfileRegistry.GetCkvd(run.Wedge.Subclass, drawingData.DrawingType)
             };
             Logger.Info($"[Profile] Using {profile.ProfileName} for {bannerLabel}.");
-
+            var isCkvd = run.WedgeType == WedgeType.CKVD;
             // 1) Part automation
             Logger.Info("[1/9] Part Automation…");
             _ = runPartAutomation();
@@ -60,7 +60,8 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
                 out var nameMap);
 
             // 2b) FG-specific hook area
-            OverlayDrawingExecutorCommon.TryBindOverlayViewConfigurations(ds, run, nameMap);
+            if (!isCkvd)
+                OverlayDrawingExecutorCommon.TryBindOverlayViewConfigurations(ds, run, nameMap);
             // 3) Compute overlay mag/cal + payload
             Logger.Info("[3/9] Compute overlay magnification/calibration…");
             var (ctx, overlayMag, overlayCalUm) = OverlayDrawingExecutorCommon.ComputeOverlayMagCal(run, drawingData);
@@ -79,7 +80,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             Logger.Info("[5/9] Reposition all overlay views");
             OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(swApp, ds, run, nameMap);
 
-            var isCkvd = run.WedgeType == WedgeType.CKVD;
+            
             if (isCkvd)
             {
                 // 6) Delete Front view when VR == 0

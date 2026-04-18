@@ -43,10 +43,12 @@ namespace WAD.Runner.ModelAutomation.Rules
     /// - If VBL > 0 in overlay, also suppress the shank-matching front overlay sketch:
     ///   PGB_STD_FRONT_overlay_sketch / PGB_180_DEG_REV_FRONT_overlay_sketch.
     /// - If VBL > 0 in overlay, also suppress 10BA for the active shank.
+    /// - If VR > 0 and VW > 0 in overlay, suppress cut_feature and keep non_std_cut_plan_feature.
     /// - For PGB Overlay, always suppress FRO.
     ///
     /// Non-overlay rule:
-    /// - If drawingType is NOT Overlay: force suppress "cut_feature" and "cut_plan_feature"
+    /// - If drawingType is NOT Overlay: force suppress "cut_feature", "cut_plan_feature",
+    ///   and "non_std_cut_plan_feature"
     ///   (and remove them from unsuppress if they were added).
     /// </summary>
     public sealed class CobFeatureRules : IFeatureRuleSet
@@ -166,12 +168,17 @@ namespace WAD.Runner.ModelAutomation.Rules
             // Force suppress these when NOT Overlay
             suppress.Add("cut_feature");
             suppress.Add("cut_plan_feature");
+            suppress.Add("non_std_cut_plan_feature");
+            suppress.Add("non_std_cut_feature");
 
             // Safety: if any logic added them to unsuppress, remove
             unsuppress.Remove("cut_feature");
             unsuppress.Remove("cut_plan_feature");
+            unsuppress.Remove("non_std_cut_plan_feature");
+            unsuppress.Remove("non_std_cut_feature");
 
-            Logger.Info($"[CobFeatureRules] Non-Overlay ({drawingType}) → force suppress: cut_feature, cut_plan_feature");
+            Logger.Info("[CobFeatureRules] Non-Overlay ({drawingType}) → force suppress: cut_feature, cut_plan_feature, non_std_cut_plan_feature"
+                .Replace("{drawingType}", drawingType.ToString()));
         }
 
         // --------------------------------------------
@@ -236,10 +243,33 @@ namespace WAD.Runner.ModelAutomation.Rules
             unsuppress.Add("cut_feature");
 
             bool vrPositive = IsDimPositive(wedge, "VR");
+            bool vwPositive = IsDimPositive(wedge, "VW");
             bool ra2Positive = IsDimPositive(wedge, "RA2");
             bool ra2hPositive = IsDimPositive(wedge, "RA2H");
             bool slbEnabled = ResolveOptionalEnabled(wedge, "SLB"); // VBL > 0
             bool isStd = shank == CobShankType.Std;
+
+            // If VR and VW are present, use non-std cut planning:
+            // suppress cut_feature and keep non_std_cut_plan_feature.
+            if (vrPositive && vwPositive)
+            {
+                suppress.Add("cut_feature");
+                unsuppress.Remove("cut_feature");
+
+                unsuppress.Add("non_std_cut_plan_feature");
+                unsuppress.Add("non_std_cut_feature");
+                suppress.Remove("non_std_cut_plan_feature");
+                suppress.Remove("non_std_cut_feature");
+
+                Logger.Info("[CobFeatureRules] Overlay rule: VR > 0 and VW > 0 → suppress cut_feature and unsuppress non_std_cut_plan_feature.");
+            }
+            else
+            {
+                suppress.Add("non_std_cut_plan_feature");
+                suppress.Add("non_std_cut_feature");
+                unsuppress.Remove("non_std_cut_plan_feature");
+                unsuppress.Remove("non_std_cut_feature");
+            }
 
             // LEFT overlay sketch:
             // if VR > 0 => suppress LEFT overlay sketch
