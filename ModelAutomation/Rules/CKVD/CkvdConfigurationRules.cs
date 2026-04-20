@@ -1,5 +1,5 @@
 ﻿// ModelAutomation/Rules/CKVD/CkvdConfigurationRules.cs
-using SolidWorks.Interop.swconst;
+using System.Collections.Generic;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
@@ -9,12 +9,19 @@ namespace WAD.Runner.ModelAutomation.Rules.CKVD
     /// Configuration rules for CKVD wedges.
     ///
     /// CKVD uses named configurations per subclass + drawing type combination.
-    /// Feature toggles are applied to the active (this) configuration only,
-    /// because each CKVD configuration is fully independent.
+    /// Feature toggles are normally applied to the active configuration only,
+    /// because each CKVD configuration is self-contained.
+    ///
+    /// If explicit toggle steps are supplied, they take precedence and toggles
+    /// are applied only to those exact configurations.
     /// </summary>
     public sealed class CkvdConfigurationRules : IModelConfigurationRules
     {
-        public ConfigurationPlan Resolve(WedgeSubclass subclass, DrawingType drawingType, WedgeData? wedge)
+        public ConfigurationPlan Resolve(
+            WedgeSubclass subclass,
+            DrawingType drawingType,
+            WedgeData? wedge,
+            IReadOnlyList<FeatureToggleStep>? explicitToggleSteps = null)
         {
             string config = subclass switch
             {
@@ -27,10 +34,14 @@ namespace WAD.Runner.ModelAutomation.Rules.CKVD
                 _ => "FG_PRODUCTION_DRAWING"
             };
 
-            Logger.Info($"[CkvdConfigRules] subclass={subclass}, drawingType={drawingType} → config={config} / ThisConfiguration");
+            if (ConfigurationPlanFactory.HasExplicitSteps(explicitToggleSteps))
+            {
+                Logger.Info($"[CkvdConfigRules] subclass={subclass}, drawingType={drawingType} → config={config} / ExplicitSteps");
+                return ConfigurationPlanFactory.ForExplicit(config, explicitToggleSteps);
+            }
 
-            // CKVD applies toggles to the active config only — each config is self-contained.
-            return new ConfigurationPlan(config, swInConfigurationOpts_e.swThisConfiguration);
+            Logger.Info($"[CkvdConfigRules] subclass={subclass}, drawingType={drawingType} → config={config} / ActiveConfiguration");
+            return ConfigurationPlanFactory.ForActive(config);
         }
     }
 }

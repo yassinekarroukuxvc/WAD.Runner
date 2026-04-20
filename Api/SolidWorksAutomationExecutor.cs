@@ -23,6 +23,7 @@ using WAD.Runner.Solidworks.Adapters;
 using WAD.Runner.ModelAutomation.Common;
 using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.SolidWorks;
+using WAD.Runner.DrawingAutomation.Executors;
 
 namespace WAD.Runner.Api;
 
@@ -310,18 +311,18 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             {
                                 case DrawingType.Customer:
                                     _logger.LogInformation("Job {JobId}: PGB Customer → FG Customer executor (temporary).", job.Id);
-                                    PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                    ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                     break;
 
                                 case DrawingType.Overlay:
                                     _logger.LogInformation("Job {JobId}: PGB Overlay → PGB Overlay executor.", job.Id);
-                                    PgbOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                    OverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                     break;
 
                                 case DrawingType.Production:
                                 default:
                                     _logger.LogInformation("Job {JobId}: PGB Production → PGB Production executor.", job.Id);
-                                    PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                    ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                     break;
                             }
                             break;
@@ -332,18 +333,18 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             {
                                 case DrawingType.Customer:
                                     _logger.LogInformation("Job {JobId}: FG Customer → FG Customer executor.", job.Id);
-                                    FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                    ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                     break;
 
                                 case DrawingType.Overlay:
                                     _logger.LogInformation("Job {JobId}: FG Overlay → FG Overlay executor.", job.Id);
-                                    FgOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                    OverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                     break;
 
                                 case DrawingType.Production:
                                 default:
                                     _logger.LogInformation("Job {JobId}: FG Production → FG Production executor.", job.Id);
-                                    FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                    ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                     break;
                             }
                             break;

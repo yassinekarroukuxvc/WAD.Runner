@@ -39,6 +39,7 @@ using WAD.Runner.PartAutomation.Jobs;
 // Drawing Automation
 using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Executors.FG;
+using WAD.Runner.DrawingAutomation.Executors;
 using WAD.Runner.DrawingAutomation.Executors.PGB;
 using WAD.Runner.DrawingAutomation.Common;
 using WAD.Runner.DrawingAutomation.Views;
@@ -629,18 +630,18 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Customer → using FG Customer executor (temporary).");
-                                PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
 
                             case DrawingType.Overlay:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Overlay → using PGB Overlay drawing executor…");
-                                PgbOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                OverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Production → using PGB Production drawing executor…");
-                                PgbProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
                         }
                         break;
@@ -651,18 +652,18 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Customer → using FG Customer drawing executor…");
-                                FgCustomerDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
 
                             case DrawingType.Overlay:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Overlay → using FG Overlay drawing executor…");
-                                FgOverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                OverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
                                 break;
 
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Production → using FG Production drawing executor…");
-                                FgProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
                         }
                         break;

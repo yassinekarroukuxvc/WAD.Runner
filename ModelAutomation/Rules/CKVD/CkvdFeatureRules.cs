@@ -15,9 +15,14 @@ namespace WAD.Runner.ModelAutomation.Rules
 {
     public sealed class CkvdFeatureRules : IFeatureRuleSet
     {
-        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
+        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+            var drawingType = context.DrawingType;
+            var subclass = context.Subclass;
+            var targetConfigurationName = context.TargetConfigurationName;
+            var featureRuleProfile = context.FeatureRuleProfile;
 
             var suppress = new List<string>();
             var unsuppress = new List<string>();
@@ -49,9 +54,6 @@ namespace WAD.Runner.ModelAutomation.Rules
 
             // 2.2) Overlay VW/W toggle (FG_Wed_W vs FG_Wed_VW)
             ApplyOverlayVwWTogglePlan(wedge, drawingType == DrawingType.Overlay, suppress, unsuppress);
-
-            // 2.3) Dimension writes from old rules: log-only here
-            LogVrMinMaxAndVwTolIfPossible(wedge);
 
             return new ModelRuleRunner.FeaturePlan(suppress, unsuppress);
         }
@@ -125,39 +127,6 @@ namespace WAD.Runner.ModelAutomation.Rules
                 Logger.Info("[CkvdFeatureRules] VW≠W → enable W sketch, disable VW sketch");
                 unsuppress.Add(sketchW);
                 suppress.Add(sketchVW);
-            }
-        }
-
-        // ============================================================
-        // Old dimension writes (VR_MIN/VR_MAX, VW tolerances): log-only
-        // ============================================================
-        private static void LogVrMinMaxAndVwTolIfPossible(WedgeData wedge)
-        {
-            // VR_MIN/VR_MAX
-            if (TryGetDim(wedge, "VR", out var vr) && vr.Nominal.IsMm)
-            {
-                var vr_m = (double)vr.Nominal.AsMm() / 1000.0;
-                var lo_m = (double)vr.Tol.Lower.AsMm() / 1000.0;
-                var up_m = (double)vr.Tol.Upper.AsMm() / 1000.0;
-
-                Logger.Info($"[CkvdFeatureRules] (log-only) VR_MIN/VR_MAX targets: VR_m={vr_m:F6}, LO_m={lo_m:F6}, UP_m={up_m:F6} → MIN={vr_m - lo_m:F6}, MAX={vr_m + up_m:F6}");
-            }
-            else
-            {
-                Logger.Blue("[CkvdFeatureRules] (log-only) VR not available/mm → skip VR_MIN/VR_MAX computation.");
-            }
-
-            // VW_LTOL/VW_UTOL
-            if (TryGetDim(wedge, "VW", out var vw) && vw.Tol.Lower.IsMm && vw.Tol.Upper.IsMm)
-            {
-                var lt_m = (double)vw.Tol.Lower.AsMm() / 1000.0;
-                var ut_m = (double)vw.Tol.Upper.AsMm() / 1000.0;
-
-                Logger.Info($"[CkvdFeatureRules] (log-only) VW_LTOL/VW_UTOL targets: LTOL={lt_m:F6} m, UTOL={ut_m:F6} m");
-            }
-            else
-            {
-                Logger.Blue("[CkvdFeatureRules] (log-only) VW tolerance not available/mm → skip VW_LTOL/VW_UTOL computation.");
             }
         }
 

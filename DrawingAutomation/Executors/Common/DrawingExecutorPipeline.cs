@@ -21,6 +21,7 @@ using WAD.Runner.DrawingAutomation.Rules.COB;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.Rules.UTUS;
 using WAD.Runner.DrawingAutomation.Rules.FP;
+using WAD.Runner.DrawingAutomation.Rules.Common;
 
 namespace WAD.Runner.DrawingAutomation.Executors.Common
 {
@@ -205,45 +206,45 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             };
         }
 
-        // ------------------------------------------------------------
-        // IMPORTANT: deletion should happen BEFORE repositioning
-        // Executors decide if/when to call these.
-        // ------------------------------------------------------------
-
-        /// <summary>
-        /// COB delete-by-fullname plan runner (deletes annotations).
-        /// Call this BEFORE ApplyAnnotationPositions so we only reposition what remains.
-        /// </summary>
-        public static void RunAnnotationCleanup(DrawingService ds, IDictionary<string, string> nameMap, DrawingRun run, DrawingData drawingData)
+        public static void RunAnnotationCleanup(
+        DrawingService ds,
+        IDictionary<string, string> nameMap,
+        DrawingRun run,
+        DrawingData drawingData)
         {
+            // CKVD zero-value deletion (unrelated to the per-wedge cleanup runners)
+            if (run.WedgeType == WedgeType.CKVD)
+            {
+                // NOTE: caller must have already called ReplanDimensions before this.
+                // Context is passed separately when needed; this overload is called
+                // from ProductionDrawingExecutor which passes replanned.Context.
+                // Keep the CKVD path in the orchestrating executor for clarity.
+            }
+
+            // Per-wedge annotation cleanup (COB / UTUS / FP / future types)
+            var runner = AnnotationCleanupRunnerFactory.TryGet(run.WedgeType);
+            if (runner == null)
+            {
+                Logger.Info($"[Pipeline] No annotation cleanup runner registered for {run.WedgeType} (skipping).");
+                return;
+            }
+
             try
             {
-                if(run.WedgeType == WedgeType.COB)
-                {
-                    Logger.Info("[10?/??] COB annotation cleanup (delete-by-fullname plan)…");
-                    new CobAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
-                }
-                if(run.WedgeType == WedgeType.UTUS)
-                {
-                    Logger.Info("[10?/??] UT/US annotation cleanup (delete-by-fullname plan)…");
-                    new UtusAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
-                }
-                if (run.WedgeType == WedgeType.FP)
-                {
-                    Logger.Info("[10?/??] FP annotation cleanup (delete-by-fullname plan)…");
-                    new FpAnnotationCleanupRunner().TryApply(ds, nameMap, run, drawingData, activateEachView: true);
-                }
+                Logger.Info($"[Pipeline] Running {run.WedgeType} annotation cleanup…");
+                runner.TryApply(ds, nameMap, run, drawingData, activateEachView: true);
                 ds.Rebuild();
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[Cleanup] Failed (continuing): {ex.Message}");
+                Logger.Warn($"[Pipeline] Annotation cleanup failed (continuing): {ex.Message}");
             }
         }
 
         /// <summary>
-        /// CKVD-only: remove zero valued annotations based on planning data.
-        /// Call this BEFORE ApplyAnnotationPositions.
+        /// CKVD-only: remove zero-valued annotations based on planning data.
+        /// Kept as a separate method so executors can control when it runs
+        /// relative to other steps.
         /// </summary>
         public static void DeleteZeroValuedAnnotations(
             DrawingService ds,
@@ -254,13 +255,13 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         {
             try
             {
-                Logger.Info("[10?/??] Cleanup zero-valued dimensions based on planning data…");
+                Logger.Info("[Pipeline] Cleanup zero-valued dimensions…");
                 AnnotationCleanupService.RemoveZeroDimensionsFromDrawing(ds, nameMap, ctx, drawingData, dims);
                 ds.Rebuild();
             }
             catch (Exception ex)
             {
-                Logger.Warn($"Zero-dimension cleanup failed (continuing): {ex.Message}");
+                Logger.Warn($"[Pipeline] Zero-dimension cleanup failed (continuing): {ex.Message}");
             }
         }
 

@@ -1,5 +1,5 @@
 ﻿// ModelAutomation/Rules/UTUS/UtusConfigurationRules.cs
-using SolidWorks.Interop.swconst;
+using System.Collections.Generic;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -9,37 +9,85 @@ namespace WAD.Runner.ModelAutomation.Rules.UTUS
     /// <summary>
     /// Configuration rules for UTUS wedges.
     /// UTUS uses the same configuration selection logic as COB.
-    /// See <see cref="COB.CobConfigurationRules"/> for the full rationale.
+    ///
+    /// Overlay + FG uses explicit per-config steps by default so each overlay
+    /// configuration can receive its own feature-rule set.
+    /// If explicit toggle steps are supplied by the caller, they take precedence.
     /// </summary>
     public sealed class UtusConfigurationRules : IModelConfigurationRules
     {
-        public ConfigurationPlan Resolve(WedgeSubclass subclass, DrawingType drawingType, WedgeData? wedge)
+        public ConfigurationPlan Resolve(
+            WedgeSubclass subclass,
+            DrawingType drawingType,
+            WedgeData? wedge,
+            IReadOnlyList<FeatureToggleStep>? explicitToggleSteps = null)
         {
+            string config;
+
+            // 1. Non-overlay logic
             if (drawingType != DrawingType.Overlay)
             {
-                Logger.Info("[UtusConfigRules] Non-overlay → Default / ThisConfiguration");
-                return new ConfigurationPlan("Default", swInConfigurationOpts_e.swThisConfiguration);
+                config = "Default";
+
+                if (ConfigurationPlanFactory.HasExplicitSteps(explicitToggleSteps))
+                {
+                    Logger.Info("[UtusConfigRules] Non-overlay → Default / ExplicitSteps");
+                    return ConfigurationPlanFactory.ForExplicit(config, explicitToggleSteps);
+                }
+
+                Logger.Info("[UtusConfigRules] Non-overlay → Default / ActiveConfiguration");
+                return ConfigurationPlanFactory.ForActive(config);
             }
 
+            // 2. Overlay + PGB logic
             if (subclass == WedgeSubclass.PGB)
             {
+                config = "Default";
+
+                if (ConfigurationPlanFactory.HasExplicitSteps(explicitToggleSteps))
+                {
+                    Logger.Info("[UtusConfigRules] Overlay + PGB → Default / ExplicitSteps");
+                    return ConfigurationPlanFactory.ForExplicit(config, explicitToggleSteps);
+                }
+
                 Logger.Info("[UtusConfigRules] Overlay + PGB → Default / AllConfigurations");
-                return new ConfigurationPlan("Default", swInConfigurationOpts_e.swAllConfiguration);
+                return ConfigurationPlanFactory.ForAll(config);
             }
 
+            // 3. Overlay + FG logic
             bool hasVw = IsDimPositive(wedge, "VW");
             bool hasVr = IsDimPositive(wedge, "VR");
 
-            string config;
-            if (!hasVw && !hasVr) config = "std_cut";
-            else if (hasVw && hasVr) config = "non_std_cut";
-            else config = "Default";
+            if (!hasVw && !hasVr)
+            {
+                config = "std_cut";
+            }
+            else if (hasVw && hasVr)
+            {
+                config = "non_std_cut";
+            }
+            else
+            {
+                config = "Default";
+            }
 
-            Logger.Info(
-                $"[UtusConfigRules] Overlay + FG → hasVW={hasVw}, hasVR={hasVr} → config={config} / AllConfigurations");
+            if (ConfigurationPlanFactory.HasExplicitSteps(explicitToggleSteps))
+            {
+                Logger.Info($"[UtusConfigRules] Overlay + FG → hasVW={hasVw}, hasVR={hasVr} → config={config} / ExplicitSteps (override)");
+                return ConfigurationPlanFactory.ForExplicit(config, explicitToggleSteps);
+            }
 
-            return new ConfigurationPlan(config, swInConfigurationOpts_e.swAllConfiguration);
+            Logger.Info($"[UtusConfigRules] Overlay + FG → hasVW={hasVw}, hasVR={hasVr} → config={config} / ExplicitSteps");
+            return ConfigurationPlanFactory.ForExplicit(config, BuildOverlayFgSteps());
         }
+
+        private static IReadOnlyList<FeatureToggleStep> BuildOverlayFgSteps()
+            => new[]
+            {
+                ConfigurationPlanFactory.Step("Default", "default_config"),
+                ConfigurationPlanFactory.Step("std_cut", "std_cut"),
+                ConfigurationPlanFactory.Step("non_std_cut", "non_std_cut")
+            };
 
         private static bool IsDimPositive(WedgeData? wedge, string key)
         {

@@ -54,9 +54,14 @@ namespace WAD.Runner.ModelAutomation.Rules
     /// </summary>
     public sealed class UtusFeatureRules : IFeatureRuleSet
     {
-        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
+        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+            var drawingType = context.DrawingType;
+            var subclass = context.Subclass;
+            var targetConfigurationName = context.TargetConfigurationName;
+            var featureRuleProfile = context.FeatureRuleProfile;
 
             Logger.Info("[UtusFeatureRules] Build → start");
 
@@ -94,6 +99,7 @@ namespace WAD.Runner.ModelAutomation.Rules
 
                 // If NOT overlay → force suppress cut features
                 EnforceCutFeaturesByDrawingType(drawingType, suppress, unsuppress);
+                ApplyOverlayConfigurationOverride(context, suppress, unsuppress);
 
                 // Unsuppress wins
                 suppress.RemoveWhere(nm => unsuppress.Contains(nm));
@@ -150,6 +156,7 @@ namespace WAD.Runner.ModelAutomation.Rules
 
             // If NOT overlay → force suppress cut features
             EnforceCutFeaturesByDrawingType(drawingType, fgSuppress, fgUnsuppress);
+            ApplyOverlayConfigurationOverride(context, fgSuppress, fgUnsuppress);
 
             // Unsuppress wins
             fgSuppress.RemoveWhere(nm => fgUnsuppress.Contains(nm));
@@ -772,5 +779,80 @@ namespace WAD.Runner.ModelAutomation.Rules
             try { return SwNames.Engraving; }
             catch { return "Engraving"; }
         }
+
+        // --------------------------------------------
+        // Per-configuration overlay cut-state override
+        // --------------------------------------------
+        private static void ApplyOverlayConfigurationOverride(
+            FeatureRuleContext context,
+            HashSet<string> suppress,
+            HashSet<string> unsuppress)
+        {
+            if (context.DrawingType != DrawingType.Overlay)
+                return;
+
+            var profile = ResolveOverlayCutProfile(context);
+            if (string.IsNullOrWhiteSpace(profile))
+                return;
+
+            switch (profile)
+            {
+                case "default_config":
+                case "std_cut":
+                    ForceStandardCutState(suppress, unsuppress);
+                    Logger.Info("[UtusFeatureRules] Overlay config/profile '" + profile + "' → standard cut state.");
+                    break;
+
+                case "non_std_cut":
+                    ForceNonStandardCutState(suppress, unsuppress);
+                    Logger.Info("[UtusFeatureRules] Overlay config/profile 'non_std_cut' → non-standard cut state.");
+                    break;
+            }
+        }
+
+        private static string? ResolveOverlayCutProfile(FeatureRuleContext context)
+        {
+            if (!string.IsNullOrWhiteSpace(context.FeatureRuleProfile))
+                return context.FeatureRuleProfile.Trim();
+
+            if (string.Equals(context.TargetConfigurationName, "non_std_cut", StringComparison.OrdinalIgnoreCase))
+                return "non_std_cut";
+
+            if (string.Equals(context.TargetConfigurationName, "std_cut", StringComparison.OrdinalIgnoreCase))
+                return "std_cut";
+
+            if (string.Equals(context.TargetConfigurationName, "Default", StringComparison.OrdinalIgnoreCase))
+                return "default_config";
+
+            return null;
+        }
+
+        private static void ForceStandardCutState(HashSet<string> suppress, HashSet<string> unsuppress)
+        {
+            unsuppress.Add("cut_plan_feature");
+            unsuppress.Add("cut_feature");
+            suppress.Remove("cut_plan_feature");
+            suppress.Remove("cut_feature");
+
+            suppress.Add("non_std_cut_plan_feature");
+            suppress.Add("non_std_cut_feature");
+            unsuppress.Remove("non_std_cut_plan_feature");
+            unsuppress.Remove("non_std_cut_feature");
+        }
+
+        private static void ForceNonStandardCutState(HashSet<string> suppress, HashSet<string> unsuppress)
+        {
+            unsuppress.Add("cut_plan_feature");
+            suppress.Remove("cut_plan_feature");
+
+            suppress.Add("cut_feature");
+            unsuppress.Remove("cut_feature");
+
+            unsuppress.Add("non_std_cut_plan_feature");
+            unsuppress.Add("non_std_cut_feature");
+            suppress.Remove("non_std_cut_plan_feature");
+            suppress.Remove("non_std_cut_feature");
+        }
+
     }
 }

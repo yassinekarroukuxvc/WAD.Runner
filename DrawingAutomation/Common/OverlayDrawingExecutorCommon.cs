@@ -241,10 +241,10 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         }
 
         public static void TryRepositionAllOverlayViews(
-            SldWorks swApp,
-            DrawingService ds,
-            DrawingRun run,
-            IDictionary<string, string> nameMap)
+    SldWorks swApp,
+    DrawingService ds,
+    DrawingRun run,
+    IDictionary<string, string> nameMap)
         {
             try
             {
@@ -255,13 +255,32 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 var isUtUs = run.WedgeType == WedgeType.UTUS;
                 var isFp = run.WedgeType == WedgeType.FP;
 
-                var refPointSketchName = isCkvd
+                var shankType = ResolveShankType(run.Wedge);
+                bool hasVw = HasPositiveDimension(run, "VW");
+                bool hasVr = HasPositiveDimension(run, "VR");
+
+                var baseRefPointSketchName = isCkvd
                     ? "ref_point_2"
                     : "ref_point_sketch";
-                var shank_type = ResolveShankType(run.Wedge);
-                if (shank_type == ShankType.Rev180)
+
+                if (shankType == ShankType.Rev180)
                 {
-                    refPointSketchName = "ref_point_180_DEG_REV_sketch";
+                    baseRefPointSketchName = "ref_point_180_DEG_REV_sketch";
+                }
+
+                // Non-CKVD:
+                // - Detail should use the non_std_cut reference point when VW>0 and VR>0
+                // - Section keeps the normal/base reference point
+                var detailRefPointSketchName = baseRefPointSketchName;
+                var sectionRefPointSketchName = baseRefPointSketchName;
+
+                if (!isCkvd && hasVw && hasVr)
+                {
+                    detailRefPointSketchName = "ref_point_non_std_cut_sketch";
+
+                    Logger.Info(
+                        "[Overlay] Non-CKVD with VW>0 and VR>0 detected → " +
+                        "Detail view will use 'ref_point_non_std_cut_sketch'.");
                 }
 
                 double detailYIn = 2.4;
@@ -269,8 +288,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
 
                 if (isCob || isUtUs || isFp)
                 {
-                    var shankType = ResolveShankType(run.Wedge);
-
                     if (shankType == ShankType.Rev180)
                     {
                         double tdfMm = GetDimMm(run, "TDF");
@@ -378,13 +395,14 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 }
 
                 Logger.Info(
-                    $"[Overlay] Reposition views using sketch '{refPointSketchName}' for wedge type '{run.WedgeType}'.");
+                    $"[Overlay] Reposition Detail using sketch '{detailRefPointSketchName}', " +
+                    $"Section using sketch '{sectionRefPointSketchName}', wedge type '{run.WedgeType}'.");
 
                 SecondaryViewPlacementService.RunMacroForViewIfAvailable(
                     swApp,
                     macroFile: overlayMacroPath,
                     logicalViewName: "Detail",
-                    sketchName: refPointSketchName,
+                    sketchName: detailRefPointSketchName,
                     xIn: 6.285,
                     yIn: 2.4,
                     logicalToActual: nameMap);
@@ -393,7 +411,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                     swApp,
                     macroFile: overlayMacroPath,
                     logicalViewName: "Section",
-                    sketchName: refPointSketchName,
+                    sketchName: sectionRefPointSketchName,
                     xIn: 3.19,
                     yIn: sectionYIn,
                     logicalToActual: nameMap);
@@ -404,7 +422,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                         swApp,
                         macroFile: overlayMacroPath,
                         logicalViewName: "Front",
-                        sketchName: refPointSketchName,
+                        sketchName: baseRefPointSketchName,
                         xIn: 0.4,
                         yIn: 0.3,
                         logicalToActual: nameMap);
@@ -413,7 +431,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                         swApp,
                         macroFile: overlayMacroPath,
                         logicalViewName: "Side",
-                        sketchName: refPointSketchName,
+                        sketchName: baseRefPointSketchName,
                         xIn: 3.19,
                         yIn: 0,
                         logicalToActual: nameMap);

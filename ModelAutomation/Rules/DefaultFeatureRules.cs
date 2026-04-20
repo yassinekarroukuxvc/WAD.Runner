@@ -18,9 +18,14 @@ namespace WAD.Runner.ModelAutomation.Rules
     /// </summary>
     public sealed class DefaultFeatureRules : IFeatureRuleSet
     {
-        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
+        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+            var drawingType = context.DrawingType;
+            var subclass = context.Subclass;
+            var targetConfigurationName = context.TargetConfigurationName;
+            var featureRuleProfile = context.FeatureRuleProfile;
 
             var suppress = new List<string>();
             var unsuppress = new List<string>();

@@ -20,9 +20,12 @@ namespace WAD.Runner.ModelAutomation.Rules
     {
         private const double Eps = 1e-6;
 
-        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
+        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+            var drawingType = context.DrawingType;
+            var subclass = context.Subclass;
 
             Logger.Info("[Osg7FeatureRules] Build → start");
             Logger.Info($"[Osg7FeatureRules] Subclass={wedge.Subclass}, DrawingType={drawingType}");
