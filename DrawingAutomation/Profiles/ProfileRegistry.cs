@@ -1,82 +1,71 @@
 ﻿using System;
 using System.Collections.Generic;
-using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Wedge;
 using static WAD.Runner.DrawingAutomation.Profiles.ProfilePresets;
 
 namespace WAD.Runner.DrawingAutomation.Profiles;
 
 public static class ProfileRegistry
 {
-    private static readonly Dictionary<DrawingProfileKey, DrawingProfile> _ckvdProfiles =
-        new(EqualityComparer<DrawingProfileKey>.Default)
+    private static readonly IReadOnlyDictionary<RegisteredDrawingProfileKey, DrawingProfile> Registry =
+        new Dictionary<RegisteredDrawingProfileKey, DrawingProfile>
         {
-            [new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production)] = FgProduction(),
-            [new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Customer)] = FgCustomer(),
-            [new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay)] = FgOverlay(),
+            [new(WedgeType.CKVD, WedgeSubclass.FG, DrawingType.Production)] = FgProduction(),
+            [new(WedgeType.CKVD, WedgeSubclass.FG, DrawingType.Customer)] = FgCustomer(),
+            [new(WedgeType.CKVD, WedgeSubclass.FG, DrawingType.Overlay)] = FgOverlay(),
+            [new(WedgeType.CKVD, WedgeSubclass.PGB, DrawingType.Production)] = PgbProduction(),
+            [new(WedgeType.CKVD, WedgeSubclass.PGB, DrawingType.Overlay)] = PgbOverlay(),
 
-            [new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Production)] = PgbProduction(),
-            [new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Overlay)] = PgbOverlay(),
+            [new(WedgeType.COB, WedgeSubclass.FG, DrawingType.Production)] = CobFgProduction(),
+            [new(WedgeType.COB, WedgeSubclass.FG, DrawingType.Customer)] = CobFgCustomer(),
+            [new(WedgeType.COB, WedgeSubclass.FG, DrawingType.Overlay)] = CobFgOverlay(),
+            [new(WedgeType.COB, WedgeSubclass.PGB, DrawingType.Production)] = CobPgbProduction(),
+            [new(WedgeType.COB, WedgeSubclass.PGB, DrawingType.Overlay)] = CobPgbOverlay(),
+
+            [new(WedgeType.UTUS, WedgeSubclass.FG, DrawingType.Production)] = UtusFgProduction(),
+            [new(WedgeType.UTUS, WedgeSubclass.FG, DrawingType.Customer)] = UtusFgCustomer(),
+            [new(WedgeType.UTUS, WedgeSubclass.FG, DrawingType.Overlay)] = UtusFgOverlay(),
+            [new(WedgeType.UTUS, WedgeSubclass.PGB, DrawingType.Production)] = UtusPgbProduction(),
+            [new(WedgeType.UTUS, WedgeSubclass.PGB, DrawingType.Overlay)] = UtusPgbOverlay(),
+
+            [new(WedgeType.FP, WedgeSubclass.FG, DrawingType.Production)] = FpFgProduction(),
+            [new(WedgeType.FP, WedgeSubclass.FG, DrawingType.Customer)] = FpFgCustomer(),
+            [new(WedgeType.FP, WedgeSubclass.FG, DrawingType.Overlay)] = FpFgOverlay(),
+            [new(WedgeType.FP, WedgeSubclass.PGB, DrawingType.Production)] = FpPgbProduction(),
+            [new(WedgeType.FP, WedgeSubclass.PGB, DrawingType.Overlay)] = FpPgbOverlay(),
+
+            [new(WedgeType.OSG7, WedgeSubclass.FG, DrawingType.Production)] = Osg7FgProduction(),
+            [new(WedgeType.OSG7, WedgeSubclass.FG, DrawingType.Customer)] = Osg7FgCustomer(),
+            [new(WedgeType.OSG7, WedgeSubclass.FG, DrawingType.Overlay)] = Osg7FgOverlay(),
+            [new(WedgeType.OSG7, WedgeSubclass.PGB, DrawingType.Production)] = Osg7PgbProduction(),
+            [new(WedgeType.OSG7, WedgeSubclass.PGB, DrawingType.Overlay)] = Osg7PgbOverlay(),
         };
 
-    public static DrawingProfile Get(WedgeSubclass subclass, DrawingType type)
-        => GetCkvd(subclass, type);
-
-    public static DrawingProfile GetCkvd(WedgeSubclass subclass, DrawingType type)
+    public static DrawingProfile Get(WedgeType wedgeType, WedgeSubclass subclass, DrawingType type)
     {
-        var key = new DrawingProfileKey(subclass, type);
-        if (_ckvdProfiles.TryGetValue(key, out var profile)) return profile;
-        throw new NotSupportedException($"No CKVD drawing profile registered for {subclass}/{type}.");
+        var key = new RegisteredDrawingProfileKey(wedgeType, subclass, type);
+        if (Registry.TryGetValue(key, out var profile))
+            return profile;
+
+        throw new NotSupportedException($"No drawing profile registered for {wedgeType}/{subclass}/{type}.");
     }
 
+    public static DrawingProfile Get(WedgeSubclass subclass, DrawingType type)
+        => Get(WedgeType.CKVD, subclass, type);
+
+    public static DrawingProfile GetCkvd(WedgeSubclass subclass, DrawingType type)
+        => Get(WedgeType.CKVD, subclass, type);
+
     public static DrawingProfile GetCob(WedgeSubclass subclass, DrawingType type)
-        => (subclass, type) switch
-        {
-            (WedgeSubclass.FG, DrawingType.Production) => CobFgProduction(),
-            (WedgeSubclass.FG, DrawingType.Customer) => CobFgCustomer(),
-            (WedgeSubclass.FG, DrawingType.Overlay) => CobFgOverlay(),
+        => Get(WedgeType.COB, subclass, type);
 
-            (WedgeSubclass.PGB, DrawingType.Production) => CobPgbProduction(),
-            (WedgeSubclass.PGB, DrawingType.Overlay) => CobPgbOverlay(),
-
-            _ => throw new NotSupportedException($"No COB drawing profile registered for {subclass}/{type}.")
-        };
     public static DrawingProfile GetUtus(WedgeSubclass subclass, DrawingType type)
-        => (subclass, type) switch
-        {
-            (WedgeSubclass.FG, DrawingType.Production) => UtusFgProduction(),
-            (WedgeSubclass.FG, DrawingType.Customer) => UtusFgCustomer(),
-            (WedgeSubclass.FG, DrawingType.Overlay) => UtusFgOverlay(),
-
-            (WedgeSubclass.PGB, DrawingType.Production) => UtusPgbProduction(),
-            (WedgeSubclass.PGB, DrawingType.Overlay) => UtusPgbOverlay(),
-
-            _ => throw new NotSupportedException($"No UTUS drawing profile registered for {subclass}/{type}.")
-        };
+        => Get(WedgeType.UTUS, subclass, type);
 
     public static DrawingProfile GetFp(WedgeSubclass subclass, DrawingType type)
-        => (subclass, type) switch
-        {
-            (WedgeSubclass.FG, DrawingType.Production) => FpFgProduction(),
-            (WedgeSubclass.FG, DrawingType.Customer) => FpFgCustomer(),
-            (WedgeSubclass.FG, DrawingType.Overlay) => FpFgOverlay(),
-
-            (WedgeSubclass.PGB, DrawingType.Production) => FpPgbProduction(),
-            (WedgeSubclass.PGB, DrawingType.Overlay) => FpPgbOverlay(),
-
-            _ => throw new NotSupportedException($"No FP drawing profile registered for {subclass}/{type}.")
-        };
+        => Get(WedgeType.FP, subclass, type);
 
     public static DrawingProfile GetOsg7(WedgeSubclass subclass, DrawingType type)
-        => (subclass, type) switch
-        {
-            (WedgeSubclass.FG, DrawingType.Production) => Osg7FgProduction(),
-            (WedgeSubclass.FG, DrawingType.Customer) => Osg7FgCustomer(),
-            (WedgeSubclass.FG, DrawingType.Overlay) => Osg7FgOverlay(),
-
-            (WedgeSubclass.PGB, DrawingType.Production) => Osg7PgbProduction(),
-            (WedgeSubclass.PGB, DrawingType.Overlay) => Osg7PgbOverlay(),
-
-            _ => throw new NotSupportedException($"No OSG7 drawing profile registered for {subclass}/{type}.")
-        };
+        => Get(WedgeType.OSG7, subclass, type);
 }

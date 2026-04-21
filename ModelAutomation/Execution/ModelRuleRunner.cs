@@ -1,12 +1,9 @@
-﻿// ModelAutomation/Execution/ModelRuleRunner.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
-
 using WAD.Runner.ModelAutomation.Rules;
 
 namespace WAD.Runner.ModelAutomation.Execution
@@ -50,28 +47,18 @@ namespace WAD.Runner.ModelAutomation.Execution
                 $"targetConfig={context.TargetConfigurationName}, " +
                 $"ruleProfile={context.FeatureRuleProfile ?? "(none)"}");
 
-            IFeatureRuleSet rules = wedgeType switch
-            {
-                WedgeType.CKVD => new CkvdFeatureRules(),
-                WedgeType.COB => new CobFeatureRules(),
-                WedgeType.UTUS => new UtusFeatureRules(),
-                WedgeType.FP => new FpFeatureRules(),
-                _ => new DefaultFeatureRules()
-            };
-
+            var rules = WedgeAutomationProfileRegistry.For(wedgeType).FeatureRules;
             var plan = rules.Build(wedge, context);
 
             var unsupSet = Normalize(plan.Unsuppress);
             var supSet = Normalize(plan.Suppress);
 
-            // If a name appears in both, unsuppress wins (safer).
             supSet.RemoveWhere(n => unsupSet.Contains(n));
 
             var unsup = unsupSet.OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
             var sup = supSet.OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
 
             Logger.Info($"[ModelRuleRunner] Plan → unsuppress={unsup.Count}, suppress={sup.Count}");
-
             return new FeaturePlan(sup, unsup);
         }
 

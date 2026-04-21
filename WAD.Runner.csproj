@@ -13,6 +13,7 @@
 
 	<ItemGroup>
 		<Folder Include="Application\Services\" />
+		<Folder Include="DrawingAutomation\Rules\CKVD\" />
 		<Folder Include="Resources\Out\FG\Production\" />
 		<Folder Include="Resources\Solidworks\" />
 	</ItemGroup>

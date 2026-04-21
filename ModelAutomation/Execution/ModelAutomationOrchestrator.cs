@@ -1,27 +1,18 @@
-﻿// ModelAutomation/Execution/ModelAutomationOrchestrator.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
-
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using WAD.Runner.DataManagement.Domain.Drawing;
-
 using WAD.Runner.ModelAutomation.Common;
-using WAD.Runner.ModelAutomation.SolidWorks;
 using WAD.Runner.ModelAutomation.Rules;
-using WAD.Runner.ModelAutomation.Rules.COB;
-using WAD.Runner.ModelAutomation.Rules.UTUS;
-using WAD.Runner.ModelAutomation.Rules.FP;
-using WAD.Runner.ModelAutomation.Rules.OSG7;
+using WAD.Runner.ModelAutomation.SolidWorks;
 using WAD.Runner.ModelAutomation.Tolerances;
 
 using DomainDimension = WAD.Runner.DataManagement.Domain.Dimensions.Dimension;
@@ -38,9 +29,8 @@ namespace WAD.Runner.ModelAutomation.Execution
     ///   6) Apply standard SW dimension tolerances
     ///   7) ONE rebuild, save, close
     ///
-    /// Configuration selection and toggle mode are fully delegated to
-    /// per-wedge-type <see cref="IModelConfigurationRules"/> implementations.
-    /// This class contains no wedge-specific configuration logic.
+    /// This version uses the centralized wedge profile registry so rule selection
+    /// lives in one place.
     /// </summary>
     public sealed class ModelAutomationOrchestrator
     {
@@ -54,12 +44,18 @@ namespace WAD.Runner.ModelAutomation.Execution
                 fallbackToAlternate: false);
         }
 
-        public async Task<string> RunAsync(ModelJobRequest job, SldWorks swApp, CancellationToken ct)
+        /// <summary>
+        /// Real synchronous execution path.
+        /// Keep this as the main implementation because the workflow is fully synchronous today.
+        /// </summary>
+        public string Run(ModelJobRequest job, SldWorks swApp, CancellationToken ct)
         {
             if (job is null) throw new ArgumentNullException(nameof(job));
             if (swApp is null) throw new ArgumentNullException(nameof(swApp));
 
             ct.ThrowIfCancellationRequested();
+
+            var profile = WedgeAutomationProfileRegistry.For(job.WedgeType);
 
             var plan = PathPlanner.Build(
                 article: (job.ArticleNumber ?? "UNKNOWN").Trim(),
@@ -67,34 +63,23 @@ namespace WAD.Runner.ModelAutomation.Execution
                 drawingType: job.DrawingType,
                 outputRoot: string.IsNullOrWhiteSpace(job.OutputRoot)
                     ? Path.Combine("Resources", "Out")
-                    : job.OutputRoot!,
+                    : job.OutputRoot,
                 fileBase: job.FileBase);
 
             var modPartPath = Path.GetFullPath(plan.PartPath);
             var equationsOutPath = Path.GetFullPath(plan.EquationsPath);
 
-            if (string.IsNullOrWhiteSpace(job.PartTemplatePath) || !File.Exists(job.PartTemplatePath))
-                throw new FileNotFoundException($"Part template not found: {job.PartTemplatePath}");
-
-            if (string.IsNullOrWhiteSpace(job.EquationTemplatePath) || !File.Exists(job.EquationTemplatePath))
-                throw new FileNotFoundException($"Equation template not found: {job.EquationTemplatePath}");
-
-            TemplatePreparer.CopyTemplate(job.PartTemplatePath!, modPartPath, overwrite: true);
-            TemplatePreparer.CopyTemplate(job.EquationTemplatePath!, equationsOutPath, overwrite: true);
-
-            var eqAttrs = File.GetAttributes(equationsOutPath);
-            if ((eqAttrs & FileAttributes.ReadOnly) != 0)
-            {
-                File.SetAttributes(equationsOutPath, eqAttrs & ~FileAttributes.ReadOnly);
-                Logger.Info($"[ModelOrchestrator] Cleared read-only on equations file: {equationsOutPath}");
-            }
+            ValidateInputFiles(job);
+            PrepareTemplates(job, modPartPath, equationsOutPath);
 
             using var editor = new ModelEditor(swApp);
             editor.OpenPart(modPartPath);
 
-            var basePlan = ConfigurationRulesFactory
-                .For(job.WedgeType)
-                .Resolve(job.Subclass, job.DrawingType, job.WedgeData, job.ToggleStepsOverride);
+            var basePlan = profile.ConfigurationRules.Resolve(
+                job.Subclass,
+                job.DrawingType,
+                job.WedgeData,
+                job.ToggleStepsOverride);
 
             var configPlan = ApplyJobOverrides(basePlan, job);
 
@@ -118,17 +103,8 @@ namespace WAD.Runner.ModelAutomation.Execution
 
             ApplyFeatureToggles(editor, wedge, job, configPlan);
 
-            IEquationInputNormalizer normalizer = job.WedgeType switch
-            {
-                WedgeType.OSG7 => new Osg7EquationInputNormalizer(),
-                WedgeType.COB => new CobEquationInputNormalizer(),
-                WedgeType.UTUS => new UtusEquationInputNormalizer(),
-                WedgeType.FP => new FpEquationInputNormalizer(),
-                _ => new NoOpEquationInputNormalizer()
-            };
-
             IReadOnlyDictionary<DimensionKey, DomainDimension> effectiveDims =
-                normalizer.Normalize(wedge, job.DrawingType);
+                profile.EquationNormalizer.Normalize(wedge, job.DrawingType);
 
             var tolPlan = _tolerancePlanner.Build(
                 wedgeType: job.WedgeType,
@@ -157,16 +133,43 @@ namespace WAD.Runner.ModelAutomation.Execution
             editor.Save();
             editor.Close();
 
-            await Task.CompletedTask;
             Logger.Success($"[ModelOrchestrator] Model automation complete → {modPartPath}");
             return modPartPath;
+        }
+
+        /// <summary>
+        /// Compatibility wrapper for existing callers.
+        /// </summary>
+        public Task<string> RunAsync(ModelJobRequest job, SldWorks swApp, CancellationToken ct)
+            => Task.FromResult(Run(job, swApp, ct));
+
+        private static void ValidateInputFiles(ModelJobRequest job)
+        {
+            if (string.IsNullOrWhiteSpace(job.PartTemplatePath) || !File.Exists(job.PartTemplatePath))
+                throw new FileNotFoundException($"Part template not found: {job.PartTemplatePath}");
+
+            if (string.IsNullOrWhiteSpace(job.EquationTemplatePath) || !File.Exists(job.EquationTemplatePath))
+                throw new FileNotFoundException($"Equation template not found: {job.EquationTemplatePath}");
+        }
+
+        private static void PrepareTemplates(ModelJobRequest job, string modPartPath, string equationsOutPath)
+        {
+            TemplatePreparer.CopyTemplate(job.PartTemplatePath, modPartPath, overwrite: true);
+            TemplatePreparer.CopyTemplate(job.EquationTemplatePath, equationsOutPath, overwrite: true);
+
+            var eqAttrs = File.GetAttributes(equationsOutPath);
+            if ((eqAttrs & FileAttributes.ReadOnly) != 0)
+            {
+                File.SetAttributes(equationsOutPath, eqAttrs & ~FileAttributes.ReadOnly);
+                Logger.Info($"[ModelOrchestrator] Cleared read-only on equations file: {equationsOutPath}");
+            }
         }
 
         private static ConfigurationPlan ApplyJobOverrides(ConfigurationPlan basePlan, ModelJobRequest job)
         {
             var finalConfiguration = string.IsNullOrWhiteSpace(job.FinalActiveConfigurationOverride)
                 ? basePlan.ConfigurationName
-                : job.FinalActiveConfigurationOverride!.Trim();
+                : job.FinalActiveConfigurationOverride.Trim();
 
             if (ConfigurationPlanFactory.HasExplicitSteps(job.ToggleStepsOverride))
                 return ConfigurationPlanFactory.ForExplicit(finalConfiguration, job.ToggleStepsOverride);

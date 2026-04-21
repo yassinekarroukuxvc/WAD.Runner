@@ -82,13 +82,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             if (run is null) throw new ArgumentNullException(nameof(run));
             if (drawingData is null) throw new ArgumentNullException(nameof(drawingData));
 
-            var profile = run.WedgeType switch
-            {
-                WedgeType.COB => ProfileRegistry.GetCob(run.Wedge.Subclass, drawingData.DrawingType),
-                WedgeType.OSG7 => ProfileRegistry.GetOsg7(run.Wedge.Subclass, drawingData.DrawingType),
-                WedgeType.UTUS => ProfileRegistry.GetUtus(run.Wedge.Subclass, drawingData.DrawingType),
-                _ => ProfileRegistry.GetCkvd(run.Wedge.Subclass, drawingData.DrawingType)
-            };
+            var profile = DrawingProfileResolver.Resolve(run, drawingData);
 
             Logger.Info("[Open] Open + relink overlay drawing…");
             var ds = DrawingExecutorCommon.InitializeAndRelink(swApp, run);

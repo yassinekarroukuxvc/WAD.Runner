@@ -15,7 +15,13 @@ public sealed class ModelJobRequest
     public string EquationTemplatePath { get; init; } = string.Empty;
     public string? FileBase { get; init; }
 
-    public WedgeData WedgeData { get; init; } = null!;
+    /// <summary>
+    /// Nullable on purpose.
+    /// The orchestrator already supports jobs that skip rule/dimension/tolerance work
+    /// when no wedge data is available.
+    /// </summary>
+    public WedgeData? WedgeData { get; init; }
+
     public WedgeType WedgeType { get; init; }
 
     /// <summary>
