@@ -2,10 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using WAD.Runner.Application;
-using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using WAD.Runner.ModelAutomation.Common;
 using WAD.Runner.ModelAutomation.Execution;
 
 namespace WAD.Runner.ModelAutomation.Rules.CobLike;
@@ -13,559 +11,308 @@ namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 /// <summary>
 /// Shared feature-toggle planning for COB-like wedges (COB / FP / UTUS).
 ///
-/// The common behavior lives here:
-/// - shank selection
-/// - foot-option planning
-/// - FG vs PGB split
-/// - overlay sketch planning
-/// - per-configuration cut-state override
+/// Strategy:
+/// 1. Build the exact active set for the current case
+/// 2. Suppress every other known model item
+/// 3. Let concrete rule sets add small wedge-specific adjustments
 ///
-/// Concrete classes stay small and only define the real differences.
+/// The names in this file are aligned to the corrected feature/sketch list
+/// provided for the current 3D model.
 /// </summary>
 public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 {
     protected abstract string LogPrefix { get; }
-    protected abstract string Pgb180RevConfigurationHint { get; }
 
     /// <summary>
-    /// COB uses VR+VW driven non-standard cut planning during overlay.
-    /// FP and UTUS keep the simpler overlay plan.
+    /// Hook for wedge-specific behavior.
+    ///
+    /// active:
+    ///   Add any names that must stay unsuppressed for the current wedge type.
+    ///
+    /// forceSuppress:
+    ///   Add any names that must always stay suppressed for the current wedge type,
+    ///   even if the base logic would otherwise activate them.
     /// </summary>
-    protected virtual bool SupportsOverlayNonStandardCutPlanning => false;
-
-    /// <summary>
-    /// COB also suppresses non-standard cut features when not in overlay.
-    /// FP and UTUS suppress only the standard cut features outside overlay.
-    /// </summary>
-    protected virtual bool SuppressNonStandardCutFeaturesOutsideOverlay => false;
+    protected virtual void ApplyVariantAdjustments(
+        CobLikeRuleFacts facts,
+        CobLikeShankType shank,
+        FeatureRuleContext context,
+        HashSet<string> active,
+        HashSet<string> forceSuppress)
+    {
+    }
 
     public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
     {
         if (wedge is null) throw new ArgumentNullException(nameof(wedge));
         if (context is null) throw new ArgumentNullException(nameof(context));
 
-        Logger.Info($"[{LogPrefix}] Build → start");
-
         var facts = new CobLikeRuleFacts(wedge);
         var shank = facts.ShankType;
 
+        Logger.Info($"[{LogPrefix}] Build -> start. Subclass={context.Subclass}, DrawingType={context.DrawingType}, Shank={shank}");
+
+        var active = NewNameSet();
+        var forceSuppress = NewNameSet();
+
+        AddTlSet(active);
+
         if (context.Subclass == WedgeSubclass.PGB)
-            return BuildPgbPlan(facts, shank, context);
+            BuildPgbPlan(shank, context, active);
+        else
+            BuildFgPlan(facts, shank, context, active);
 
-        return BuildFgPlan(facts, shank, context);
-    }
+        ApplyVariantAdjustments(facts, shank, context, active, forceSuppress);
+        ApplyOverlayConfigurationOverride(context, active);
 
-    private ModelRuleRunner.FeaturePlan BuildPgbPlan(
-        CobLikeRuleFacts facts,
-        CobLikeShankType shank,
-        FeatureRuleContext context)
-    {
-        Logger.Info($"[{LogPrefix}] Subclass=PGB → applying PGB shank-only rules. Shank={shank}");
+        var suppress = GetAllKnownNames();
+        suppress.ExceptWith(active);
+        suppress.UnionWith(forceSuppress);
+        suppress.ExceptWith(active); // unsuppress always wins
 
-        var suppress = NewNameSet();
-        var unsuppress = NewNameSet();
-
-        BuildPgbMandatoryPlan(shank, suppress, unsuppress);
-        ApplyVariantAdjustments(shank, suppress, unsuppress);
-
-        foreach (var nm in BuildNameCandidatesWithSketches("FRO", CobLikeShankType.Std))
-            suppress.Add(nm);
-
-        foreach (var nm in BuildNameCandidatesWithSketches("FRO", CobLikeShankType.Rev180))
-            suppress.Add(nm);
-
-        if (context.DrawingType == DrawingType.Overlay)
-        {
-            Logger.Info($"[{LogPrefix}] Subclass=PGB + Overlay → applying overlay template feature toggles.");
-            BuildOverlayPlan(facts, shank, suppress, unsuppress, leftOverlaySketch: "PGB_LEFT_overlay_sketch");
-            Logger.Info($"[{LogPrefix}] PGB Overlay rule → suppress FRO (STD + 180_DEG_REV).");
-        }
-
-        EnforceCutFeaturesByDrawingType(context.DrawingType, suppress, unsuppress);
-        ApplyOverlayConfigurationOverride(context, suppress, unsuppress);
-
-        return FinalizePlan(suppress, unsuppress, scope: "PGB");
-    }
-
-    private ModelRuleRunner.FeaturePlan BuildFgPlan(
-        CobLikeRuleFacts facts,
-        CobLikeShankType shank,
-        FeatureRuleContext context)
-    {
-        var suppress = NewNameSet();
-        var unsuppress = NewNameSet();
-        var foot = ResolveFootOption(facts);
-
-        unsuppress.Add("TL_feature");
-
-        if (context.DrawingType is DrawingType.Production or DrawingType.Customer)
-        {
-            var engraving = TryGetEngravingName();
-            if (!string.IsNullOrWhiteSpace(engraving))
-                unsuppress.Add(engraving);
-        }
-
-        if (context.DrawingType == DrawingType.Overlay)
-        {
-            Logger.Info($"[{LogPrefix}] Subclass=FG + Overlay → applying FG overlay template feature toggles.");
-
-            suppress.Add("PGB_LEFT_overlay_sketch");
-            unsuppress.Remove("PGB_LEFT_overlay_sketch");
-
-            unsuppress.Add("FG_LEFT_overlay_sketch");
-            suppress.Remove("FG_LEFT_overlay_sketch");
-
-            BuildOverlayPlan(facts, shank, suppress, unsuppress, leftOverlaySketch: "FG_LEFT_overlay_sketch");
-        }
-
-        Logger.Info($"[{LogPrefix}] Parsed → Subclass=FG, Shank={shank}, Foot={foot}");
-
-        BuildFeaturePlanAlignedWithSpec(facts, shank, foot, suppress, unsuppress);
-        ApplyVariantAdjustments(shank, suppress, unsuppress);
-
-        EnforceCutFeaturesByDrawingType(context.DrawingType, suppress, unsuppress);
-        ApplyOverlayConfigurationOverride(context, suppress, unsuppress);
-
-        return FinalizePlan(suppress, unsuppress, scope: "FG");
-    }
-
-    protected virtual void ApplyVariantAdjustments(
-        CobLikeShankType shank,
-        HashSet<string> suppress,
-        HashSet<string> unsuppress)
-    {
-    }
-
-    private ModelRuleRunner.FeaturePlan FinalizePlan(
-        HashSet<string> suppress,
-        HashSet<string> unsuppress,
-        string scope)
-    {
-        suppress.RemoveWhere(nm => unsuppress.Contains(nm));
-
-        Logger.Success($"[{LogPrefix}] Build({scope}) → done. unsuppress={unsuppress.Count}, suppress={suppress.Count}");
+        Logger.Success($"[{LogPrefix}] Build -> done. active={active.Count}, suppress={suppress.Count}");
 
         return new ModelRuleRunner.FeaturePlan(
             Suppress: suppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
-            Unsuppress: unsuppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray());
+            Unsuppress: active.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    private void BuildPgbPlan(
+        CobLikeShankType shank,
+        FeatureRuleContext context,
+        HashSet<string> active)
+    {
+        Logger.Info($"[{LogPrefix}] Applying PGB rules.");
+
+        AddPgbCoreShankSet(shank, active);
+
+        if (context.DrawingType == DrawingType.Overlay)
+            AddPgbOverlaySet(shank, active);
+    }
+
+    private void BuildFgPlan(
+        CobLikeRuleFacts facts,
+        CobLikeShankType shank,
+        FeatureRuleContext context,
+        HashSet<string> active)
+    {
+        var foot = ResolveFootOption(facts);
+
+        Logger.Info($"[{LogPrefix}] Applying FG rules. Foot={foot}");
+
+        AddFgCoreShankSet(shank, active);
+
+        if (facts.IsDimPositive("FRO"))
+            AddFeatureGroup(active, "FRO", shank);
+
+        if (facts.IsDimPositive("VBL"))
+            AddFeatureGroup(active, "SLB", shank);
+
+        if (facts.IsDimPositive("VW"))
+            AddFeatureGroup(active, "VW", shank);
+
+        if (facts.IsDimPositive("W2"))
+            AddFeatureGroup(active, "W2", shank);
+
+        if (facts.IsDimPositive("RA2"))
+            AddFeatureGroup(active, "RA2", shank);
+
+        AddFootOptionSet(active, foot, shank);
+
+        if (context.DrawingType == DrawingType.Overlay)
+            AddFgOverlaySet(facts, shank, active);
     }
 
     protected static HashSet<string> NewNameSet()
         => new(StringComparer.OrdinalIgnoreCase);
 
-    protected void EnforceCutFeaturesByDrawingType(
-    DrawingType drawingType,
-    HashSet<string> suppress,
-    HashSet<string> unsuppress)
+    private static void AddTlSet(HashSet<string> target)
     {
-        if (drawingType == DrawingType.Overlay)
-            return;
-
-        suppress.Add("cut_feature");
-        suppress.Add("cut_plan_feature");
-        suppress.Add("non_std_cut_feature");
-        suppress.Add("non_std_cut_plan_feature");
-
-        unsuppress.Remove("cut_feature");
-        unsuppress.Remove("cut_plan_feature");
-        unsuppress.Remove("non_std_cut_feature");
-        unsuppress.Remove("non_std_cut_plan_feature");
-
-        Logger.Info($"[{LogPrefix}] Non-Overlay ({drawingType}) → force suppress: cut_feature, cut_plan_feature, non_std_cut_feature, non_std_cut_plan_feature");
+        target.Add("TL_feature");
+        target.Add("TD_sketch");
     }
 
-    private void BuildPgbMandatoryPlan(
-        CobLikeShankType shank,
-        HashSet<string> suppress,
-        HashSet<string> unsuppress)
+    private static void AddPgbCoreShankSet(CobLikeShankType shank, HashSet<string> target)
     {
-        unsuppress.Add("TL_feature");
-        unsuppress.Add("part_axis");
-
-        var opposite = shank == CobLikeShankType.Std ? CobLikeShankType.Rev180 : CobLikeShankType.Std;
-
-        foreach (var nm in BuildNameCandidatesWithSketches("TDF", shank))
-            unsuppress.Add(nm);
-
-        foreach (var nm in BuildNameCandidatesWithSketches("ISA_20", shank))
-            unsuppress.Add(nm);
-
-        foreach (var nm in BuildNameCandidatesWithSketches("10BA", shank))
-            unsuppress.Add(nm);
-
-        unsuppress.Add(BuildAnnotationName("10BA", shank));
-
-        foreach (var nm in BuildNameCandidatesWithSketches("TDF", opposite))
-            suppress.Add(nm);
-
-        foreach (var nm in BuildNameCandidatesWithSketches("ISA_20", opposite))
-            suppress.Add(nm);
-
-        foreach (var nm in BuildNameCandidatesWithSketches("10BA", opposite))
-            suppress.Add(nm);
-
-        suppress.Add(BuildAnnotationName("10BA", opposite));
-
-        if (shank == CobLikeShankType.Rev180)
-            Logger.Info($"[{LogPrefix}] PGB 180_DEG_REV hint: configuration name expected = {Pgb180RevConfigurationHint}");
+        AddFeatureGroup(target, "TDF", shank);
+        AddFeatureGroup(target, "ISA_20", shank);
+        AddFeatureGroup(target, "10BA", shank);
     }
 
-    private void BuildOverlayPlan(
-        CobLikeRuleFacts facts,
-        CobLikeShankType shank,
-        HashSet<string> suppress,
-        HashSet<string> unsuppress,
-        string leftOverlaySketch)
+    private static void AddFgCoreShankSet(CobLikeShankType shank, HashSet<string> target)
     {
-        if (!Enum.IsDefined(typeof(CobLikeShankType), shank))
-            shank = CobLikeShankType.Std;
+        AddPgbCoreShankSet(shank, target);
+        AddFeatureGroup(target, "ERW", shank);
+        AddFeatureGroup(target, "H", shank);
+        AddFeatureGroup(target, "H_CUT", shank);
+        AddFeatureGroup(target, "H_FIX", shank);
+        AddFeatureGroup(target, "FUNNEL_FINAL_DIAMETRE", shank);
+        AddFeatureGroup(target, "COMBINE", shank);
+    }
 
-        unsuppress.Add("ref_point_sketch");
-        unsuppress.Add("cut_plan_feature");
-        unsuppress.Add("cut_feature");
+    private static void AddPgbOverlaySet(CobLikeShankType shank, HashSet<string> target)
+    {
+        target.Add("cut_feature");
+        target.Add("PGB_LEFT_overlay_sketch");
+        target.Add(GetOverlayFrontSketchName(shank));
+    }
 
-        bool vrPositive = facts.HasVr;
-        bool vwPositive = facts.HasVw;
-        bool ra2Positive = facts.IsDimPositive("RA2");
-        bool ra2hPositive = facts.HasRa2H;
-        bool slbEnabled = ResolveOptionalEnabled(facts, "SLB");
-        bool isStd = shank == CobLikeShankType.Std;
+    private static void AddFgOverlaySet(CobLikeRuleFacts facts, CobLikeShankType shank, HashSet<string> target)
+    {
+        target.Add("ref_point_sketch");
+        target.Add("ref_point_non_std_cut_sketch");
+        target.Add("ref_point_180_DEG_REV_sketch");
 
-        if (SupportsOverlayNonStandardCutPlanning)
+        if (facts.HasVr)
         {
-            if (vrPositive && vwPositive)
-            {
-                suppress.Add("cut_feature");
-                unsuppress.Remove("cut_feature");
-
-                unsuppress.Add("non_std_cut_plan_feature");
-                unsuppress.Add("non_std_cut_feature");
-                suppress.Remove("non_std_cut_plan_feature");
-                suppress.Remove("non_std_cut_feature");
-
-                Logger.Info($"[{LogPrefix}] Overlay rule: VR > 0 and VW > 0 → suppress cut_feature and unsuppress non_std_cut_plan_feature.");
-            }
-            else
-            {
-                suppress.Add("non_std_cut_plan_feature");
-                suppress.Add("non_std_cut_feature");
-                unsuppress.Remove("non_std_cut_plan_feature");
-                unsuppress.Remove("non_std_cut_feature");
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(leftOverlaySketch))
-        {
-            if (vrPositive)
-            {
-                suppress.Add(leftOverlaySketch);
-                unsuppress.Remove(leftOverlaySketch);
-
-                Logger.Info($"[{LogPrefix}] Overlay rule: VR > 0 → suppress '{leftOverlaySketch}'.");
-            }
-            else
-            {
-                unsuppress.Add(leftOverlaySketch);
-            }
-        }
-
-        const string StdFront = "PGB_STD_FRONT_overlay_sketch";
-        const string RevFront = "PGB_180_DEG_REV_FRONT_overlay_sketch";
-
-        if (isStd)
-        {
-            unsuppress.Add(StdFront);
-            suppress.Add(RevFront);
+            target.Add("non_std_cut_plan_feature");
+            target.Add("non_std_cut_feature");
         }
         else
         {
-            unsuppress.Add(RevFront);
-            suppress.Add(StdFront);
+            target.Add("cut_feature");
         }
 
-        if (ra2Positive)
+        if (!facts.HasVw)
         {
-            suppress.Add(StdFront);
-            unsuppress.Remove(StdFront);
-
-            Logger.Info($"[{LogPrefix}] Overlay rule: RA2 > 0 → suppress PGB_STD_FRONT_overlay_sketch.");
-        }
-
-        const string Ra2hStdFront = "RA2H_STD_FRONT_overlay_sketch";
-        const string Ra2hRevFront = "RA2H_180_DEG_REV_FRONT_overlay_sketch";
-
-        if (ra2hPositive)
-        {
-            if (isStd)
-            {
-                unsuppress.Add(Ra2hStdFront);
-                suppress.Add(Ra2hRevFront);
-            }
-            else
-            {
-                unsuppress.Add(Ra2hRevFront);
-                suppress.Add(Ra2hStdFront);
-            }
-
-            Logger.Info($"[{LogPrefix}] Overlay rule: RA2H > 0 → unsuppress {(isStd ? Ra2hStdFront : Ra2hRevFront)}.");
+            target.Add("FG_LEFT_overlay_sketch");
         }
         else
         {
-            suppress.Add(Ra2hStdFront);
-            suppress.Add(Ra2hRevFront);
-        }
-
-        const string VwLeftCase1 = "VW_LEFT_case_1_overlay_sketch";
-        const string VwLeftCase2 = "VW_LEFT_case_2_overlay_sketch";
-
-        if (vrPositive)
-        {
-            bool vwEqualsW = facts.AreNominalsEqual("VW", "W");
-
-            if (vwEqualsW)
-            {
-                unsuppress.Add(VwLeftCase2);
-                suppress.Add(VwLeftCase1);
-                Logger.Info($"[{LogPrefix}] Overlay rule: VR > 0 and VW == W → unsuppress VW_LEFT_case_2_overlay_sketch.");
-            }
+            if (facts.AreNominalsEqual("VW", "W"))
+                target.Add("VW_LEFT_case_2_overlay_sketch");
             else
-            {
-                unsuppress.Add(VwLeftCase1);
-                suppress.Add(VwLeftCase2);
-                Logger.Info($"[{LogPrefix}] Overlay rule: VR > 0 and VW != W → unsuppress VW_LEFT_case_1_overlay_sketch.");
-            }
+                target.Add("VW_LEFT_case_1_overlay_sketch");
         }
+
+        if (facts.HasRa2H)
+            target.Add(GetRa2HOverlaySketchName(shank));
         else
+            target.Add(GetOverlayFrontSketchName(shank));
+
+        if (facts.IsDimPositive("VBL"))
+            target.Add(GetSlbOverlaySketchName(shank));
+    }
+
+    protected static void AddFootOptionSet(HashSet<string> target, CobLikeFootOption foot, CobLikeShankType shank)
+    {
+        switch (foot)
         {
-            suppress.Add(VwLeftCase1);
-            suppress.Add(VwLeftCase2);
-        }
+            case CobLikeFootOption.C:
+                AddFeatureGroup(target, "C", shank);
+                AddFeatureGroup(target, "BR_C", shank);
+                AddFeatureGroup(target, "FR_C", shank);
+                break;
 
-        const string SlbStdOverlay = "SLB_STD_overlay_sketch";
-        const string SlbRevOverlay = "SLB_180_DEG_REV_overlay_sketch";
+            case CobLikeFootOption.G:
+                AddFeatureGroup(target, "G", shank);
+                AddFeatureGroup(target, "BR_G", shank);
+                AddFeatureGroup(target, "FR_G", shank);
+                break;
 
-        if (slbEnabled)
-        {
-            if (isStd)
-            {
-                unsuppress.Add(SlbStdOverlay);
-                suppress.Add(SlbRevOverlay);
+            case CobLikeFootOption.VG:
+                AddFeatureGroup(target, "VG", shank);
+                AddFeatureGroup(target, "BR_VG", shank);
+                AddFeatureGroup(target, "FR_VG", shank);
+                break;
 
-                suppress.Add(StdFront);
-                unsuppress.Remove(StdFront);
+            case CobLikeFootOption.CC:
+                AddFeatureGroup(target, "C", shank);
+                AddFeatureGroup(target, "CG", shank);
+                AddFeatureGroup(target, "BR_C", shank);
+                AddFeatureGroup(target, "FR_C", shank);
+                break;
 
-                foreach (var nm in BuildNameCandidatesWithSketches("10BA", CobLikeShankType.Std))
-                {
-                    suppress.Add(nm);
-                    unsuppress.Remove(nm);
-                }
-            }
-            else
-            {
-                unsuppress.Add(SlbRevOverlay);
-                suppress.Add(SlbStdOverlay);
-
-                suppress.Add(RevFront);
-                unsuppress.Remove(RevFront);
-
-                foreach (var nm in BuildNameCandidatesWithSketches("10BA", CobLikeShankType.Rev180))
-                {
-                    suppress.Add(nm);
-                    unsuppress.Remove(nm);
-                }
-            }
-
-            Logger.Info($"[{LogPrefix}] Overlay rule: SLB enabled → unsuppress {(isStd ? SlbStdOverlay : SlbRevOverlay)}, suppress matching front overlay sketch and 10BA.");
-        }
-        else
-        {
-            suppress.Add(SlbStdOverlay);
-            suppress.Add(SlbRevOverlay);
+            case CobLikeFootOption.C_WithCbr:
+                AddFeatureGroup(target, "C", shank);
+                AddFeatureGroup(target, "CBRA", shank);
+                AddFeatureGroup(target, "FR_C", shank);
+                break;
         }
     }
 
-    protected static string BuildAnnotationName(string baseName, CobLikeShankType shank)
-        => $"{baseName}_{BuildSuffix(shank)}_annotation";
-
-    private void BuildFeaturePlanAlignedWithSpec(
-        CobLikeRuleFacts facts,
-        CobLikeShankType shank,
-        CobLikeFootOption foot,
-        HashSet<string> suppress,
-        HashSet<string> unsuppress)
+    protected static void AddFeatureGroup(HashSet<string> target, string baseName, CobLikeShankType shank)
     {
-        var mandatoryBases = new[]
-        {
-            "TDF",
-            "ISA_20",
-            "10BA",
-            "FRO",
-            "ERW",
-            "funnel_final_diametre",
-            "ROUND_BR",
-            "COMBINE",
-        };
-
-        var optionalBases = new[] { "SLB", "VW", "W2", "RA2" };
-
-        var footAndFilletBasesAll = new[]
-        {
-            "C", "G", "VG", "CG", "CBRA",
-            "BR_C", "FR_C",
-            "BR_G", "FR_G",
-            "BR_VG", "FR_VG"
-        };
-
-        bool baIsZero = IsDimZero(facts, "BA");
-        if (baIsZero)
-            Logger.Info($"[{LogPrefix}] Business rule triggered: BA == 0 → suppress 10BA (STD + 180_DEG_REV) and force-enable SLB.");
-
-        var opposite = shank == CobLikeShankType.Std ? CobLikeShankType.Rev180 : CobLikeShankType.Std;
-
-        foreach (var b in mandatoryBases)
-            foreach (var nm in BuildNameCandidatesWithSketches(b, opposite))
-                suppress.Add(nm);
-
-        foreach (var b in footAndFilletBasesAll)
-            foreach (var nm in BuildNameCandidatesWithSketches(b, opposite))
-                suppress.Add(nm);
-
-        foreach (var b in optionalBases)
-            foreach (var nm in BuildNameCandidatesWithSketches(b, opposite))
-                suppress.Add(nm);
-
-        foreach (var nm in BuildHMandatoryCandidates(opposite))
-            suppress.Add(nm);
-
-        foreach (var b in mandatoryBases)
-            foreach (var nm in BuildNameCandidatesWithSketches(b, shank))
-                unsuppress.Add(nm);
-
-        foreach (var nm in BuildHMandatoryCandidates(shank))
-            unsuppress.Add(nm);
-
-        foreach (var nm in ExpandForShank(footAndFilletBasesAll, shank))
-            suppress.Add(nm);
-
-        foreach (var nm in ExpandFootForShank(foot, shank))
-            unsuppress.Add(nm);
-
-        if (baIsZero)
-        {
-            foreach (var nm in BuildNameCandidatesWithSketches("10BA", CobLikeShankType.Std))
-                suppress.Add(nm);
-
-            foreach (var nm in BuildNameCandidatesWithSketches("10BA", CobLikeShankType.Rev180))
-                suppress.Add(nm);
-
-            unsuppress.RemoveWhere(nm => nm.StartsWith("10BA_", StringComparison.OrdinalIgnoreCase));
-        }
-
-        foreach (var opt in optionalBases)
-        {
-            bool enabled = ResolveOptionalEnabled(facts, opt);
-
-            if (baIsZero && opt.Equals("SLB", StringComparison.OrdinalIgnoreCase))
-                enabled = true;
-
-            Logger.Info($"[{LogPrefix}] Optional '{opt}' enabled={enabled}");
-
-            foreach (var nm in BuildNameCandidatesWithSketches(opt, shank))
-            {
-                if (enabled) unsuppress.Add(nm);
-                else suppress.Add(nm);
-            }
-        }
+        foreach (var name in BuildNameCandidates(baseName, shank))
+            target.Add(name);
     }
 
-    protected static IEnumerable<string> ExpandForShank(IEnumerable<string> bases, CobLikeShankType shank)
+    protected static IEnumerable<string> BuildNameCandidates(string baseName, CobLikeShankType shank)
     {
-        foreach (var b in bases)
-            foreach (var nm in BuildNameCandidatesWithSketches(b, shank))
-                yield return nm;
-    }
-
-    protected static IEnumerable<string> ExpandFootForShank(CobLikeFootOption foot, CobLikeShankType shank)
-    {
-        return foot switch
-        {
-            CobLikeFootOption.C => ExpandForShank(new[] { "C", "BR_C", "FR_C" }, shank),
-            CobLikeFootOption.G => ExpandForShank(new[] { "G", "BR_G", "FR_G" }, shank),
-            CobLikeFootOption.VG => ExpandForShank(new[] { "VG", "BR_VG", "FR_VG" }, shank),
-            CobLikeFootOption.CC => ExpandForShank(new[] { "C", "CG", "BR_C", "FR_C" }, shank),
-            CobLikeFootOption.C_WithCbr => ExpandForShank(new[] { "C", "CBRA", "FR_C" }, shank),
-            _ => Array.Empty<string>()
-        };
-    }
-
-    protected static string BuildSuffix(CobLikeShankType shank)
-        => shank == CobLikeShankType.Std ? "STD" : "180_DEG_REV";
-
-    protected static string BuildFeatureName(string baseName, CobLikeShankType shank)
-        => $"{baseName}_{BuildSuffix(shank)}_feature";
-
-    protected static IEnumerable<string> BuildNameCandidatesWithSketches(string baseName, CobLikeShankType shank)
-    {
-        yield return BuildFeatureName(baseName, shank);
-
-        var suffix = BuildSuffix(shank);
-        yield return $"{baseName}_{suffix}_sketch";
-        yield return $"{baseName}_{suffix}_Sketch";
-        yield return $"{baseName}_{suffix}_SKETCH";
-
         if (baseName.Equals("FRO", StringComparison.OrdinalIgnoreCase))
         {
-            yield return $"FRO_{suffix}_feature_1";
-            yield return $"FRO_{suffix}_feature_2";
+            yield return shank == CobLikeShankType.Std
+                ? "FRO_STD_feature_1"
+                : "FRO_180_DEG_REV_feature_1";
+            yield break;
         }
 
-        if (baseName.Equals("RA2", StringComparison.OrdinalIgnoreCase) && shank == CobLikeShankType.Rev180)
+        if (baseName.Equals("H", StringComparison.OrdinalIgnoreCase))
         {
-            yield return "RA2_180_DEF_REV_feature";
-            yield return "RA2_180_DEG_REV_feature";
-
-            yield return "RA2_180_DEF_REV_sketch";
-            yield return "RA2_180_DEF_REV_Sketch";
-            yield return "RA2_180_DEF_REV_SKETCH";
-
-            yield return "RA2_180_DEG_REV_sketch";
-            yield return "RA2_180_DEG_REV_Sketch";
-            yield return "RA2_180_DEG_REV_SKETCH";
+            yield return shank == CobLikeShankType.Std ? "H_STD_feature" : "H_180_DEG_REV_feature";
+            yield return shank == CobLikeShankType.Std ? "H_STD_sketch" : "H_180_DEG_REV_sketch";
+            yield break;
         }
+
+        if (baseName.Equals("H_CUT", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return shank == CobLikeShankType.Std ? "H_STD_cut_feature" : "H_180_DEG_REV_cut_feature";
+            yield return shank == CobLikeShankType.Std ? "H_STD_cut_sketch" : "H_180_DEG_REV_cut_sketch";
+            yield break;
+        }
+
+        if (baseName.Equals("H_FIX", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return shank == CobLikeShankType.Std ? "H_STD_fix_feature" : "H_180_DEG_REV_fix_feature";
+            yield break;
+        }
+
+        if (baseName.Equals("FUNNEL_FINAL_DIAMETRE", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return shank == CobLikeShankType.Std
+                ? "funnel_final_diametre_STD_feature"
+                : "funnel_final_diametre_180_DEG_REV_feature";
+            yield break;
+        }
+
+        var suffix = shank == CobLikeShankType.Std ? "STD" : "180_DEG_REV";
+
+        yield return $"{baseName}_{suffix}_feature";
+
+        if (HasSketch(baseName))
+            yield return $"{baseName}_{suffix}_sketch";
     }
 
-    protected static IEnumerable<string> BuildHMandatoryCandidates(CobLikeShankType shank)
-    {
-        var suffix = BuildSuffix(shank);
+    private static bool HasSketch(string baseName)
+        => baseName is
+            "TDF" or
+            "SLB" or
+            "ISA_20" or
+            "VW" or
+            "W2" or
+            "10BA" or
+            "RA2" or
+            "ERW" or
+            "VG" or
+            "G" or
+            "C" or
+            "CG" or
+            "CBRA";
 
-        yield return $"H_{suffix}_feature";
-        yield return $"H_{suffix}_cut_feature";
-        yield return $"H_{suffix}_fix_feature";
+    protected static string GetOverlayFrontSketchName(CobLikeShankType shank)
+        => shank == CobLikeShankType.Std
+            ? "PGB_STD_FRONT_overlay_sketch"
+            : "PGB_180_DEG_REV_FRONT_overlay_sketch";
 
-        yield return $"H_{suffix}_sketch";
-        yield return $"H_{suffix}_Sketch";
-        yield return $"H_{suffix}_SKETCH";
+    protected static string GetRa2HOverlaySketchName(CobLikeShankType shank)
+        => shank == CobLikeShankType.Std
+            ? "RA2H_STD_FRONT_overlay_sketch"
+            : "RA2H_180_DEG_REV_FRONT_overlay_sketch";
 
-        yield return $"H_{suffix}_cut_sketch";
-        yield return $"H_{suffix}_cut_Sketch";
-        yield return $"H_{suffix}_cut_SKETCH";
-    }
-
-    protected static bool ResolveOptionalEnabled(CobLikeRuleFacts facts, string featureKey)
-    {
-        if (facts is null) return false;
-
-        if (featureKey.Equals("SLB", StringComparison.OrdinalIgnoreCase))
-            return IsDimEnabled(facts, "VBL");
-
-        return IsDimEnabled(facts, featureKey);
-    }
-
-    protected static bool IsDimEnabled(CobLikeRuleFacts facts, string dimKey)
-        => facts.TryGetNominalValue(dimKey, out var value) && value != 0m;
-
-    protected static bool IsDimZero(CobLikeRuleFacts facts, string dimKey)
-        => facts.TryGetNominalValue(dimKey, out var value) && value == 0m;
+    protected static string GetSlbOverlaySketchName(CobLikeShankType shank)
+        => shank == CobLikeShankType.Std
+            ? "SLB_STD_overlay_sketch"
+            : "SLB_180_DEG_REV_overlay_sketch";
 
     protected CobLikeFootOption ResolveFootOption(CobLikeRuleFacts facts)
     {
@@ -573,49 +320,38 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
             CobLikeRuleFacts.GetPropLoose(facts.Wedge, "Wed-Foot_Option") ??
             CobLikeRuleFacts.GetPropLoose(facts.Wedge, "Wed-FootOption") ??
             CobLikeRuleFacts.GetPropLoose(facts.Wedge, "Foot_Option") ??
-            CobLikeRuleFacts.GetPropLoose(facts.Wedge, "foot_option") ??
             CobLikeRuleFacts.GetPropLoose(facts.Wedge, "FootOption") ??
             string.Empty;
 
         raw = CobLikeRuleFacts.NormalizeDbToken(raw);
 
-        CobLikeFootOption baseFoot;
+        CobLikeFootOption foot;
 
-        if (EqualsAny(raw, "SW_G", "G")) baseFoot = CobLikeFootOption.G;
-        else if (EqualsAny(raw, "SW_VG", "VG")) baseFoot = CobLikeFootOption.VG;
-        else if (EqualsAny(raw, "SW_CG", "CG", "CC")) baseFoot = CobLikeFootOption.CC;
-        else baseFoot = CobLikeFootOption.C;
+        if (EqualsAny(raw, "SW_G", "G")) foot = CobLikeFootOption.G;
+        else if (EqualsAny(raw, "SW_VG", "VG")) foot = CobLikeFootOption.VG;
+        else if (EqualsAny(raw, "SW_CG", "CG", "CC")) foot = CobLikeFootOption.CC;
+        else foot = CobLikeFootOption.C;
 
-        if (baseFoot == CobLikeFootOption.C)
+        if (foot == CobLikeFootOption.C)
         {
-            bool allPositive =
+            bool hasCbr =
                 facts.IsDimPositive("CBRA") &&
                 facts.IsDimPositive("CBRD") &&
                 facts.IsDimPositive("CBRL");
 
-            if (allPositive)
-            {
-                Logger.Info($"[{LogPrefix}] Foot rule: base=C and (CBRA/CBRD/CBRL all > 0) → using C_WithCbr.");
-                return CobLikeFootOption.C_WithCbr;
-            }
+            if (hasCbr)
+                foot = CobLikeFootOption.C_WithCbr;
         }
 
-        return baseFoot;
+        return foot;
     }
 
     protected static bool EqualsAny(string value, params string[] options)
-        => options.Any(o => string.Equals(value, o, StringComparison.OrdinalIgnoreCase));
+        => options.Any(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase));
 
-    protected static string TryGetEngravingName()
-    {
-        try { return SwNames.Engraving; }
-        catch { return "Engraving"; }
-    }
-
-    protected void ApplyOverlayConfigurationOverride(
+    private void ApplyOverlayConfigurationOverride(
         FeatureRuleContext context,
-        HashSet<string> suppress,
-        HashSet<string> unsuppress)
+        HashSet<string> active)
     {
         if (context.DrawingType != DrawingType.Overlay)
             return;
@@ -628,18 +364,18 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         {
             case "default_config":
             case "std_cut":
-                ForceStandardCutState(suppress, unsuppress);
-                Logger.Info($"[{LogPrefix}] Overlay config/profile '{profile}' → standard cut state.");
+                ForceStandardCutState(active);
+                Logger.Info($"[{LogPrefix}] Overlay config/profile '{profile}' -> standard cut state.");
                 break;
 
             case "non_std_cut":
-                ForceNonStandardCutState(suppress, unsuppress);
-                Logger.Info($"[{LogPrefix}] Overlay config/profile 'non_std_cut' → non-standard cut state.");
+                ForceNonStandardCutState(active);
+                Logger.Info($"[{LogPrefix}] Overlay config/profile 'non_std_cut' -> non-standard cut state.");
                 break;
         }
     }
 
-    protected static string? ResolveOverlayCutProfile(FeatureRuleContext context)
+    private static string ResolveOverlayCutProfile(FeatureRuleContext context)
     {
         if (!string.IsNullOrWhiteSpace(context.FeatureRuleProfile))
             return context.FeatureRuleProfile.Trim();
@@ -656,30 +392,81 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         return null;
     }
 
-    protected static void ForceStandardCutState(HashSet<string> suppress, HashSet<string> unsuppress)
+    private static void ForceStandardCutState(HashSet<string> active)
     {
-        unsuppress.Add("cut_plan_feature");
-        unsuppress.Add("cut_feature");
-        suppress.Remove("cut_plan_feature");
-        suppress.Remove("cut_feature");
-
-        suppress.Add("non_std_cut_plan_feature");
-        suppress.Add("non_std_cut_feature");
-        unsuppress.Remove("non_std_cut_plan_feature");
-        unsuppress.Remove("non_std_cut_feature");
+        active.Add("cut_feature");
+        active.Remove("non_std_cut_plan_feature");
+        active.Remove("non_std_cut_feature");
     }
 
-    protected static void ForceNonStandardCutState(HashSet<string> suppress, HashSet<string> unsuppress)
+    private static void ForceNonStandardCutState(HashSet<string> active)
     {
-        unsuppress.Add("cut_plan_feature");
-        suppress.Remove("cut_plan_feature");
+        active.Remove("cut_feature");
+        active.Add("non_std_cut_plan_feature");
+        active.Add("non_std_cut_feature");
+    }
 
-        suppress.Add("cut_feature");
-        unsuppress.Remove("cut_feature");
+    protected static HashSet<string> GetAllKnownNames()
+    {
+        var all = NewNameSet();
 
-        unsuppress.Add("non_std_cut_plan_feature");
-        unsuppress.Add("non_std_cut_feature");
-        suppress.Remove("non_std_cut_plan_feature");
-        suppress.Remove("non_std_cut_feature");
+        all.Add("TL_feature");
+        all.Add("TD_sketch");
+
+        foreach (var shank in new[] { CobLikeShankType.Std, CobLikeShankType.Rev180 })
+        {
+            foreach (var baseName in new[]
+            {
+                "TDF",
+                "ENGRAVING",
+                "SLB",
+                "ISA_20",
+                "VW",
+                "W2",
+                "10BA",
+                "RA2",
+                "ERW",
+                "H",
+                "H_CUT",
+                "H_FIX",
+                "FUNNEL_FINAL_DIAMETRE",
+                "ROUND_BR",
+                "COMBINE",
+                "FRO",
+                "VG",
+                "BR_VG",
+                "FR_VG",
+                "G",
+                "FR_G",
+                "BR_G",
+                "C",
+                "FR_C",
+                "BR_C",
+                "CG",
+                "CBRA"
+            })
+            {
+                AddFeatureGroup(all, baseName, shank);
+            }
+        }
+
+        all.Add("ref_point_sketch");
+        all.Add("ref_point_non_std_cut_sketch");
+        all.Add("ref_point_180_DEG_REV_sketch");
+        all.Add("cut_feature");
+        all.Add("non_std_cut_plan_feature");
+        all.Add("non_std_cut_feature");
+        all.Add("PGB_LEFT_overlay_sketch");
+        all.Add("PGB_STD_FRONT_overlay_sketch");
+        all.Add("PGB_180_DEG_REV_FRONT_overlay_sketch");
+        all.Add("FG_LEFT_overlay_sketch");
+        all.Add("RA2H_STD_FRONT_overlay_sketch");
+        all.Add("RA2H_180_DEG_REV_FRONT_overlay_sketch");
+        all.Add("VW_LEFT_case_1_overlay_sketch");
+        all.Add("VW_LEFT_case_2_overlay_sketch");
+        all.Add("SLB_STD_overlay_sketch");
+        all.Add("SLB_180_DEG_REV_overlay_sketch");
+
+        return all;
     }
 }

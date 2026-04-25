@@ -20,7 +20,7 @@
 "G"=0.00212
 "CGD"=0.0004
 "FRO" = 0.02413mm
-"CR" = 0.16764mm
+"CR"=0.00312623
 "RC" = 0.16764mm
 "CD" = 0.00381mm
 "GR"=0.0003
@@ -28,7 +28,7 @@
 "B"=0.001
 "GA"=50
 "HA" = 30deg
-"MB" = 0.02286mm
+"MB"=0.0009
 "H" = 0.04572mm
 "FNO" = 0.07112mm
 "FNA" = 45deg
@@ -37,8 +37,8 @@
 "ERL" = 0.1905mm
 "ERD" = 0.09398mm
 "funnel_final_section"= 2.5mm
-"funnel_gap" = 0.01918mm
-"ERW" = 0.04572mm
+"funnel_gap" = 0.02906mm
+"ERW"= 0.04572mm
 "BR" = 0.02032mm
 "FR" = 0.02032mm
 "CBRA"=15
@@ -163,5 +163,3 @@
 "D2@Engraving"=0.015
 "ref_point@ref_point_sketch" = 2.01175 / "scale"
 "ref_point@ref_point_180_DEG_REV_sketch"="T"/2
-
-"non_std_cut@ref_point_non_std_cut_sketch" = 0mm

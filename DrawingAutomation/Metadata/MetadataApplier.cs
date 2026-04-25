@@ -137,7 +137,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
                 ["Material"] = FirstNonEmpty(Get(md, "Material"), Get(wdp, "material")),
                 ["Autor"] = FirstNonEmpty(Get(md, "Autor"), Get(md, "author"), "WAD.Runner"),
                 ["COMPANY_NAME"] = FirstNonEmpty(Get(md, "COMPANY_NAME"), Get(md, "company"), Get(wdp, "company")),
-                ["TITLE"] = GetCleanDescriptionText(wdp),
+                ["TITLE"] = BuildStandardTitleText(wdp),
                 ["DRAWING_NUMBER"] = FirstNonEmpty(Get(md, "DRAWING_NUMBER"), Get(md, "number"), drawing.ArticleNumber),
                 ["ADDRESS"] = FirstNonEmpty(Get(md, "ADDRESS"), Get(wdp, "address")),
                 ["TYPE"] = FirstNonEmpty(Get(md, "TYPE"), drawing.DrawingType.ToString()),
@@ -435,7 +435,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             if (string.IsNullOrWhiteSpace(firstToken))
                 return string.Empty;
 
-            return $"FOR COINING USE {firstToken}";
+            return $"{firstToken}";
         }
 
         private static string GetCleanDescriptionText(IReadOnlyDictionary<string, string?> wdp)
@@ -447,6 +447,52 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             return string.IsNullOrWhiteSpace(raw)
                 ? string.Empty
                 : raw.Trim().TrimEnd(';');
+        }
+
+        private static string BuildStandardTitleText(IReadOnlyDictionary<string, string?> wdp)
+        {
+            var raw = GetCleanDescriptionText(wdp);
+            return WrapToSecondLine(raw, 40);
+        }
+
+        private static string WrapToSecondLine(string text, int maxFirstLineLength)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            text = text.Trim();
+
+            if (text.Length <= maxFirstLineLength)
+                return text;
+
+            var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length <= 1)
+                return text;
+
+            var firstLine = new StringBuilder();
+            var secondLineStartIndex = 0;
+
+            for (int i = 0; i < words.Length; i++)
+            {
+                int extra = (firstLine.Length == 0 ? 0 : 1) + words[i].Length;
+                if (firstLine.Length > 0 && firstLine.Length + extra > maxFirstLineLength)
+                {
+                    secondLineStartIndex = i;
+                    break;
+                }
+
+                if (firstLine.Length > 0)
+                    firstLine.Append(' ');
+
+                firstLine.Append(words[i]);
+                secondLineStartIndex = i + 1;
+            }
+
+            if (secondLineStartIndex >= words.Length)
+                return text;
+
+            var secondLine = string.Join(" ", words.Skip(secondLineStartIndex));
+            return $"{firstLine}\n{secondLine}";
         }
     }
 }

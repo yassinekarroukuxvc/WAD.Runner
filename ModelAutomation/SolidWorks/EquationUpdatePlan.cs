@@ -132,15 +132,22 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 Logger.Info($"[EquationUpdater] {wedgeType} funnel_gap = {F(gapMm)} mm");
             }
 
-            if (wedgeType is DomWedgeType.COB or DomWedgeType.UTUS or DomWedgeType.FP)
+            if (ShouldManageNonStdCutEquation(wedgeType, drawingType))
             {
-                double cutMm = ComputeNonStdCutMm(wedge);
+                double cutMm = ComputeNonStdCutMm(wedge, wedgeType, drawingType);
                 map[EquationUpdaterCatalog.EquationNames.NonStdCut] =
                     $"\"{EquationUpdaterCatalog.EquationNames.NonStdCut}\" = {F(cutMm)}mm";
                 Logger.Info($"[EquationUpdater] {wedgeType} non_std_cut = {F(cutMm)} mm");
             }
 
             return map;
+        }
+
+        private static bool ShouldManageNonStdCutEquation(
+            DomWedgeType wedgeType,
+            DomDrawingType drawingType)
+        {
+            return wedgeType is DomWedgeType.COB or DomWedgeType.UTUS or DomWedgeType.FP;
         }
 
         private static HashSet<string> CollectZeroKeys(Dictionary<string, DomDim> dimensionsByKey)
@@ -216,18 +223,60 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return funnelGap;
         }
 
+        private static double ComputeNonStdCutMm(
+            DomWedgeData wedge,
+            DomWedgeType wedgeType,
+            DomDrawingType drawingType)
+        {
+            double rawMm = wedgeType == DomWedgeType.UTUS
+                ? ComputeUtusNonStdCutMm(wedge)
+                : ComputeCobLikeNonStdCutMm(wedge);
+
+            // Only compress/clamp for Overlay.
+            if (drawingType != DomDrawingType.Overlay)
+                return rawMm;
+
+            return ComputeOverlaySafeNonStdCutMm(rawMm, wedgeType);
+        }
+
+        private static double ComputeOverlaySafeNonStdCutMm(
+            double rawMm,
+            DomWedgeType wedgeType)
+        {
+            if (rawMm <= 0.0)
+                return 0.0;
+
+            // Overlay TL is already forced to 30 mm in this planner,
+            // so we use that as a stable layout reference.
+            const double OverlayTlMm = 30.0;
+
+            // Tune these if needed after testing.
+            double softCapMm = OverlayTlMm * 0.012;   // 0.36 mm
+            double hardCapMm = OverlayTlMm * 0.015;   // 0.90 mm
+            const double CompressionFactor = 0.25;
+
+            if (rawMm <= softCapMm)
+            {
+                Logger.Info(
+                    $"[EquationUpdater] {wedgeType} overlay non_std_cut kept raw = {F(rawMm)} mm");
+                return rawMm;
+            }
+
+            double compressedMm = softCapMm + ((rawMm - softCapMm) * CompressionFactor);
+            double finalMm = Math.Min(compressedMm, hardCapMm);
+
+            Logger.Warn(
+                $"[EquationUpdater] {wedgeType} overlay non_std_cut compressed from {F(rawMm)} mm to {F(finalMm)} mm " +
+                $"(softCap={F(softCapMm)} mm, hardCap={F(hardCapMm)} mm, factor={F(CompressionFactor)})");
+
+            return finalMm;
+        }
+
         /// <summary>
-        /// non_std_cut must stay larger than the groove-width envelope.
-        ///
-        /// Resolution order:
-        /// 1. Use explicit VR_MAX / VRR_MAX if present.
-        /// 2. Otherwise derive from NOM + UTOL.
-        /// 3. Otherwise fall back to 0.
-        ///
-        /// The previous implementation already used a dynamic extra clearance of VR_MAX / 5.
-        /// This refactor keeps the same numeric behavior, but makes the intent explicit.
+        /// COB / FP behavior:
+        /// non_std_cut = VR_MAX + VRR_MAX + (VR_MAX * 0.20)
         /// </summary>
-        private static double ComputeNonStdCutMm(DomWedgeData wedge)
+        private static double ComputeCobLikeNonStdCutMm(DomWedgeData wedge)
         {
             const double ExtraClearanceFactor = 0.20;
 
@@ -243,9 +292,28 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             double result = vrMax + vrrMax + clearance;
 
             Logger.Info(
-                $"[EquationUpdater] non_std_cut = VR_MAX({F(vrMax)}) + VRR_MAX({F(vrrMax)}) + clearance({F(clearance)}) = {F(result)} mm");
+                $"[EquationUpdater] COB-like non_std_cut = VR_MAX({F(vrMax)}) + VRR_MAX({F(vrrMax)}) + clearance({F(clearance)}) = {F(result)} mm");
 
             return result;
+        }
+
+        /// <summary>
+        /// UT/US behavior:
+        /// non_std_cut = VR
+        ///
+        /// This intentionally uses the nominal VR value, because UT/US should
+        /// display/use VR directly instead of the COB-like VR + VRR + clearance formula.
+        /// </summary>
+        private static double ComputeUtusNonStdCutMm(DomWedgeData wedge)
+        {
+            if (!TryGetMm(wedge, "VR", out var vr) || vr <= 0.0)
+            {
+                Logger.Info("[EquationUpdater] UTUS non_std_cut = VR is missing/zero → 0 mm");
+                return 0.0;
+            }
+
+            Logger.Info($"[EquationUpdater] UTUS non_std_cut = VR({F(vr)}) mm");
+            return vr;
         }
 
         private static bool TryGetMaxLikeMm(

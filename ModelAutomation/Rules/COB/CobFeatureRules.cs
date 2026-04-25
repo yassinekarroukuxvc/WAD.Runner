@@ -1,15 +1,26 @@
-﻿using WAD.Runner.ModelAutomation.Rules.CobLike;
+﻿using System.Collections.Generic;
+using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.ModelAutomation.Execution;
+using WAD.Runner.ModelAutomation.Rules.CobLike;
 
 namespace WAD.Runner.ModelAutomation.Rules.COB;
 
 /// <summary>
-/// COB uses the shared COB-like feature planning with the full overlay
-/// standard/non-standard cut behavior.
+/// COB uses the shared COB-like rules, but always keeps ROUND_BR
+/// unsuppressed for the active shank.
 /// </summary>
 public sealed class CobFeatureRules : CobLikeFeatureRulesBase
 {
     protected override string LogPrefix => "CobFeatureRules";
-    protected override string Pgb180RevConfigurationHint => "COB_180_DEG_REV_PGB";
-    protected override bool SupportsOverlayNonStandardCutPlanning => true;
-    protected override bool SuppressNonStandardCutFeaturesOutsideOverlay => true;
+
+    protected override void ApplyVariantAdjustments(
+        CobLikeRuleFacts facts,
+        CobLikeShankType shank,
+        FeatureRuleContext context,
+        HashSet<string> active,
+        HashSet<string> forceSuppress)
+    {
+        AddFeatureGroup(active, "ROUND_BR", shank);
+    }
 }

@@ -81,15 +81,13 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         {
                             "T","F",
                             "FD", "FL",
-                            "ERL",
                             "H",
                             "VBL",
                             "RC", "CD", "GR", "GD",
                             "B","BF",
                             "G",
-                            "CBRL",
                             "VR",
-                            "W","VW","W2","FR","BR","ERD",
+                            "W","VW","W2","FR","BR",
                         },
 
                         [DrawingType.Overlay] = new[]
@@ -154,15 +152,13 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         {
                             "T","F",
                             "FD", "FL",
-                            "ERL",
                             "H",
                             "VBL",
                             "RC", "CD", "GR", "GD",
                             "B","BF",
                             "G",
-                            "CBRL",
                             "VR",
-                            "W","VW","W2","FR","BR","ERD",
+                            "W","VW","W2","FR","BR",
                         },
 
                         [DrawingType.Overlay] = new[]
@@ -227,15 +223,13 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         {
                             "T","F",
                             "FD", "FL",
-                            "ERL",
                             "H",
                             "VBL",
                             "RC", "CD", "GR", "GD",
                             "B","BF",
                             "G",
-                            "CBRL",
                             "VR",
-                            "W","VW","W2","FR","BR","ERD",
+                            "W","VW","W2","FR","BR",
                         },
 
                         [DrawingType.Overlay] = new[]

@@ -164,4 +164,4 @@
 "ref_point@ref_point_sketch" = 2.01175 / "scale"
 "ref_point@ref_point_180_DEG_REV_sketch"="T"/2
 
-"non_std_cut@ref_point_non_std_cut_sketch" = 0.48768mm
+"non_std_cut@ref_point_non_std_cut_sketch" = 0.39192mm

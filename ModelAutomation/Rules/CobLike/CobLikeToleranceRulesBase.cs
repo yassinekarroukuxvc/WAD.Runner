@@ -90,11 +90,21 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
 
             if (vwEqualsW)
             {
-                AddTolPairMm(updates, facts, dimKey: "VW",
-                    utolTarget: "VW_UTOL@VW_LEFT_case_2_overlay_sketch",
-                    ltolTarget: "VW_LTOL@VW_LEFT_case_2_overlay_sketch");
+                const string case2Sketch = "VW_LEFT_case_2_overlay_sketch";
 
-                Logger.Info($"[{_logPrefix}] VW case 2 (VW == W) → planned VW tolerances for VW_LEFT_case_2_overlay_sketch.");
+                AddTolPairMm(updates, facts, dimKey: "VW",
+                    utolTarget: $"VW_UTOL@{case2Sketch}",
+                    ltolTarget: $"VW_LTOL@{case2Sketch}");
+
+                AddComputedBoundsMm(updates, facts, nomKey: "VR",
+                    maxTarget: $"VR_MAX@{case2Sketch}",
+                    minTarget: $"VR_MIN@{case2Sketch}");
+
+                AddComputedBoundsMm(updates, facts, nomKey: "VRR",
+                    maxTarget: $"VRR_MAX@{case2Sketch}",
+                    minTarget: $"VRR_MIN@{case2Sketch}");
+
+                Logger.Info($"[{_logPrefix}] VW case 2 (VW == W) → planned VW, VR bounds, VRR bounds for {case2Sketch}.");
             }
             else
             {

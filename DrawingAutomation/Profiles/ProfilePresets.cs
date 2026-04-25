@@ -143,11 +143,11 @@ public static class ProfilePresets
 
     // FP = same as UTUS
     private static ViewNames FpFgProductionViews() => new(
-        Front: "Drawing View7",
-        Side: "Drawing View6",
-        Top: "Drawing View8",
-        Detail: "Drawing View9",
-        Section: "Section View AF-AF"
+        Front: "Drawing View17",
+        Side: "Drawing View16",
+        Top: "Drawing View18",
+        Detail: "Drawing View19",
+        Section: "Section View AA-AA"
     );
 
     private static ViewNames FpFgCustomerViews() => new(
@@ -155,7 +155,7 @@ public static class ProfilePresets
         Side: "Drawing View1",
         Top: "Drawing View3",
         Detail: "Drawing View4",
-        Section: "Section View AE-AE"
+        Section: "Section View AA-AA"
     );
 
     private static ViewNames FpFgOverlayViews() => new(
@@ -167,11 +167,11 @@ public static class ProfilePresets
     );
 
     private static ViewNames FpPgbProductionViews() => new(
-        Front: "Drawing View12",
-        Side: "Drawing View11",
-        Top: "Drawing View13",
-        Detail: "Drawing View14",
-        Section: "Section View AG-AG"
+        Front: "Drawing View22",
+        Side: "Drawing View21",
+        Top: "Drawing View23",
+        Detail: "Drawing View24",
+        Section: "Section View AA-AA"
     );
 
     private static ViewNames FpPgbOverlayViews() => new(
@@ -462,7 +462,7 @@ public static class ProfilePresets
     public static DrawingProfile FpFgProduction() => new(
         Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
         ProfileName: "FP FG Production",
-        SheetSelector: Prefer("PRODUCTION"),
+        SheetSelector: Prefer("PRODCUTION"),
         ViewsOrder: StdOrder,
         Views: FpFgProductionViews(),
         UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",

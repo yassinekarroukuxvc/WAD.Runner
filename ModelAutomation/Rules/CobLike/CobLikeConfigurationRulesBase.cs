@@ -58,12 +58,7 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
         bool hasVw = facts?.HasVw == true;
         bool hasVr = facts?.HasVr == true;
 
-        if (!hasVw && !hasVr)
-            config = "std_cut";
-        else if (hasVw && hasVr)
-            config = "non_std_cut";
-        else
-            config = "Default";
+        config = ResolveOverlayFgConfig(facts);
 
         if (ConfigurationPlanFactory.HasExplicitSteps(explicitToggleSteps))
         {
@@ -73,6 +68,24 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
 
         Logger.Info($"[{_logPrefix}] Overlay + FG → hasVW={hasVw}, hasVR={hasVr} → config={config} / ExplicitSteps");
         return ConfigurationPlanFactory.ForExplicit(config, BuildOverlayFgSteps());
+    }
+
+    /// <summary>
+    /// Allows a specific COB-like wedge type to override only the FG overlay
+    /// configuration selection without duplicating the whole Resolve() method.
+    /// </summary>
+    protected virtual string ResolveOverlayFgConfig(CobLikeRuleFacts? facts)
+    {
+        bool hasVw = facts?.HasVw == true;
+        bool hasVr = facts?.HasVr == true;
+
+        if (!hasVw && !hasVr)
+            return "std_cut";
+
+        if (hasVw && hasVr)
+            return "non_std_cut";
+
+        return "Default";
     }
 
     protected virtual IReadOnlyList<FeatureToggleStep> BuildOverlayFgSteps()
