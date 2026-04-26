@@ -78,16 +78,20 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
     }
 
     private void BuildPgbPlan(
-        CobLikeShankType shank,
-        FeatureRuleContext context,
-        HashSet<string> active)
+    CobLikeShankType shank,
+    FeatureRuleContext context,
+    HashSet<string> active)
     {
         Logger.Info($"[{LogPrefix}] Applying PGB rules.");
 
         AddPgbCoreShankSet(shank, active);
 
         if (context.DrawingType == DrawingType.Overlay)
+        {
+            active.Add("ref_point_sketch");
+            active.Add("cut_plan_feature");
             AddPgbOverlaySet(shank, active);
+        }
     }
 
     private void BuildFgPlan(
@@ -154,7 +158,17 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
     {
         target.Add("cut_feature");
         target.Add("PGB_LEFT_overlay_sketch");
-        target.Add(GetOverlayFrontSketchName(shank));
+
+        if (shank == CobLikeShankType.Std)
+        {
+            target.Add("PGB_STD_FRONT_overlay");
+            target.Add("PGB_STD_FRONT_overlay_sketch");
+        }
+        else
+        {
+            target.Add("PGB_180_DEG_REV_FRONT_overlay");
+            target.Add("PGB_180_DEG_REV_FRONT_overlay_sketch");
+        }
     }
 
     private static void AddFgOverlaySet(CobLikeRuleFacts facts, CobLikeShankType shank, HashSet<string> target)
@@ -176,6 +190,13 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         if (!facts.HasVw)
         {
             target.Add("FG_LEFT_overlay_sketch");
+        }
+        else if (facts.HasLargeOverlayVrCase)
+        {
+            if (facts.AreNominalsEqual("VW", "W"))
+                target.Add("VW_LEFT_case_4_overlay_sketch");
+            else
+                target.Add("VW_LEFT_case_3_overlay_sketch");
         }
         else
         {
@@ -464,8 +485,13 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         all.Add("RA2H_180_DEG_REV_FRONT_overlay_sketch");
         all.Add("VW_LEFT_case_1_overlay_sketch");
         all.Add("VW_LEFT_case_2_overlay_sketch");
+        all.Add("VW_LEFT_case_3_overlay_sketch");
+        all.Add("VW_LEFT_case_4_overlay_sketch");
         all.Add("SLB_STD_overlay_sketch");
         all.Add("SLB_180_DEG_REV_overlay_sketch");
+        all.Add("cut_plan_feature");
+        all.Add("PGB_STD_FRONT_overlay");
+        all.Add("PGB_180_DEG_REV_FRONT_overlay");
 
         return all;
     }

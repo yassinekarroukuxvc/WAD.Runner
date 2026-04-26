@@ -27,6 +27,18 @@ public sealed class CobLikeRuleFacts
 
     public CobLikeShankType ShankType => ResolveShankType(Wedge);
 
+
+    public bool HasLargeOverlayVrCase
+    {
+        get
+        {
+            const decimal overlayTlMm = 30m;
+            //decimal softCapMm = overlayTlMm * 0.012m;
+            decimal softCapMm = 0.5m;
+            return ComputeCobLikeNonStdCutRawMm() > softCapMm;
+        }
+    }
+
     public bool IsDimPositive(string dimKey)
     {
         if (Wedge?.Dimensions is null)
@@ -111,6 +123,43 @@ public sealed class CobLikeRuleFacts
 
         mm = dim.Nominal.AsMm();
         return true;
+    }
+
+    public bool TryGetMaxLikeMm(string explicitMaxKey, string baseKey, out decimal value)
+    {
+        value = 0m;
+
+        if (TryGetNominalMm(explicitMaxKey, out var explicitMax))
+        {
+            value = explicitMax;
+            return true;
+        }
+
+        if (!TryGetLengthNominalMm(baseKey, out var nominalMm))
+            return false;
+
+        if (!TryGetLengthToleranceMm(baseKey, out _, out var upperMm))
+            return false;
+
+        value = nominalMm + upperMm;
+        return true;
+    }
+
+    public decimal ComputeCobLikeNonStdCutRawMm()
+    {
+        const decimal extraClearanceFactor = 0.20m;
+
+        decimal vrMax = TryGetMaxLikeMm("VR_MAX", "VR", out var resolvedVrMax)
+            ? resolvedVrMax
+            : 0m;
+
+        decimal vrrMax = TryGetMaxLikeMm("VRR_MAX", "VRR", out var resolvedVrrMax)
+            ? resolvedVrrMax
+            : 0m;
+
+        //decimal clearance = vrMax * extraClearanceFactor;
+        decimal clearance = 0;
+        return vrMax + vrrMax + clearance;
     }
 
     public bool TryGetNominalDeg(string dimKey, out decimal deg)

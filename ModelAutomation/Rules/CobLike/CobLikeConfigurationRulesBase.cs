@@ -52,7 +52,7 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
             }
 
             Logger.Info($"[{_logPrefix}] Overlay + PGB → Default / AllConfigurations");
-            return ConfigurationPlanFactory.ForAll(config);
+            return ConfigurationPlanFactory.ForActive(config);
         }
 
         bool hasVw = facts?.HasVw == true;

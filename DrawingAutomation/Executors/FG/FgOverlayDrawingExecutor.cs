@@ -80,7 +80,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             Logger.Info("[5/9] Reposition all overlay views");
             OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(swApp, ds, run, nameMap);
 
-            
+
             if (isCkvd)
             {
                 // 6) Delete Front view when VR == 0
@@ -107,7 +107,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.FG
             OverlayDrawingExecutorCommon.TryApplyOverlayMetadata(ds, drawingData, run);
 
             Logger.Info("[9c/9] Cleanup zero-valued overlay dimensions…");
-            OverlayDrawingExecutorCommon.TryCleanupZeroDims(ds, nameMap, ctx, drawingData, dims);
+            OverlayDrawingExecutorCommon.TryCleanupZeroDims(ds, nameMap, ctx, drawingData, dims, run);
 
             Logger.Info("[Final-Prep] Draw calibration box + note…");
             OverlayDrawingExecutorCommon.TryCalibrationBoxAndNote(ds, overlayMag, overlayCalUm);

@@ -122,7 +122,7 @@ public static class OverlayDrawingExecutor
         OverlayDrawingExecutorCommon.TryApplyOverlayMetadata(ds, drawingData, run);
 
         Logger.Info("[9c/9] Cleanup zero-valued overlay dimensions…");
-        OverlayDrawingExecutorCommon.TryCleanupZeroDims(ds, nameMap, ctx, drawingData, dims);
+        OverlayDrawingExecutorCommon.TryCleanupZeroDims(ds, nameMap, ctx, drawingData, dims, run);
 
         // ── Final: calibration box + export ───────────────────────────────
         Logger.Info("[Final-Prep] Draw calibration box + note…");

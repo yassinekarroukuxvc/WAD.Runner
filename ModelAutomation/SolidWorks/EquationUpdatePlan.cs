@@ -109,13 +109,18 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 [EquationUpdaterCatalog.EquationNames.EngravingStart] = BuildEngravingStartLine(wedge)
             };
 
+            double? overlayScaleDecimal = null;
+
             if (drawingType == DomDrawingType.Overlay)
             {
                 double mag = ComputeOverlayMagnification(wedge, wedgeType);
                 double scale = GetOverlayModelViewScaleDecimal(mag);
                 string magStr = F(mag);
 
-                Logger.Info($"[EquationUpdater] Overlay magnification resolved to {magStr} for wedgeType={wedgeType}");
+                overlayScaleDecimal = scale;
+
+                Logger.Info(
+                    $"[EquationUpdater] Overlay magnification resolved to {magStr} for wedgeType={wedgeType}; model scale decimal = {F(scale)}");
 
                 map[EquationUpdaterCatalog.EquationNames.OverlayCalibration1] =
                     $"\"{EquationUpdaterCatalog.EquationNames.OverlayCalibration1}\" = {magStr}";
@@ -134,7 +139,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             if (ShouldManageNonStdCutEquation(wedgeType, drawingType))
             {
-                double cutMm = ComputeNonStdCutMm(wedge, wedgeType, drawingType);
+                double cutMm = ComputeNonStdCutMm(wedge, wedgeType, drawingType, overlayScaleDecimal);
                 map[EquationUpdaterCatalog.EquationNames.NonStdCut] =
                     $"\"{EquationUpdaterCatalog.EquationNames.NonStdCut}\" = {F(cutMm)}mm";
                 Logger.Info($"[EquationUpdater] {wedgeType} non_std_cut = {F(cutMm)} mm");
@@ -226,54 +231,62 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         private static double ComputeNonStdCutMm(
             DomWedgeData wedge,
             DomWedgeType wedgeType,
-            DomDrawingType drawingType)
+            DomDrawingType drawingType,
+            double? overlayScaleDecimal)
         {
-            double rawMm = wedgeType == DomWedgeType.UTUS
-                ? ComputeUtusNonStdCutMm(wedge)
-                : ComputeCobLikeNonStdCutMm(wedge);
+            double rawMm = ComputeCobLikeNonStdCutMm(wedge);
 
-            // Only compress/clamp for Overlay.
             if (drawingType != DomDrawingType.Overlay)
                 return rawMm;
 
-            return ComputeOverlaySafeNonStdCutMm(rawMm, wedgeType);
+            return ComputeOverlaySafeNonStdCutMm(rawMm, wedgeType, overlayScaleDecimal);
         }
 
         private static double ComputeOverlaySafeNonStdCutMm(
             double rawMm,
-            DomWedgeType wedgeType)
+            DomWedgeType wedgeType,
+            double? overlayScaleDecimal)
         {
             if (rawMm <= 0.0)
                 return 0.0;
 
-            // Overlay TL is already forced to 30 mm in this planner,
-            // so we use that as a stable layout reference.
-            const double OverlayTlMm = 30.0;
+            // Keep the old "too large" trigger behavior.
+            const double SoftCapMm = 0.5;
 
-            // Tune these if needed after testing.
-            double softCapMm = OverlayTlMm * 0.012;   // 0.36 mm
-            double hardCapMm = OverlayTlMm * 0.015;   // 0.90 mm
-            const double CompressionFactor = 0.25;
-
-            if (rawMm <= softCapMm)
+            if (rawMm <= SoftCapMm)
             {
                 Logger.Info(
                     $"[EquationUpdater] {wedgeType} overlay non_std_cut kept raw = {F(rawMm)} mm");
                 return rawMm;
             }
 
-            double compressedMm = softCapMm + ((rawMm - softCapMm) * CompressionFactor);
-            double finalMm = Math.Min(compressedMm, hardCapMm);
+            // Apply the static override only when the value is too large:
+            // 2.01175 / scale
+            //
+            // Since non_std_cut is written in mm, convert 2.01175 inch to mm first.
+            const double StaticOverlayReferenceInch = 2.01175;
+            const double StaticOverlayReferenceMm = StaticOverlayReferenceInch * 25.4;
+            const double DefaultScaleDecimal = 60.8;
+
+            double resolvedScale = overlayScaleDecimal.GetValueOrDefault(DefaultScaleDecimal);
+            if (resolvedScale <= 0.0)
+            {
+                Logger.Warn(
+                    $"[EquationUpdater] {wedgeType} overlay scale decimal was invalid ({F(resolvedScale)}). Falling back to {F(DefaultScaleDecimal)}.");
+                resolvedScale = DefaultScaleDecimal;
+            }
+
+            double finalMm = StaticOverlayReferenceMm / resolvedScale;
 
             Logger.Warn(
-                $"[EquationUpdater] {wedgeType} overlay non_std_cut compressed from {F(rawMm)} mm to {F(finalMm)} mm " +
-                $"(softCap={F(softCapMm)} mm, hardCap={F(hardCapMm)} mm, factor={F(CompressionFactor)})");
+                $"[EquationUpdater] {wedgeType} overlay non_std_cut override applied because raw value was too large. " +
+                $"Raw={F(rawMm)} mm, threshold={F(SoftCapMm)} mm, final={F(finalMm)} mm from 2.01175/scale({F(resolvedScale)}).");
 
             return finalMm;
         }
 
         /// <summary>
-        /// COB / FP behavior:
+        /// COB / FP / UTUS behavior:
         /// non_std_cut = VR_MAX + VRR_MAX + (VR_MAX * 0.20)
         /// </summary>
         private static double ComputeCobLikeNonStdCutMm(DomWedgeData wedge)
@@ -289,31 +302,13 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 : 0.0;
 
             double clearance = vrMax * ExtraClearanceFactor;
-            double result = vrMax + vrrMax + clearance;
+            //double result = vrMax + vrrMax + clearance;
+            double result = vrMax + vrrMax;
 
             Logger.Info(
                 $"[EquationUpdater] COB-like non_std_cut = VR_MAX({F(vrMax)}) + VRR_MAX({F(vrrMax)}) + clearance({F(clearance)}) = {F(result)} mm");
 
             return result;
-        }
-
-        /// <summary>
-        /// UT/US behavior:
-        /// non_std_cut = VR
-        ///
-        /// This intentionally uses the nominal VR value, because UT/US should
-        /// display/use VR directly instead of the COB-like VR + VRR + clearance formula.
-        /// </summary>
-        private static double ComputeUtusNonStdCutMm(DomWedgeData wedge)
-        {
-            if (!TryGetMm(wedge, "VR", out var vr) || vr <= 0.0)
-            {
-                Logger.Info("[EquationUpdater] UTUS non_std_cut = VR is missing/zero → 0 mm");
-                return 0.0;
-            }
-
-            Logger.Info($"[EquationUpdater] UTUS non_std_cut = VR({F(vr)}) mm");
-            return vr;
         }
 
         private static bool TryGetMaxLikeMm(

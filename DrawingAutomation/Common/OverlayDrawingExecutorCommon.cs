@@ -11,6 +11,7 @@ using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Planning;
+using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 using WAD.Runner.DrawingAutomation.Common;
@@ -40,26 +41,20 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         {
             WedgeType.COB => new[]
             {
-                "W", "FD", "T","VBL", "VBLR", "VW", "VR", "VRR", "W2",
-                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B","MB",
-                "H", "FNO", "FL", "ERL", "ERD", "CBRL", "CBRD","FLC","CL","MI","Y","MB","ERW","FLER"
+                "W", "ISA", "FD", "T", "RA", "BA", "VBL", "VBLR", "VW", "VR", "VRR", "W2", "RA2",
+                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "GA", "HA", "MB",
+                "H", "FNO", "FNA", "FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
             },
             WedgeType.UTUS => new[]
             {
-                "W", "FD", "T","VBL", "VBLR", "VW", "VR", "VRR", "W2",
-                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B","MB",
-                "H", "FNO", "FL", "ERL", "ERD", "CBRL", "CBRD","FLC","CL","MI","Y","MB","ERW","FLER"
+                "W", "ISA", "FD", "T", "RA", "BA", "VBL", "VBLR", "VW", "VR", "VRR", "W2", "RA2",
+                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "GA", "HA", "MB",
+                "H", "FNO", "FNA", "FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
             },
 
             WedgeType.CKVD => new[]
             {
                 "FL", "FR", "F", "W", "BR", "GD", "GR", "B", "E", "FX", "X"
-            },
-            WedgeType.FP => new[]
-            {
-                "W", "FD", "T","VBL", "VBLR", "VW", "VR", "VRR", "W2",
-                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B","MB",
-                "H", "FNO", "FL", "ERL", "ERD", "CBRL", "CBRD","FLC","CL","MI","Y","MB","ERW","FLER"
             },
 
             _ => new[]
@@ -687,16 +682,132 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             IDictionary<string, string> nameMap,
             LayoutContext ctx,
             DrawingData drawingData,
-            IReadOnlyList<DimensionSpec> dims)
+            IReadOnlyList<DimensionSpec> dims,
+            DrawingRun run)
         {
             try
             {
-                AnnotationCleanupService.RemoveZeroDimensionsFromDrawing(ds, nameMap, ctx, drawingData, dims);
+                bool hideVrExtremaAnnotations = ShouldHideVrExtremaAnnotations(run);
+                AnnotationCleanupService.RemoveZeroDimensionsFromDrawing(
+                    ds,
+                    nameMap,
+                    ctx,
+                    drawingData,
+                    dims,
+                    hideVrExtremaAnnotations: hideVrExtremaAnnotations);
             }
             catch (Exception ex)
             {
                 Logger.Warn($"[Overlay] Zero-dimension cleanup failed (continuing): {ex.Message}");
             }
+        }
+
+        private static bool ShouldHideVrExtremaAnnotations(DrawingRun run)
+        {
+            if (run?.Wedge == null)
+                return false;
+
+            if (run.WedgeType is not (WedgeType.COB or WedgeType.UTUS or WedgeType.FP))
+                return false;
+
+            double rawMm = ComputeCobLikeRawNonStdCutMm(run.Wedge);
+
+            bool shouldHide = WasOverlayNonStdCutCompressedOrClamped(rawMm, out double effectiveMm);
+            if (shouldHide)
+            {
+                Logger.Warn(
+                    $"[Overlay] VR/VRR extrema annotations will be hidden because overlay non_std_cut was compressed/clamped " +
+                    $"for {run.WedgeType}: raw={rawMm:0.#####} mm, effective={effectiveMm:0.#####} mm.");
+            }
+
+            return shouldHide;
+        }
+
+        private static bool WasOverlayNonStdCutCompressedOrClamped(double rawMm, out double effectiveMm)
+        {
+            effectiveMm = rawMm;
+
+            if (rawMm <= 0.0)
+                return false;
+
+            const double OverlayTlMm = 30.0;
+            //double softCapMm = OverlayTlMm * 0.012;   // 0.36 mm
+            double softCapMm = 0.5;   // 0.36 mm
+            //double hardCapMm = OverlayTlMm * 0.030;   // 0.90 mm
+            double hardCapMm = 0.6;   // 0.90 mm
+            const double CompressionFactor = 0.25;
+
+            if (rawMm <= softCapMm)
+                return false;
+
+            double compressedMm = softCapMm + ((rawMm - softCapMm) * CompressionFactor);
+            effectiveMm = Math.Min(compressedMm, hardCapMm);
+
+            return Math.Abs(effectiveMm - rawMm) > 1e-9;
+        }
+
+        private static double ComputeCobLikeRawNonStdCutMm(WedgeData wedge)
+        {
+            double vrMax = TryGetMaxLikeMm(wedge, explicitMaxKey: "VR_MAX", baseKey: "VR", out var resolvedVrMax)
+                ? resolvedVrMax
+                : 0.0;
+
+            double vrrMax = TryGetMaxLikeMm(wedge, explicitMaxKey: "VRR_MAX", baseKey: "VRR", out var resolvedVrrMax)
+                ? resolvedVrrMax
+                : 0.0;
+
+            // Keep this aligned with the current COB/FP behavior already used in this file.
+            // If you want to re-enable the clearance later, use:
+            // double clearance = vrMax * 0.20;
+            double clearance = 0.0;
+
+            return vrMax + vrrMax + clearance;
+        }
+
+        private static bool TryGetMaxLikeMm(
+            WedgeData wedge,
+            string explicitMaxKey,
+            string baseKey,
+            out double value)
+        {
+            value = 0.0;
+
+            if (TryGetDimMm(wedge, explicitMaxKey, out var explicitMax))
+            {
+                value = explicitMax;
+                return true;
+            }
+
+            if (wedge?.Dimensions is null)
+                return false;
+
+            if (!wedge.Dimensions.TryGetValue(DimensionKey.From(baseKey), out var dim) || dim is null)
+                return false;
+
+            if (dim.Nominal.Unit != UnitKind.Millimeter)
+                return false;
+
+            double nominal = (double)dim.Nominal.AsMm();
+            double upperTolerance = (double)dim.Tol.Upper.Value;
+            value = nominal + upperTolerance;
+            return true;
+        }
+
+        private static bool TryGetDimMm(WedgeData wedge, string key, out double value)
+        {
+            value = 0.0;
+
+            if (wedge?.Dimensions is null)
+                return false;
+
+            if (!wedge.Dimensions.TryGetValue(DimensionKey.From(key), out var dim) || dim is null)
+                return false;
+
+            if (dim.Nominal.Unit != UnitKind.Millimeter)
+                return false;
+
+            value = (double)dim.Nominal.AsMm();
+            return true;
         }
 
         public static void TryCalibrationBoxAndNote(DrawingService ds, double overlayMag, string overlayCalUm)

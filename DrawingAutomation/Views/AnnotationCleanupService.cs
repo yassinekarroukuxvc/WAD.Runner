@@ -98,7 +98,8 @@ public static class AnnotationCleanupService
     IDictionary<string, string> nameMap,
     LayoutContext ctx,
     DrawingData drawingData,
-    IEnumerable<DimensionSpec> dims)
+    IEnumerable<DimensionSpec> dims,
+    bool hideVrExtremaAnnotations = false)
     {
         if (ds?.Model is not ModelDoc2 model) return;
         if (ds.Drawing is not DrawingDoc) return;
@@ -140,15 +141,6 @@ public static class AnnotationCleanupService
                 zeroKeys.Add(keyStr);
         }
 
-        if (zeroKeys.Count == 0)
-        {
-            Logger.Info("[ZeroCleanup] No keys with zero value (mm/deg) detected – nothing to delete.");
-            return;
-        }
-
-        Logger.Info($"[ZeroCleanup] Keys with zero value (mm/deg): {string.Join(", ", zeroKeys)}");
-
-        
         var prefixesToDelete = new HashSet<string>(zeroKeys, StringComparer.OrdinalIgnoreCase);
 
         if (zeroKeys.Contains("VR"))
@@ -163,6 +155,24 @@ public static class AnnotationCleanupService
             prefixesToDelete.Add("VRR_MIN");
         }
 
+        if (hideVrExtremaAnnotations)
+        {
+            prefixesToDelete.Add("VR_MAX");
+            prefixesToDelete.Add("VR_MIN");
+            prefixesToDelete.Add("VRR_MAX");
+            prefixesToDelete.Add("VRR_MIN");
+
+            Logger.Info("[ZeroCleanup] Overlay non_std_cut was compressed/clamped. " +
+                        "Forcing deletion of VR/VRR extrema annotations: VR_MAX, VR_MIN, VRR_MAX, VRR_MIN.");
+        }
+
+        if (prefixesToDelete.Count == 0)
+        {
+            Logger.Info("[ZeroCleanup] No keys/prefixes marked for deletion.");
+            return;
+        }
+
+        Logger.Info($"[ZeroCleanup] Keys with zero value (mm/deg): {string.Join(", ", zeroKeys)}");
         Logger.Info($"[ZeroCleanup] Annotation prefixes to delete: {string.Join(", ", prefixesToDelete)}");
 
         int totalDeleted = 0;

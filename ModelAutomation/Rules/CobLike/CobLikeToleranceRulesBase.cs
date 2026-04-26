@@ -88,7 +88,30 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
         {
             bool vwEqualsW = facts.AreNominalsEqual("VW", "W");
 
-            if (vwEqualsW)
+            if (facts.HasLargeOverlayVrCase)
+            {
+                if (vwEqualsW)
+                {
+                    const string case4Sketch = "VW_LEFT_case_4_overlay_sketch";
+
+                    AddTolPairMm(updates, facts, dimKey: "VW",
+                        utolTarget: $"VW_UTOL@{case4Sketch}",
+                        ltolTarget: $"VW_LTOL@{case4Sketch}");
+
+                    Logger.Info($"[{_logPrefix}] Large VR case 4 (VW == W) → planned VW tolerances for {case4Sketch}.");
+                }
+                else
+                {
+                    const string case3Sketch = "VW_LEFT_case_3_overlay_sketch";
+
+                    AddTolPairMm(updates, facts, dimKey: "W",
+                        utolTarget: $"W_UTOL@{case3Sketch}",
+                        ltolTarget: $"W_LTOL@{case3Sketch}");
+
+                    Logger.Info($"[{_logPrefix}] Large VR case 3 (VW != W) → planned W tolerances for {case3Sketch}.");
+                }
+            }
+            else if (vwEqualsW)
             {
                 const string case2Sketch = "VW_LEFT_case_2_overlay_sketch";
 
