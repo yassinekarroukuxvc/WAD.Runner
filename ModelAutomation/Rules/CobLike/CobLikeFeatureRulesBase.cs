@@ -88,8 +88,6 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 
         if (context.DrawingType == DrawingType.Overlay)
         {
-            active.Add("ref_point_sketch");
-            active.Add("cut_plan_feature");
             AddPgbOverlaySet(shank, active);
         }
     }
@@ -156,16 +154,27 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 
     private static void AddPgbOverlaySet(CobLikeShankType shank, HashSet<string> target)
     {
+        // PGB overlay intentionally uses only the standard cut configuration.
+        // Keep the standard cut parent and child explicitly active here instead
+        // of relying only on the later profile override. This makes the PGB
+        // overlay plan unambiguous even if caller-side configuration overrides
+        // are changed later.
+        target.Add("cut_plan_feature");
         target.Add("cut_feature");
+        target.Remove("non_std_cut_plan_feature");
+        target.Remove("non_std_cut_feature");
+
         target.Add("PGB_LEFT_overlay_sketch");
 
         if (shank == CobLikeShankType.Std)
         {
+            target.Add("ref_point_sketch");
             target.Add("PGB_STD_FRONT_overlay");
             target.Add("PGB_STD_FRONT_overlay_sketch");
         }
         else
         {
+            target.Add("ref_point_180_DEG_REV_sketch");
             target.Add("PGB_180_DEG_REV_FRONT_overlay");
             target.Add("PGB_180_DEG_REV_FRONT_overlay_sketch");
         }
@@ -212,7 +221,11 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
             target.Add(GetOverlayFrontSketchName(shank));
 
         if (facts.IsDimPositive("VBL"))
+        {
             target.Add(GetSlbOverlaySketchName(shank));
+            target.Remove(GetOverlayFrontSketchName(shank));
+        } 
+            
     }
 
     protected static void AddFootOptionSet(HashSet<string> target, CobLikeFootOption foot, CobLikeShankType shank)
@@ -415,6 +428,7 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 
     private static void ForceStandardCutState(HashSet<string> active)
     {
+        active.Add("cut_plan_feature");
         active.Add("cut_feature");
         active.Remove("non_std_cut_plan_feature");
         active.Remove("non_std_cut_feature");
@@ -422,6 +436,7 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 
     private static void ForceNonStandardCutState(HashSet<string> active)
     {
+        active.Remove("cut_plan_feature");
         active.Remove("cut_feature");
         active.Add("non_std_cut_plan_feature");
         active.Add("non_std_cut_feature");

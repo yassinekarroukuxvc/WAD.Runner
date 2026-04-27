@@ -43,16 +43,8 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
 
         if (subclass == WedgeSubclass.PGB)
         {
-            config = "Default";
-
-            if (ConfigurationPlanFactory.HasExplicitSteps(explicitToggleSteps))
-            {
-                Logger.Info($"[{_logPrefix}] Overlay + PGB → Default / ExplicitSteps");
-                return ConfigurationPlanFactory.ForExplicit(config, explicitToggleSteps);
-            }
-
-            Logger.Info($"[{_logPrefix}] Overlay + PGB → Default / AllConfigurations");
-            return ConfigurationPlanFactory.ForActive(config);
+            Logger.Info($"[{_logPrefix}] Overlay + PGB → std_cut / ActiveConfiguration / standard PGB overlay only");
+            return ConfigurationPlanFactory.ForActive("std_cut");
         }
 
         bool hasVw = facts?.HasVw == true;
