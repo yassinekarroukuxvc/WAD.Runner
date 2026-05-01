@@ -58,7 +58,7 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         AddTlSet(active);
 
         if (context.Subclass == WedgeSubclass.PGB)
-            BuildPgbPlan(shank, context, active);
+            BuildPgbPlan(facts, shank, context, active);
         else
             BuildFgPlan(facts, shank, context, active);
 
@@ -78,9 +78,10 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
     }
 
     private void BuildPgbPlan(
-    CobLikeShankType shank,
-    FeatureRuleContext context,
-    HashSet<string> active)
+        CobLikeRuleFacts facts,
+        CobLikeShankType shank,
+        FeatureRuleContext context,
+        HashSet<string> active)
     {
         Logger.Info($"[{LogPrefix}] Applying PGB rules.");
 
@@ -88,7 +89,7 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 
         if (context.DrawingType == DrawingType.Overlay)
         {
-            AddPgbOverlaySet(shank, active);
+            AddPgbOverlaySet(facts, shank, active);
         }
     }
 
@@ -152,13 +153,14 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         AddFeatureGroup(target, "COMBINE", shank);
     }
 
-    private static void AddPgbOverlaySet(CobLikeShankType shank, HashSet<string> target)
+    private static void AddPgbOverlaySet(
+        CobLikeRuleFacts facts,
+        CobLikeShankType shank,
+        HashSet<string> target)
     {
-        // PGB overlay intentionally uses only the standard cut configuration.
-        // Keep the standard cut parent and child explicitly active here instead
-        // of relying only on the later profile override. This makes the PGB
-        // overlay plan unambiguous even if caller-side configuration overrides
-        // are changed later.
+        // PGB overlay intentionally supports RA2H only.
+        // It does NOT support the VW/VR non-standard-cut overlay path.
+        // Therefore PGB always stays on the standard cut path.
         target.Add("cut_plan_feature");
         target.Add("cut_feature");
         target.Remove("non_std_cut_plan_feature");
@@ -170,14 +172,20 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         {
             target.Add("ref_point_sketch");
             target.Add("PGB_STD_FRONT_overlay");
-            target.Add("PGB_STD_FRONT_overlay_sketch");
         }
         else
         {
             target.Add("ref_point_180_DEG_REV_sketch");
             target.Add("PGB_180_DEG_REV_FRONT_overlay");
-            target.Add("PGB_180_DEG_REV_FRONT_overlay_sketch");
         }
+
+        // Main PGB RA2H logic:
+        // If RA2H exists, use the RA2H front overlay sketch.
+        // Otherwise, use the normal PGB front overlay sketch.
+        if (facts.HasRa2H)
+            target.Add(GetRa2HOverlaySketchName(shank));
+        else
+            target.Add(GetOverlayFrontSketchName(shank));
     }
 
     private static void AddFgOverlaySet(CobLikeRuleFacts facts, CobLikeShankType shank, HashSet<string> target)
@@ -224,8 +232,7 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         {
             target.Add(GetSlbOverlaySketchName(shank));
             target.Remove(GetOverlayFrontSketchName(shank));
-        } 
-            
+        }
     }
 
     protected static void AddFootOptionSet(HashSet<string> target, CobLikeFootOption foot, CobLikeShankType shank)
@@ -390,6 +397,16 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         if (context.DrawingType != DrawingType.Overlay)
             return;
 
+        // PGB overlay is RA2H-only and always uses the standard cut path.
+        // Even if the caller accidentally passes non_std_cut, do not let PGB
+        // activate non_std_cut_plan_feature or non_std_cut_feature.
+        if (context.Subclass == WedgeSubclass.PGB)
+        {
+            ForceStandardCutState(active);
+            Logger.Info($"[{LogPrefix}] PGB overlay -> forced standard cut state.");
+            return;
+        }
+
         var profile = ResolveOverlayCutProfile(context);
         if (string.IsNullOrWhiteSpace(profile))
             return;
@@ -489,24 +506,30 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         all.Add("ref_point_sketch");
         all.Add("ref_point_non_std_cut_sketch");
         all.Add("ref_point_180_DEG_REV_sketch");
+
+        all.Add("cut_plan_feature");
         all.Add("cut_feature");
         all.Add("non_std_cut_plan_feature");
         all.Add("non_std_cut_feature");
+
         all.Add("PGB_LEFT_overlay_sketch");
+        all.Add("PGB_STD_FRONT_overlay");
+        all.Add("PGB_180_DEG_REV_FRONT_overlay");
         all.Add("PGB_STD_FRONT_overlay_sketch");
         all.Add("PGB_180_DEG_REV_FRONT_overlay_sketch");
+
         all.Add("FG_LEFT_overlay_sketch");
+
         all.Add("RA2H_STD_FRONT_overlay_sketch");
         all.Add("RA2H_180_DEG_REV_FRONT_overlay_sketch");
+
         all.Add("VW_LEFT_case_1_overlay_sketch");
         all.Add("VW_LEFT_case_2_overlay_sketch");
         all.Add("VW_LEFT_case_3_overlay_sketch");
         all.Add("VW_LEFT_case_4_overlay_sketch");
+
         all.Add("SLB_STD_overlay_sketch");
         all.Add("SLB_180_DEG_REV_overlay_sketch");
-        all.Add("cut_plan_feature");
-        all.Add("PGB_STD_FRONT_overlay");
-        all.Add("PGB_180_DEG_REV_FRONT_overlay");
 
         return all;
     }

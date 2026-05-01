@@ -12,7 +12,7 @@
 "VBLR"= 0.02in
 "VW" = 0.1016mm
 "VR" = 0.254mm
-"VRR" = 0.127mm
+"VRR"=0.005
 "VRA" = 90deg
 "W2"=0.0035
 "RA2"=38
@@ -164,4 +164,4 @@
 "ref_point@ref_point_sketch" = 2.01175 / "scale"
 "ref_point@ref_point_180_DEG_REV_sketch"="T"/2
 
-"non_std_cut@ref_point_non_std_cut_sketch" = 0.4318mm
+"non_std_cut@ref_point_non_std_cut_sketch" = 0.2794mm

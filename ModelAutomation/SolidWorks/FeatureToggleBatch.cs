@@ -170,8 +170,12 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             var criticalUnsup = ExtractOrdered(unsup, CriticalUnsuppressOrder);
             var criticalSup = ExtractOrdered(sup, CriticalSuppressOrder);
 
-            unsup = RemoveNames(unsup, criticalUnsup);
-            sup = RemoveNames(sup, criticalSup);
+            // Only allocate filtered arrays if there is actually something to remove.
+            if (criticalUnsup.Length > 0)
+                unsup = RemoveNames(unsup, criticalUnsup);
+
+            if (criticalSup.Length > 0)
+                sup = RemoveNames(sup, criticalSup);
 
             Logger.Info(
                 $"[FeatureToggleBatch] Apply(scope={scope}) " +
@@ -346,6 +350,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 if (!_index.TryGetValue(name, out var entry))
                     continue;
 
+                // Force a fresh read — discard any cached value from the first pass.
                 entry.IsSuppressedCached = null;
 
                 if (!TryGetIsSuppressed(entry, scope, out var isSuppressed))
@@ -354,13 +359,21 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 if (!isSuppressed)
                     continue;
 
-                Logger.Warn($"[FeatureToggleBatch] Critical feature '{name}' is still suppressed after first pass; retrying once.");
+                Logger.Warn($"[FeatureToggleBatch] Critical feature '{name}' still suppressed after first pass; retrying.");
 
-                ToggleOneCritical(
-                    name,
-                    suppress: false,
-                    scope,
-                    res);
+                // Clear the cached state so the retry always calls through to the API.
+                entry.IsSuppressedCached = null;
+
+                ToggleOneCritical(name, suppress: false, scope, res);
+
+                // Re-read after the retry and record a definitive failure if still suppressed.
+                entry.IsSuppressedCached = null;
+
+                if (TryGetIsSuppressed(entry, scope, out var stillSuppressed) && stillSuppressed)
+                {
+                    Logger.Error($"[FeatureToggleBatch] Critical feature '{name}' could not be unsuppressed after retry.");
+                    res.Failed.TryAdd(name, "Still suppressed after retry.");
+                }
             }
         }
 
@@ -544,7 +557,13 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         }
 
         /// <summary>
-        /// Calls Feature.SetSuppression2. This is required for swAllConfiguration.
+        /// Calls Feature.SetSuppression2. Required for swAllConfiguration.
+        /// Returns false and populates <paramref name="error"/> if the API reports failure
+        /// or throws.
+        ///
+        /// NOTE: The SolidWorks interop declares SetSuppression2 as returning bool, not
+        /// the swSuppressionError_e int that the SDK documentation describes. The interop
+        /// return value is treated as a simple success flag (true = ok, false = failed).
         /// </summary>
         private static bool TrySet(
             FeatureEntry entry,
@@ -556,12 +575,21 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             try
             {
-                entry.Feature.SetSuppression2(
+                bool ok = entry.Feature.SetSuppression2(
                     suppress
                         ? (int)swFeatureSuppressionAction_e.swSuppressFeature
                         : (int)swFeatureSuppressionAction_e.swUnSuppressFeature,
                     (int)scope,
                     null);
+
+                if (!ok)
+                {
+                    error = suppress
+                        ? "SetSuppression2 returned false (suppress)."
+                        : "SetSuppression2 returned false (unsuppress).";
+
+                    return false;
+                }
 
                 return true;
             }
@@ -602,6 +630,15 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
         }
 
+        /// <summary>
+        /// Decodes the variant return value of IsSuppressed2, which can be a raw bool,
+        /// a numeric type, or a (possibly nested) array of any of the above.
+        ///
+        /// The <c>case object o when o is T</c> branches that appeared in the original
+        /// code were unreachable: C# pattern matching evaluates top-to-bottom and the
+        /// specific-type cases (bool, int, short, long) always match before the
+        /// <c>object</c> fallback. They have been removed to keep the method clean.
+        /// </summary>
         private static bool TryDecodeSuppressionVariant(object? raw, out bool suppressed)
         {
             suppressed = false;
@@ -652,22 +689,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     case long ll:
                         suppressed = ll != 0;
                         return true;
-
-                    case object o when o is bool b2:
-                        suppressed = b2;
-                        return true;
-
-                    case object o when o is int i2:
-                        suppressed = i2 != 0;
-                        return true;
-
-                    case object o when o is short s2:
-                        suppressed = s2 != 0;
-                        return true;
-
-                    case object o when o is long l2:
-                        suppressed = l2 != 0;
-                        return true;
                 }
             }
 
@@ -708,6 +729,12 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             public List<string> Missing { get; } = new();
 
             public Dictionary<string, string> Failed { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+            /// <summary>
+            /// True when no features are missing or failed.
+            /// SkippedAlreadyCorrect is not considered a failure.
+            /// </summary>
+            public bool IsSuccess => Missing.Count == 0 && Failed.Count == 0;
         }
     }
 }

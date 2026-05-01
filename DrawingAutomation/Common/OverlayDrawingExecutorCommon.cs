@@ -41,15 +41,21 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         {
             WedgeType.COB => new[]
             {
-                "W", "ISA", "FD", "T", "RA", "BA", "VBL", "VBLR", "VW", "VR", "VRR", "W2", "RA2",
-                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "GA", "HA", "MB",
-                "H", "FNO", "FNA", "FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
+                "W", "FD", "T", "VBL", "VBLR", "VW", "VR", "VRR","RA2H",
+                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "MB",
+                "H", "FNO","FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
             },
             WedgeType.UTUS => new[]
             {
-                "W", "ISA", "FD", "T", "RA", "BA", "VBL", "VBLR", "VW", "VR", "VRR", "W2", "RA2",
-                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "GA", "HA", "MB",
-                "H", "FNO", "FNA", "FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
+                "W", "FD", "T", "VBL", "VBLR", "VW", "VR", "VRR","RA2H",
+                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "MB",
+                "H", "FNO","FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
+            },
+            WedgeType.FP => new[]
+            {
+                "W", "FD", "T", "VBL", "VBLR", "VW", "VR", "VRR","RA2H",
+                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "MB",
+                "H", "FNO","FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
             },
 
             WedgeType.CKVD => new[]

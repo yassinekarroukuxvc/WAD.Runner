@@ -262,6 +262,7 @@ public static class SharedAnnotationDeletionRules
     private static void KeepSide(HashSet<AnnotationDeletionCore.Ann> keep, ShankType shank, Options opt, bool allowVbl)
     {
         Add(keep, V.Side, $"BA@{FrontSketch(shank)}");
+        Add(keep, V.Side, $"TL@{FrontSketch(shank)}");
         if (allowVbl && opt.HasSlb)
             Add(keep, V.Side, $"VBL@{FrontSketch(shank)}");
     }

@@ -62,10 +62,12 @@ public sealed class SqliteWedgeDataSource : IWedgeDataSource
         // Pull localized article description and add to Properties
         try
         {
-            var desc = await _repo.GetArticleDescriptionAsync(_firma, articleNumber, _language, ct);
-            if (!string.IsNullOrWhiteSpace(desc))
+            var rawDescription = await _repo.GetArticleDescriptionAsync(_firma, articleNumber, _language, ct);
+            var description = ArticleDescriptionParser.NormalizeForDisplay(rawDescription);
+
+            if (!string.IsNullOrWhiteSpace(description))
             {
-                baseWedge = WithProperty(baseWedge, "article_description", desc);
+                baseWedge = WithProperty(baseWedge, "article_description", description);
             }
         }
         catch (Exception ex)

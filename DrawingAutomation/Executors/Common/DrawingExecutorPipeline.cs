@@ -132,10 +132,19 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         {
             if (dd?.Views == null) return;
 
-            if (dd.Views.TryGetValue("Front", out var front) && front != null) front.Params["breakline_gap_mm"] = 2.0;
-            if (dd.Views.TryGetValue("Side", out var side) && side != null) side.Params["breakline_gap_mm"] = 2.0;
-            if (dd.Views.TryGetValue("Detail", out var detail) && detail != null) detail.Params["breakline_gap_mm"] = 50.0;
-            if (dd.Views.TryGetValue("Section", out var section) && section != null) section.Params["breakline_gap_mm"] = 50.0;
+            SetDefaultGap(dd, "Front", 2.0);
+            SetDefaultGap(dd, "Side", 2.0);
+            SetDefaultGap(dd, "Detail", 50.0);
+            SetDefaultGap(dd, "Section", 50.0);
+        }
+
+        private static void SetDefaultGap(DrawingData dd, string viewName, double defaultMm)
+        {
+            if (!dd.Views.TryGetValue(viewName, out var view) || view == null)
+                return;
+
+            if (!view.Params.ContainsKey("breakline_gap_mm"))
+                view.Params["breakline_gap_mm"] = defaultMm;
         }
 
         public static void ApplyBreaklines(PipelineState st, DrawingRun run, DrawingData drawingData)

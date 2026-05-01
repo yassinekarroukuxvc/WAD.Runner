@@ -44,7 +44,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
                 WedgeType.COB => ProfileRegistry.GetCob(run.Wedge.Subclass, drawingData.DrawingType),
                 WedgeType.OSG7 => ProfileRegistry.GetOsg7(run.Wedge.Subclass, drawingData.DrawingType),
                 WedgeType.UTUS => ProfileRegistry.GetUtus(run.Wedge.Subclass, drawingData.DrawingType),
-                WedgeType.FP => ProfileRegistry.GetUtus(run.Wedge.Subclass, drawingData.DrawingType),
+                WedgeType.FP => ProfileRegistry.GetFp(run.Wedge.Subclass, drawingData.DrawingType),
                 _ => ProfileRegistry.GetCkvd(run.Wedge.Subclass, drawingData.DrawingType)
             };
             Logger.Info($"[Profile] Using {profile.ProfileName} for {bannerLabel}.");
@@ -64,8 +64,13 @@ namespace WAD.Runner.DrawingAutomation.Executors.PGB
 
             if (isCkvd)
             {
-                Logger.Info("[2/10] Bind Views To PGB Config");
+                Logger.Info("[2/10] Bind CKVD PGB overlay views to PGB configs");
                 TryBindReferencedConfigsForPgbOverlay(ds, nameMap, run, drawingData);
+            }
+            else
+            {
+                Logger.Info("[2/10] Bind COB-like PGB overlay views to std_cut/non_std_cut when needed");
+                OverlayDrawingExecutorCommon.TryBindOverlayViewConfigurations(ds, run, nameMap);
             }
 
             // 3) Compute overlay mag/cal + payload

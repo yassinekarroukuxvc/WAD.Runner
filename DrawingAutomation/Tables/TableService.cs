@@ -46,7 +46,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
             // Derive width from content, capped between a min and the config value
             var configWidthM = ResolveWidthM(cfg, fallbackM: 0.08);
-            var contentWidthM = EstimateMonospaceWidthM(rows, header, fontSizePt: 6.0, scaleCharHeight: 0.90,charWidthRatio: 0.8);
+            var contentWidthM = EstimateMonospaceWidthM(rows, header, fontSizePt: 6.0, scaleCharHeight: 0.90, charWidthRatio: 0.8);
             var widthM = Math.Min(configWidthM, Math.Max(contentWidthM, 0.03)); // floor at 30mm
 
             var posM = ToMeters(cfg.PositionMm);
@@ -55,7 +55,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
             // If your anchor is the TOP-LEFT corner of the table (SW default),
             // and you want it to grow downward, skip this and use posM.y directly.
             double tableHeightM = EstimateTableHeightM(rows.Count, rowHeightMm: 3.5, includeTitle: true);
-            double adjustedY = posM.y + tableHeightM;
+            double adjustedY = posM.y + tableHeightM + 0.005;
 
             var table = CreateOneColumnTable(posM.x, adjustedY, rows.Count + 1, "Dimensions", widthM);
 
@@ -485,12 +485,19 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
             return rows;
         }
+
         private static string FormatTolDeg(Tolerance tol)
         {
-            if (tol == null || (tol.Lower.Value == 0m && tol.Upper.Value == 0m)) return "";
-            var maxAbs = Math.Max(Math.Abs(tol.Lower.Value), Math.Abs(tol.Upper.Value));
-            return $"±{maxAbs:0.###}°";
+            if (tol == null || (tol.Lower.Value == 0m && tol.Upper.Value == 0m))
+                return "";
+
+            return FormatTolerancePair(
+                Math.Abs(tol.Lower.Value),
+                Math.Abs(tol.Upper.Value),
+                value => value.ToString("0.###", CultureInfo.InvariantCulture),
+                suffix: "°");
         }
+
         private static List<string> ReadLinesFromMetadata(DrawingData draw, string metaKey)
         {
             var lines = new List<string>();
@@ -512,8 +519,10 @@ namespace WAD.Runner.DrawingAutomation.Tables
         /// Requirements:
         /// - Length dimensions are shown in inches.
         /// - Angle dimensions remain in degrees.
-        /// - If both tolerances are zero -> mark as REF.
-        /// - Otherwise: show ± tolerance in inches for length dimensions.
+        /// - If lower = 0 and upper = 0 -> mark as REF.
+        /// - If lower != upper -> show asymmetric -lower +upper.
+        /// - If lower = upper and both are non-zero -> show symmetric ±upper.
+        /// - If only one side is non-zero -> show only that side.
         /// </summary>
         private static List<string> BuildOverlayDimensionRowStrings(IReadOnlyList<OverlayDimensionRow> dims)
         {
@@ -527,30 +536,14 @@ namespace WAD.Runner.DrawingAutomation.Tables
                     var inch = MmToIn(mm);
                     var inchStr = TrimLeadingZero(inch.ToString("0.0000", CultureInfo.InvariantCulture));
 
-                    string text;
+                    var lowerMm = row.TolLower.IsMm ? row.TolLower.AsMm() : 0m;
+                    var upperMm = row.TolUpper.IsMm ? row.TolUpper.AsMm() : 0m;
 
-                    if (row.IsZeroTolerance)
-                    {
-                        text = $"{row.Key}={inchStr} (REF)";
-                    }
-                    else
-                    {
-                        var lowerMm = row.TolLower.IsMm ? row.TolLower.AsMm() : 0m;
-                        var upperMm = row.TolUpper.IsMm ? row.TolUpper.AsMm() : 0m;
+                    var tolText = FormatOverlayLengthToleranceInches(lowerMm, upperMm);
 
-                        var maxAbsMm = Math.Max(Math.Abs(lowerMm), Math.Abs(upperMm));
-                        var maxAbsIn = MmToIn(maxAbsMm);
-
-                        if (maxAbsIn == 0m)
-                        {
-                            text = $"{row.Key}={inchStr} (REF)";
-                        }
-                        else
-                        {
-                            var tolStr = TrimLeadingZero(maxAbsIn.ToString("0.0000", CultureInfo.InvariantCulture));
-                            text = $"{row.Key}={inchStr} ±{tolStr}";
-                        }
-                    }
+                    var text = string.IsNullOrEmpty(tolText)
+                        ? $"{row.Key}={inchStr} (REF)"
+                        : $"{row.Key}={inchStr} {tolText}";
 
                     result.Add(text);
                 }
@@ -559,28 +552,14 @@ namespace WAD.Runner.DrawingAutomation.Tables
                     var deg = row.Nominal.AsDeg();
                     var degStr = deg.ToString("0.###", CultureInfo.InvariantCulture);
 
-                    string text;
+                    var lowerDeg = row.TolLower.IsDeg ? row.TolLower.AsDeg() : 0m;
+                    var upperDeg = row.TolUpper.IsDeg ? row.TolUpper.AsDeg() : 0m;
 
-                    if (row.IsZeroTolerance)
-                    {
-                        text = $"{row.Key}={degStr}° (REF)";
-                    }
-                    else
-                    {
-                        var lowerDeg = row.TolLower.IsDeg ? row.TolLower.AsDeg() : 0m;
-                        var upperDeg = row.TolUpper.IsDeg ? row.TolUpper.AsDeg() : 0m;
-                        var maxAbsDeg = Math.Max(Math.Abs(lowerDeg), Math.Abs(upperDeg));
+                    var tolText = FormatOverlayAngleToleranceDegrees(lowerDeg, upperDeg);
 
-                        if (maxAbsDeg == 0m)
-                        {
-                            text = $"{row.Key}={degStr}° (REF)";
-                        }
-                        else
-                        {
-                            var tolStr = maxAbsDeg.ToString("0.###", CultureInfo.InvariantCulture);
-                            text = $"{row.Key}={degStr}° ±{tolStr}°";
-                        }
-                    }
+                    var text = string.IsNullOrEmpty(tolText)
+                        ? $"{row.Key}={degStr}° (REF)"
+                        : $"{row.Key}={degStr}° {tolText}";
 
                     result.Add(text);
                 }
@@ -604,19 +583,88 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
         private static string FormatTolInches(Tolerance tol, bool removeLeadingZero)
         {
-            if (tol == null || (tol.Lower.Value == 0m && tol.Upper.Value == 0m)) return "";
-            var maxAbsMm = Math.Max(Math.Abs(tol.Lower.Value), Math.Abs(tol.Upper.Value));
-            var maxAbsIn = MmToIn(maxAbsMm);
-            var s = maxAbsIn.ToString("0.0000", CultureInfo.InvariantCulture);
-            s = removeLeadingZero ? TrimLeadingZero(s) : s;
-            return $"±{s}";
+            if (tol == null || (tol.Lower.Value == 0m && tol.Upper.Value == 0m))
+                return "";
+
+            var lowerIn = MmToIn(Math.Abs(tol.Lower.Value));
+            var upperIn = MmToIn(Math.Abs(tol.Upper.Value));
+
+            return FormatTolerancePair(
+                lowerIn,
+                upperIn,
+                value => FormatDecimal(value, "0.0000", removeLeadingZero),
+                suffix: "");
         }
 
         private static string FormatTolMm(Tolerance tol)
         {
-            if (tol == null || (tol.Lower.Value == 0m && tol.Upper.Value == 0m)) return "";
-            var maxAbs = Math.Max(Math.Abs(tol.Lower.Value), Math.Abs(tol.Upper.Value));
-            return $"±{maxAbs:0.###}";
+            if (tol == null || (tol.Lower.Value == 0m && tol.Upper.Value == 0m))
+                return "";
+
+            return FormatTolerancePair(
+                Math.Abs(tol.Lower.Value),
+                Math.Abs(tol.Upper.Value),
+                value => value.ToString("0.###", CultureInfo.InvariantCulture),
+                suffix: "");
+        }
+
+        private static string FormatOverlayLengthToleranceInches(decimal lowerMm, decimal upperMm)
+        {
+            var lowerIn = MmToIn(Math.Abs(lowerMm));
+            var upperIn = MmToIn(Math.Abs(upperMm));
+
+            return FormatTolerancePair(
+                lowerIn,
+                upperIn,
+                value => FormatDecimal(value, "0.0000", removeLeadingZero: true),
+                suffix: "");
+        }
+
+        private static string FormatOverlayAngleToleranceDegrees(decimal lowerDeg, decimal upperDeg)
+        {
+            return FormatTolerancePair(
+                Math.Abs(lowerDeg),
+                Math.Abs(upperDeg),
+                value => value.ToString("0.###", CultureInfo.InvariantCulture),
+                suffix: "°");
+        }
+
+        private static string FormatTolerancePair(
+            decimal lower,
+            decimal upper,
+            Func<decimal, string> formatValue,
+            string suffix)
+        {
+            // Case A:
+            // lower = 0 and upper = 0
+            // Caller treats empty tolerance as REF.
+            if (lower == 0m && upper == 0m)
+                return "";
+
+            // Case C:
+            // lower = upper and both are non-zero.
+            if (lower == upper)
+                return $"±{formatValue(upper)}{suffix}";
+
+            // Case D:
+            // lower = 0, upper is non-zero.
+            if (lower == 0m)
+                return $"+{formatValue(upper)}{suffix}";
+
+            // Case D:
+            // upper = 0, lower is non-zero.
+            if (upper == 0m)
+                return $"-{formatValue(lower)}{suffix}";
+
+            // Case B:
+            // lower != upper and both are non-zero.
+            return $"-{formatValue(lower)}{suffix} +{formatValue(upper)}{suffix}";
+        }
+
+        private static string FormatDecimal(decimal value, string format, bool removeLeadingZero)
+        {
+            var s = value.ToString(format, CultureInfo.InvariantCulture);
+            return removeLeadingZero ? TrimLeadingZero(s) : s;
         }
 
         private static string? TryGetArticleDescription(WedgeData wedge)

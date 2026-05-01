@@ -46,12 +46,6 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
             utolTarget: $"T_UTOL@{frontSketch}",
             ltolTarget: $"T_LTOL@{frontSketch}");
 
-        if (subclass == WedgeSubclass.PGB)
-        {
-            Logger.Info($"[{_logPrefix}] PGB Overlay → standard PGB overlay tolerance targets only.");
-            Logger.Info($"[{_logPrefix}] {subclass} Overlay → planned updates={updates.Count} (Shank={facts.ShankType})");
-            return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
-        }
 
         if (facts.HasRa2H)
         {

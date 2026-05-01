@@ -105,7 +105,7 @@ internal static class CobDimensionRules
 
         var VR = LayoutMath.Dmm(ctx, "VR");
         PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
-            F[0] + fsv * TD / 2.0 + 5.0, F[1] - L_front / 2.0 + VR * fsv / 2.0);
+            F[0], F[1] - L_front / 2.0);
     }
 
     private static void AddTop(
@@ -143,10 +143,10 @@ internal static class CobDimensionRules
         var CR = LayoutMath.Dmm(ctx, "CR");
 
         PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
-            D[0], D[1] + 30);
+            D[0], D[1]);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
-            D[0], D[1] + 20);
+            D[0], D[1] - 5);
 
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
             D[0], bandMidY - 30);
@@ -194,6 +194,8 @@ internal static class CobDimensionRules
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
             52,
             114);
+        PlaceDim(ctx, diag, outList, "TL", Side, DimAxis.Horizontal,
+            S[0] - ssv * TD / 2.0 - 7.5, S[1]);
     }
 
     private static void AddSection(
@@ -255,7 +257,7 @@ internal static class CobDimensionRules
             Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY - 35);
 
         PlaceDim(ctx, diag, outList, "FD", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FD / 2 * scv, bandMidY - 30);
+            0, 0);
 
         PlaceDim(ctx, diag, outList, "T", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T / 2 * scv, bandMidY - 40);

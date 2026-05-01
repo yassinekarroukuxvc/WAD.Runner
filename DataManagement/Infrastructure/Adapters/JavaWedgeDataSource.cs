@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using WAD.Runner.Application.Ports;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Infrastructure.Mapping;
+using WAD.Runner.DataManagement.Infrastructure.Parsing;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Adapters;
 
@@ -44,7 +45,8 @@ public sealed class JavaWedgeDataSource : IWedgeDataSource
                     var spec2 = await _api.GetWedSpec2Async(articleNumber, ct);
                     var kvalue = await _api.GetWedKValueAsync(articleNumber, ct);
                     var marking = await _api.GetWedMarkingAsync(articleNumber, ct);
-                    var description = await _api.GetArticleDescriptionAsync(articleNumber, ct);
+                    var rawDescription = await _api.GetArticleDescriptionAsync(articleNumber, ct);
+                    var description = ArticleDescriptionParser.NormalizeForDisplay(rawDescription);
 
                     if (spec2 is null || spec2.Count == 0)
                         throw new InvalidOperationException($"No Wed-Spec2 rows returned for article {articleNumber}.");
@@ -76,7 +78,8 @@ public sealed class JavaWedgeDataSource : IWedgeDataSource
                 {
                     var spec1 = await _api.GetPgbSpec1Async(articleNumber, ct);
                     var spec2 = await _api.GetPgbSpec2Async(articleNumber, ct);
-                    var description = await _api.GetArticleDescriptionAsync(articleNumber, ct);
+                    var rawDescription = await _api.GetArticleDescriptionAsync(articleNumber, ct);
+                    var description = ArticleDescriptionParser.NormalizeForDisplay(rawDescription);
 
                     if (spec2 is null || spec2.Count == 0)
                         throw new InvalidOperationException($"No PGB-Spec2 rows returned for article {articleNumber}.");

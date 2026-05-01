@@ -198,6 +198,8 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
             52,
             114);
+        PlaceDim(ctx, diag, outList, "TL", Side, DimAxis.Horizontal,
+            S[0] - ssv * TD / 2.0 - 7.5, S[1]);
     }
 
     private static void AddSection(
