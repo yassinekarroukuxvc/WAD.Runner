@@ -18,9 +18,16 @@ namespace WAD.Runner.DrawingAutomation.Views;
 /// e.g. removing dimensions whose value is 0 based on planning data.
 ///
 /// PERFORMANCE NOTES:
-/// - Avoid rescanning the same view for each key.
-/// - Read DisplayDimensions once per view when possible.
-/// - Reduce repeated COM calls and repeated string normalization work.
+/// - ReadDisplayDimensions accepts a computeNormalized flag: NormalizeDimName is only
+///   invoked for the FullNameCleanup path, saving N string operations per view in the
+///   ZeroCleanup and KeyCleanup paths.
+/// - NormalizeDimName is span-based: no Trim('"') intermediate string, no Split('@')
+///   array — only one .ToString() allocation at the end.
+/// - RemoveZeroDimensionsFromDrawing builds zeroKeys directly into a HashSet and
+///   extends it in-place, avoiding a full copy into a second collection.
+/// - DeleteDimensionsByPredicate batch-selects all candidates and issues a single
+///   DeleteSelection2 COM call. On failure it falls back to per-item deletion so
+///   error granularity is never lost.
 /// </summary>
 public static class AnnotationCleanupService
 {
@@ -35,8 +42,17 @@ public static class AnnotationCleanupService
         public string Name { get; init; } = string.Empty;
         public string FullName { get; init; } = string.Empty;
         public string Prefix { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Only populated when ReadDisplayDimensions is called with computeNormalized=true
+        /// (i.e. the FullNameCleanup path). Empty string otherwise.
+        /// </summary>
         public string NormalizedFullName { get; init; } = string.Empty;
     }
+
+    // Reused static array — avoids a heap allocation on every call to
+    // RemoveZeroDimensionsFromDrawing for the three always-included keys.
+    private static readonly string[] AlwaysIncludedKeys = { "FX", "VR", "VRR" };
 
     // =========================
     // 0) DIAGNOSTICS
@@ -61,7 +77,8 @@ public static class AnnotationCleanupService
             return;
         }
 
-        var infos = ReadDisplayDimensions(view);
+        // Diagnostics only — no normalized names needed.
+        var infos = ReadDisplayDimensions(view, computeNormalized: false);
         if (infos.Count == 0)
         {
             Logger.Info($"[DumpDims] View '{logicalViewName}' has 0 display dimensions.");
@@ -94,12 +111,12 @@ public static class AnnotationCleanupService
     /// even if no DimensionSpec exists for them.
     /// </summary>
     public static void RemoveZeroDimensionsFromDrawing(
-    DrawingService ds,
-    IDictionary<string, string> nameMap,
-    LayoutContext ctx,
-    DrawingData drawingData,
-    IEnumerable<DimensionSpec> dims,
-    bool hideVrExtremaAnnotations = false)
+        DrawingService ds,
+        IDictionary<string, string> nameMap,
+        LayoutContext ctx,
+        DrawingData drawingData,
+        IEnumerable<DimensionSpec> dims,
+        bool hideVrExtremaAnnotations = false)
     {
         if (ds?.Model is not ModelDoc2 model) return;
         if (ds.Drawing is not DrawingDoc) return;
@@ -107,73 +124,58 @@ public static class AnnotationCleanupService
         if (ctx == null) return;
         if (dims == null) return;
 
-        // Only evaluate REAL numeric keys here.
-        // Do NOT include VR_MAX / VR_MIN / VRR_MAX / VRR_MIN as standalone keys.
-        var candidateKeyStrings = dims
-            .Select(d => d.Key.ToString())
-            .Concat(new[] { "FX", "VR", "VRR" })
-            .Where(s => !string.IsNullOrWhiteSpace(s))
-            .Where(s =>
-                !s.Equals("VR_MAX", StringComparison.OrdinalIgnoreCase) &&
-                !s.Equals("VR_MIN", StringComparison.OrdinalIgnoreCase) &&
-                !s.Equals("VRR_MAX", StringComparison.OrdinalIgnoreCase) &&
-                !s.Equals("VRR_MIN", StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
+        // Build zeroKeys directly into a HashSet — no intermediate List, no Distinct() call.
+        // VR_MAX / VR_MIN / VRR_MAX / VRR_MIN are excluded here; they are added below
+        // only when their parent key is zero or hideVrExtremaAnnotations is set.
         var zeroKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var keyStr in candidateKeyStrings)
+        foreach (var d in dims)
         {
-            double value;
-            try
-            {
-                value = DimensionKeyPolicy.IsAngle(keyStr)
-                    ? LayoutMath.Ddeg(ctx, keyStr)
-                    : LayoutMath.Dmm(ctx, keyStr);
-            }
-            catch
-            {
-                continue;
-            }
+            var keyStr = d.Key.ToString();
+            if (string.IsNullOrWhiteSpace(keyStr)) continue;
+            if (keyStr.Equals("VR_MAX", StringComparison.OrdinalIgnoreCase)) continue;
+            if (keyStr.Equals("VR_MIN", StringComparison.OrdinalIgnoreCase)) continue;
+            if (keyStr.Equals("VRR_MAX", StringComparison.OrdinalIgnoreCase)) continue;
+            if (keyStr.Equals("VRR_MIN", StringComparison.OrdinalIgnoreCase)) continue;
 
-            if (Math.Abs(value) < 1e-6)
-                zeroKeys.Add(keyStr);
+            TryAddIfZero(zeroKeys, keyStr, ctx);
         }
 
-        var prefixesToDelete = new HashSet<string>(zeroKeys, StringComparer.OrdinalIgnoreCase);
+        // Always evaluate the three implicit keys.
+        foreach (var key in AlwaysIncludedKeys)
+            TryAddIfZero(zeroKeys, key, ctx);
 
+        // Extend zeroKeys in-place with derived extrema prefixes — no copy needed.
         if (zeroKeys.Contains("VR"))
         {
-            prefixesToDelete.Add("VR_MAX");
-            prefixesToDelete.Add("VR_MIN");
+            zeroKeys.Add("VR_MAX");
+            zeroKeys.Add("VR_MIN");
         }
 
         if (zeroKeys.Contains("VRR"))
         {
-            prefixesToDelete.Add("VRR_MAX");
-            prefixesToDelete.Add("VRR_MIN");
+            zeroKeys.Add("VRR_MAX");
+            zeroKeys.Add("VRR_MIN");
         }
 
         if (hideVrExtremaAnnotations)
         {
-            prefixesToDelete.Add("VR_MAX");
-            prefixesToDelete.Add("VR_MIN");
-            prefixesToDelete.Add("VRR_MAX");
-            prefixesToDelete.Add("VRR_MIN");
+            zeroKeys.Add("VR_MAX");
+            zeroKeys.Add("VR_MIN");
+            zeroKeys.Add("VRR_MAX");
+            zeroKeys.Add("VRR_MIN");
 
             Logger.Info("[ZeroCleanup] Overlay non_std_cut was compressed/clamped. " +
                         "Forcing deletion of VR/VRR extrema annotations: VR_MAX, VR_MIN, VRR_MAX, VRR_MIN.");
         }
 
-        if (prefixesToDelete.Count == 0)
+        if (zeroKeys.Count == 0)
         {
             Logger.Info("[ZeroCleanup] No keys/prefixes marked for deletion.");
             return;
         }
 
-        Logger.Info($"[ZeroCleanup] Keys with zero value (mm/deg): {string.Join(", ", zeroKeys)}");
-        Logger.Info($"[ZeroCleanup] Annotation prefixes to delete: {string.Join(", ", prefixesToDelete)}");
+        Logger.Info($"[ZeroCleanup] Annotation prefixes to delete: {string.Join(", ", zeroKeys)}");
 
         int totalDeleted = 0;
 
@@ -186,14 +188,15 @@ public static class AnnotationCleanupService
                 continue;
             }
 
-            var infos = ReadDisplayDimensions(view);
+            // ZeroCleanup matches by Prefix only — NormalizedFullName is never read.
+            var infos = ReadDisplayDimensions(view, computeNormalized: false);
             if (infos.Count == 0)
                 continue;
 
             int deletedInView = DeleteDimensionsByPredicate(
                 model,
                 infos,
-                info => prefixesToDelete.Contains(info.Prefix),
+                info => zeroKeys.Contains(info.Prefix),
                 info => $"[ZeroCleanup] Deleted dim '{info.FullName}' in view '{logicalViewName}' for key '{info.Prefix}'.",
                 (info, ex) => $"[ZeroCleanup] Failed to delete dim '{info.FullName}' in view '{logicalViewName}' (key='{info.Prefix}'): {ex.Message}");
 
@@ -242,7 +245,8 @@ public static class AnnotationCleanupService
             return 0;
         }
 
-        var infos = ReadDisplayDimensions(view);
+        // KeyCleanup matches by Prefix only — NormalizedFullName is never read.
+        var infos = ReadDisplayDimensions(view, computeNormalized: false);
         if (infos.Count == 0)
             return 0;
 
@@ -314,7 +318,8 @@ public static class AnnotationCleanupService
             return 0;
         }
 
-        var infos = ReadDisplayDimensions(view);
+        // FullNameCleanup is the only path that needs NormalizedFullName per dimension.
+        var infos = ReadDisplayDimensions(view, computeNormalized: true);
         if (infos.Count == 0)
             return 0;
 
@@ -345,6 +350,14 @@ public static class AnnotationCleanupService
     // Internal helpers
     // =========================
 
+    /// <summary>
+    /// Batch-selects all matching annotations and issues a SINGLE DeleteSelection2 COM call.
+    /// This reduces COM round-trips from 2N (Select + Delete per item) to N+1 in the common
+    /// case where all selections succeed.
+    ///
+    /// On batch-delete failure the method falls back to per-item deletion, preserving
+    /// full error-granularity logging.
+    /// </summary>
     private static int DeleteDimensionsByPredicate(
         ModelDoc2 model,
         IReadOnlyList<DisplayDimInfo> infos,
@@ -352,23 +365,68 @@ public static class AnnotationCleanupService
         Func<DisplayDimInfo, string> successMessage,
         Func<DisplayDimInfo, Exception, string> failureMessage)
     {
-        int deleted = 0;
-
+        // ---- Phase 1: collect candidates (no COM calls) -------------------------
+        var candidates = new List<DisplayDimInfo>();
         for (int i = 0; i < infos.Count; i++)
         {
             var info = infos[i];
-            if (!shouldDelete(info))
-                continue;
+            if (shouldDelete(info) && info.Annotation != null)
+                candidates.Add(info);
+        }
 
-            if (info.Annotation == null)
-                continue;
+        if (candidates.Count == 0)
+            return 0;
 
+        // ---- Phase 2: batch-select all candidates (N COM calls) -----------------
+        // First annotation clears the existing selection; the rest append.
+        var selected = new List<DisplayDimInfo>(candidates.Count);
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            var info = candidates[i];
             try
             {
-                info.Annotation.Select2(false, -1);
+                bool append = selected.Count > 0;
+                info.Annotation!.Select2(append, -1);
+                selected.Add(info);
+            }
+            catch
+            {
+                // Silently skip any annotation whose Select2 throws;
+                // it will simply be absent from the batch.
+            }
+        }
+
+        if (selected.Count == 0)
+            return 0;
+
+        // ---- Phase 3: single DeleteSelection2 (1 COM call) ----------------------
+        try
+        {
+            model.Extension.DeleteSelection2((int)swDeleteSelectionOptions_e.swDelete_Absorbed);
+
+            foreach (var info in selected)
+                Logger.Info(successMessage(info));
+
+            return selected.Count;
+        }
+        catch
+        {
+            // Batch delete failed (e.g. mixed absorbed/non-absorbed items, SW state issue).
+            // Fall back to per-item path to preserve error granularity.
+        }
+
+        // ---- Phase 4: per-item fallback -----------------------------------------
+        int deleted = 0;
+
+        foreach (var info in selected)
+        {
+            try
+            {
+                // Use append=false each time to reset selection before each individual delete.
+                info.Annotation!.Select2(false, -1);
                 model.Extension.DeleteSelection2((int)swDeleteSelectionOptions_e.swDelete_Absorbed);
                 deleted++;
-
                 Logger.Info(successMessage(info));
             }
             catch (Exception ex)
@@ -380,7 +438,15 @@ public static class AnnotationCleanupService
         return deleted;
     }
 
-    private static List<DisplayDimInfo> ReadDisplayDimensions(View view)
+    /// <summary>
+    /// Reads all DisplayDimensions from a view into a flat list.
+    ///
+    /// <paramref name="computeNormalized"/>: pass true only when NormalizedFullName will
+    /// actually be used (i.e. the FullNameCleanup path). For ZeroCleanup and KeyCleanup,
+    /// passing false skips NormalizeDimName entirely, saving one string operation per
+    /// dimension across every view in the drawing.
+    /// </summary>
+    private static List<DisplayDimInfo> ReadDisplayDimensions(View view, bool computeNormalized)
     {
         var result = new List<DisplayDimInfo>();
 
@@ -424,7 +490,8 @@ public static class AnnotationCleanupService
                     Name = name,
                     FullName = fullName,
                     Prefix = prefix,
-                    NormalizedFullName = NormalizeDimName(fullName)
+                    // Skip NormalizeDimName when caller will never read NormalizedFullName.
+                    NormalizedFullName = computeNormalized ? NormalizeDimName(fullName) : string.Empty
                 });
             }
             catch
@@ -462,34 +529,66 @@ public static class AnnotationCleanupService
 
     /// <summary>
     /// Normalizes SW dimension name strings to improve matching.
-    /// - trims quotes/whitespace
-    /// - removes "&lt;...&gt;" suffix
-    /// - keeps only first 2 segments when split by '@' (Key@Sketch)
+    /// Span-based: no intermediate string allocations — only one .ToString() at the end.
+    ///   - Trims whitespace and surrounding quotes
+    ///   - Removes "&lt;...&gt;" suffix
+    ///   - Keeps only the first two '@'-delimited segments (Key@Sketch)
     /// </summary>
     private static string NormalizeDimName(string s)
     {
-        if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+        if (string.IsNullOrWhiteSpace(s))
+            return string.Empty;
 
-        s = s.Trim().Trim('"');
+        var span = s.AsSpan().Trim();
 
-        var idx = s.IndexOf('<');
-        if (idx >= 0)
-            s = s[..idx];
+        // Trim surrounding quotes if present.
+        if (span.Length >= 2 && span[0] == '"' && span[span.Length - 1] == '"')
+            span = span[1..^1];
 
-        var parts = s.Split('@');
-        if (parts.Length >= 2)
-            s = parts[0] + "@" + parts[1];
+        // Remove everything from the first '<' onward.
+        var ltIdx = span.IndexOf('<');
+        if (ltIdx >= 0)
+            span = span[..ltIdx];
 
-        return s;
+        // Keep only Key@Sketch (first two segments when split by '@').
+        var atIdx = span.IndexOf('@');
+        if (atIdx >= 0)
+        {
+            var afterAt = span[(atIdx + 1)..];
+            var secondAt = afterAt.IndexOf('@');
+            if (secondAt >= 0)
+                span = span[..(atIdx + 1 + secondAt)];
+        }
+
+        return span.ToString();
     }
 
     private static string ExtractPrefix(string fullName)
     {
-        if (string.IsNullOrWhiteSpace(fullName))
-            return string.Empty;
-
         var atIdx = fullName.IndexOf('@');
         return atIdx >= 0 ? fullName[..atIdx] : fullName;
+    }
+
+    /// <summary>
+    /// Evaluates one key and adds it to <paramref name="zeroKeys"/> if its value is
+    /// effectively zero (abs &lt; 1e-6). Extracted to avoid duplicating the try/catch
+    /// inside the foreach loops of RemoveZeroDimensionsFromDrawing.
+    /// </summary>
+    private static void TryAddIfZero(HashSet<string> zeroKeys, string keyStr, LayoutContext ctx)
+    {
+        try
+        {
+            double value = DimensionKeyPolicy.IsAngle(keyStr)
+                ? LayoutMath.Ddeg(ctx, keyStr)
+                : LayoutMath.Dmm(ctx, keyStr);
+
+            if (Math.Abs(value) < 1e-6)
+                zeroKeys.Add(keyStr);
+        }
+        catch
+        {
+            // Key not present in context — skip.
+        }
     }
 
     private static View? FindView(DrawingService ds, string logicalName, IDictionary<string, string> nameMap)

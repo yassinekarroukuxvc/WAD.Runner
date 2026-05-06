@@ -34,7 +34,9 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
         bool isStd = facts.ShankType == CobLikeShankType.Std;
         string frontSketch = isStd ? "PGB_STD_FRONT_overlay_sketch" : "PGB_180_DEG_REV_FRONT_overlay_sketch";
 
-        AddTolPairMm(updates, facts, dimKey: "W",
+        // W overlay tolerances must use half tolerance because the overlay sketch
+        // applies the tolerance from the centerline/half-width side.
+        AddHalfTolPairMm(updates, facts, dimKey: "W",
             utolTarget: $"W_UTOL@{prefix}_LEFT_overlay_sketch",
             ltolTarget: $"W_LTOL@{prefix}_LEFT_overlay_sketch");
 
@@ -45,7 +47,6 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
         AddTolPairMm(updates, facts, dimKey: "T",
             utolTarget: $"T_UTOL@{frontSketch}",
             ltolTarget: $"T_LTOL@{frontSketch}");
-
 
         if (facts.HasRa2H)
         {
@@ -95,28 +96,31 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
                 {
                     const string case4Sketch = "VW_LEFT_case_4_overlay_sketch";
 
-                    AddTolPairMm(updates, facts, dimKey: "VW",
+                    // VW overlay tolerances must use half tolerance.
+                    AddHalfTolPairMm(updates, facts, dimKey: "VW",
                         utolTarget: $"VW_UTOL@{case4Sketch}",
                         ltolTarget: $"VW_LTOL@{case4Sketch}");
 
-                    Logger.Info($"[{_logPrefix}] Large VR case 4 (VW == W) → planned VW tolerances for {case4Sketch}.");
+                    Logger.Info($"[{_logPrefix}] Large VR case 4 (VW == W) → planned VW half-tolerances for {case4Sketch}.");
                 }
                 else
                 {
                     const string case3Sketch = "VW_LEFT_case_3_overlay_sketch";
 
-                    AddTolPairMm(updates, facts, dimKey: "W",
+                    // W overlay tolerances must use half tolerance.
+                    AddHalfTolPairMm(updates, facts, dimKey: "W",
                         utolTarget: $"W_UTOL@{case3Sketch}",
                         ltolTarget: $"W_LTOL@{case3Sketch}");
 
-                    Logger.Info($"[{_logPrefix}] Large VR case 3 (VW != W) → planned W tolerances for {case3Sketch}.");
+                    Logger.Info($"[{_logPrefix}] Large VR case 3 (VW != W) → planned W half-tolerances for {case3Sketch}.");
                 }
             }
             else if (vwEqualsW)
             {
                 const string case2Sketch = "VW_LEFT_case_2_overlay_sketch";
 
-                AddTolPairMm(updates, facts, dimKey: "VW",
+                // VW overlay tolerances must use half tolerance.
+                AddHalfTolPairMm(updates, facts, dimKey: "VW",
                     utolTarget: $"VW_UTOL@{case2Sketch}",
                     ltolTarget: $"VW_LTOL@{case2Sketch}");
 
@@ -128,17 +132,18 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
                     maxTarget: $"VRR_MAX@{case2Sketch}",
                     minTarget: $"VRR_MIN@{case2Sketch}");
 
-                Logger.Info($"[{_logPrefix}] VW case 2 (VW == W) → planned VW, VR bounds, VRR bounds for {case2Sketch}.");
+                Logger.Info($"[{_logPrefix}] VW case 2 (VW == W) → planned VW half-tolerances, VR bounds, VRR bounds for {case2Sketch}.");
             }
             else
             {
                 const string case1Sketch = "VW_LEFT_case_1_overlay_sketch";
 
-                AddTolPairMm(updates, facts, dimKey: "W",
+                // W and VW overlay tolerances must use half tolerance.
+                AddHalfTolPairMm(updates, facts, dimKey: "W",
                     utolTarget: $"W_UTOL@{case1Sketch}",
                     ltolTarget: $"W_LTOL@{case1Sketch}");
 
-                AddTolPairMm(updates, facts, dimKey: "VW",
+                AddHalfTolPairMm(updates, facts, dimKey: "VW",
                     utolTarget: $"VW_UTOL@{case1Sketch}",
                     ltolTarget: $"VW_LTOL@{case1Sketch}");
 
@@ -150,7 +155,7 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
                     maxTarget: $"VRR_MAX@{case1Sketch}",
                     minTarget: $"VRR_MIN@{case1Sketch}");
 
-                Logger.Info($"[{_logPrefix}] VW case 1 (VW != W) → planned W, VW, VR bounds, VRR bounds for {case1Sketch}.");
+                Logger.Info($"[{_logPrefix}] VW case 1 (VW != W) → planned W/VW half-tolerances, VR bounds, VRR bounds for {case1Sketch}.");
             }
         }
 
@@ -175,6 +180,28 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
         updates.Add(new ToleranceUpdate(ltolTarget, ltolMm, ToleranceUnit.LengthMm));
 
         Logger.Info($"[{_logPrefix}] {dimKey}: LTOL={ltolMm}mm → {ltolTarget}, UTOL={utolMm}mm → {utolTarget}");
+    }
+
+    private void AddHalfTolPairMm(
+        List<ToleranceUpdate> updates,
+        CobLikeRuleFacts facts,
+        string dimKey,
+        string utolTarget,
+        string ltolTarget)
+    {
+        if (!facts.TryGetLengthToleranceMm(dimKey, out var ltolMm, out var utolMm))
+        {
+            Logger.Warn($"[{_logPrefix}] Missing/invalid tolerance for '{dimKey}' (skipping: {ltolTarget}, {utolTarget})");
+            return;
+        }
+
+        var halfUtolMm = utolMm / 2;
+        var halfLtolMm = ltolMm / 2;
+
+        updates.Add(new ToleranceUpdate(utolTarget, halfUtolMm, ToleranceUnit.LengthMm));
+        updates.Add(new ToleranceUpdate(ltolTarget, halfLtolMm, ToleranceUnit.LengthMm));
+
+        Logger.Info($"[{_logPrefix}] {dimKey}: LTOL/2={halfLtolMm}mm → {ltolTarget}, UTOL/2={halfUtolMm}mm → {utolTarget}");
     }
 
     private void AddComputedBoundsMm(

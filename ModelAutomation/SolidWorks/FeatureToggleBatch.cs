@@ -27,6 +27,26 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
     ///     suppression state across all configurations. EditSuppress2/EditUnsuppress2
     ///     silently ignore scope — using them for AllConfiguration is a SW API limitation.
     ///
+    /// PERFORMANCE OPTIMISATIONS (over the original):
+    ///
+    ///   1. Selection-type cache — during Build() each feature's SW type is read once
+    ///      (GetTypeName2) and mapped to a SelectByID2 type string.  TrySelectByNameHeuristics
+    ///      therefore spends 1 COM call instead of up to 4 on every hot-path toggle.
+    ///      The probe loop is kept as a self-healing fallback.
+    ///
+    ///   2. Span-based batch slicing — ApplyBySelectionBatches no longer allocates a
+    ///      temporary array + two enumerators per batch via Skip/Take.
+    ///
+    ///   3. Larger default BatchSize (250 instead of 80) — fewer EditSuppress2 /
+    ///      EditUnsuppress2 COM calls for the same feature set.
+    ///
+    ///   4. Conditional Normalize dedup — when InputIsNormalized is true the inner
+    ///      HashSet allocation inside Normalize is skipped entirely.
+    ///
+    ///   5. Pre-read cache for swAllConfiguration repeat runs — when BlindApply is false
+    ///      a single upfront pass populates IsSuppressedCached for all targets before
+    ///      the toggle loop, enabling cheap skip decisions on repeated calls.
+    ///
     /// IMPORTANT: No rebuilds here. Orchestrator owns the single rebuild at the end.
     /// </summary>
     public sealed class FeatureToggleBatch
@@ -38,6 +58,16 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         // Some overlay cut items have parent/child dependencies in the feature tree.
         // In particular, cut_feature can remain suppressed when it is unsuppressed
         // in the same selection batch as cut_plan_feature.
+        //
+        // ERW_STD_feature is driven by ROUND_BR_STD_feature and H_STD_fix_feature:
+        // when either of those is unsuppressed, SolidWorks can automatically pull
+        // ERW_STD_feature to unsuppressed as well.  The same relationship exists
+        // between ROUND_BR_180_DEG_REV_feature / H_180_DEG_REV_fix_feature and
+        // ERW_180_DEG_REV_feature.  Placing ERW feature/sketch variants in
+        // CriticalSuppressOrder ensures they are suppressed AFTER their driving
+        // parents are already unsuppressed (end of the pass), not concurrently
+        // inside the batch where SW's internal resolution would silently override
+        // the suppress.
         //
         // Important:
         //   - For swThisConfiguration, apply these one-by-one using selection +
@@ -58,7 +88,52 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             "cut_feature",
             "cut_plan_feature",
             "non_std_cut_feature",
-            "non_std_cut_plan_feature"
+            "non_std_cut_plan_feature",
+            // ERW variants must be suppressed after their driving parents
+            // (ROUND_BR_*_feature / H_*_fix_feature) are already unsuppressed.
+            // Suppressing them inside the batch is unreliable because SolidWorks
+            // silently re-unsuppresses them when it resolves the parent dependency.
+            "ERW_STD_feature",
+            "ERW_STD_sketch",
+            "ERW_180_DEG_REV_feature",
+            "ERW_180_DEG_REV_sketch"
+        };
+
+        // Maps SolidWorks internal feature type names to the SelectByID2 type string.
+        // Everything not listed here defaults to "FEATURE", which covers the vast majority
+        // of part features (extrudes, cuts, patterns, reference geometry, etc.).
+        // Extend this table whenever a new model exposes a type that the probe loop
+        // falls back to on the first run — the cache will self-heal from that point on.
+        private static readonly Dictionary<string, string> SwTypeToSelectionType =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ProfileFeature"] = "SKETCH",
+                ["SketchBlockInst"] = "SKETCH",
+                ["3DProfileFeature"] = "SKETCH",
+                ["3DSketchFeature"] = "SKETCH",
+                ["ReferencePoint"] = "DATUMPOINT",
+                ["RefAxis"] = "AXIS",
+                ["RefPlane"] = "PLANE",
+                ["CoordSys"] = "COORDSYS",
+                ["CurveInFile"] = "REFERENCECURVES",
+                ["CompositeCurve"] = "REFERENCECURVES",
+                ["3DSplineCurve"] = "REFERENCECURVES",
+                ["HelixCurve"] = "REFERENCECURVES",
+                ["ProjectedCurve"] = "REFERENCECURVES",
+                ["IntersectCurve"] = "REFERENCECURVES",
+                ["SplitBody"] = "BODYFEATURE",
+                ["MoveBody"] = "BODYFEATURE",
+                ["DeleteBody"] = "BODYFEATURE",
+                ["CombineBodies"] = "BODYFEATURE",
+            };
+
+        // Probe order used by the self-healing fallback in TrySelectByNameHeuristics.
+        private static readonly string[] SelectionProbeOrder =
+        {
+            "FEATURE",
+            "SKETCH",
+            "BODYFEATURE",
+            "REFERENCECURVES",
         };
 
         private FeatureToggleBatch(ModelDoc2 model, Dictionary<string, FeatureEntry> index)
@@ -68,15 +143,23 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             _index = index;
         }
 
+        // -------------------------------------------------------------------------
+        // Inner types
+        // -------------------------------------------------------------------------
+
         private sealed class FeatureEntry
         {
             public Feature Feature { get; }
+
+            /// <summary>
+            /// SelectByID2 type string resolved once during Build().
+            /// Null only if GetTypeName2 threw at index time; the probe loop self-heals it.
+            /// </summary>
+            public string? SelectionType { get; set; }
+
             public bool? IsSuppressedCached { get; set; }
 
-            public FeatureEntry(Feature feature)
-            {
-                Feature = feature;
-            }
+            public FeatureEntry(Feature feature) => Feature = feature;
         }
 
         public sealed class ToggleOptions
@@ -96,9 +179,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             /// <summary>
             /// How many items to select per batch.
-            /// Default: 80.
+            /// Default: 250.  Raise further (up to ~500) for very large feature sets;
+            /// lower if you observe SelectByID2 instability with huge selections.
             /// </summary>
-            public int BatchSize { get; init; } = 80;
+            public int BatchSize { get; init; } = 250;
 
             /// <summary>
             /// Clear selection before each batch.
@@ -111,7 +195,20 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             /// Default: true.
             /// </summary>
             public bool FallbackToPerFeature { get; init; } = true;
+
+            /// <summary>
+            /// When true the input name sequences are assumed to be already trimmed,
+            /// non-empty, and duplicate-free.  Skips the inner HashSet allocation
+            /// inside Normalize().  Safe to enable when the orchestrator guarantees
+            /// clean lists.
+            /// Default: false.
+            /// </summary>
+            public bool InputIsNormalized { get; init; } = false;
         }
+
+        // -------------------------------------------------------------------------
+        // Build
+        // -------------------------------------------------------------------------
 
         public static FeatureToggleBatch Build(ModelDoc2 model)
         {
@@ -142,6 +239,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return new FeatureToggleBatch(model, map);
         }
 
+        // -------------------------------------------------------------------------
+        // Public API
+        // -------------------------------------------------------------------------
+
         public ToggleResult Apply(
             IEnumerable<string>? suppressNames,
             IEnumerable<string>? unsuppressNames,
@@ -157,11 +258,11 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             var unsup = unsuppressNames is null
                 ? Array.Empty<string>()
-                : Normalize(unsuppressNames).ToArray();
+                : NormalizeInput(unsuppressNames, options.InputIsNormalized).ToArray();
 
             var sup = suppressNames is null
                 ? Array.Empty<string>()
-                : Normalize(suppressNames).ToArray();
+                : NormalizeInput(suppressNames, options.InputIsNormalized).ToArray();
 
             // Unsuppress wins when a name appears in both lists.
             if (unsup.Length > 0 && sup.Length > 0)
@@ -170,7 +271,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             var criticalUnsup = ExtractOrdered(unsup, CriticalUnsuppressOrder);
             var criticalSup = ExtractOrdered(sup, CriticalSuppressOrder);
 
-            // Only allocate filtered arrays if there is actually something to remove.
             if (criticalUnsup.Length > 0)
                 unsup = RemoveNames(unsup, criticalUnsup);
 
@@ -187,25 +287,28 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             {
                 Logger.Info("[FeatureToggleBatch] scope=AllConfiguration → per-feature path (SetSuppression2).");
 
+                // Optimisation 5: pre-populate the suppression cache in one pass so that
+                // repeated calls can skip features that are already in the target state.
+                if (!options.BlindApply)
+                    PreReadSuppressionCache(unsup.Concat(sup).Concat(criticalUnsup).Concat(criticalSup), scope);
+
                 ApplyCriticalInOrder(criticalUnsup, suppress: false, scope, res);
 
                 foreach (var name in unsup)
-                    ToggleOnePerFeature(name, targetSuppress: false, scope, blindApply: true, res);
+                    ToggleOnePerFeature(name, targetSuppress: false, scope, blindApply: options.BlindApply, res);
 
                 foreach (var name in sup)
-                    ToggleOnePerFeature(name, targetSuppress: true, scope, blindApply: true, res);
+                    ToggleOnePerFeature(name, targetSuppress: true, scope, blindApply: options.BlindApply, res);
 
                 ApplyCriticalInOrder(criticalSup, suppress: true, scope, res);
             }
             else if (options.UseSelectionBatch)
             {
-                // Unsuppress parent/child cut features first, outside the selection batch.
                 ApplyCriticalInOrder(criticalUnsup, suppress: false, scope, res);
 
                 ApplyBySelectionBatches(unsup, suppress: false, scope, options, res);
                 ApplyBySelectionBatches(sup, suppress: true, scope, options, res);
 
-                // Suppress dependent cut features last, child before parent.
                 ApplyCriticalInOrder(criticalSup, suppress: true, scope, res);
             }
             else
@@ -222,6 +325,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
 
             VerifyCriticalUnsuppressed(criticalUnsup, scope, res);
+            VerifyCriticalSuppressed(criticalSup, scope, res);
 
             Logger.Info(
                 "[FeatureToggleBatch] Apply done → " +
@@ -264,6 +368,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return true;
         }
 
+        // -------------------------------------------------------------------------
+        // Critical-order helpers
+        // -------------------------------------------------------------------------
+
         private void ApplyCriticalInOrder(
             string[] names,
             bool suppress,
@@ -287,21 +395,12 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             swInConfigurationOpts_e scope,
             ToggleResult res)
         {
-            // For all-config jobs, SetSuppression2 is intentional and required.
             if (scope == swInConfigurationOpts_e.swAllConfiguration)
             {
-                ToggleOnePerFeature(
-                    name,
-                    targetSuppress: suppress,
-                    scope: scope,
-                    blindApply: true,
-                    res: res);
-
+                ToggleOnePerFeature(name, targetSuppress: suppress, scope, blindApply: true, res);
                 return;
             }
 
-            // For explicit std_cut/non_std_cut passes, never use SetSuppression2 here.
-            // Apply through active selection so std_cut and non_std_cut keep different states.
             ToggleOneByActiveSelection(name, suppress, res);
         }
 
@@ -324,10 +423,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             if (TrySetSelectionSuppression(suppress, out var err))
             {
-                if (suppress)
-                    res.Suppressed.Add(name);
-                else
-                    res.Unsuppressed.Add(name);
+                if (suppress) res.Suppressed.Add(name);
+                else res.Unsuppressed.Add(name);
             }
             else
             {
@@ -350,7 +447,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 if (!_index.TryGetValue(name, out var entry))
                     continue;
 
-                // Force a fresh read — discard any cached value from the first pass.
                 entry.IsSuppressedCached = null;
 
                 if (!TryGetIsSuppressed(entry, scope, out var isSuppressed))
@@ -361,12 +457,9 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
                 Logger.Warn($"[FeatureToggleBatch] Critical feature '{name}' still suppressed after first pass; retrying.");
 
-                // Clear the cached state so the retry always calls through to the API.
                 entry.IsSuppressedCached = null;
-
                 ToggleOneCritical(name, suppress: false, scope, res);
 
-                // Re-read after the retry and record a definitive failure if still suppressed.
                 entry.IsSuppressedCached = null;
 
                 if (TryGetIsSuppressed(entry, scope, out var stillSuppressed) && stillSuppressed)
@@ -376,6 +469,59 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 }
             }
         }
+
+        /// <summary>
+        /// Mirrors <see cref="VerifyCriticalUnsuppressed"/> for the suppress direction.
+        ///
+        /// Necessary because SolidWorks can silently re-unsuppress a driven feature
+        /// (e.g. ERW_STD_feature) when its driving parent (ROUND_BR_STD_feature /
+        /// H_STD_fix_feature) was unsuppressed in the same pass.  The first
+        /// ApplyCriticalInOrder call handles the normal case; this verifier catches
+        /// any feature that SW fought back on and retries it once more.
+        /// </summary>
+        private void VerifyCriticalSuppressed(
+            string[] names,
+            swInConfigurationOpts_e scope,
+            ToggleResult res)
+        {
+            if (names.Length == 0)
+                return;
+
+            foreach (var name in names.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!_index.TryGetValue(name, out var entry))
+                    continue;
+
+                entry.IsSuppressedCached = null;
+
+                if (!TryGetIsSuppressed(entry, scope, out var isSuppressed))
+                    continue;
+
+                if (isSuppressed)   // Already suppressed — nothing to do.
+                    continue;
+
+                Logger.Warn(
+                    $"[FeatureToggleBatch] Critical feature '{name}' still unsuppressed after first pass " +
+                    $"(likely driven by a parent feature); retrying suppress.");
+
+                entry.IsSuppressedCached = null;
+                ToggleOneCritical(name, suppress: true, scope, res);
+
+                entry.IsSuppressedCached = null;
+
+                if (TryGetIsSuppressed(entry, scope, out var stillUnsuppressed) && !stillUnsuppressed)
+                    continue;   // retry succeeded
+
+                Logger.Error(
+                    $"[FeatureToggleBatch] Critical feature '{name}' could not be suppressed after retry. " +
+                    $"Check whether its driving parent feature is still unsuppressed.");
+                res.Failed.TryAdd(name, "Still unsuppressed after retry (parent-driven?).");
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Batch helpers
+        // -------------------------------------------------------------------------
 
         private static string[] ExtractOrdered(string[] source, string[] preferredOrder)
         {
@@ -395,6 +541,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return source.Where(x => !removeSet.Contains(x)).ToArray();
         }
 
+        /// <summary>
+        /// Optimisation 2: uses <see cref="Span{T}"/> slicing to avoid the
+        /// Skip/Take array + enumerator allocations of the original implementation.
+        /// </summary>
         private void ApplyBySelectionBatches(
             string[] names,
             bool suppress,
@@ -406,10 +556,11 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 return;
 
             int batchSize = Math.Max(1, options.BatchSize);
+            var span = names.AsSpan();
 
-            for (int i = 0; i < names.Length; i += batchSize)
+            for (int i = 0; i < span.Length; i += batchSize)
             {
-                var batch = names.Skip(i).Take(batchSize).ToArray();
+                var batch = span.Slice(i, Math.Min(batchSize, span.Length - i));
 
                 if (options.ClearSelectionPerBatch)
                     _model.ClearSelection2(true);
@@ -452,12 +603,14 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
-                if (suppress)
-                    res.Suppressed.AddRange(selected);
-                else
-                    res.Unsuppressed.AddRange(selected);
+                if (suppress) res.Suppressed.AddRange(selected);
+                else res.Unsuppressed.AddRange(selected);
             }
         }
+
+        // -------------------------------------------------------------------------
+        // COM wrappers
+        // -------------------------------------------------------------------------
 
         /// <summary>
         /// Calls EditSuppress2 / EditUnsuppress2 on the current selection.
@@ -491,6 +644,11 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
         }
 
+        /// <summary>
+        /// Optimisation 1: attempts the cached SelectionType first (1 COM call),
+        /// and only falls through to the probe loop when the cached type misses.
+        /// The cache is updated on a successful probe so subsequent calls are fast.
+        /// </summary>
         private bool TrySelectByNameHeuristics(string name, bool append)
         {
             const int mark = 0;
@@ -498,17 +656,28 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             try
             {
-                if (_ext.SelectByID2(name, "FEATURE", x, y, z, append, mark, null, 0))
-                    return true;
+                // Fast path — use the type resolved at Build() time.
+                if (_index.TryGetValue(name, out var entry) && entry.SelectionType is { } knownType)
+                {
+                    if (_ext.SelectByID2(name, knownType, x, y, z, append, mark, null, 0))
+                        return true;
 
-                if (_ext.SelectByID2(name, "SKETCH", x, y, z, append, mark, null, 0))
-                    return true;
+                    // The cached type is stale (model rebuilt, feature type changed).
+                    // Fall through to the probe loop to self-heal.
+                }
 
-                if (_ext.SelectByID2(name, "BODYFEATURE", x, y, z, append, mark, null, 0))
-                    return true;
+                // Probe fallback — rarely reached after initial warm-up.
+                foreach (var type in SelectionProbeOrder)
+                {
+                    if (_ext.SelectByID2(name, type, x, y, z, append, mark, null, 0))
+                    {
+                        // Self-heal the cache so the next call is free.
+                        if (_index.TryGetValue(name, out var e))
+                            e.SelectionType = type;
 
-                if (_ext.SelectByID2(name, "REFERENCECURVES", x, y, z, append, mark, null, 0))
-                    return true;
+                        return true;
+                    }
+                }
 
                 return false;
             }
@@ -545,10 +714,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             {
                 entry.IsSuppressedCached = targetSuppress;
 
-                if (targetSuppress)
-                    res.Suppressed.Add(name);
-                else
-                    res.Unsuppressed.Add(name);
+                if (targetSuppress) res.Suppressed.Add(name);
+                else res.Unsuppressed.Add(name);
             }
             else
             {
@@ -558,8 +725,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
         /// <summary>
         /// Calls Feature.SetSuppression2. Required for swAllConfiguration.
-        /// Returns false and populates <paramref name="error"/> if the API reports failure
-        /// or throws.
         ///
         /// NOTE: The SolidWorks interop declares SetSuppression2 as returning bool, not
         /// the swSuppressionError_e int that the SDK documentation describes. The interop
@@ -695,14 +860,30 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return false;
         }
 
+        // -------------------------------------------------------------------------
+        // Index helpers
+        // -------------------------------------------------------------------------
+
         private static void TryAdd(Dictionary<string, FeatureEntry> map, Feature f)
         {
             try
             {
                 var name = f?.Name;
 
-                if (!string.IsNullOrWhiteSpace(name) && !map.ContainsKey(name))
-                    map.Add(name, new FeatureEntry(f));
+                if (string.IsNullOrWhiteSpace(name) || map.ContainsKey(name))
+                    return;
+
+                var entry = new FeatureEntry(f);
+
+                // Optimisation 1: resolve SelectionType once here at index-build time.
+                // One extra COM call per feature during Build() saves up to 3 calls on
+                // every subsequent hot-path toggle.
+                var swType = f.GetTypeName2() as string ?? string.Empty;
+                entry.SelectionType = SwTypeToSelectionType.TryGetValue(swType, out var selType)
+                    ? selType
+                    : "FEATURE";
+
+                map.Add(name, entry);
             }
             catch
             {
@@ -710,6 +891,43 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
         }
 
+        /// <summary>
+        /// Optimisation 5 (swAllConfiguration + BlindApply=false): pre-populate
+        /// IsSuppressedCached for every target feature in one sequential pass.
+        /// On repeat Apply() calls the toggle loop can then skip features that are
+        /// already in the correct state without issuing any additional COM calls.
+        /// </summary>
+        private void PreReadSuppressionCache(IEnumerable<string> names, swInConfigurationOpts_e scope)
+        {
+            foreach (var name in names)
+            {
+                if (_index.TryGetValue(name, out var entry) && entry.IsSuppressedCached is null)
+                    TryGetIsSuppressed(entry, scope, out _);
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Normalisation
+        // -------------------------------------------------------------------------
+
+        /// <summary>
+        /// Optimisation 4: when <paramref name="alreadyNormalized"/> is true the inner
+        /// HashSet allocation of the full Normalize path is skipped entirely.
+        /// </summary>
+        private static IEnumerable<string> NormalizeInput(IEnumerable<string> names, bool alreadyNormalized)
+        {
+            return alreadyNormalized ? NormalizeFast(names) : Normalize(names);
+        }
+
+        /// <summary>Trim + non-empty filter only; no dedup HashSet.</summary>
+        private static IEnumerable<string> NormalizeFast(IEnumerable<string> names)
+        {
+            return names
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s.Trim());
+        }
+
+        /// <summary>Full normalisation: trim, non-empty, case-insensitive dedup.</summary>
         private static IEnumerable<string> Normalize(IEnumerable<string> names)
         {
             return names
@@ -718,16 +936,16 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 .Distinct(StringComparer.OrdinalIgnoreCase);
         }
 
+        // -------------------------------------------------------------------------
+        // Result type
+        // -------------------------------------------------------------------------
+
         public sealed class ToggleResult
         {
             public List<string> Suppressed { get; } = new();
-
             public List<string> Unsuppressed { get; } = new();
-
             public List<string> SkippedAlreadyCorrect { get; } = new();
-
             public List<string> Missing { get; } = new();
-
             public Dictionary<string, string> Failed { get; } = new(StringComparer.OrdinalIgnoreCase);
 
             /// <summary>

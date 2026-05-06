@@ -105,7 +105,7 @@ internal static class CobDimensionRules
 
         var VR = LayoutMath.Dmm(ctx, "VR");
         PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
-            F[0], F[1] - L_front / 2.0);
+            F[0] - fsv * TD/2.0 - 5, F[1] - L_front / 2.0 + VR / 2 * fsv);
     }
 
     private static void AddTop(
@@ -257,7 +257,7 @@ internal static class CobDimensionRules
             Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY - 35);
 
         PlaceDim(ctx, diag, outList, "FD", Section, DimAxis.Horizontal,
-            0, 0);
+            Sec[0] - (TDF / 2.0) * scv + (FD / 2.0) * scv, bandMidY - 30.0);
 
         PlaceDim(ctx, diag, outList, "T", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T / 2 * scv, bandMidY - 40);
@@ -268,7 +268,7 @@ internal static class CobDimensionRules
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
             240, 133);
 
-        Logger.Blue($"(((T - FD) * scv) * Math.Tan(RA)) /2  = {(((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2} |||||||||||| Tan(RA) = {Math.Tan(RA * (Math.PI / 180.0))} ||||||| RA = {RA}");
+        //Logger.Blue($"(((T - FD) * scv) * Math.Tan(RA)) /2  = {(((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2} |||||||||||| Tan(RA) = {Math.Tan(RA * (Math.PI / 180.0))} ||||||| RA = {RA}");
 
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + (((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2);

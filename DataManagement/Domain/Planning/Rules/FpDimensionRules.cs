@@ -105,7 +105,7 @@ internal static class FpDimensionRules
 
         var VR = LayoutMath.Dmm(ctx, "VR");
         PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
-            F[0] + fsv * TD / 2.0 + 5.0, F[1] - L_front / 2.0 + VR * fsv / 2.0);
+            F[0] - fsv * TD / 2.0 - 5, F[1] - L_front / 2.0 + VR / 2 * fsv);
     }
 
     private static void AddTop(
@@ -143,7 +143,7 @@ internal static class FpDimensionRules
         var CR = LayoutMath.Dmm(ctx, "CR");
 
         PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
-            D[0], D[1] + 30);
+            D[0], D[1]);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
             D[0], D[1] + 20);
@@ -268,7 +268,7 @@ internal static class FpDimensionRules
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
             240, 133);
 
-        Logger.Blue($"(((T - FD) * scv) * Math.Tan(RA)) /2  = {(((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2} |||||||||||| Tan(RA) = {Math.Tan(RA * (Math.PI / 180.0))} ||||||| RA = {RA}");
+        //Logger.Blue($"(((T - FD) * scv) * Math.Tan(RA)) /2  = {(((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2} |||||||||||| Tan(RA) = {Math.Tan(RA * (Math.PI / 180.0))} ||||||| RA = {RA}");
 
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + (((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2);

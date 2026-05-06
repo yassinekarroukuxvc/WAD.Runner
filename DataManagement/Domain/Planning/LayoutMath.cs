@@ -52,6 +52,7 @@ internal static class LayoutMath
 
         double k = Kmm(ctx.Wedge, TL);
         double rest = Math.Max(0.0, TL - k);
-        return (UpperPct * TL + OffsetPct * TL + GAP + rest) * scale;
+
+        return (UpperPct * TL + OffsetPct * TL + rest) * scale + GAP;
     }
 }

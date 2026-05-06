@@ -37,6 +37,14 @@ namespace WAD.Runner.ModelAutomation.Execution
         private readonly ModelDimensionApplier _dimensionApplier;
         private readonly TolerancePlanner _tolerancePlanner = new();
 
+        private static readonly string[] PostRebuildCriticalSuppressions =
+        {
+            "ERW_STD_feature",
+            "ERW_STD_sketch",
+            "ERW_180_DEG_REV_feature",
+            "ERW_180_DEG_REV_sketch"
+        };
+
         public ModelAutomationOrchestrator(ModelDimensionApplier? dimensionApplier = null)
         {
             _dimensionApplier = dimensionApplier ?? new ModelDimensionApplier(
@@ -130,6 +138,7 @@ namespace WAD.Runner.ModelAutomation.Execution
                 tolKeys);
 
             editor.RebuildOnce();
+            EnforcePostRebuildCriticalSuppressions(editor, wedge, job, configPlan);
             editor.Save();
             editor.Close();
 
@@ -359,6 +368,70 @@ namespace WAD.Runner.ModelAutomation.Execution
             else
                 Logger.Info($"[ModelOrchestrator] No non-zero length tolerances found in WedgeData for config '{activeConfigName}'.");
         }
+
+
+        /// <summary>
+        /// Re-applies suppression for feature/sketch pairs that SolidWorks may pull
+        /// back on during the final rebuild because of parent-child feature links.
+        ///
+        /// The normal toggle pass already suppresses these.  This final, suppress-only
+        /// pass happens after dimensions/tolerances and after the single rebuild, so
+        /// parent features such as ROUND_BR cannot re-unsuppress ERW afterward.
+        /// </summary>
+        private static void EnforcePostRebuildCriticalSuppressions(
+            ModelEditor editor,
+            WedgeData wedge,
+            ModelJobRequest job,
+            ConfigurationPlan configPlan)
+        {
+            if (!editor.ActivateConfiguration(configPlan.ConfigurationName))
+            {
+                Logger.Warn($"[ModelOrchestrator] Post-rebuild suppression skipped; final config '{configPlan.ConfigurationName}' could not be activated.");
+                return;
+            }
+
+            var featureRuleProfile = ResolveFinalFeatureRuleProfile(configPlan);
+            var featurePlan = BuildFeaturePlanForCurrentConfig(
+                job,
+                wedge,
+                configPlan.ConfigurationName,
+                featureRuleProfile);
+
+            var suppress = featurePlan.Suppress
+                .Where(IsPostRebuildCriticalSuppression)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (suppress.Length == 0)
+            {
+                Logger.Info("[ModelOrchestrator] Post-rebuild critical suppression -> nothing to enforce.");
+                return;
+            }
+
+            Logger.Info(
+                "[ModelOrchestrator] Post-rebuild critical suppression -> " +
+                string.Join(", ", suppress));
+
+            editor.ApplyFeatureToggles(
+                suppress,
+                Array.Empty<string>(),
+                swInConfigurationOpts_e.swThisConfiguration);
+        }
+
+        private static string? ResolveFinalFeatureRuleProfile(ConfigurationPlan configPlan)
+        {
+            var steps = configPlan.ToggleSteps ?? Array.Empty<FeatureToggleStep>();
+
+            return steps
+                .LastOrDefault(s => string.Equals(
+                    s.ConfigurationName,
+                    configPlan.ConfigurationName,
+                    StringComparison.OrdinalIgnoreCase))
+                ?.FeatureRuleProfile;
+        }
+
+        private static bool IsPostRebuildCriticalSuppression(string name)
+            => PostRebuildCriticalSuppressions.Contains(name, StringComparer.OrdinalIgnoreCase);
 
         private static ModelRuleRunner.FeaturePlan BuildFeaturePlanForCurrentConfig(
             ModelJobRequest job,

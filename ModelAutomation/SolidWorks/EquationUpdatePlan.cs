@@ -208,18 +208,37 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             double alpha = (fna / 2.0) * Math.PI / 180.0;
             double k = (ba + ra) * Math.PI / 180.0;
-            double sinAlpha = Math.Sin(alpha);
 
+            double sinAlpha = Math.Sin(alpha);
             if (Math.Abs(sinAlpha) < 1e-12) return DefaultMm;
 
-            double tanA = Math.Tan(alpha);
+            double tanAlpha = Math.Tan(alpha);
             double tanK = Math.Tan(k);
-            double denominator = 1.0 + (tanA * tanK);
 
-            if (Math.Abs(denominator) < 1e-12) return DefaultMm;
+            double tanAlpha2 = tanAlpha * tanAlpha;
+            double tanK2 = tanK * tanK;
 
-            double fraction = (1.0 - (tanA * tanA) * (tanK * tanK)) / denominator;
-            double bracket = (fno * fraction) - h;
+            // sqrt(1 - tan²(alpha) * tan²(K))
+            double sqrtInput = 1.0 - (tanAlpha2 * tanK2);
+
+            if (sqrtInput < 0.0)
+                return DefaultMm;
+
+            double numerator = Math.Sqrt(sqrtInput);
+
+            // 1 + tan(K) * tan(alpha)
+            double denominator = 1.0 + (tanK * tanAlpha);
+
+            if (Math.Abs(denominator) < 1e-12)
+                return DefaultMm;
+
+            // FNO * sqrt(1 - tan²(alpha) * tan²(K)) / (1 + tan(K) * tan(alpha))
+            double fnoFactor = fno * (numerator / denominator);
+
+            // [ FNO * (...) - H ]
+            double bracket = fnoFactor - h;
+
+            // 1 / (2 * sin(alpha)) * bracket
             double funnelGap = bracket / (2.0 * sinAlpha);
 
             if (double.IsNaN(funnelGap) || double.IsInfinity(funnelGap) || funnelGap <= 0.0)

@@ -283,7 +283,6 @@ public static class SharedAnnotationDeletionRules
         {
             Add(keep, V.Detail, "VW@ANNOT_LEFT_sketch");
             Add(keep, V.Detail, "VR@ANNOT_LEFT_sketch");
-            Add(keep, V.Detail, "VRA@ANNOT_LEFT_sketch");
         }
 
         if (opt.HasW2) Add(keep, V.Detail, "W2@ANNOT_LEFT_sketch");

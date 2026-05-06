@@ -96,7 +96,7 @@ namespace WAD.Runner.DrawingAutomation.Views
 
                 foreach (var p in grp)
                 {
-                    var target = FindDisplayDimensionSmart(dimsInView, p);
+                    var target = FindDisplayDimensionSmart(dimsInView, p, wedge);
                     if (target == null)
                     {
                         Logger.Warn($"[DimPos] No match in view '{grp.Key}' for key='{p.Key.Value}' (id='{p.Id}').");
@@ -118,6 +118,11 @@ namespace WAD.Runner.DrawingAutomation.Views
 
                     try
                     {
+                        // Some SolidWorks display dimensions (FD in PGB section views is one of them)
+                        // do not reliably react to Annotation.SetPosition2 alone.
+                        // Try the DisplayDimension text point first, then also move the Annotation.
+                        bool movedTextPoint = TrySetDisplayDimensionTextPoint(target.DisplayDimension, x_m, y_m, 0.0);
+
                         // Move twice to counter post-solve nudge
                         target.Annotation.SetPosition2(x_m, y_m, 0.0);
                         target.Annotation.SetPosition2(x_m, y_m, 0.0);
@@ -130,11 +135,11 @@ namespace WAD.Runner.DrawingAutomation.Views
                         }
                         catch (Exception exCenter)
                         {
-                            Logger.Warn($"[DimPos] CenterText failed (view='{grp.Key}', key='{p.Key.Value}'): {exCenter.Message}");
+                            Logger.Warn($"[DimPos] CenterText failed (view='{grp.Key}', key='{p.Key.Value}', full='{target.FullName}'): {exCenter.Message}");
                         }
 
                         applied++;
-                        Logger.Info($"[DimPos] Moved '{p.Key.Value}' in '{grp.Key}' → ({p.PositionMm[0]:F2},{p.PositionMm[1]:F2}) mm.");
+                        Logger.Info($"[DimPos] Moved '{p.Key.Value}' in '{grp.Key}' full='{target.FullName}' → ({p.PositionMm[0]:F2},{p.PositionMm[1]:F2}) mm. TextPoint={movedTextPoint}");
                     }
                     catch (Exception ex)
                     {
@@ -362,12 +367,35 @@ namespace WAD.Runner.DrawingAutomation.Views
 
         // --------------------------- Matching (token → nearest) ---------------------------
 
-        private static DisplayDimensionInfo? FindDisplayDimensionSmart(IReadOnlyList<DisplayDimensionInfo> inView, Plan p)
+        private static DisplayDimensionInfo? FindDisplayDimensionSmart(IReadOnlyList<DisplayDimensionInfo> inView, Plan p, WedgeData wedge)
         {
             if (inView == null || inView.Count == 0)
                 return null;
 
-            // A) exact token before '@'
+            // A) Prefer the exact expected SolidWorks full-name when we can infer it.
+            // This matters for PGB section views where multiple dimensions can share the
+            // same token, for example FD, but only one belongs to the active front annotation sketch.
+            var expectedMatches = new List<DisplayDimensionInfo>();
+            foreach (var expectedFullName in BuildExpectedFullNames(wedge, p))
+            {
+                for (int i = 0; i < inView.Count; i++)
+                {
+                    var info = inView[i];
+                    if (FullNameMatchesExpected(info.FullName, expectedFullName) &&
+                        !expectedMatches.Any(x => string.Equals(x.FullName, info.FullName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        expectedMatches.Add(info);
+                    }
+                }
+
+                if (expectedMatches.Count == 1)
+                    return expectedMatches[0];
+
+                if (expectedMatches.Count > 1)
+                    return PickNearest(expectedMatches, p.PositionMm);
+            }
+
+            // B) exact token before '@'
             var exactMatches = new List<DisplayDimensionInfo>();
             for (int i = 0; i < inView.Count; i++)
             {
@@ -382,24 +410,27 @@ namespace WAD.Runner.DrawingAutomation.Views
             if (exactMatches.Count == 1) return exactMatches[0];
             if (exactMatches.Count > 1) return PickNearest(exactMatches, p.PositionMm);
 
-            // B) relaxed full name
-            var relaxedMatches = new List<DisplayDimensionInfo>();
+            // C) strict full-name fallback only.
+            // IMPORTANT: do NOT use substring matching here.
+            // The old full.IndexOf(key) fallback caused bad matches like:
+            //   G   -> FD because DEG contains G
+            //   FRO -> FD because FRONT starts with FRO
+            //   H   -> FD because sketch contains h
+            // That is why FD was moved by G/FRO/H and ended in the wrong final location.
+            var strictFullNameMatches = new List<DisplayDimensionInfo>();
             for (int i = 0; i < inView.Count; i++)
             {
                 var full = inView[i].FullName;
                 if (string.IsNullOrWhiteSpace(full)) continue;
 
-                if (full.StartsWith(p.Key.Value, StringComparison.OrdinalIgnoreCase) ||
-                    full.IndexOf(p.Key.Value, StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    relaxedMatches.Add(inView[i]);
-                }
+                if (FullNameStartsWithExactDimensionToken(full, p.Key.Value))
+                    strictFullNameMatches.Add(inView[i]);
             }
 
-            if (relaxedMatches.Count == 1) return relaxedMatches[0];
-            if (relaxedMatches.Count > 1) return PickNearest(relaxedMatches, p.PositionMm);
+            if (strictFullNameMatches.Count == 1) return strictFullNameMatches[0];
+            if (strictFullNameMatches.Count > 1) return PickNearest(strictFullNameMatches, p.PositionMm);
 
-            // C) numeric fallback
+            // D) numeric fallback
             if (TryGetTargetNumeric(p, out var targetVal, out var targetUnit))
             {
                 const double epsMm = 0.0005;
@@ -454,6 +485,188 @@ namespace WAD.Runner.DrawingAutomation.Views
             }
 
             return best;
+        }
+
+        private static IEnumerable<string> BuildExpectedFullNames(WedgeData wedge, Plan p)
+        {
+            if (p == null || p.Key == null || string.IsNullOrWhiteSpace(p.Key.Value))
+                yield break;
+
+            var key = p.Key.Value.Trim();
+            var view = p.View?.Trim() ?? string.Empty;
+
+            bool is180 = Is180DegRev(wedge);
+            string frontSketch = is180 ? "ANNOT_180_DEG_REV_FRONT_sketch" : "ANNOT_STD_FRONT_sketch";
+            string topSketch = is180 ? "ANNOT_180_DEG_REV_TOP_sketch" : "ANNOT_STD_TOP_sketch";
+            string frBrSketch = is180 ? "ANNOT_FR_BR_180_DEG_REV_FRONT_sketch" : "ANNOT_FR_BR_STD_FRONT_sketch";
+
+            if (view.Equals("Section", StringComparison.OrdinalIgnoreCase))
+            {
+                if (key.StartsWith("FR_", StringComparison.OrdinalIgnoreCase) ||
+                    key.StartsWith("BR_", StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return $"{key}@{frBrSketch}";
+                    yield break;
+                }
+
+                // Most section cavity dimensions, including FD/T/RA, live on the front annotation sketch.
+                yield return $"{key}@{frontSketch}";
+
+                // Some older 180° REV templates had this typo for G/CGR/CGD. Keep it as a safe fallback.
+                if (is180 && (key.Equals("G", StringComparison.OrdinalIgnoreCase) ||
+                              key.Equals("CGR", StringComparison.OrdinalIgnoreCase) ||
+                              key.Equals("CGD", StringComparison.OrdinalIgnoreCase)))
+                {
+                    yield return $"{key}@ANNOT_180_DEG_REV_FRONT_FRONT_sketch";
+                }
+
+                yield break;
+            }
+
+            if (view.Equals("Top", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return $"{key}@{topSketch}";
+                yield break;
+            }
+
+            if (view.Equals("Side", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return $"{key}@{frontSketch}";
+                yield break;
+            }
+
+            if (view.Equals("Front", StringComparison.OrdinalIgnoreCase))
+            {
+                if (key.Equals("VR", StringComparison.OrdinalIgnoreCase))
+                    yield return "VR@ANNOT_LEFT_sketch";
+                else if (!key.Equals("K", StringComparison.OrdinalIgnoreCase))
+                    yield return $"{key}@{frontSketch}";
+
+                yield break;
+            }
+
+            if (view.Equals("Detail", StringComparison.OrdinalIgnoreCase))
+            {
+                if (key.Equals("W", StringComparison.OrdinalIgnoreCase) ||
+                    key.Equals("W2", StringComparison.OrdinalIgnoreCase) ||
+                    key.Equals("ISA", StringComparison.OrdinalIgnoreCase) ||
+                    key.Equals("VW", StringComparison.OrdinalIgnoreCase) ||
+                    key.Equals("VR", StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return $"{key}@ANNOT_LEFT_sketch";
+                }
+                else
+                {
+                    yield return $"{key}@ANNOT_FOOT_OPTIONS_LEFT_sketch";
+                }
+            }
+        }
+
+        private static bool FullNameMatchesExpected(string actualFullName, string expectedFullName)
+        {
+            var actual = NormalizeFullNameForCompare(actualFullName);
+            var expected = NormalizeFullNameForCompare(expectedFullName);
+
+            return !string.IsNullOrWhiteSpace(actual) &&
+                   !string.IsNullOrWhiteSpace(expected) &&
+                   actual.Equals(expected, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool FullNameStartsWithExactDimensionToken(string actualFullName, string key)
+        {
+            if (string.IsNullOrWhiteSpace(actualFullName) || string.IsNullOrWhiteSpace(key))
+                return false;
+
+            var actual = actualFullName.Trim().Trim('"');
+            var wanted = key.Trim();
+
+            // Accept only true dimension-token starts, for example "FD@..." or "FD<1>@...".
+            // Reject substring hits such as "G" inside "DEG", "FRO" inside "FRONT", etc.
+            if (!actual.StartsWith(wanted, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (actual.Length == wanted.Length)
+                return true;
+
+            char next = actual[wanted.Length];
+            return next == '@' || next == '<' || next == ' ' || next == '\t';
+        }
+
+        private static string NormalizeFullNameForCompare(string? fullName)
+        {
+            if (string.IsNullOrWhiteSpace(fullName))
+                return string.Empty;
+
+            var s = fullName.Trim().Trim('"');
+
+            var idx = s.IndexOf('<');
+            if (idx >= 0)
+                s = s[..idx];
+
+            var parts = s.Split('@');
+            if (parts.Length >= 2)
+                s = parts[0] + "@" + parts[1];
+
+            s = new string(s.Where(c => !char.IsWhiteSpace(c)).ToArray());
+            return s.ToUpperInvariant();
+        }
+
+        private static bool Is180DegRev(WedgeData wedge)
+        {
+            var wedType = GetPropLoose(wedge, "Wed-Type")
+                       ?? GetPropLoose(wedge, "Wed_Type")
+                       ?? GetPropLoose(wedge, "wedge_type");
+
+            var s = (wedType ?? string.Empty).Trim().ToUpperInvariant();
+            return s.Contains("180") || s.Contains("REV");
+        }
+
+        private static string? GetPropLoose(WedgeData wedge, string key)
+        {
+            if (wedge?.Properties == null || string.IsNullOrWhiteSpace(key))
+                return null;
+
+            if (wedge.Properties.TryGetValue(key, out var direct) && !string.IsNullOrWhiteSpace(direct))
+                return direct.Trim();
+
+            foreach (var kv in wedge.Properties)
+            {
+                if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(kv.Value))
+                {
+                    return kv.Value.Trim();
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TrySetDisplayDimensionTextPoint(DisplayDimension displayDimension, double x, double y, double z)
+        {
+            if (displayDimension == null)
+                return false;
+
+            try
+            {
+                dynamic dd = displayDimension;
+                dd.SetTextPoint2(x, y, z);
+                return true;
+            }
+            catch
+            {
+                // Some interop versions do not expose SetTextPoint2. Fall through to SetTextPoint.
+            }
+
+            try
+            {
+                dynamic dd = displayDimension;
+                dd.SetTextPoint(x, y, z);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static string ExtractToken(string? full)

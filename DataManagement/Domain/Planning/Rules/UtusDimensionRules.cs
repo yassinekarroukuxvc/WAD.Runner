@@ -106,7 +106,7 @@ internal static class UtusDimensionRules
 
         var VR = LayoutMath.Dmm(ctx, "VR");
         PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
-            F[0] + fsv * TD / 2.0 + 5.0, F[1] - L_front / 2.0 + VR * fsv / 2.0);
+            F[0] - fsv * TD / 2.0 - 5, F[1] - L_front / 2.0 + VR / 2 * fsv);
     }
 
     private static void AddTop(
@@ -145,7 +145,7 @@ internal static class UtusDimensionRules
 
 
         PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
-            D[0], D[1] + 30);
+            D[0], D[1]);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
             D[0], D[1] + 20);
