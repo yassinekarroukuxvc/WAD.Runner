@@ -5,13 +5,8 @@ using WAD.Runner.DataManagement.Infrastructure.Transport.Dtos;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Mapping;
 
-/// <summary>
-/// Converts transport DTOs (Java API / SQLite) into domain models with
-/// normalized units (mm/deg) and clean structures.
-/// </summary>
 public static class WedgeDataAssembler
 {
-    // ---------------------------- WED / FG ----------------------------
 
     public static WedgeData BuildForWed(
         WedSpec1Dto spec1,
@@ -25,7 +20,6 @@ public static class WedgeDataAssembler
 
         var dims = AssembleDimensions(spec2Rows.Select(r => (r.Key, r.Payload)));
 
-        // K-Value
         KValue? kv = null;
         if (kvalue is not null && !string.IsNullOrWhiteSpace(kvalue.Payload))
         {
@@ -33,10 +27,8 @@ public static class WedgeDataAssembler
             kv = new KValue(kMm, cmt);
         }
 
-        // Marking (Overlay / TB1..7 / Text)
         var marking = WedMarkingAssembler.FromRows(markingRows.Select(r => (r.XRow, r.Text)));
 
-        // Free-form properties from Wed-Spec1
         var props = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             ["Wed-Polish"] = NullIfWhite(spec1.WedPolish),
@@ -84,8 +76,6 @@ public static class WedgeDataAssembler
         );
     }
 
-    // ---------------------------- PGB ----------------------------
-
     public static WedgeData BuildForPgb(
         PgbSpec1Dto spec1,
         IEnumerable<PgbSpec2RowDto> spec2Rows)
@@ -101,7 +91,6 @@ public static class WedgeDataAssembler
             ["PGB-PS"] = NullIfWhite(spec1.PS),
             ["PGB-Remarks"] = NullIfWhite(spec1.Remarks),
 
-            // NEW (client-aligned naming)
             ["Wed-Engrave"] = NullIfWhite(spec1.Engrave),
             ["Wed-Coining"] = NullIfWhite(spec1.FLBlank),
 
@@ -142,13 +131,6 @@ public static class WedgeDataAssembler
         );
     }
 
-    // ---------------------------- Helpers ----------------------------
-
-    /// <summary>
-    /// Build the dimension dictionary given pairs of (transportKey, payload).
-    /// Routes each row through the angle/length policy and parsers, returning
-    /// normalized domain dimensions keyed by the domain DimensionKey.
-    /// </summary>
     private static IReadOnlyDictionary<DimensionKey, Dimension> AssembleDimensions(
         IEnumerable<(string TransportKey, string Payload)> rows)
     {

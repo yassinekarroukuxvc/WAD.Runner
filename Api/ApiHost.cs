@@ -27,9 +27,6 @@ using WAD.Runner.DataManagement.Infrastructure.Adapters;
 using WAD.Runner.DataManagement.Infrastructure.Sqlite;
 using WAD.Runner.DataManagement.Infrastructure.Transport;
 
-using WAD.Runner.PartAutomation.Interfaces;
-using WAD.Runner.PartAutomation.Execution;
-
 using WAD.Runner.SolidWorks.Adapters;
 using WAD.Runner.Solidworks.Adapters;
 
@@ -366,10 +363,6 @@ public static class ApiHost
 
         // SolidWorks session factory
         builder.Services.AddSingleton<ISwSessionFactory, SwServiceFactory>();
-
-        // Part automation
-        builder.Services.AddSingleton<IPartAutomationService, PartAutomationService>();
-        builder.Services.AddSingleton<PartAutomationOrchestrator>();
 
         // Automation executor + STA worker
         builder.Services.AddSingleton<IAutomationExecutor, SolidWorksAutomationExecutor>();

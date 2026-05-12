@@ -1,6 +1,4 @@
-﻿// Domain/Planning/DimensionRules.cs
-using WAD.Runner.Application;
-using WAD.Runner.DataManagement.Domain.Wedge;
+﻿using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.DataManagement.Domain.Planning;
 
@@ -13,10 +11,6 @@ public static class DimensionRules
         PlannerDiagnostics diag,
         WedgeType wedgeType)
     {
-        var drawingType = ctx.Drawing.DrawingType;
-
-        Logger.Info($"[Plan] Enter DimensionRules.Build (wedgeType={wedgeType}, dtype={drawingType})");
-
         return wedgeType switch
         {
             WedgeType.CKVD => Rules.CkvdDimensionRules.Build(ctx, diag),

@@ -19,5 +19,5 @@
     string? DwgText5,
     string? DwgText6,
     string? DwgText7,
-    string? WedFgStyle // maps the wedge type : CKVD,COB...
+    string? WedFgStyle
 );

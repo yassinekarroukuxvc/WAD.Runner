@@ -1,18 +1,5 @@
 ﻿namespace WAD.Runner.DataManagement.Infrastructure.Parsing;
 
-/// <summary>
-/// Normalizes article descriptions coming from the production database.
-///
-/// Some production records store the description as:
-///   DESC_TEXT;;;;;
-///
-/// Others store two descriptions in the same column:
-///   DESC1;DESC2;;;
-///
-/// Business rule:
-/// - If one non-empty description exists, display that one.
-/// - If two or more non-empty descriptions exist, display the second one.
-/// </summary>
 public static class ArticleDescriptionParser
 {
     public static string? NormalizeForDisplay(string? raw)

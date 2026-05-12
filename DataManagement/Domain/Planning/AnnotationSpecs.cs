@@ -3,7 +3,6 @@ using WAD.Runner.DataManagement.Domain.Units;
 
 namespace WAD.Runner.DataManagement.Domain.Planning;
 
-/// Marker for planned, CAD-agnostic items to place on the sheet.
 public interface IAnnotationSpec
 {
     string Id { get; }
@@ -22,7 +21,6 @@ public enum DimStyle
     Hidden = 1 << 2
 }
 
-/// A planned dimension to render in a specific logical view.
 public sealed class DimensionSpec : IAnnotationSpec
 {
     public required string Id { get; init; }
@@ -31,7 +29,6 @@ public sealed class DimensionSpec : IAnnotationSpec
     public required double[] PositionMm { get; init; }
     public required DimAxis Axis { get; init; }
 
-    // Carry domain values through (clean & CAD-agnostic)
     public required Quantity Nominal { get; init; }
     public required Tolerance Tol { get; init; }
     public string? Comment { get; init; }

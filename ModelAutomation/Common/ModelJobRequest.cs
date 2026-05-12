@@ -15,30 +15,14 @@ public sealed class ModelJobRequest
     public string EquationTemplatePath { get; init; } = string.Empty;
     public string? FileBase { get; init; }
 
-    /// <summary>
-    /// Nullable on purpose.
-    /// The orchestrator already supports jobs that skip rule/dimension/tolerance work
-    /// when no wedge data is available.
-    /// </summary>
+
     public WedgeData? WedgeData { get; init; }
 
     public WedgeType WedgeType { get; init; }
 
-    /// <summary>
-    /// Optional explicit per-configuration toggle steps.
-    ///
-    /// Use this when different reference configurations must receive different
-    /// suppress/unsuppress plans. Each step activates one configuration and lets
-    /// the feature rules build a plan for that specific configuration/profile.
-    /// </summary>
+
     public IReadOnlyList<FeatureToggleStep>? ToggleStepsOverride { get; init; }
 
-    /// <summary>
-    /// Optional final active configuration override.
-    ///
-    /// When <see cref="ToggleStepsOverride"/> is supplied, the orchestrator still
-    /// needs to know which configuration should remain active after the toggle phase.
-    /// Leave null to keep the wedge-type rule's normal decision.
-    /// </summary>
+
     public string? FinalActiveConfigurationOverride { get; init; }
 }

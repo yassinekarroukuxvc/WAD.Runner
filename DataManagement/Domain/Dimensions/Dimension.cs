@@ -2,12 +2,6 @@
 
 namespace WAD.Runner.DataManagement.Domain.Dimensions;
 
-/// <summary>
-/// Domain representation of a dimension: nominal value (mm or deg),
-/// length tolerances (mm), and an optional comment.
-/// Angles normally carry zero tolerance in this phase; if you later
-/// need angular tolerances, extend with a dedicated type.
-/// </summary>
 public sealed record Dimension
 {
     public DimensionKey Key { get; }
@@ -19,8 +13,6 @@ public sealed record Dimension
     {
         if (key.IsEmpty) throw new ArgumentException("DimensionKey cannot be empty.", nameof(key));
 
-        // Guard: tolerances must be mm (enforced by Tolerance type).
-        // If Nominal is an angle, we recommend zero tolerance at ingestion time.
         if (nominal.Unit == UnitKind.Degree && !tol.IsZero)
             throw new ArgumentException("Angular dimensions should not carry length tolerances.", nameof(tol));
 
@@ -30,7 +22,6 @@ public sealed record Dimension
         Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
     }
 
-    /// <summary>Create a length dimension (nominal + mm tolerances).</summary>
     public static Dimension CreateLength(DimensionKey key, Quantity nominalMm, Tolerance tolMm, string? comment = null)
     {
         if (nominalMm.Unit != UnitKind.Millimeter)
@@ -38,7 +29,6 @@ public sealed record Dimension
         return new Dimension(key, nominalMm, tolMm, comment);
     }
 
-    /// <summary>Create an angle dimension in degrees (no length tolerance).</summary>
     public static Dimension CreateAngle(DimensionKey key, Quantity nominalDeg, string? comment = null)
     {
         if (nominalDeg.Unit != UnitKind.Degree)

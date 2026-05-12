@@ -4,11 +4,6 @@ using WAD.Runner.DataManagement.Domain.Dimensions;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Serialization;
 
-/// <summary>
-/// Allows System.Text.Json to use DimensionKey as a dictionary key
-/// by emitting its .Value (string).
-/// Deserialization is intentionally not supported here.
-/// </summary>
 public sealed class DimensionKeyJsonConverter : JsonConverter<DimensionKey>
 {
     public override DimensionKey Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

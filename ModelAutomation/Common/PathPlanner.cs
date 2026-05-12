@@ -1,5 +1,4 @@
 ﻿using System;
-using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.ModelAutomation.Common;
@@ -24,7 +23,6 @@ public static class PathPlanner
         if (string.IsNullOrWhiteSpace(article))
             throw new ArgumentException("Article is required.", nameof(article));
 
-        Logger.Info($"[PathPlanner] Build start → article={article}, subclass={subclass}, drawingType={drawingType}");
 
         var baseRoot = string.IsNullOrWhiteSpace(outputRoot)
             ? Path.Combine("Resources", "Out")
@@ -51,9 +49,7 @@ public static class PathPlanner
 
         Directory.CreateDirectory(workDir);
 
-        // -----------------------------
-        // File base naming logic
-        // -----------------------------
+
         var suffix = ResolveSuffix(subclass, drawingType);
         var fb = string.IsNullOrWhiteSpace(fileBase)
             ? $"{article}{suffix}"
@@ -63,11 +59,6 @@ public static class PathPlanner
         var equationsPath = Path.Combine(workDir, "equations.txt");
         var pdfPath = Path.Combine(workDir, $"{fb}.pdf");
 
-        Logger.Info("[PathPlanner] Planned paths:");
-        Logger.Info($"  • Part      : {partPath}");
-        Logger.Info($"  • Equations : {equationsPath}");
-        Logger.Info($"  • PDF       : {pdfPath}");
-        Logger.Info($"[PathPlanner] Build complete → baseName={fb}");
 
         return new Plan(
             WorkDir: workDir,

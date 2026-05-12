@@ -4,10 +4,6 @@ using WAD.Runner.DataManagement.Infrastructure.Transport.Dtos;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Transport;
 
-/// <summary>
-/// Raw Java API client (transport layer). Returns transport DTOs only.
-/// Higher layers map DTOs → domain models.
-/// </summary>
 public sealed class JavaWedgeHttpClient : IJavaWedgeTransport
 {
     private readonly HttpClient _http;
@@ -15,12 +11,10 @@ public sealed class JavaWedgeHttpClient : IJavaWedgeTransport
     public JavaWedgeHttpClient(HttpClient http)
     {
         _http = http;
-        // Optional: ensure JSON is the default Accept
+
         if (!_http.DefaultRequestHeaders.Accept.Any(h => h.MediaType == "application/json"))
             _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
     }
-
-    // -------------------- FG / Wed-* --------------------
 
     public async Task<WedSpec1Dto> GetWedSpec1Async(string article, CancellationToken ct)
         => await GetRequiredAsync<WedSpec1Dto>($"api/dbprobe/wed/spec1?article={Uri.EscapeDataString(article)}", ct);
@@ -34,8 +28,6 @@ public sealed class JavaWedgeHttpClient : IJavaWedgeTransport
     public async Task<IReadOnlyList<WedMarkingRowDto>> GetWedMarkingAsync(string article, CancellationToken ct)
         => await GetRequiredAsync<IReadOnlyList<WedMarkingRowDto>>($"api/dbprobe/wed/marking?article={Uri.EscapeDataString(article)}", ct);
 
-    // -------------------- PGB / PGB-* --------------------
-
     public async Task<PgbSpec1Dto> GetPgbSpec1Async(string article, CancellationToken ct)
         => await GetRequiredAsync<PgbSpec1Dto>($"api/dbprobe/pgb/spec1?article={Uri.EscapeDataString(article)}", ct);
 
@@ -44,8 +36,6 @@ public sealed class JavaWedgeHttpClient : IJavaWedgeTransport
 
     public async Task<string?> GetArticleDescriptionAsync(string article, CancellationToken ct)
     => await GetOptionalAsync<string>($"api/dbprobe/artdesc?article={Uri.EscapeDataString(article)}", ct);
-
-    // -------------------- Helpers --------------------
 
     private async Task<T> GetRequiredAsync<T>(string relativeUrl, CancellationToken ct)
     {

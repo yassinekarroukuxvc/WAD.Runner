@@ -3,18 +3,6 @@ using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Parsing;
 
-/// <summary>
-/// Normalizes the noisy wedge-style values coming from the database and maps them
-/// to the automation wedge families used by template selection.
-///
-/// Examples from DB:
-///   COB;;;;;;   -> COB
-///   FP;;;;;     -> FP
-///   UT;;;;;;    -> UTUS
-///   US;;;;;;;   -> UTUS
-///   UT/US;;;;;  -> UTUS
-///   UT-US;;;;;  -> UTUS
-/// </summary>
 public static class WedgeStyleParser
 {
     public static string? SanitizeRaw(string? raw)
@@ -24,8 +12,6 @@ public static class WedgeStyleParser
 
         var s = raw.Trim();
 
-        // DB values are often semicolon-padded, e.g. "COB;;;;;;".
-        // The first token is the real style marker.
         var semi = s.IndexOf(';');
         if (semi >= 0)
             s = s[..semi];
@@ -48,7 +34,7 @@ public static class WedgeStyleParser
         {
             "COB" => WedgeType.COB,
             "CKVD" => WedgeType.CKVD,
-            "SKVD" => WedgeType.CKVD, // defensive: some callers/logs use SKVD wording for the CKVD template family
+            "SKVD" => WedgeType.CKVD,
 
             "FP" => WedgeType.FP,
 

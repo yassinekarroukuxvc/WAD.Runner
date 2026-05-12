@@ -42,21 +42,17 @@ public sealed class JsonDrawingDataSource : IDrawingDataSource
 
         var bag = new Bag();
 
-        // 1) Defaults
         Merge(bag, root.Defaults);
 
-        // 2) DrawingType section
         if (!root.Sections.TryGetValue(drawingType.ToString(), out var section))
             throw new InvalidOperationException($"Missing section for DrawingType='{drawingType}'.");
 
         Merge(bag, section.Common);
 
-        // 3) Subclass
         var sub = subclass == WedgeSubclass.FG ? section.FG : section.PGB;
         Merge(bag, sub.Common);
 
-        // 4) WedgeType override (driven by enum)
-        var wedgeTypeKey = wedgeType.ToString(); // e.g. "CKVD", "COB", "COB_UT_US"
+        var wedgeTypeKey = wedgeType.ToString();
         if (section.WedgeTypeOverrides.TryGetValue(wedgeTypeKey, out var wt))
         {
             Merge(bag, wt.Common);
@@ -71,8 +67,6 @@ public sealed class JsonDrawingDataSource : IDrawingDataSource
             metadata: bag.Metadata
         );
     }
-
-    // ------------------ merge helpers ------------------
 
     private static void Merge(Bag dst, CommonBlock? src)
     {
@@ -124,8 +118,6 @@ public sealed class JsonDrawingDataSource : IDrawingDataSource
         if (src is null) return;
         foreach (var (k, v) in src) dst[k] = v;
     }
-
-    // ------------------ config DTOs ------------------
 
     private sealed class ConfigRoot
     {

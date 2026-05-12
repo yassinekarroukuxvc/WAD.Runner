@@ -10,36 +10,23 @@ public readonly record struct Quantity(decimal Value, UnitKind Unit)
     public bool IsMm => Unit == UnitKind.Millimeter;
     public bool IsDeg => Unit == UnitKind.Degree;
 
-    /// <summary>Returns the raw numeric value if the unit matches; otherwise throws.</summary>
     public decimal AsMm() => Unit == UnitKind.Millimeter ? Value : throw new InvalidOperationException("Quantity is not in millimeters.");
     public decimal AsDeg() => Unit == UnitKind.Degree ? Value : throw new InvalidOperationException("Quantity is not in degrees.");
 
-    /// <summary>
-    /// Adds two quantities with the same unit kind.
-    /// </summary>
     public static Quantity operator +(Quantity a, Quantity b)
         => a.Unit == b.Unit
             ? new Quantity(a.Value + b.Value, a.Unit)
             : throw new InvalidOperationException($"Cannot add {a.Unit} to {b.Unit}.");
 
-    /// <summary>
-    /// Subtracts two quantities with the same unit kind.
-    /// </summary>
     public static Quantity operator -(Quantity a, Quantity b)
         => a.Unit == b.Unit
             ? new Quantity(a.Value - b.Value, a.Unit)
             : throw new InvalidOperationException($"Cannot subtract {b.Unit} from {a.Unit}.");
 
-    /// <summary>
-    /// Scales a quantity (unit unchanged).
-    /// </summary>
     public static Quantity operator *(Quantity a, decimal k) => new(a.Value * k, a.Unit);
     public static Quantity operator *(decimal k, Quantity a) => new(a.Value * k, a.Unit);
     public static Quantity operator /(Quantity a, decimal k) => new(a.Value / k, a.Unit);
 
-    /// <summary>
-    /// Formats as "<value> mm" or "<value> deg" for diagnostics/logs.
-    /// </summary>
     public override string ToString()
         => Unit == UnitKind.Millimeter
             ? $"{Value.ToString(CultureInfo.InvariantCulture)} mm"

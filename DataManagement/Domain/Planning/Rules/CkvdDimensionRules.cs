@@ -1,17 +1,10 @@
-﻿// Domain/Planning/Rules/CkvdDimensionRules.cs
-using WAD.Runner.Application;
-using WAD.Runner.DataManagement.Domain.Dimensions;
+﻿using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.DataManagement.Domain.Planning.Rules;
 
-/// <summary>
-/// CKVD-specific dimension placement rules.
-/// Coverage: FG Production/Customer and baseline Overlay.
-/// Matches legacy positions while staying SolidWorks-agnostic.
-/// </summary>
 internal static class CkvdDimensionRules
 {
     private const string Front = "Front";
@@ -22,7 +15,6 @@ internal static class CkvdDimensionRules
 
     public static List<DimensionSpec> Build(LayoutContext ctx, PlannerDiagnostics diag)
     {
-        Logger.Info($"[Plan] Enter CkvdDimensionRules.Build (dtype={ctx.Drawing.DrawingType})");
         var dims = new List<DimensionSpec>();
 
         var TL = LayoutMath.Dmm(ctx, "TL");
@@ -49,7 +41,6 @@ internal static class CkvdDimensionRules
         return dims;
     }
 
-    // ----------------- FG Production / Customer rules -----------------
     private static void AddFgProductionCustomer(LayoutContext ctx, PlannerDiagnostics diag, List<DimensionSpec> outList)
     {
         var F = LayoutMath.View(ctx, Front);
@@ -69,11 +60,9 @@ internal static class CkvdDimensionRules
         var L_front = LayoutMath.WedgeLength(ctx, TL, fsv);
         var L_side = LayoutMath.WedgeLength(ctx, TL, ssv);
 
-        // Use your desired defaults: Detail breakline defaults to 50 mm if nothing is set
         double detailLower = 40.0;
         double detailBreak = GetBreakline(ctx, Detail, defaultMm: 50.0);
 
-        // ----- FRONT -----
         PlaceDim(ctx, diag, outList, "TL", Front, DimAxis.Horizontal,
             F[0] - fsv * TD / 2.0 - 13.5, F[1]);
 
@@ -87,12 +76,10 @@ internal static class CkvdDimensionRules
         PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
             F[0] + fsv * TD / 2.0 + 5.0, F[1] - L_front / 2.0 + VR * fsv / 2.0);
 
-        // Front bias uses 2 mm default via GetBreakline on Front
         var bias = (0.05 * TL * fsv + GetBreakline(ctx, Front, 2.0) * fsv + 0.02 * TL) / 2.0;
         PlaceDim(ctx, diag, outList, "D2", Front, DimAxis.Horizontal,
             F[0] + fsv * TD / 2.0 + 12.0, F[1] + L_front / 2.0 - bias);
 
-        // ----- TOP -----
         var TDF = LayoutMath.Dmm(ctx, "TDF");
         PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical,
             T[0] + tsv * TDF / 2.0 + 25.0, T[1] - tsv * TD / 2.0);
@@ -103,10 +90,7 @@ internal static class CkvdDimensionRules
         PlaceDim(ctx, diag, outList, "DatumFeature", Top, DimAxis.Horizontal,
             T[0] + tsv * TDF / 2.0 + 10.0, T[1] - tsv * TD / 2.0 - 10.0);
 
-        // ----- DETAIL -----
         var bandMidY = D[1] - (detailBreak + detailLower) / 2.0;
-        Logger.Info($"[Plan] Scales → Front={fsv:0.###}, Side={ssv:0.###}, Top={tsv:0.###}, Detail={dsv:0.###}, Section={scv:0.###}");
-
         PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
             D[0] + 3.5, D[1]);
 
@@ -131,7 +115,6 @@ internal static class CkvdDimensionRules
         PlaceDim(ctx, diag, outList, "GR", Detail, DimAxis.Horizontal,
             D[0] + 15.0, bandMidY + dsv * GD + 15.0);
 
-        // ----- SIDE -----
         var FAdeg = LayoutMath.TryDdeg(ctx, "FA");
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
 
@@ -163,10 +146,7 @@ internal static class CkvdDimensionRules
             S[0] - ssv * TD / 2.0 - 3.0,
             S[1] - L_side / 2.0 + TIP * ssv / 2.0);
 
-        // ----- SECTION -----
         var FL = LayoutMath.Dmm(ctx, "FL");
-        var GDsec = GD;
-
         PlaceDim(ctx, diag, outList, "F", Section, DimAxis.Horizontal, Sec[0], Sec[1] - 40 - 20);
         PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal, Sec[0], Sec[1] - 40 - 25);
 
@@ -177,7 +157,6 @@ internal static class CkvdDimensionRules
             Sec[0] + scv * FL / 2, Sec[1] - 40);
     }
 
-    // ----------------- FG Overlay baseline rules -----------------
     private static void AddFgOverlayBaseline(LayoutContext ctx, PlannerDiagnostics diag, List<DimensionSpec> outList)
     {
         var F = LayoutMath.View(ctx, Front);
@@ -227,28 +206,19 @@ internal static class CkvdDimensionRules
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
             132.08 + 5,
-            /*!double.IsNaN(BAdeg) && BAdeg < 6.0 ? 8.3566 - FSTscale * TD / 2.0 + 4.0 :*/ 8.3566 - FSTscale * TD / 2.0 - 4.0);
+             8.3566 - FSTscale * TD / 2.0 - 4.0);
     }
 
-    // ----------------- helpers -----------------
-    /// <summary>
-    /// Reads breakline gap (mm) for a view. Accepted keys:
-    /// Params: "breakline_gap_mm" (preferred), "BreaklineGap"
-    /// Metadata: "breakline_gap_mm", "BreaklineGap"
-    /// Falls back to <paramref name="defaultMm"/>.
-    /// </summary>
     private static double GetBreakline(LayoutContext ctx, string view, double defaultMm)
     {
         if (!ctx.Drawing.Views.TryGetValue(view, out var v) || v is null) return defaultMm;
 
-        // Params (numeric doubles)
         if (v.Params is not null)
         {
             if (v.Params.TryGetValue("breakline_gap_mm", out var mm)) return mm;
             if (v.Params.TryGetValue("BreaklineGap", out var mm2)) return mm2;
         }
 
-        // Metadata (string values)
         if (v.Metadata is not null)
         {
             if (v.Metadata.TryGetValue("breakline_gap_mm", out var s1) && double.TryParse(s1, out var p1)) return p1;
@@ -271,14 +241,12 @@ internal static class CkvdDimensionRules
         if (!ctx.Drawing.Views.ContainsKey(view))
         {
             diag.MissingView(view);
-            Logger.Warn($"[Plan.Drop] Missing view='{view}' for key='{key}'.");
             return;
         }
 
         if (!ctx.TryGetDim(key, out var d))
         {
             diag.MissingDimension(key);
-            Logger.Warn($"[Plan.Drop] Missing dim key='{key}' (view='{view}').");
             return;
         }
 

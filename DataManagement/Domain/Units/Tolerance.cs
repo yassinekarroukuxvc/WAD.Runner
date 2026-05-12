@@ -1,9 +1,5 @@
 ﻿namespace WAD.Runner.DataManagement.Domain.Units;
 
-/// <summary>
-/// Lower/Upper tolerances (always in millimeters).
-/// Use the Mm(...) factory to construct safely.
-/// </summary>
 public sealed record Tolerance
 {
     public Quantity Lower { get; }
@@ -17,7 +13,6 @@ public sealed record Tolerance
         Upper = upper;
     }
 
-    /// <summary>Factory from decimals (mm).</summary>
     public static Tolerance Mm(decimal lower, decimal upper)
         => new(Quantity.MmOf(lower), Quantity.MmOf(upper));
 

@@ -5,17 +5,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Sqlite;
 
-/// <summary>
-/// Minimal SQLite repository for mock/local runs.
-/// Auto-detects whether values are stored in a separate XS_PartSpecValues table
-/// or directly in XS_PartSpecSpecs.Column_ID.
-/// </summary>
 public sealed class ProAlphaRepository
 {
     private readonly string _connString;
     private readonly ILogger<ProAlphaRepository> _log;
 
-    // schema flags (lazy detected)
     private bool? _hasValuesTable;
 
     public ProAlphaRepository(string connString, ILogger<ProAlphaRepository>? log = null)
@@ -35,13 +29,8 @@ public sealed class ProAlphaRepository
         return cn;
     }
 
-    /// <summary>Opens a connection for diagnostics callers. Caller must dispose.</summary>
     public SqliteConnection OpenConnection() => Open();
 
-    // ---------------- NEW: Article description ----------------
-    /// <summary>
-    /// Returns localized article description (S_ArtikelSpr.Bezeichnung).
-    /// </summary>
     public async Task<string?> GetArticleDescriptionAsync(int firma, string articleNumber, string language, CancellationToken ct = default)
     {
         const string sql = @"
@@ -60,8 +49,6 @@ public sealed class ProAlphaRepository
         var obj = await cmd.ExecuteScalarAsync(ct);
         return obj == null || obj is DBNull ? null : Convert.ToString(obj);
     }
-
-    // ---------------- core lookups ----------------
 
     public async Task<string?> GetPartSpecAsync(int firma, string articleNumber, CancellationToken ct = default)
     {
@@ -88,15 +75,10 @@ public sealed class ProAlphaRepository
         return obj is null || obj is DBNull ? null : Convert.ToString(obj);
     }
 
-    /// <summary>
-    /// Returns rows for a given template (e.g., "Wed-Spec1", "Wed-Spec2", "Wed-Marking").
-    /// If XS_PartSpecValues exists, joins it and reads ValueText.
-    /// Otherwise, uses Column_ID as the payload (mock compact schema).
-    /// </summary>
     public async Task<IReadOnlyList<(string XRow, string Payload)>> GetRowsAsync(
         int firma, string partSpec, string template, CancellationToken ct)
     {
-        // detect schema once
+
         if (_hasValuesTable is null)
             _hasValuesTable = await HasTableAsync("XS_PartSpecValues", ct);
 
@@ -116,7 +98,7 @@ WHERE s.Firma = $firma AND s.PartSpec = $ps AND s.Template = $tpl;";
         }
         else
         {
-            // Fallback: payload is stored directly in Column_ID
+
             cmd.CommandText = @"
 SELECT s.xRow, s.Column_ID AS ValueText
 FROM XS_PartSpecSpecs s
@@ -140,8 +122,6 @@ WHERE s.Firma = $firma AND s.PartSpec = $ps AND s.Template = $tpl;";
             list.Count, template, partSpec, _hasValuesTable == true ? "ValuesTable" : "SpecsOnly");
         return list;
     }
-
-    // ---------------- diagnostics helpers ----------------
 
     public async Task<IReadOnlyList<string>> ListTablesAsync(CancellationToken ct)
     {

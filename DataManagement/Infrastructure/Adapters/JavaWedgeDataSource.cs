@@ -1,8 +1,6 @@
-﻿// DataManagement/Infrastructure/Adapters/JavaWedgeDataSource.cs
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-
 using Microsoft.Extensions.Logging;
 
 using WAD.Runner.Application.Ports;
@@ -12,12 +10,6 @@ using WAD.Runner.DataManagement.Infrastructure.Parsing;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Adapters;
 
-/// <summary>
-/// IWedgeDataSource implementation backed by the Java API transport.
-/// - Fetches Spec1/Spec2 (+ KValue/Marking for FG)
-/// - Maps transport DTOs → domain WedgeData via WedgeDataAssembler
-/// - Adds light validation and logging
-/// </summary>
 public sealed class JavaWedgeDataSource : IWedgeDataSource
 {
     private readonly IJavaWedgeTransport _api;
@@ -38,7 +30,7 @@ public sealed class JavaWedgeDataSource : IWedgeDataSource
 
         switch (subclass)
         {
-            // ---------- FG (Wed-*) ----------
+
             case WedgeSubclass.FG:
                 {
                     var spec1 = await _api.GetWedSpec1Async(articleNumber, ct);
@@ -73,7 +65,6 @@ public sealed class JavaWedgeDataSource : IWedgeDataSource
                     return wd;
                 }
 
-            // ---------- PGB ----------
             case WedgeSubclass.PGB:
                 {
                     var spec1 = await _api.GetPgbSpec1Async(articleNumber, ct);

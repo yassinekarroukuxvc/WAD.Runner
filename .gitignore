@@ -1,18 +1,138 @@
-# Visual Studio
-.vs/
+# Build output
+[Bb]in/
+[Oo]bj/
+out/
+publish/
+artifacts/
+TestResults/
+
+# .NET generated files
 *.user
+*.rsuser
 *.suo
+*.userosscache
+*.sln.docstates
+*.nupkg
+*.snupkg
+project.lock.json
+project.assets.json
+*.nuget.g.props
+*.nuget.g.targets
 
-# Build outputs
-bin/
-obj/
-[Bb]uild/
-[Rr]elease/
-[Dd]ebug/
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.DotSettings.user
 
-# Logs
+# Azure DevOps / CI temporary files
+.azuredevops/.taskkey
+*.trx
+coverage/
+coverage.*/
+*.coverage
+*.coveragexml
+lcov.info
+
+# Logs and diagnostics
 *.log
+logs/
+Log/
+Logs/
+*_log.txt
+*_logs.txt
+*_SW_Dump_*.txt
+*.dmp
+*.dump
+crashdump/
 
-# Other
-*.userprefs
-/Resources/Out/
+# Local app settings and secrets
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+appsettings.*.Local.json
+*.secrets.json
+secrets.json
+.env
+.env.*
+!.env.example
+
+# Local databases and generated database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.bak
+Resources/Database/*.db
+Resources/Database/*.sqlite
+Resources/Database/*.sqlite3
+!Resources/Database/scheme.sql
+
+# Generated automation output
+Resources/Out/
+**/Resources/Out/
+
+# SolidWorks backup/temp files
+*.SLDPRT~
+*.SLDDRW~
+*.SLDASM~
+*.sldprt~
+*.slddrw~
+*.sldasm~
+*.tmp
+*.err
+
+# Generated drawing/model exports
+*.pdf
+*.tif
+*.tiff
+*.step
+*.stp
+*.iges
+*.igs
+*.dxf
+*.dwg
+
+# SolidWorks macros are ignored by default unless they are template/source assets
+*.swp
+
+# Keep all source templates versioned
+!Resources/
+!Resources/Templates/
+!Resources/Templates/**
+!**/Resources/Templates/
+!**/Resources/Templates/**
+
+# Keep shared SolidWorks interop libraries versioned
+!Resources/Solidworks/
+!Resources/Solidworks/*.dll
+
+# Keep source config files versioned
+!Resources/Config/
+!Resources/Config/*.json
+
+# Keep database schema versioned, but not local database files
+!Resources/Database/
+!Resources/Database/scheme.sql
+
+# NuGet package cache should stay outside repo
+packages/
+.nuget/
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+*.orig
+*.rej
+~$*

@@ -7,16 +7,11 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-
 using WAD.Runner.Application.Ports;
 using WAD.Runner.DataManagement.Infrastructure.Transport.Dtos;
 
 namespace WAD.Runner.DataManagement.Infrastructure.Transport;
 
-/// <summary>
-/// Adapter: talks to the OLD Java API (partspec + specrows-by-ps),
-/// but returns the NEW transport DTOs expected by JavaWedgeDataSource/WedgeDataAssembler.
-/// </summary>
 public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
 {
     private readonly HttpClient _http;
@@ -34,10 +29,6 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
         _firma = firma;
         _language = string.IsNullOrWhiteSpace(language) ? "E" : language.Trim();
     }
-
-    // ==============================
-    // OLD Java API response DTOs
-    // ==============================
 
     private sealed class PartSpecResp
     {
@@ -63,12 +54,6 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
         [JsonPropertyName("ok")] public bool Ok { get; set; }
         [JsonPropertyName("rows")] public List<SpecRowDto> Rows { get; set; } = new();
     }
-
-
-
-    // ==============================
-    // IJavaWedgeTransport (NEW surface)
-    // ==============================
 
     public async Task<WedSpec1Dto> GetWedSpec1Async(string article, CancellationToken ct)
     {
@@ -106,8 +91,6 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
         var (_, rows) = await GetPartSpecAndRowsAsync(article, ct);
         var spec2 = rows.Where(r => Eq(r.Template, "Wed-Spec2")).ToList();
 
-        // Match your SqliteWedgeDataSource behavior:
-        // return all rows except Wed_K-Value (handled by GetWedKValueAsync)
         return spec2
             .Where(r => !Eq(r.XRow, "Wed_K-Value"))
             .Select(r => new WedSpec2RowDto(Key: r.XRow ?? string.Empty, Payload: r.ColumnId ?? string.Empty))
@@ -125,10 +108,6 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
 
     public async Task<IReadOnlyList<WedMarkingRowDto>> GetWedMarkingAsync(string article, CancellationToken ct)
     {
-        // In your old repo you said marking rows can come from:
-        // 1) base specrows-by-ps (if Java injects them)
-        // 2) dedicated endpoint marking-specrows-by-ps
-        // We'll do both and merge.
 
         var (ps, rows) = await GetPartSpecAndRowsAsync(article, ct);
 
@@ -141,7 +120,6 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
 
         var extra = await TryGetMarkingRowsByPsAsync(ps, ct);
 
-        // Merge by XRow (case-insensitive), prefer extra if duplicate
         var dict = new Dictionary<string, WedMarkingRowDto>(StringComparer.OrdinalIgnoreCase);
         foreach (var m in baseMarking) dict[m.XRow] = m;
         foreach (var m in extra) dict[m.XRow] = m;
@@ -188,10 +166,6 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
             .ToList();
     }
 
-    // ==============================
-    // Core: OLD endpoints
-    // ==============================
-
     private async Task<(string partSpec, List<SpecRowDto> rows)> GetPartSpecAndRowsAsync(string article, CancellationToken ct)
     {
         var partSpec = await GetPartSpecAsync(article, ct)
@@ -221,7 +195,6 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
         await using var s = await resp.Content.ReadAsStreamAsync(ct);
         var dto = await JsonSerializer.DeserializeAsync<SpecRowsResp>(s, JsonOpts, ct) ?? new SpecRowsResp();
 
-        // Normalize nulls
         foreach (var r in dto.Rows)
         {
             r.Template ??= string.Empty;
@@ -260,10 +233,6 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
         return dto?.Description;
     }
 
-    // ==============================
-    // Helpers
-    // ==============================
-
     private static string? Get(List<SpecRowDto> rows, string xRowKey)
         => rows.FirstOrDefault(r => Eq(r.XRow, xRowKey))?.ColumnId;
 
@@ -275,7 +244,7 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
         if (resp.IsSuccessStatusCode) return;
 
         string body = string.Empty;
-        try { body = await resp.Content.ReadAsStringAsync(ct); } catch { /* ignore */ }
+        try { body = await resp.Content.ReadAsStringAsync(ct); } catch { }
 
         throw new HttpRequestException(
             $"Java legacy API returned {(int)resp.StatusCode} {resp.ReasonPhrase} for GET {url}"

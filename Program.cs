@@ -31,11 +31,6 @@ using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Infrastructure.Adapters;
 using WAD.Runner.DataManagement.Infrastructure.Sqlite;
 
-// Part Automation
-using WAD.Runner.PartAutomation.Interfaces;
-using WAD.Runner.PartAutomation.Execution;
-using WAD.Runner.PartAutomation.Jobs;
-
 // Drawing Automation
 using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Executors.FG;
@@ -156,13 +151,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<ISwSessionFactory, SwServiceFactory>();
 
         // ============================================================
-        // 5) PART AUTOMATION
-        // ============================================================
-        services.AddSingleton<IPartAutomationService, PartAutomationService>();
-        services.AddSingleton<PartAutomationOrchestrator>();
-
-        // ============================================================
-        // 6) MODEL AUTOMATION (new pipeline)
+        // 5) MODEL AUTOMATION (new pipeline)
         // ============================================================
         services.AddSingleton<ModelDimensionApplier>();
         services.AddSingleton<ModelAutomationOrchestrator>();
@@ -338,99 +327,6 @@ switch (cmd)
             Logger.Info($"[db-info] Firma={firma}");
             Console.WriteLine($"Database Info (Firma {firma}, Language {languageEcho})");
             Logger.Success("[db-info] Done.");
-            break;
-        }
-
-    case "run-part":
-        {
-            SolidWorksProcessKiller.KillAll(killVbaServer: true);
-
-            var (article, subclass) = ParseArticleAndSubclass(args);
-            var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
-            if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
-
-            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
-
-            string partTemplatePath;
-            string equationTemplatePath;
-
-            switch (wedgeTypeEnum)
-            {
-                case WedgeType.COB:
-                    partTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026",
-                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
-
-                    equationTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026",
-                        "wedge-auto-draw-COB-3d-equation.txt");
-                    break;
-
-                case WedgeType.UTUS:
-                    partTemplatePath = Path.Combine(
-                        "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-COB-3d-model_sw_version_2023.SLDPRT");
-
-                    equationTemplatePath = Path.Combine(
-                        "Resources", "Templates", "UT-US", "V1",
-                        "wedge-auto-draw-COB-3d-equation.txt");
-                    break;
-
-                case WedgeType.OSG7:
-                    partTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
-                    break;
-
-                case WedgeType.CKVD:
-                default:
-                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CKVD_2023.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv2", "CK.txt");
-                    break;
-            }
-
-            var outputRoot = Path.Combine("Resources", "Out");
-            Directory.CreateDirectory(outputRoot);
-
-            Logger.Info($"[run-part] Article={article}, Subclass={subclass}, Type={dtype}, WedgeType={wedgeTypeEnum}");
-            Logger.Info($"[run-part] Template(Part)='{partTemplatePath}'");
-            Logger.Info($"[run-part] Template(Equations)='{equationTemplatePath}'");
-            Logger.Info($"[run-part] OutputRoot='{outputRoot}'");
-
-            var orchestrator = host.Services.GetRequiredService<PartAutomationOrchestrator>();
-            var sessFactory = host.Services.GetRequiredService<ISwSessionFactory>();
-            var getWedge = host.Services.GetRequiredService<GetWedgeData>();
-
-            try
-            {
-                using var sw = sessFactory.Create(visible: true);
-
-                var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
-
-                var job = new PartJobRequest
-                {
-                    ArticleNumber = article,
-                    Subclass = subclass,
-                    DrawingType = dtype,
-                    OutputRoot = outputRoot,
-                    PartTemplatePath = partTemplatePath,
-                    EquationTemplatePath = equationTemplatePath,
-                    FileBase = null,
-                    WedgeData = wedgeData,
-                    WedgeType = wedgeTypeEnum
-                };
-
-                var resultPath = await orchestrator.RunAsync(job, sw.App, CancellationToken.None);
-                Logger.Success($"[run-part] Completed. Output: {resultPath}");
-                Console.WriteLine($"Part automation complete.\nOutput: {resultPath}");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error("[run-part] Failed:");
-                Logger.Error(ex.ToString());
-                Console.WriteLine("Part automation failed:");
-                Console.WriteLine(ex.ToString());
-                Environment.ExitCode = 1;
-            }
             break;
         }
 
@@ -807,9 +703,6 @@ Diagnostics (SQLite only):
   list-articles  [--limit 20]
   show-article   --article <num>
 
-Part Automation:
-  run-part       --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|UTUS|OSG7]
-
 Drawing Automation:
   run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|UTUS|OSG7]
 
@@ -860,15 +753,43 @@ static WedgeType ParseWedgeTypeEnum(string[] a)
         _ => WedgeType.CKVD
     };
 }
-static string ResolveSqliteConnectionString(string rawConnectionString, string contentRootPath)
+static string ResolveSqliteConnectionString(string rawValue, string contentRootPath)
 {
-    var builder = new SqliteConnectionStringBuilder(rawConnectionString);
+    if (string.IsNullOrWhiteSpace(rawValue))
+        throw new InvalidOperationException("ConnectionStrings:ProAlphaSqlite is empty.");
+
+    SqliteConnectionStringBuilder builder;
+
+    // Supports both:
+    // 1) "Resources/Database/wedge_data.db"
+    // 2) "Data Source=Resources/Database/wedge_data.db"
+    if (rawValue.Contains('='))
+    {
+        builder = new SqliteConnectionStringBuilder(rawValue);
+    }
+    else
+    {
+        builder = new SqliteConnectionStringBuilder
+        {
+            DataSource = rawValue
+        };
+    }
 
     if (string.IsNullOrWhiteSpace(builder.DataSource))
-        throw new InvalidOperationException("ConnectionStrings:ProAlphaSqlite has no Data Source.");
+        throw new InvalidOperationException("ConnectionStrings:ProAlphaSqlite has no database path.");
 
     if (!Path.IsPathRooted(builder.DataSource))
-        builder.DataSource = Path.GetFullPath(Path.Combine(contentRootPath, builder.DataSource));
+    {
+        builder.DataSource = Path.GetFullPath(
+            Path.Combine(contentRootPath, builder.DataSource));
+    }
+
+    if (!File.Exists(builder.DataSource))
+    {
+        throw new FileNotFoundException(
+            $"SQLite database file was not found: {builder.DataSource}",
+            builder.DataSource);
+    }
 
     return builder.ToString();
 }

@@ -2,17 +2,9 @@
 
 namespace WAD.Runner.DataManagement.Infrastructure.Parsing;
 
-/// <summary>
-/// Builds a <see cref="WedMarking"/> from Wed-Marking rows.
-/// Expected XRow keys (case-insensitive):
-///   "Marking-Overlay",
-///   "Marking-TB-1" .. "Marking-TB-7",
-///   "Marking-Text".
-/// Missing entries are treated as null.
-/// </summary>
 public static class WedMarkingAssembler
 {
-    // Canonical keys
+
     public const string OverlayKey = "Marking-Overlay";
     public const string TextKey = "Marking-Text";
 
@@ -22,19 +14,15 @@ public static class WedMarkingAssembler
         "Marking-TB-5","Marking-TB-6","Marking-TB-7"
     };
 
-    /// <summary>
-    /// rows: sequence of (XRow, Text) from transport.
-    /// </summary>
     public static WedMarking FromRows(IEnumerable<(string XRow, string? Text)> rows)
     {
         if (rows is null) throw new ArgumentNullException(nameof(rows));
 
-        // Case-insensitive lookup
         var dict = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         foreach (var (xrow, text) in rows)
         {
             if (string.IsNullOrWhiteSpace(xrow)) continue;
-            // Keep first non-empty value if duplicates appear
+
             if (!dict.ContainsKey(xrow) || string.IsNullOrWhiteSpace(dict[xrow]))
                 dict[xrow] = Normalize(text);
         }

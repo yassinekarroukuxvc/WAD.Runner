@@ -1,9 +1,7 @@
 ﻿namespace WAD.Runner.DataManagement.Domain.Planning;
 
-/// <summary>Diagnostic record for planning warnings.</summary>
 public sealed record PlanningWarning(string Code, string Message, string? Key = null, string? View = null);
 
-/// <summary>Collector for planning-time warnings (missing dims, views, etc.).</summary>
 public sealed class PlannerDiagnostics
 {
     private readonly List<PlanningWarning> _warnings = new();

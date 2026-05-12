@@ -6,20 +6,15 @@ namespace WAD.Runner.DataManagement.Domain.Planning;
 
 internal static class NoteRules
 {
-    /// <summary>
-    /// Builds CAD-agnostic notes from DrawingData.Metadata, WedgeData.Properties, and WedgeData.Marking.
-    /// Positions are simple defaults with light heuristics; you can later route them via JSON config.
-    /// </summary>
+
     public static List<NoteSpec> Build(LayoutContext ctx)
     {
         var notes = new List<NoteSpec>();
 
-        // ---- anchor helpers (use table position if available, else fallback) ----
         var howToOrderPos = TryGetTablePos(ctx, "HowToOrder", fallbackX: 10, fallbackY: 10);
         var markingPos = TryGetTablePos(ctx, "Marking", fallbackX: 10, fallbackY: 30);
         var titlePos = new double[] { 10.0, 6.0 };
 
-        // ==== 1) Title from Drawing.Metadata ====
         var title = FirstNonEmpty(
             TryMeta(ctx.Drawing, "Title"),
             TryMeta(ctx.Drawing, "DrawingTitle"),
@@ -36,7 +31,6 @@ internal static class NoteRules
             });
         }
 
-        // ==== 2) Overlay calibration (from Drawing.Metadata) ====
         var calib = FirstNonEmpty(
             TryMeta(ctx.Drawing, "OverlayCalibrationMicron"),
             TryMeta(ctx.Drawing, "CalibrationMicron"),
@@ -52,8 +46,6 @@ internal static class NoteRules
             });
         }
 
-        // ==== 3) Wedge properties (Polish / PS / Remarks / Notes) ====
-        // We look for common keys across Wed/PGB specs.
         AddIfPresent(notes, "Polish", ctx.Wedge, howToOrderPos, yStep: 6,
             "Wed-Polish", "PGB-Polish", "Polish");
 
@@ -66,7 +58,6 @@ internal static class NoteRules
         AddIfPresent(notes, "Notes", ctx.Wedge, howToOrderPos, yStep: 6,
             "Wed-Notes", "Notes");
 
-        // ==== 4) Marking block (Wed-Marking) ====
         if (ctx.Wedge.Marking is not null)
         {
             double y = markingPos[1];
@@ -82,7 +73,6 @@ internal static class NoteRules
                 y += 6;
             }
 
-            // TB-1..TB-7 if present
             var tbs = new[]
             {
                 ("Marking-TB-1", ctx.Wedge.Marking.TB1),
@@ -122,8 +112,6 @@ internal static class NoteRules
         return notes;
     }
 
-    // ---------------- helpers ----------------
-
     private static string? TryMeta(DrawingData d, string key)
         => d.Metadata.TryGetValue(key, out var v) ? v : null;
 
@@ -147,10 +135,6 @@ internal static class NoteRules
     private static double[] Offset(double[] pos, double dx, double dy)
         => new[] { pos[0] + dx, pos[1] + dy };
 
-    /// <summary>
-    /// Adds a note if any of the provided property keys exist and are non-empty.
-    /// Places it under the anchor (x,yStart) and advances y by yStep for each note.
-    /// </summary>
     private static void AddIfPresent(
         List<NoteSpec> notes,
         string label,
@@ -162,7 +146,6 @@ internal static class NoteRules
         var text = FirstNonEmpty(keys.Select(k => TryProp(wedge, k)).ToArray());
         if (string.IsNullOrWhiteSpace(text)) return;
 
-        // Put under anchor; stack vertically if multiple calls happen on the same anchor
         var y = NextY(notes, anchor, yStep);
         notes.Add(new NoteSpec
         {
@@ -177,7 +160,7 @@ internal static class NoteRules
 
     private static double NextY(List<NoteSpec> notes, double[] anchor, double yStep)
     {
-        // Find the last note at this anchor X and below/near anchor Y to keep a tidy stack.
+
         var sameColumn = notes
             .Where(n => NearlyEqual(n.PositionMm[0], anchor[0]))
             .OrderBy(n => n.PositionMm[1])
