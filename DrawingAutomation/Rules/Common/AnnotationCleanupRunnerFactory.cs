@@ -1,9 +1,10 @@
 ﻿// DrawingAutomation/Rules/Common/AnnotationCleanupRunnerFactory.cs
-using System;
 using System.Collections.Generic;
 using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DrawingAutomation.Rules.CKVD;
 using WAD.Runner.DrawingAutomation.Rules.COB;
 using WAD.Runner.DrawingAutomation.Rules.FP;
+using WAD.Runner.DrawingAutomation.Rules.OSG7;
 using WAD.Runner.DrawingAutomation.Rules.UTUS;
 
 namespace WAD.Runner.DrawingAutomation.Rules.Common;
@@ -16,10 +17,11 @@ public static class AnnotationCleanupRunnerFactory
     private static readonly IReadOnlyDictionary<WedgeType, IDrawingCleanupRunner> Registry =
         new Dictionary<WedgeType, IDrawingCleanupRunner>
         {
+            [WedgeType.CKVD] = new CkvdAnnotationCleanupRunner(),
             [WedgeType.COB] = new CobAnnotationCleanupRunner(),
             [WedgeType.UTUS] = new UtusAnnotationCleanupRunner(),
             [WedgeType.FP] = new FpAnnotationCleanupRunner(),
-            // add new types here
+            [WedgeType.OSG7] = new Osg7AnnotationCleanupRunner(),
         };
 
     /// <summary>

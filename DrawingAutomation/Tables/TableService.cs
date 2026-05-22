@@ -45,7 +45,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
             if (rows.Count == 0) return false;
 
             // Derive width from content, capped between a min and the config value
-            var configWidthM = ResolveWidthM(cfg, fallbackM: 0.08);
+            var configWidthM = ResolveWidthM(cfg, fallbackM: 0.14);
             var contentWidthM = EstimateMonospaceWidthM(rows, header, fontSizePt: 6.0, scaleCharHeight: 0.90, charWidthRatio: 0.8);
             var widthM = Math.Min(configWidthM, Math.Max(contentWidthM, 0.03)); // floor at 30mm
 

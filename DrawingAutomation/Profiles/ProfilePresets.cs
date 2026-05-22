@@ -184,43 +184,43 @@ public static class ProfilePresets
 
     // OSG7
     private static ViewNames Osg7FgProductionViews() => new(
-        Front: "Drawing View3",
-        Side: "Drawing View2",
-        Top: "Drawing View1",
-        Detail: "Drawing View4",
-        Section: "Section View A-A"
+        Front: "Drawing View4",
+        Side: "Drawing View1",
+        Top: "Drawing View3",
+        Detail: "Drawing View5",
+        Section: "Section View AC-AC"
     );
 
     private static ViewNames Osg7FgCustomerViews() => new(
-        Front: "OSG7_FG_Cust_Front",
-        Side: "OSG7_FG_Cust_Side",
-        Top: "OSG7_FG_Cust_Top",
-        Detail: "OSG7_FG_Cust_Detail",
-        Section: "OSG7_FG_Cust_Section"
+        Front: "Drawing View19",
+        Side: "Drawing View17",
+        Top: "Drawing View18",
+        Detail: "Drawing View20",
+        Section: "Section View AC-AC"
     );
 
     private static ViewNames Osg7FgOverlayViews() => new(
         Front: "OSG7_FG_Ovl_Front",
         Side: "OSG7_FG_Ovl_Side",
         Top: "OSG7_FG_Ovl_Top",
-        Detail: "OSG7_FG_Ovl_Detail",
-        Section: "OSG7_FG_Ovl_Section"
+        Detail: "Drawing View3",
+        Section: "Drawing View4"
     );
 
     private static ViewNames Osg7PgbProductionViews() => new(
-        Front: "OSG7_PGB_Prod_Front",
-        Side: "OSG7_PGB_Prod_Side",
-        Top: "OSG7_PGB_Prod_Top",
-        Detail: "OSG7_PGB_Prod_Detail",
-        Section: "OSG7_PGB_Prod_Section"
+        Front: "Drawing View14",
+        Side: "Drawing View12",
+        Top: "Drawing View13",
+        Detail: "Drawing View15",
+        Section: "Section View AD-AD"
     );
 
     private static ViewNames Osg7PgbOverlayViews() => new(
         Front: "OSG7_PGB_Ovl_Front",
         Side: "OSG7_PGB_Ovl_Side",
         Top: "OSG7_PGB_Ovl_Top",
-        Detail: "OSG7_PGB_Ovl_Detail",
-        Section: "OSG7_PGB_Ovl_Section"
+        Detail: "Drawing View5",
+        Section: "Drawing View6"
     );
 
     private static Func<IEnumerable<string>, string> Prefer(string preferred)
@@ -313,7 +313,7 @@ public static class ProfilePresets
     public static DrawingProfile Osg7FgOverlay() => new(
         Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay),
         ProfileName: "OSG7 FG Overlay",
-        SheetSelector: Prefer("OVERLAY"),
+        SheetSelector: Prefer("FG"),
         ViewsOrder: StdOrder,
         Views: Osg7FgOverlayViews(),
         UseBreaklinesForView: v => false,

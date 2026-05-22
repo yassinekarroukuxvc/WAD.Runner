@@ -1,55 +1,19 @@
-﻿// DrawingAutomation/Rules/Common/SharedAnnotationDeletionRules.cs
-using SolidWorks.Interop.sldworks;
-using SolidWorks.Interop.swconst;
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-
-using WAD.Runner.Application;
+using SolidWorks.Interop.sldworks;
 
 namespace WAD.Runner.DrawingAutomation.Rules.Common;
 
 /// <summary>
-/// Shared annotation deletion rules for COB, UTUS, and FP wedge types.
-///
-/// Previously these three types each had their own identical rules class (CobAnnotationDeletionRules,
-/// UtusAnnotationDeletionRules, FpAnnotationDeletionRules). The rule bodies, enums, Options class,
-/// ViewNameMap, superset, and keep-set logic were byte-for-byte copies.
-///
-/// This class contains the logic once. Thin wrappers in COB/, UTUS/, FP/ delegate here
-/// with their wedge-specific tag prefix, so log output and the public API surface remain clean.
-///
-/// ── TEMPLATE ANNOTATION NAMING ──────────────────────────────────────────
-/// Annotations are referenced as DIM_NAME@SKETCH_NAME.
-/// Sketch names depend on shank orientation:
-///
-///   Sketch role   STD                               180° REV
-///   ─────────────────────────────────────────────────────────────────────
-///   Front         ANNOT_STD_FRONT_sketch            ANNOT_180_DEG_REV_FRONT_sketch
-///   Top           ANNOT_STD_TOP_sketch              ANNOT_180_DEG_REV_TOP_sketch
-///   FR/BR         ANNOT_FR_BR_STD_FRONT_sketch      ANNOT_FR_BR_180_DEG_REV_FRONT_sketch
-///   Left          ANNOT_LEFT_sketch                 (shank-independent)
-///   Foot-opt left ANNOT_FOOT_OPTIONS_LEFT_sketch    (shank-independent)
-///
-/// ── KEEP SETS BY DRAWING TYPE ───────────────────────────────────────────
-///
-///   View    │ PGB       │ Production                              │ Customer
-///   ────────┼───────────┼─────────────────────────────────────────┼──────────────────────
-///   Front   │ TL, K     │ TL, K                                   │ TL, K
-///   Side    │ BA        │ BA                                      │ BA
-///   Top     │ TD, TDF   │ TD, TDF                                 │ TD, TDF
-///   Detail  │ W, ISA    │ W, ISA                                  │ W, ISA
-///   Section │ T, FD, RA │ T, FD, ERL, CA, H, FNA, HA, RA, BA     │ T, FD, H, HA, FNA, RA
-///           │           │ + foot-option dims + FR/BR              │ + foot-option dims + FR/BR
+/// Shared annotation deletion rules for COB-like drawing templates (COB, UTUS, FP).
+/// The engine builds a keep-set for the active drawing context and deletes existing
+/// annotations that are not explicitly kept.
 /// </summary>
 public static class SharedAnnotationDeletionRules
 {
-    // ── Global switch ─────────────────────────────────────────────────
     public static bool RulesEnabled { get; set; } = true;
-
-    // ── Public types ──────────────────────────────────────────────────
 
     public enum DrawingType { Pgb, Production, Customer }
     public enum ShankType { Std, Deg180Rev }
@@ -62,9 +26,15 @@ public static class SharedAnnotationDeletionRules
     {
         // Front / Side
         public bool HasVwVr { get; init; }
+        public bool HasVw { get; init; }
+        public bool HasVr { get; init; }
+        public bool HasX { get; init; }
+        public bool HasFx { get; init; }
+        public bool HasVfl { get; init; }
         public bool HasSlb { get; init; }
 
         // Detail
+        public bool HasVra { get; init; }
         public bool HasW2 { get; init; }
         public bool HasGa { get; init; }
         public bool HasCd { get; init; }
@@ -75,7 +45,9 @@ public static class SharedAnnotationDeletionRules
         // Section
         public bool HasRa2 { get; init; }
         public bool HasErd { get; init; }
-        public bool HasFrBr { get; init; }
+        public bool HasFr { get; init; }
+        public bool HasBr { get; init; }
+        public bool HasFrBr => HasFr && HasBr;
         public bool HasF { get; init; }
         public bool HasG { get; init; }
         public bool HasCgr { get; init; }
@@ -115,8 +87,6 @@ public static class SharedAnnotationDeletionRules
         };
     }
 
-    // ── Public API ────────────────────────────────────────────────────
-
     public static void DumpDeletionPlan(
         string tagPrefix,
         string title,
@@ -125,9 +95,10 @@ public static class SharedAnnotationDeletionRules
     {
         var core = (deletions ?? Array.Empty<DeletionTarget>())
             .Select(d => new AnnotationDeletionCore.DeletionTarget(d.ViewName, d.AnnotationFullName))
-            .ToList().AsReadOnly();
+            .ToList()
+            .AsReadOnly();
 
-        AnnotationDeletionCore.DumpDeletionPlan(title, core, tagPrefix: tagPrefix, maxPerView: maxPerView);
+        AnnotationDeletionCore.DumpDeletionPlan(title, core, tagPrefix, maxPerView);
     }
 
     public static void DumpExistingDimensionNames(
@@ -137,17 +108,70 @@ public static class SharedAnnotationDeletionRules
         bool activateEachView = true,
         int maxPerView = 250)
     {
+        if (drawingModel is null) throw new ArgumentNullException(nameof(drawingModel));
+
         AnnotationDeletionCore.DumpExistingDisplayDimensionFullNamesFromDrawing(
             drawingModel,
             (viewNames ?? new ViewNameMap()).ToCore(),
-            tagPrefix: tagPrefix,
-            activateEachView: activateEachView,
-            maxPerView: maxPerView);
+            tagPrefix,
+            activateEachView,
+            maxPerView);
     }
 
     /// <summary>
-    /// Scans the drawing and returns every annotation that is NOT in the keep-set.
-    /// Anything not explicitly kept is scheduled for deletion.
+    /// CAD-agnostic mode: returns all known template annotations except the keep-set.
+    /// </summary>
+    public static IReadOnlyList<DeletionTarget> GetAnnotationsToDelete(
+        DrawingType drawingType,
+        ShankType shankType,
+        FootOption footOption,
+        Options? options = null,
+        ViewNameMap? viewNames = null)
+    {
+        if (!RulesEnabled) return Empty();
+
+        options ??= new Options();
+        viewNames ??= new ViewNameMap();
+
+        var keep = BuildKeepSet(drawingType, shankType, footOption, options);
+        var all = BuildAllKnownAnnotations();
+
+        return AnnotationDeletionCore
+            .GetAnnotationsToDelete_FromKnownSuperset(keep, all, viewNames.ToCore())
+            .Select(d => new DeletionTarget(d.ViewName, d.AnnotationFullName))
+            .ToList()
+            .AsReadOnly();
+    }
+
+    public static IReadOnlyList<DeletionTarget> GetExistingAnnotationsToDelete_FromKnownSuperset(
+        DrawingType drawingType,
+        ShankType shankType,
+        FootOption footOption,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>> existingByViewName,
+        Options? options = null,
+        ViewNameMap? viewNames = null)
+    {
+        if (!RulesEnabled) return Empty();
+        if (existingByViewName is null) throw new ArgumentNullException(nameof(existingByViewName));
+
+        options ??= new Options();
+        viewNames ??= new ViewNameMap();
+
+        var candidates = GetAnnotationsToDelete(drawingType, shankType, footOption, options, viewNames)
+            .Select(c => new AnnotationDeletionCore.DeletionTarget(c.ViewName, c.AnnotationFullName))
+            .ToList()
+            .AsReadOnly();
+
+        return AnnotationDeletionCore
+            .FilterCandidatesByExisting_FromKnownSuperset(candidates, existingByViewName)
+            .Select(d => new DeletionTarget(d.ViewName, d.AnnotationFullName))
+            .ToList()
+            .AsReadOnly();
+    }
+
+    /// <summary>
+    /// Defensive CAD-aware mode: scans the drawing and deletes every existing annotation
+    /// that is not explicitly kept.
     /// </summary>
     public static IReadOnlyList<DeletionTarget> PlanDeletionsFromDrawing(
         ModelDoc2 drawingModel,
@@ -173,24 +197,50 @@ public static class SharedAnnotationDeletionRules
         return AnnotationDeletionCore
             .GetExistingMinusKeep(existingByView, keepExpectedByView)
             .Select(d => new DeletionTarget(d.ViewName, d.AnnotationFullName))
-            .ToList().AsReadOnly();
+            .ToList()
+            .AsReadOnly();
     }
 
-    // ── Keep-set dispatch ─────────────────────────────────────────────
+    /// <summary>
+    /// Safer CAD-aware mode for templates with unrelated annotations: scans the drawing,
+    /// then only deletes matching annotations from the known template superset.
+    /// </summary>
+    public static IReadOnlyList<DeletionTarget> PlanDeletionsFromDrawing_FromKnownSuperset(
+        ModelDoc2 drawingModel,
+        DrawingType drawingType,
+        ShankType shankType,
+        FootOption footOption,
+        Options? options = null,
+        ViewNameMap? viewNames = null,
+        bool activateEachView = true)
+    {
+        if (drawingModel is null) throw new ArgumentNullException(nameof(drawingModel));
+        if (!RulesEnabled) return Empty();
+
+        options ??= new Options();
+        viewNames ??= new ViewNameMap();
+
+        var existingByView = AnnotationDeletionCore.CollectExistingDisplayDimensionFullNamesByView(
+            drawingModel, viewNames.ToCore(), activateEachView);
+
+        return GetExistingAnnotationsToDelete_FromKnownSuperset(
+            drawingType, shankType, footOption, existingByView, options, viewNames);
+    }
 
     private static HashSet<AnnotationDeletionCore.Ann> BuildKeepSet(
-        DrawingType drawingType, ShankType shankType, FootOption footOption, Options options)
+        DrawingType drawingType,
+        ShankType shankType,
+        FootOption footOption,
+        Options options)
         => drawingType switch
         {
-            DrawingType.Pgb => BuildKeep_Pgb(shankType, options),
-            DrawingType.Production => BuildKeep_ProductionOrCustomer(shankType, footOption, options, isCustomer: false),
-            DrawingType.Customer => BuildKeep_ProductionOrCustomer(shankType, footOption, options, isCustomer: true),
+            DrawingType.Pgb => BuildKeepPgb(shankType, options),
+            DrawingType.Production => BuildKeepProductionOrCustomer(shankType, footOption, options, isCustomer: false),
+            DrawingType.Customer => BuildKeepProductionOrCustomer(shankType, footOption, options, isCustomer: true),
             _ => throw new ArgumentOutOfRangeException(nameof(drawingType), drawingType, null)
         };
 
-    // ── PGB keep-set ──────────────────────────────────────────────────
-
-    private static HashSet<AnnotationDeletionCore.Ann> BuildKeep_Pgb(ShankType shank, Options opt)
+    private static HashSet<AnnotationDeletionCore.Ann> BuildKeepPgb(ShankType shank, Options opt)
     {
         var keep = new HashSet<AnnotationDeletionCore.Ann>();
         var fs = FrontSketch(shank);
@@ -198,7 +248,7 @@ public static class SharedAnnotationDeletionRules
         KeepFront(keep, shank, opt, includeVr: false);
         KeepSide(keep, shank, opt, allowVbl: false);
         KeepTop(keep, shank);
-        KeepDetail_Base(keep, opt, isProduction: false);
+        KeepDetailBase(keep, opt, isProduction: false);
 
         Add(keep, V.Section, $"T@{fs}");
         Add(keep, V.Section, $"FD@{fs}");
@@ -207,10 +257,11 @@ public static class SharedAnnotationDeletionRules
         return keep;
     }
 
-    // ── Production + Customer keep-set ────────────────────────────────
-
-    private static HashSet<AnnotationDeletionCore.Ann> BuildKeep_ProductionOrCustomer(
-        ShankType shank, FootOption foot, Options opt, bool isCustomer)
+    private static HashSet<AnnotationDeletionCore.Ann> BuildKeepProductionOrCustomer(
+        ShankType shank,
+        FootOption foot,
+        Options opt,
+        bool isCustomer)
     {
         var keep = new HashSet<AnnotationDeletionCore.Ann>();
         var fs = FrontSketch(shank);
@@ -218,18 +269,17 @@ public static class SharedAnnotationDeletionRules
         KeepFront(keep, shank, opt, includeVr: true);
         KeepSide(keep, shank, opt, allowVbl: true);
         KeepTop(keep, shank);
-        KeepDetail_Base(keep, opt, isProduction: !isCustomer);
+        KeepDetailBase(keep, opt, isProduction: !isCustomer);
 
-        // Section: shared
         Add(keep, V.Section, $"T@{fs}");
         Add(keep, V.Section, $"H@{fs}");
         Add(keep, V.Section, $"HA@{fs}");
         Add(keep, V.Section, $"FNA@{fs}");
         Add(keep, V.Section, $"RA@{fs}");
 
-        if (opt.HasRa2) Add(keep, V.Section, $"RA2@{fs}");
+        if (opt.HasRa2)
+            Add(keep, V.Section, $"RA2@{fs}");
 
-        // Section: Production only
         if (!isCustomer)
         {
             Add(keep, V.Section, $"FD@{fs}");
@@ -241,13 +291,11 @@ public static class SharedAnnotationDeletionRules
                 Add(keep, V.Section, ResolveAnnotationName(opt.ErdAnnotationFullName, $"ERD@{fs}"));
         }
 
-        KeepFootOption_Detail(keep, foot, isCustomer, opt);
-        KeepFootOption_Section(keep, shank, foot, opt, isCustomer);
+        KeepFootOptionDetail(keep, foot, isCustomer, opt);
+        KeepFootOptionSection(keep, shank, foot, opt, isCustomer);
 
         return keep;
     }
-
-    // ── Shared view helpers ───────────────────────────────────────────
 
     private static void KeepFront(HashSet<AnnotationDeletionCore.Ann> keep, ShankType shank, Options opt, bool includeVr)
     {
@@ -263,6 +311,7 @@ public static class SharedAnnotationDeletionRules
     {
         Add(keep, V.Side, $"BA@{FrontSketch(shank)}");
         Add(keep, V.Side, $"TL@{FrontSketch(shank)}");
+
         if (allowVbl && opt.HasSlb)
             Add(keep, V.Side, $"VBL@{FrontSketch(shank)}");
     }
@@ -274,15 +323,18 @@ public static class SharedAnnotationDeletionRules
         Add(keep, V.Top, $"TDF@{ts}");
     }
 
-    private static void KeepDetail_Base(HashSet<AnnotationDeletionCore.Ann> keep, Options opt, bool isProduction)
+    private static void KeepDetailBase(HashSet<AnnotationDeletionCore.Ann> keep, Options opt, bool isProduction)
     {
         Add(keep, V.Detail, "W@ANNOT_LEFT_sketch");
-        Add(keep, V.Detail, "ISA@ANNOT_LEFT_sketch");
+
+        if (!opt.HasVwVr)
+            Add(keep, V.Detail, "ISA@ANNOT_LEFT_sketch");
 
         if (opt.HasVwVr)
         {
             Add(keep, V.Detail, "VW@ANNOT_LEFT_sketch");
             Add(keep, V.Detail, "VR@ANNOT_LEFT_sketch");
+            Add(keep, V.Detail, "VRA@ANNOT_LEFT_sketch");
         }
 
         if (opt.HasW2) Add(keep, V.Detail, "W2@ANNOT_LEFT_sketch");
@@ -296,8 +348,11 @@ public static class SharedAnnotationDeletionRules
         }
     }
 
-    private static void KeepFootOption_Detail(
-        HashSet<AnnotationDeletionCore.Ann> keep, FootOption foot, bool isCustomer, Options opt)
+    private static void KeepFootOptionDetail(
+        HashSet<AnnotationDeletionCore.Ann> keep,
+        FootOption foot,
+        bool isCustomer,
+        Options opt)
     {
         if (isCustomer || !opt.HasGr) return;
 
@@ -305,27 +360,29 @@ public static class SharedAnnotationDeletionRules
         if (foot == FootOption.VG) Add(keep, V.Detail, "GR_VG@ANNOT_FOOT_OPTIONS_LEFT_sketch");
     }
 
-    private static void KeepFootOption_Section(
-        HashSet<AnnotationDeletionCore.Ann> keep, ShankType shank, FootOption foot, Options opt, bool isCustomer)
+    private static void KeepFootOptionSection(
+        HashSet<AnnotationDeletionCore.Ann> keep,
+        ShankType shank,
+        FootOption foot,
+        Options opt,
+        bool isCustomer)
     {
         var fs = FrontSketch(shank);
         var frbr = FrBrSketch(shank);
 
-        // FL_* (when F > 0)
         if (opt.HasF)
         {
             var flDim = FlDimForFoot(foot);
-            if (flDim is not null) Add(keep, V.Section, $"{flDim}@{fs}");
+            if (flDim is not null)
+                Add(keep, V.Section, $"{flDim}@{fs}");
         }
 
-        // CG/CC dims — Production only
         if (!isCustomer && (foot == FootOption.CG || foot == FootOption.CC))
         {
             if (opt.HasG) Add(keep, V.Section, $"G@{fs}");
             if (opt.HasCgr) Add(keep, V.Section, $"CGR@{fs}");
             if (opt.HasCgd) Add(keep, V.Section, $"CGD@{fs}");
 
-            // Template typo variant in some 180° REV revisions
             if (shank == ShankType.Deg180Rev)
             {
                 const string typo = "ANNOT_180_DEG_REV_FRONT_FRONT_sketch";
@@ -335,30 +392,81 @@ public static class SharedAnnotationDeletionRules
             }
         }
 
-        // Customer also keeps G for CG/CC
         if (isCustomer && opt.HasG && (foot == FootOption.CG || foot == FootOption.CC))
             Add(keep, V.Section, $"G@{fs}");
 
-        // C_WITH_CBR dims — Production only
         if (!isCustomer && foot == FootOption.C_WITH_CBR)
         {
             if (opt.HasCbra) Add(keep, V.Section, $"CBRA@{fs}");
             if (opt.HasCbrl) Add(keep, V.Section, $"CBRL@{fs}");
         }
 
-        // FR/BR — keep only the matching suffix
-        if (opt.HasFrBr)
+        var frBrSuffix = FrBrSuffixForFoot(foot);
+        if (frBrSuffix is not null)
         {
-            var suffix = FrBrSuffixForFoot(foot);
-            if (suffix is not null)
-            {
-                Add(keep, V.Section, $"FR_{suffix}@{frbr}");
-                Add(keep, V.Section, $"BR_{suffix}@{frbr}");
-            }
+            if (opt.HasFr) Add(keep, V.Section, $"FR_{frBrSuffix}@{frbr}");
+            if (opt.HasBr) Add(keep, V.Section, $"BR_{frBrSuffix}@{frbr}");
         }
     }
 
-    // ── Name helpers ──────────────────────────────────────────────────
+    private static HashSet<AnnotationDeletionCore.Ann> BuildAllKnownAnnotations()
+    {
+        var all = new HashSet<AnnotationDeletionCore.Ann>();
+
+        foreach (var shank in BothShanks)
+        {
+            var fs = FrontSketch(shank);
+            var ts = TopSketch(shank);
+            var frbr = FrBrSketch(shank);
+
+            Add(all, V.Front, $"TL@{fs}");
+            Add(all, V.Front, "TL@part_axis");
+            Add(all, V.Front, "TL@ANNOT_LEFT_sketch");
+            Add(all, V.Front, "VR@ANNOT_LEFT_sketch");
+
+            Add(all, V.Side, $"BA@{fs}");
+            Add(all, V.Side, $"TL@{fs}");
+            Add(all, V.Side, $"VBL@{fs}");
+
+            Add(all, V.Top, $"TD@{ts}");
+            Add(all, V.Top, $"TDF@{ts}");
+
+            foreach (var dim in AllSectionCavityDims)
+                Add(all, V.Section, $"{dim}@{fs}");
+
+            foreach (var dim in new[] { "FL_C", "FL_G", "FL_VG" })
+                Add(all, V.Section, $"{dim}@{fs}");
+
+            foreach (var dim in CgDims)
+                Add(all, V.Section, $"{dim}@{fs}");
+
+            Add(all, V.Section, $"CBRA@{fs}");
+            Add(all, V.Section, $"CBRL@{fs}");
+
+            foreach (var suffix in FrBrSuffixes)
+            {
+                Add(all, V.Section, $"FR_{suffix}@{frbr}");
+                Add(all, V.Section, $"BR_{suffix}@{frbr}");
+            }
+
+            if (shank == ShankType.Deg180Rev)
+            {
+                foreach (var dim in CgDims)
+                    Add(all, V.Section, $"{dim}@ANNOT_180_DEG_REV_FRONT_FRONT_sketch");
+            }
+        }
+
+        Add(all, V.Front, "K@Engraving");
+        Add(all, V.Front, "K@ANNOT_LEFT_sketch");
+
+        foreach (var dim in new[] { "W", "ISA", "VW", "VR", "VRA", "W2" })
+            Add(all, V.Detail, $"{dim}@ANNOT_LEFT_sketch");
+
+        foreach (var dim in new[] { "CD", "CR", "GD", "GR_G", "GR_VG", "GA", "B" })
+            Add(all, V.Detail, $"{dim}@ANNOT_FOOT_OPTIONS_LEFT_sketch");
+
+        return all;
+    }
 
     public static string FrontSketch(ShankType shank)
         => shank == ShankType.Std ? "ANNOT_STD_FRONT_sketch" : "ANNOT_180_DEG_REV_FRONT_sketch";
@@ -394,9 +502,13 @@ public static class SharedAnnotationDeletionRules
     };
 
     private static string ResolveAnnotationName(string? overrideName, string defaultName)
-        => string.IsNullOrWhiteSpace(overrideName) ? defaultName : overrideName!.Trim();
+        => string.IsNullOrWhiteSpace(overrideName) ? defaultName : overrideName.Trim();
 
-    // ── Constants ─────────────────────────────────────────────────────
+    private static void Add(HashSet<AnnotationDeletionCore.Ann> set, AnnotationDeletionCore.ViewKind view, string fullName)
+        => set.Add(new AnnotationDeletionCore.Ann(view, fullName));
+
+    private static IReadOnlyList<DeletionTarget> Empty()
+        => new ReadOnlyCollection<DeletionTarget>(new List<DeletionTarget>());
 
     private static readonly string[] AllSectionCavityDims =
         { "T", "FD", "ERL", "ERD", "CA", "H", "HA", "FNA", "RA", "RA2", "BA" };
@@ -405,15 +517,6 @@ public static class SharedAnnotationDeletionRules
     private static readonly string[] FrBrSuffixes = { "C", "G", "VG" };
     private static readonly ShankType[] BothShanks = { ShankType.Std, ShankType.Deg180Rev };
 
-    // ── Utility ───────────────────────────────────────────────────────
-
-    private static void Add(HashSet<AnnotationDeletionCore.Ann> set, AnnotationDeletionCore.ViewKind view, string fullName)
-        => set.Add(new AnnotationDeletionCore.Ann(view, fullName));
-
-    private static IReadOnlyList<DeletionTarget> Empty()
-        => new ReadOnlyCollection<DeletionTarget>(new List<DeletionTarget>());
-
-    // Local view kind aliases for readability
     private static class V
     {
         internal static readonly AnnotationDeletionCore.ViewKind Front = AnnotationDeletionCore.ViewKind.Front;

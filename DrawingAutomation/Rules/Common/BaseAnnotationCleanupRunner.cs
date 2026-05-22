@@ -174,7 +174,13 @@ public abstract class BaseAnnotationCleanupRunner : IDrawingCleanupRunner
     {
         bool Pos(string key) => IsDimPositive(wedge, key);
 
-        var hasVwVr = Pos("VR") && Pos("VW");
+        var hasVr = Pos("VR");
+        var hasVw = Pos("VW");
+        var hasVwVr = hasVr && hasVw;
+        var hasVra = Pos("VRA");
+        var hasX = Pos("X");
+        var hasFx = Pos("FX");
+        var hasVfl = Pos("VFL");
         var hasSlb = Pos("VBL");
         var hasW2 = Pos("W2");
         var hasGa = Pos("GA");
@@ -184,7 +190,9 @@ public abstract class BaseAnnotationCleanupRunner : IDrawingCleanupRunner
         var hasB = Pos("B");
         var hasRa2 = Pos("RA2");
         var hasErd = Pos("ERD");
-        var hasFrBr = Pos("FR") && Pos("BR");
+        var hasFr = Pos("FR");
+        var hasBr = Pos("BR");
+        var hasFrBr = hasFr && hasBr;
         var hasF = Pos("F");
         var hasG = Pos("G");
         var hasCgr = Pos("CGR");
@@ -193,20 +201,26 @@ public abstract class BaseAnnotationCleanupRunner : IDrawingCleanupRunner
         var hasCbrl = Pos("CBRL");
 
         Logger.Blue(
-            $"[{LogPrefix}.Options] VW/VR={hasVwVr}, VBL={hasSlb}, " +
+            $"[{LogPrefix}.Options] VW={hasVw}, VR={hasVr}, VW/VR={hasVwVr}, VRA={hasVra}, X={hasX}, FX={hasFx}, VFL={hasVfl}, VBL={hasSlb}, " +
             $"W2={hasW2}, GA={hasGa}, CD={hasCd}, GD={hasGd}, GR={hasGr}, B={hasB}, " +
-            $"RA2={hasRa2}, ERD={hasErd}, FR/BR={hasFrBr}, " +
+            $"RA2={hasRa2}, ERD={hasErd}, FR={hasFr}, BR={hasBr}, FR/BR={hasFrBr} " +
             $"F={hasF}, G={hasG}, CGR={hasCgr}, CGD={hasCgd}, CBRA={hasCbra}, CBRL={hasCbrl}");
 
         // Diagnostic dim dump
         foreach (var key in new[] {
-            "VW","VR","VBL","W2","GA","CD","GD","GR","B",
+            "VW","VR","VRA","X","FX","VFL","VBL","W2","GA","CD","GD","GR","B",
             "RA2","ERD","FR","BR","F","G","CGR","CGD","CBRA","CBRL" })
             DumpDim(wedge, key);
 
         return new SharedAnnotationDeletionRules.Options
         {
             HasVwVr = hasVwVr,
+            HasVw = hasVw,
+            HasVr = hasVr,
+            HasVra = hasVra,
+            HasX = hasX,
+            HasFx = hasFx,
+            HasVfl = hasVfl,
             HasSlb = hasSlb,
             HasW2 = hasW2,
             HasGa = hasGa,
@@ -216,7 +230,8 @@ public abstract class BaseAnnotationCleanupRunner : IDrawingCleanupRunner
             HasB = hasB,
             HasRa2 = hasRa2,
             HasErd = hasErd,
-            HasFrBr = hasFrBr,
+            HasFr = hasFr,
+            HasBr = hasBr,
             HasF = hasF,
             HasG = hasG,
             HasCgr = hasCgr,

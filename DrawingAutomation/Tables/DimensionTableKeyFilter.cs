@@ -195,41 +195,38 @@ namespace WAD.Runner.DrawingAutomation.Tables
                     {
                         [DrawingType.Production] = new[]
                         {
-                            //"TL", "TD", "TDF",
-                            //"K",
+
                             "T","F",
                             "FD", "FL",
-                            //"FRO",
+
                             "ERL",
-                            //"ERW",
+
                             "H",
-                            //"HA",
+
                             "VBL",
-                            //"CA",
+
                             "RC", "CD", "GR", "GD",
-                            //"GA",
+
                             "B","BF",
                             "G",
-                            //"CGD", "CGR", "CFD",
-                            //"CBRA",
+
                             "CBRL",
-                            //"BA","ISA","RA",
+
                             "VR",
-                            //"VRA",
-                            "W","VW","W2","FR","BR","ERD",
+
+                            "W","VW","W2","FR","BR","ERD","TD","TDF"
                         },
 
                         [DrawingType.Customer] = new[]
                         {
                             "T","F",
-                            "FD", "FL",
                             "H",
                             "VBL",
                             "RC", "CD", "GR", "GD",
                             "B","BF",
                             "G",
                             "VR",
-                            "W","VW","W2","FR","BR",
+                            "W","VW","FR","BR","CBRL","TD","TDF"
                         },
 
                         [DrawingType.Overlay] = new[]

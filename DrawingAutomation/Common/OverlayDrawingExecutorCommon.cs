@@ -1,4 +1,4 @@
-﻿// DrawingAutomation/Executors/Common/OverlayDrawingExecutorCommon.cs
+﻿// DrawingAutomation/Common/OverlayDrawingExecutorCommon.cs
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,7 +22,7 @@ using WAD.Runner.DrawingAutomation.SolidWorks;
 using WAD.Runner.DrawingAutomation.Tables;
 using WAD.Runner.DrawingAutomation.Views;
 
-namespace WAD.Runner.DrawingAutomation.Executors.Common
+namespace WAD.Runner.DrawingAutomation.Common
 {
     /// <summary>
     /// Shared helpers for Overlay drawing execution.
@@ -37,37 +37,35 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         // Defaults
         // -----------------------------
 
-        public static string[] DefaultOverlayDimKeys(WedgeType wedgeType) => wedgeType switch
+        private static readonly string[] CobLikeOverlayDimensionKeys =
         {
-            WedgeType.COB => new[]
-            {
-                "W", "FD", "T", "VBL", "VBLR", "VW", "VR", "VRR","RA2H","RA","RA2","TL","T","W","TD","TDF",
-                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "MB",
-                "H", "FNO","FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
-            },
-            WedgeType.UTUS => new[]
-            {
-                "W", "FD", "T", "VBL", "VBLR", "VW", "VR", "VRR","RA2H","RA","RA2","TL","T","W","TD","TDF",
-                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "MB",
-                "H", "FNO","FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
-            },
-            WedgeType.FP => new[]
-            {
-                "W", "FD", "T", "VBL", "VBLR", "VW", "VR", "VRR","RA2H","RA","RA2","TL","T","W","TD","TDF",
-                "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD", "B", "MB",
-                "H", "FNO","FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL", "MI", "Y", "MB", "ERW", "FLER"
-            },
-
-            WedgeType.CKVD => new[]
-            {
-                "FL", "FR", "F", "W", "BR", "GD", "GR", "B", "E", "FX", "X","TD","TDF","TL"
-            },
-
-            _ => new[]
-            {
-                "FL", "FR", "F", "W", "BR", "GD", "GR", "B", "E", "FX", "X"
-            }
+            "W", "FD", "T", "VBL", "VBLR", "VW", "VR", "VRR", "RA2H", "RA", "RA2",
+            "TL", "TD", "TDF", "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD",
+            "B", "MB", "H", "FNO", "FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL",
+            "MI", "Y", "ERW", "FLER", "MFL", "BF", "FR", "CBL"
         };
+
+        private static readonly string[] CkvdOverlayDimensionKeys =
+        {
+            "FL", "FR", "F", "W", "BR", "GD", "GR", "B", "E", "FX", "X", "TD", "TDF", "TL"
+        };
+
+        private static readonly string[] DefaultOverlayDimensionKeys =
+        {
+            "FL", "FR", "F", "W", "BR", "GD", "GR", "B", "E", "FX", "X"
+        };
+
+        public static string[] DefaultOverlayDimKeys(WedgeType wedgeType)
+        {
+            var keys = wedgeType switch
+            {
+                WedgeType.COB or WedgeType.UTUS or WedgeType.FP => CobLikeOverlayDimensionKeys,
+                WedgeType.CKVD or WedgeType.OSG7 => CkvdOverlayDimensionKeys,
+                _ => DefaultOverlayDimensionKeys
+            };
+
+            return keys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        }
 
         // -----------------------------
         // Open / sheet management
@@ -252,6 +250,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 var overlayMacroPath = GetOverlayMacroPath();
 
                 var isCkvd = run.WedgeType == WedgeType.CKVD;
+                var isOsg7 = run.WedgeType == WedgeType.OSG7;
                 var isCob = run.WedgeType == WedgeType.COB;
                 var isUtUs = run.WedgeType == WedgeType.UTUS;
                 var isFp = run.WedgeType == WedgeType.FP;
@@ -260,22 +259,22 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 bool hasVw = HasPositiveDimension(run, "VW");
                 bool hasVr = HasPositiveDimension(run, "VR");
 
-                var baseRefPointSketchName = isCkvd
-                    ? "ref_point_2"
-                    : "ref_point_sketch";
+                var baseRefPointSketchName = run.WedgeType switch
+                {
+                    WedgeType.CKVD => "ref_point_2",
+                    WedgeType.OSG7 => "ref_point",
+                    _ => "ref_point_sketch"
+                };
 
                 if (shankType == ShankType.Rev180)
                 {
                     baseRefPointSketchName = "ref_point_180_DEG_REV_sketch";
                 }
 
-                // Non-CKVD:
-                // - Detail should use the non_std_cut reference point when VW>0 and VR>0
-                // - Section keeps the normal/base reference point
                 var detailRefPointSketchName = baseRefPointSketchName;
                 var sectionRefPointSketchName = baseRefPointSketchName;
 
-                if (!isCkvd && hasVw && hasVr)
+                if (!isCkvd && !isOsg7 && hasVw && hasVr)
                 {
                     detailRefPointSketchName = "ref_point_non_std_cut_sketch";
 

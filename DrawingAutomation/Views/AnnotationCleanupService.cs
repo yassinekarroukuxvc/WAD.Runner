@@ -111,12 +111,12 @@ public static class AnnotationCleanupService
     /// even if no DimensionSpec exists for them.
     /// </summary>
     public static void RemoveZeroDimensionsFromDrawing(
-        DrawingService ds,
-        IDictionary<string, string> nameMap,
-        LayoutContext ctx,
-        DrawingData drawingData,
-        IEnumerable<DimensionSpec> dims,
-        bool hideVrExtremaAnnotations = false)
+    DrawingService ds,
+    IDictionary<string, string> nameMap,
+    LayoutContext ctx,
+    DrawingData drawingData,
+    IEnumerable<DimensionSpec> dims,
+    bool hideVrExtremaAnnotations = false)
     {
         if (ds?.Model is not ModelDoc2 model) return;
         if (ds.Drawing is not DrawingDoc) return;
@@ -169,13 +169,23 @@ public static class AnnotationCleanupService
                         "Forcing deletion of VR/VRR extrema annotations: VR_MAX, VR_MIN, VRR_MAX, VRR_MIN.");
         }
 
-        if (zeroKeys.Count == 0)
+        bool deleteIsaBecauseVrExists = IsPositiveLength(ctx, "VR");
+
+        if (deleteIsaBecauseVrExists)
+        {
+            Logger.Info("[ZeroCleanup] VR exists. Forcing deletion of ISA annotation in Detail view.");
+        }
+
+        if (zeroKeys.Count == 0 && !deleteIsaBecauseVrExists)
         {
             Logger.Info("[ZeroCleanup] No keys/prefixes marked for deletion.");
             return;
         }
 
-        Logger.Info($"[ZeroCleanup] Annotation prefixes to delete: {string.Join(", ", zeroKeys)}");
+        if (zeroKeys.Count > 0)
+        {
+            Logger.Info($"[ZeroCleanup] Annotation prefixes to delete: {string.Join(", ", zeroKeys)}");
+        }
 
         int totalDeleted = 0;
 
@@ -193,12 +203,26 @@ public static class AnnotationCleanupService
             if (infos.Count == 0)
                 continue;
 
+            bool isDetailView = string.Equals(logicalViewName, "Detail", StringComparison.OrdinalIgnoreCase);
+
             int deletedInView = DeleteDimensionsByPredicate(
                 model,
                 infos,
-                info => zeroKeys.Contains(info.Prefix),
-                info => $"[ZeroCleanup] Deleted dim '{info.FullName}' in view '{logicalViewName}' for key '{info.Prefix}'.",
-                (info, ex) => $"[ZeroCleanup] Failed to delete dim '{info.FullName}' in view '{logicalViewName}' (key='{info.Prefix}'): {ex.Message}");
+                info =>
+                    zeroKeys.Contains(info.Prefix) ||
+                    (
+                        deleteIsaBecauseVrExists &&
+                        isDetailView &&
+                        info.Prefix.Equals("ISA", StringComparison.OrdinalIgnoreCase)
+                    ),
+                info =>
+                    info.Prefix.Equals("ISA", StringComparison.OrdinalIgnoreCase)
+                        ? $"[ZeroCleanup] Deleted dim '{info.FullName}' in view '{logicalViewName}' because VR exists."
+                        : $"[ZeroCleanup] Deleted dim '{info.FullName}' in view '{logicalViewName}' for key '{info.Prefix}'.",
+                (info, ex) =>
+                    info.Prefix.Equals("ISA", StringComparison.OrdinalIgnoreCase)
+                        ? $"[ZeroCleanup] Failed to delete ISA dim '{info.FullName}' in view '{logicalViewName}' while VR exists: {ex.Message}"
+                        : $"[ZeroCleanup] Failed to delete dim '{info.FullName}' in view '{logicalViewName}' (key='{info.Prefix}'): {ex.Message}");
 
             totalDeleted += deletedInView;
         }
@@ -588,6 +612,18 @@ public static class AnnotationCleanupService
         catch
         {
             // Key not present in context — skip.
+        }
+    }
+
+    private static bool IsPositiveLength(LayoutContext ctx, string keyStr)
+    {
+        try
+        {
+            return Math.Abs(LayoutMath.Dmm(ctx, keyStr)) >= 1e-6;
+        }
+        catch
+        {
+            return false;
         }
     }
 

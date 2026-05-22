@@ -2,12 +2,7 @@
 
 namespace WAD.Runner.ModelAutomation.Rules.UTUS;
 
-/// <summary>
-/// UTUS uses the shared COB-like overlay tolerance planning logic.
-/// </summary>
 public sealed class UtusToleranceRules : CobLikeToleranceRulesBase
 {
-    public UtusToleranceRules() : base("UtusToleranceRules")
-    {
-    }
+    public UtusToleranceRules() : base(nameof(UtusToleranceRules)) { }
 }

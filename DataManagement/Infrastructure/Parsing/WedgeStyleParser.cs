@@ -46,6 +46,7 @@ public static class WedgeStyleParser
             "COBUTUS" => WedgeType.UTUS,
 
             "OSG7" => WedgeType.OSG7,
+            "OSG" => WedgeType.OSG7,
 
             _ => WedgeType.Unknown
         };

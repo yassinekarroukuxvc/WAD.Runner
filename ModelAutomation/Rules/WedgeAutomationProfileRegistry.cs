@@ -1,58 +1,81 @@
-﻿using WAD.Runner.DataManagement.Domain.Wedge;
+﻿using System;
+using System.Collections.Generic;
+using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.ModelAutomation.Equations;
 using WAD.Runner.ModelAutomation.Rules.CKVD;
 using WAD.Runner.ModelAutomation.Rules.COB;
 using WAD.Runner.ModelAutomation.Rules.FP;
 using WAD.Runner.ModelAutomation.Rules.OSG7;
 using WAD.Runner.ModelAutomation.Rules.UTUS;
 using WAD.Runner.ModelAutomation.Tolerances;
+using WAD.Runner.ModelAutomation.Rules.CobLike;
 
 namespace WAD.Runner.ModelAutomation.Rules;
 
 /// <summary>
-/// Single source of truth for wedge-type to rule-set mapping.
-/// Add a new wedge type here and the rest of ModelAutomation picks it up.
+/// Single wedge-type composition root. Adding a wedge type should normally mean
+/// adding one profile here plus its small planner classes.
 /// </summary>
 public static class WedgeAutomationProfileRegistry
 {
-    private static readonly WedgeAutomationProfile DefaultProfile = new(
-        ConfigurationRules: new DefaultConfigurationRules(),
-        FeatureRules: new DefaultFeatureRules(),
-        EquationNormalizer: new NoOpEquationInputNormalizer(),
-        ToleranceRules: new NoOpToleranceRules());
+    private static readonly IReadOnlyDictionary<WedgeType, WedgeAutomationProfile> Profiles =
+        new Dictionary<WedgeType, WedgeAutomationProfile>
+        {
+            [WedgeType.CKVD] = new(
+                WedgeType.CKVD,
+                "CKVD",
+                new CkvdConfigurationRules(),
+                new CkvdFeatureRules(),
+                new CkvdEquationPlanner(),
+                new CkvdToleranceRules(),
+                Array.Empty<string>()),
+
+            [WedgeType.COB] = new(
+                WedgeType.COB,
+                "COB",
+                new CobConfigurationRules(),
+                new CobFeatureRules(),
+                new CobLikeEquationPlanner(WedgeType.COB),
+                new CobToleranceRules(),
+                CobLikePostRebuildSuppressions.All),
+
+            [WedgeType.FP] = new(
+                WedgeType.FP,
+                "FP",
+                new FpConfigurationRules(),
+                new FpFeatureRules(),
+                new CobLikeEquationPlanner(WedgeType.FP),
+                new FpToleranceRules(),
+                CobLikePostRebuildSuppressions.All),
+
+            [WedgeType.UTUS] = new(
+                WedgeType.UTUS,
+                "UTUS",
+                new UtusConfigurationRules(),
+                new UtusFeatureRules(),
+                new CobLikeEquationPlanner(WedgeType.UTUS),
+                new UtusToleranceRules(),
+                CobLikePostRebuildSuppressions.All),
+
+            [WedgeType.OSG7] = new(
+                WedgeType.OSG7,
+                "OSG7",
+                new DefaultConfigurationRules(),
+                new Osg7FeatureRules(),
+                new Osg7EquationPlanner(),
+                new Osg7ToleranceRules(),
+                Array.Empty<string>())
+        };
+
+    private static readonly WedgeAutomationProfile Default = new(
+        default,
+        "Default",
+        new DefaultConfigurationRules(),
+        new DefaultFeatureRules(),
+        new StandardEquationPlanner(),
+        new NoOpToleranceRules(),
+        Array.Empty<string>());
 
     public static WedgeAutomationProfile For(WedgeType wedgeType)
-        => wedgeType switch
-        {
-            WedgeType.CKVD => new WedgeAutomationProfile(
-                ConfigurationRules: new CkvdConfigurationRules(),
-                FeatureRules: new CkvdFeatureRules(),
-                EquationNormalizer: new NoOpEquationInputNormalizer(),
-                ToleranceRules: new CkvdToleranceRules()),
-
-            WedgeType.COB => new WedgeAutomationProfile(
-                ConfigurationRules: new CobConfigurationRules(),
-                FeatureRules: new CobFeatureRules(),
-                EquationNormalizer: new CobEquationInputNormalizer(),
-                ToleranceRules: new CobToleranceRules()),
-
-            WedgeType.UTUS => new WedgeAutomationProfile(
-                ConfigurationRules: new UtusConfigurationRules(),
-                FeatureRules: new UtusFeatureRules(),
-                EquationNormalizer: new UtusEquationInputNormalizer(),
-                ToleranceRules: new UtusToleranceRules()),
-
-            WedgeType.FP => new WedgeAutomationProfile(
-                ConfigurationRules: new FpConfigurationRules(),
-                FeatureRules: new FpFeatureRules(),
-                EquationNormalizer: new FpEquationInputNormalizer(),
-                ToleranceRules: new FpToleranceRules()),
-
-            WedgeType.OSG7 => new WedgeAutomationProfile(
-                ConfigurationRules: new DefaultConfigurationRules(),
-                FeatureRules: new DefaultFeatureRules(),
-                EquationNormalizer: new Osg7EquationInputNormalizer(),
-                ToleranceRules: new NoOpToleranceRules()),
-
-            _ => DefaultProfile
-        };
+        => Profiles.TryGetValue(wedgeType, out var profile) ? profile : Default;
 }

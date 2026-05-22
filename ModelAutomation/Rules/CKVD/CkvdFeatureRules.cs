@@ -1,180 +1,114 @@
-﻿// ModelAutomation/Rules/CkvdFeatureRules.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 
-using WAD.Runner.Application; // Logger
-using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using WAD.Runner.DataManagement.Domain.Dimensions;
-using WAD.Runner.DataManagement.Domain.Units;
+using WAD.Runner.ModelAutomation.Common;
+using WAD.Runner.ModelAutomation.Execution;
+using WAD.Runner.ModelAutomation.Rules.Common;
 
-using WAD.Runner.ModelAutomation.Execution; // IFeatureRuleSet + FeaturePlan
-using WAD.Runner.ModelAutomation.Common;    // SwNames (optional)
+namespace WAD.Runner.ModelAutomation.Rules.CKVD;
 
-namespace WAD.Runner.ModelAutomation.Rules
+/// <summary>
+/// CKVD feature-toggle planning.
+/// This class is pure planning only: it does not call SolidWorks and does not rebuild.
+/// </summary>
+public sealed class CkvdFeatureRules : IFeatureRuleSet
 {
-    public sealed class CkvdFeatureRules : IFeatureRuleSet
+    private const decimal EqualityToleranceMm = 0.000001m;
+
+    public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
     {
-        public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
+        if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+        if (context is null) throw new ArgumentNullException(nameof(context));
+
+        var suppress = new List<string>();
+        var unsuppress = new List<string>();
+
+        Logger.Info($"[CkvdFeatureRules] Build -> subclass={context.Subclass}, drawingType={context.DrawingType}");
+
+        AddEngravingSuppression(suppress);
+
+        if (context.Subclass != WedgeSubclass.FG)
         {
-            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
-
-            var drawingType = context.DrawingType;
-            var subclass = context.Subclass;
-            var targetConfigurationName = context.TargetConfigurationName;
-            var featureRuleProfile = context.FeatureRuleProfile;
-
-            var suppress = new List<string>();
-            var unsuppress = new List<string>();
-
-            Logger.Info($"[CkvdFeatureRules] Build → subclass={wedge.Subclass}, drawingType={drawingType}");
-
-            // ============================================================
-            // 1) Engraving: ALWAYS SUPPRESSED (feature + sketch)
-            // ============================================================
-            var engravingFeatureName = ResolveEngravingFeatureName();
-            var engravingSketchName = ResolveEngravingSketchName();
-
-            suppress.Add(engravingFeatureName);
-            suppress.Add(engravingSketchName);
-
-            Logger.Info($"[CkvdFeatureRules] Always suppress engraving → feature='{engravingFeatureName}', sketch='{engravingSketchName}'");
-
-            // ============================================================
-            // 2) Old CKVD FG-only logic
-            // ============================================================
-            if (wedge.Subclass != WedgeSubclass.FG)
-            {
-                Logger.Info("[CkvdFeatureRules] Non-FG → skip FG-only TIP/VW-W rules (engraving suppression already applied).");
-                return new ModelRuleRunner.FeaturePlan(suppress, unsuppress);
-            }
-
-            // 2.1) TIP guard (SketchCrmet)
-            ApplyTipGuardPlan(wedge, suppress, unsuppress);
-
-            // 2.2) Overlay VW/W toggle (FG_Wed_W vs FG_Wed_VW)
-            ApplyOverlayVwWTogglePlan(wedge, drawingType == DrawingType.Overlay, suppress, unsuppress);
-
+            Logger.Info("[CkvdFeatureRules] Non-FG -> skip FG-only TIP/VW-W rules.");
             return new ModelRuleRunner.FeaturePlan(suppress, unsuppress);
         }
 
-        // ============================================================
-        // TIP guard: suppress SketchCrmet when TIP==0 (FG only)
-        // ============================================================
-        private static void ApplyTipGuardPlan(WedgeData wedge, List<string> suppress, List<string> unsuppress)
+        AddTipGuardPlan(wedge, suppress, unsuppress);
+        AddOverlayVwWTogglePlan(wedge, context.DrawingType == DrawingType.Overlay, suppress, unsuppress);
+
+        return new ModelRuleRunner.FeaturePlan(suppress, unsuppress);
+    }
+
+    private static void AddEngravingSuppression(List<string> suppress)
+    {
+        suppress.Add(SwNames.EngravingFeature);
+        suppress.Add(SwNames.EngravingSketch);
+
+        Logger.Info(
+            $"[CkvdFeatureRules] Always suppress engraving -> feature='{SwNames.EngravingFeature}', sketch='{SwNames.EngravingSketch}'");
+    }
+
+    private static void AddTipGuardPlan(WedgeData wedge, List<string> suppress, List<string> unsuppress)
+    {
+        if (!WedgeDimensionReader.TryGetLengthNominalMm(wedge, "TIP", out var tipMm, nameof(CkvdFeatureRules)))
         {
-            if (!TryGetMm(wedge, "TIP", out var tipMm))
-            {
-                Logger.Blue("[CkvdFeatureRules] TIP not present/mm → TIP guard skipped (template state remains).");
-                return;
-            }
-
-            var sketchCrmet = ResolveSketchCrmetName();
-
-            if (tipMm == 0m)
-            {
-                suppress.Add(sketchCrmet);
-                Logger.Info($"[CkvdFeatureRules] TIP={tipMm} mm → suppress '{sketchCrmet}'");
-            }
-            else
-            {
-                // Old behavior was "suppress: zero"; explicit unsuppress makes this deterministic.
-                unsuppress.Add(sketchCrmet);
-                Logger.Info($"[CkvdFeatureRules] TIP={tipMm} mm → unsuppress '{sketchCrmet}'");
-            }
+            Logger.Blue("[CkvdFeatureRules] TIP not present/mm -> TIP guard skipped.");
+            return;
         }
 
-        // ============================================================
-        // Overlay VW/W toggle: if VW≈W -> enable VW sketch, else enable W sketch
-        // ============================================================
-        private static void ApplyOverlayVwWTogglePlan(WedgeData wedge, bool overlay, List<string> suppress, List<string> unsuppress)
+        if (tipMm == 0m)
         {
-            Logger.Info($"[CkvdFeatureRules] ApplyOverlayVwWTogglePlan → overlay={overlay}");
+            suppress.Add(SwNames.SketchCrmet);
+            Logger.Info($"[CkvdFeatureRules] TIP={tipMm} mm -> suppress '{SwNames.SketchCrmet}'");
+        }
+        else
+        {
+            unsuppress.Add(SwNames.SketchCrmet);
+            Logger.Info($"[CkvdFeatureRules] TIP={tipMm} mm -> unsuppress '{SwNames.SketchCrmet}'");
+        }
+    }
 
-            if (!overlay)
-            {
-                Logger.Blue("[CkvdFeatureRules] Not Overlay → skip VW/W toggle.");
-                return;
-            }
+    private static void AddOverlayVwWTogglePlan(
+        WedgeData wedge,
+        bool isOverlay,
+        List<string> suppress,
+        List<string> unsuppress)
+    {
+        Logger.Info($"[CkvdFeatureRules] AddOverlayVwWTogglePlan -> overlay={isOverlay}");
 
-            var sketchW = ResolveSketchFgWedWName();
-            var sketchVW = ResolveSketchFgWedVwName();
-
-            var hasVW = TryGetMm(wedge, "VW", out var vwMm);
-            var hasW = TryGetMm(wedge, "W", out var wMm);
-
-            if (!(hasVW && hasW))
-            {
-                Logger.Warn("[CkvdFeatureRules] Missing VW or W (or not mm) → default to W sketch enabled.");
-                unsuppress.Add(sketchW);
-                suppress.Add(sketchVW);
-                return;
-            }
-
-            // match old tolerance intent
-            var equal = Math.Abs((double)(vwMm - wMm)) <= 0.000001;
-
-            Logger.Info($"[CkvdFeatureRules] VW={vwMm} mm, W={wMm} mm, equal≈{equal}");
-
-            if (equal)
-            {
-                Logger.Info("[CkvdFeatureRules] VW≈W → enable VW sketch, disable W sketch");
-                unsuppress.Add(sketchVW);
-                suppress.Add(sketchW);
-            }
-            else
-            {
-                Logger.Info("[CkvdFeatureRules] VW≠W → enable W sketch, disable VW sketch");
-                unsuppress.Add(sketchW);
-                suppress.Add(sketchVW);
-            }
+        if (!isOverlay)
+        {
+            Logger.Blue("[CkvdFeatureRules] Not Overlay -> skip VW/W toggle.");
+            return;
         }
 
-        // ============================================================
-        // WedgeData helpers
-        // ============================================================
-        private static bool TryGetMm(WedgeData wedge, string key, out decimal mm)
+        var hasVw = WedgeDimensionReader.TryGetLengthNominalMm(wedge, "VW", out var vwMm, nameof(CkvdFeatureRules));
+        var hasW = WedgeDimensionReader.TryGetLengthNominalMm(wedge, "W", out var wMm, nameof(CkvdFeatureRules));
+
+        if (!(hasVw && hasW))
         {
-            mm = 0m;
-            if (!TryGetDim(wedge, key, out var d)) return false;
-            if (!d.Nominal.IsMm) return false;
-            mm = d.Nominal.AsMm();
-            return true;
+            Logger.Warn("[CkvdFeatureRules] Missing VW or W (or not mm) -> default to W sketch enabled.");
+            unsuppress.Add(SwNames.SketchFgWedW);
+            suppress.Add(SwNames.SketchFgWedVW);
+            return;
         }
 
-        private static bool TryGetDim(WedgeData wedge, string key, out Dimension d)
-        {
-            d = default!;
-            if (wedge.Dimensions is null) return false;
-            return wedge.Dimensions.TryGetValue(new DimensionKey(key), out d);
-        }
+        var equal = Math.Abs(vwMm - wMm) <= EqualityToleranceMm;
+        Logger.Info($"[CkvdFeatureRules] VW={vwMm} mm, W={wMm} mm, equal≈{equal}");
 
-        // ============================================================
-        // Name resolvers (SwNames preferred; literals fallback)
-        // ============================================================
-        private static string ResolveEngravingFeatureName()
+        if (equal)
         {
-            try { return SwNames.EngravingFeature; } catch { return "Engraving"; }
+            Logger.Info("[CkvdFeatureRules] VW≈W -> enable VW sketch, disable W sketch.");
+            unsuppress.Add(SwNames.SketchFgWedVW);
+            suppress.Add(SwNames.SketchFgWedW);
         }
-
-        private static string ResolveEngravingSketchName()
+        else
         {
-            try { return SwNames.EngravingSketch; } catch { return "sketch_Engraving"; }
-        }
-
-        private static string ResolveSketchCrmetName()
-        {
-            try { return SwNames.SketchCrmet; } catch { return "Drawing_CRMET"; } // adjust literal if needed
-        }
-
-        private static string ResolveSketchFgWedWName()
-        {
-            try { return SwNames.SketchFgWedW; } catch { return "FG_Wed_W"; } // adjust literal if needed
-        }
-
-        private static string ResolveSketchFgWedVwName()
-        {
-            try { return SwNames.SketchFgWedVW; } catch { return "FG_Wed_VW"; } // adjust literal if needed
+            Logger.Info("[CkvdFeatureRules] VW≠W -> enable W sketch, disable VW sketch.");
+            unsuppress.Add(SwNames.SketchFgWedW);
+            suppress.Add(SwNames.SketchFgWedVW);
         }
     }
 }

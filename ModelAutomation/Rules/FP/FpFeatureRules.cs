@@ -1,25 +1,15 @@
-﻿using System.Collections.Generic;
-using WAD.Runner.Application;
-using WAD.Runner.ModelAutomation.Execution;
+﻿using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.Rules.CobLike;
+using WAD.Runner.ModelAutomation.Rules.Common;
 
 namespace WAD.Runner.ModelAutomation.Rules.FP;
 
-/// <summary>
-/// FP keeps the shared COB-like logic,
-/// then forces VW and SLB on for the active shank.
-/// </summary>
 public sealed class FpFeatureRules : CobLikeFeatureRulesBase
 {
-    protected override string LogPrefix => "FpFeatureRules";
+    protected override string LogPrefix => nameof(FpFeatureRules);
 
-    protected override void ApplyVariantAdjustments(
-        CobLikeRuleFacts facts,
-        CobLikeShankType shank,
-        FeatureRuleContext context,
-        HashSet<string> active,
-        HashSet<string> forceSuppress)
+    protected override void ApplyVariantAdjustments(CobLikeFacts facts, CobLikeShankType shank, FeatureRuleContext context, FeaturePlanBuilder plan)
     {
-        AddFeatureGroup(active, "ROUND_BR", shank);
+        AddFeatureGroup(plan, "ROUND_BR", shank);
     }
 }

@@ -58,6 +58,19 @@
           }
         },
 
+        "OSG7": {
+          "Common": {
+            "Views": {
+              "Front": { "Params": { "BreaklineGap": 7.5 } },
+              "Section": { "PositionMm": [ 240, 200 ] }
+            },
+            "Tables": {
+              "DimTable": { "PositionMm": [ 194, 43 ] }
+            },
+            "Metadata": { "SpecialNote": "OSG7 production override" }
+          }
+        },
+
         "COB": {
           "Common": {
             "Views": {
@@ -65,19 +78,19 @@
                 "PositionMm": [ 100, 170 ],
                 "Scale": 140.0,
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Section": {
                 "Scale": 140.0,
                 "PositionMm": [ 220, 170 ],
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Top": {
                 "PositionMm": [ 45, 185 ],
-                "scale" :  7
+                "scale": 7
               },
               "Front": {
                 "PositionMm": [ 20, 100 ],
@@ -106,14 +119,14 @@
                 "PositionMm": [ 100, 170 ],
                 "Scale": 140.0,
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Section": {
                 "Scale": 140.0,
                 "PositionMm": [ 220, 170 ],
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Top": {
@@ -147,14 +160,14 @@
                 "PositionMm": [ 100, 170 ],
                 "Scale": 140.0,
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Section": {
                 "Scale": 140.0,
                 "PositionMm": [ 220, 170 ],
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Top": {
@@ -203,6 +216,19 @@
           }
         },
 
+        "OSG7": {
+          "Common": {
+            "Views": {
+              "Front": { "Params": { "BreaklineGap": 7.5 } },
+              "Section": { "PositionMm": [ 240, 200 ] }
+            },
+            "Tables": {
+              "DimTable": { "PositionMm": [ 194, 43 ] }
+            },
+            "Metadata": { "SpecialNote": "OSG7 customer override" }
+          }
+        },
+
         "COB": {
           "Common": {
             "Views": {
@@ -210,14 +236,14 @@
                 "PositionMm": [ 100, 170 ],
                 "Scale": 140.0,
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Section": {
                 "Scale": 140.0,
                 "PositionMm": [ 220, 170 ],
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Top": {
@@ -251,14 +277,14 @@
                 "PositionMm": [ 100, 170 ],
                 "Scale": 140.0,
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Section": {
                 "Scale": 140.0,
                 "PositionMm": [ 220, 170 ],
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Top": {
@@ -292,14 +318,14 @@
                 "PositionMm": [ 100, 170 ],
                 "Scale": 140.0,
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Section": {
                 "Scale": 140.0,
                 "PositionMm": [ 220, 170 ],
                 "Params": {
-                  "detail_inset_mm": 60.0
+                  "detail_inset_mm": 80.0
                 }
               },
               "Top": {

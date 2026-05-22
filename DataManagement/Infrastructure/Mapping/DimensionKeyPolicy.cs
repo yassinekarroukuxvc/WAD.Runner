@@ -21,6 +21,9 @@ public static class DimensionKeyPolicy
             "WA2",
             "RA2",
             "RA",
+            "W2A",
+            "MTA",
+            "FA2",
 
         }.ToDictionary(k => k, _ => (byte)1, StringComparer.OrdinalIgnoreCase)
     );

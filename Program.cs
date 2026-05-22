@@ -417,15 +417,15 @@ switch (cmd)
                     break;
 
                 case WedgeType.OSG7:
-                    templatePartPath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
+                    templatePartPath = Path.Combine("Resources", "Templates", "OSG7", "OSG7.SLDPRT");
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
-                            Path.Combine("Resources", "Templates", "OSG7", "OSG7_OVERLAY_TEMPLATE.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "OSG7", "OSG7_overlay.SLDDRW"),
                         DrawingType.Production or DrawingType.Customer or _ =>
-                            Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "OSG7", "OSG7.SLDDRW"),
                     };
-                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "OSG7", "equations.txt");
                     break;
 
                 case WedgeType.CKVD:
@@ -617,8 +617,8 @@ switch (cmd)
                     break;
 
                 case WedgeType.OSG7:
-                    partTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "wedge_auto_draw_OSG7_3d.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "equations_OSG7.txt");
+                    partTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "OSG7.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "OSG7", "equations.txt");
                     break;
 
                 case WedgeType.CKVD:

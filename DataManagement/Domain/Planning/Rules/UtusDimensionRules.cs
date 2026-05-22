@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using SQLitePCL;
+using System.Collections.Generic;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Units;
@@ -60,7 +61,7 @@ internal static class UtusDimensionRules
         var L_front = LayoutMath.WedgeLength(ctx, TL, fsv);
         var L_side = LayoutMath.WedgeLength(ctx, TL, ssv);
 
-        double detailLower = 60.0;
+        double detailLower = 80.0;
         double detailBreak = GetBreakline(ctx, Detail, defaultMm: 50.0);
         var bandMidY = D[1] - (detailBreak + detailLower) / 2.0;
 
@@ -204,6 +205,7 @@ internal static class UtusDimensionRules
         var ERL = LayoutMath.Dmm(ctx, "ERL");
         var HA = LayoutMath.Ddeg(ctx, "HA");
         var RA = LayoutMath.Ddeg(ctx, "RA");
+        var RA2 = LayoutMath.Ddeg(ctx, "RA2");
 
         PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + FL / 2 * scv, bandMidY - 25);
@@ -251,7 +253,8 @@ internal static class UtusDimensionRules
             Sec[0] - (TDF / 2) * scv + T * scv + 10, bandMidY + ERD * scv / 2);
 
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
-            240, 133);
+            Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + T * scv * (Math.Tan(HA * (Math.PI / 180.0))));
+
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + (((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2);
 
@@ -259,13 +262,13 @@ internal static class UtusDimensionRules
             Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY + ERD / 2 * scv);
 
         PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
-            230, 155);
+            Sec[0] - (TDF / 2) * scv + T * scv + 25, bandMidY + T * scv * (Math.Tan(HA * (Math.PI / 180.0))) + 10);
 
         PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv + 20, bandMidY + 10);
 
         PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,
-            225, 180);
+            Sec[0] - (TDF / 2) * scv + T * scv + 20, bandMidY + (((T - FD) * scv) * Math.Tan((RA + RA2) * (Math.PI / 180.0))) / 2);
 
         PlaceDim(ctx, diag, outList, "F_C", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 15);

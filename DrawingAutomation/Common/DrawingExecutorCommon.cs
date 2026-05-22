@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 
 using SolidWorks.Interop.sldworks;
@@ -271,43 +273,16 @@ namespace WAD.Runner.DrawingAutomation.Common
                 drawingPath = Path.GetFullPath(drawingPath);
                 newModelPath = Path.GetFullPath(newModelPath);
 
-                if (!string.IsNullOrWhiteSpace(oldModelPath) && File.Exists(oldModelPath))
+                foreach (var candidate in BuildRelinkCandidates(oldModelPath, newModelPath))
                 {
-                    oldModelPath = Path.GetFullPath(oldModelPath);
-
-                    var ok = swApp.ReplaceReferencedDocument(drawingPath, oldModelPath, newModelPath);
+                    var ok = swApp.ReplaceReferencedDocument(drawingPath, candidate, newModelPath);
                     if (ok)
                     {
-                        Logger.Info($"[Relink/Closed] Relinked: '{oldModelPath}' → '{newModelPath}'.");
+                        Logger.Info($"[Relink/Closed] Relinked '{candidate}' -> '{newModelPath}'.");
                         return true;
                     }
 
-                    Logger.Warn($"[Relink/Closed] ReplaceReferencedDocument returned false (old='{oldModelPath}', new='{newModelPath}').");
-                }
-
-                if (!string.IsNullOrWhiteSpace(oldModelPath))
-                {
-                    var guess = Path.GetFileName(oldModelPath);
-                    if (!string.IsNullOrWhiteSpace(guess))
-                    {
-                        var ok2 = swApp.ReplaceReferencedDocument(drawingPath, guess, newModelPath);
-                        if (ok2)
-                        {
-                            Logger.Info($"[Relink/Closed] Relinked by filename guess: '{guess}' → '{newModelPath}'.");
-                            return true;
-                        }
-                    }
-                }
-
-                var newFile = Path.GetFileName(newModelPath);
-                if (!string.IsNullOrWhiteSpace(newFile))
-                {
-                    var ok3 = swApp.ReplaceReferencedDocument(drawingPath, newFile, newModelPath);
-                    if (ok3)
-                    {
-                        Logger.Info($"[Relink/Closed] Relinked using new file key: '{newFile}' → '{newModelPath}'.");
-                        return true;
-                    }
+                    Logger.Warn($"[Relink/Closed] ReplaceReferencedDocument returned false for key '{candidate}'.");
                 }
 
                 Logger.Warn("[Relink/Closed] All attempts returned false; will try in-session after opening.");
@@ -318,6 +293,29 @@ namespace WAD.Runner.DrawingAutomation.Common
                 Logger.Warn($"[Relink/Closed] Exception: {ex.Message} (will try in-session after opening).");
                 return false;
             }
+        }
+
+        private static IEnumerable<string> BuildRelinkCandidates(string oldModelPath, string newModelPath)
+        {
+            var candidates = new List<string>();
+
+            void Add(string? value)
+            {
+                if (string.IsNullOrWhiteSpace(value)) return;
+                if (candidates.Any(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase))) return;
+                candidates.Add(value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(oldModelPath))
+            {
+                if (File.Exists(oldModelPath))
+                    Add(Path.GetFullPath(oldModelPath));
+
+                Add(Path.GetFileName(oldModelPath));
+            }
+
+            Add(Path.GetFileName(newModelPath));
+            return candidates;
         }
     }
 }

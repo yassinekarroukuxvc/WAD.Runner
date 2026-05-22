@@ -204,24 +204,24 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                         case WedgeType.OSG7:
                             templatePartPath = Path.Combine(
                                 "Resources", "Templates", "OSG7",
-                                "wedge_auto_draw_OSG7_3d.SLDPRT");
+                                "OSG7.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
                                     Path.Combine(
                                         "Resources", "Templates", "OSG7",
-                                        "OSG7_OVERLAY_TEMPLATE.SLDDRW"),
+                                        "OSG7_overlay.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
                                     Path.Combine(
                                         "Resources", "Templates", "OSG7",
-                                        "wedge_auto_draw_OSG7_3d.SLDDRW"),
+                                        "OSG7.SLDDRW"),
                             };
 
                             equationTemplatePathForModelPhase = Path.Combine(
                                 "Resources", "Templates", "OSG7",
-                                "equations_OSG7.txt");
+                                "equations.txt");
                             break;
 
                         case WedgeType.CKVD:

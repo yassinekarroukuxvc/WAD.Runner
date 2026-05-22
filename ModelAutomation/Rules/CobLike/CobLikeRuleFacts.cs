@@ -32,9 +32,7 @@ public sealed class CobLikeRuleFacts
     {
         get
         {
-            const decimal overlayTlMm = 30m;
-            //decimal softCapMm = overlayTlMm * 0.012m;
-            decimal softCapMm = 0.5m;
+            const decimal softCapMm = 0.5m;
             return ComputeCobLikeNonStdCutRawMm() > softCapMm;
         }
     }
@@ -146,21 +144,7 @@ public sealed class CobLikeRuleFacts
     }
 
     public decimal ComputeCobLikeNonStdCutRawMm()
-    {
-        const decimal extraClearanceFactor = 0.20m;
-
-        decimal vrMax = TryGetMaxLikeMm("VR_MAX", "VR", out var resolvedVrMax)
-            ? resolvedVrMax
-            : 0m;
-
-        decimal vrrMax = TryGetMaxLikeMm("VRR_MAX", "VRR", out var resolvedVrrMax)
-            ? resolvedVrrMax
-            : 0m;
-
-        //decimal clearance = vrMax * extraClearanceFactor;
-        decimal clearance = 0;
-        return vrMax + vrrMax + clearance;
-    }
+        => CobLikeGeometryCalculator.ComputeNonStdCutRawMm(this);
 
     public bool TryGetNominalDeg(string dimKey, out decimal deg)
     {

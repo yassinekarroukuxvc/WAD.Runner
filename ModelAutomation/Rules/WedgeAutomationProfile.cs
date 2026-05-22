@@ -1,16 +1,21 @@
-﻿using WAD.Runner.ModelAutomation.Execution;
+﻿using System.Collections.Generic;
+using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.ModelAutomation.Equations;
+using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.Rules;
 
 /// <summary>
-/// Central bundle for all ModelAutomation rule services for one wedge type.
-/// This lets the rest of the code ask for one profile instead of repeating
-/// wedge-type switches in multiple places.
+/// One profile describes one wedge family. The orchestrator only knows profiles,
+/// not wedge-specific conditions.
 /// </summary>
 public sealed record WedgeAutomationProfile(
+    WedgeType WedgeType,
+    string Name,
     IModelConfigurationRules ConfigurationRules,
     IFeatureRuleSet FeatureRules,
-    IEquationInputNormalizer EquationNormalizer,
-    IToleranceRuleSet ToleranceRules
+    IEquationPlanner EquationPlanner,
+    IToleranceRuleSet ToleranceRules,
+    IReadOnlyCollection<string> PostRebuildSuppressions
 );
