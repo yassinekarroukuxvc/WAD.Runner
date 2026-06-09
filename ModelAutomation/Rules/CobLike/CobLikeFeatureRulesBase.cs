@@ -95,16 +95,34 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 
     private static void AddFrontOverlaySketch(FeaturePlanBuilder plan, CobLikeFacts facts, CobLikeShankType shank)
     {
+        var frontSketch = CobLikeFeatureCatalog.FrontOverlaySketch(shank);
+        var ra2HSketch = CobLikeFeatureCatalog.Ra2HOverlaySketch(shank);
+        var slbSketch = CobLikeFeatureCatalog.SlbOverlaySketch(shank);
+        var ra2HSlbSketch = CobLikeFeatureCatalog.Ra2HSlbOverlaySketch(shank);
+
+        if (facts.HasRa2H && facts.HasVbl)
+        {
+            plan.Activate(ra2HSlbSketch);
+            plan.Deactivate(frontSketch, ra2HSketch, slbSketch);
+            return;
+        }
+
         if (facts.HasRa2H)
-            plan.Activate(CobLikeFeatureCatalog.Ra2HOverlaySketch(shank));
-        else
-            plan.Activate(CobLikeFeatureCatalog.FrontOverlaySketch(shank));
+        {
+            plan.Activate(ra2HSketch);
+            plan.Deactivate(frontSketch, slbSketch, ra2HSlbSketch);
+            return;
+        }
 
         if (facts.HasVbl)
         {
-            plan.Activate(CobLikeFeatureCatalog.SlbOverlaySketch(shank));
-            plan.Deactivate(CobLikeFeatureCatalog.FrontOverlaySketch(shank));
+            plan.Activate(slbSketch);
+            plan.Deactivate(frontSketch, ra2HSketch, ra2HSlbSketch);
+            return;
         }
+
+        plan.Activate(frontSketch);
+        plan.Deactivate(ra2HSketch, slbSketch, ra2HSlbSketch);
     }
 
     private static string ResolveLeftOverlaySketch(CobLikeFacts facts, bool pgb)

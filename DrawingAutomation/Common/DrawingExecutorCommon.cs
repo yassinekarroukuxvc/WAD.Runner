@@ -73,7 +73,6 @@ namespace WAD.Runner.DrawingAutomation.Common
 
         /// <summary>
         /// Save, export PDF if requested, then close.
-        /// Important: do not save twice.
         /// </summary>
         public static void FinalizeProduction(SldWorks swApp, DrawingService ds, string? pdfOutputPath = null)
         {

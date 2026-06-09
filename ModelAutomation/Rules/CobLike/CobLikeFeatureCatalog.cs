@@ -60,6 +60,9 @@ public static class CobLikeFeatureCatalog
     public static string SlbOverlaySketch(CobLikeShankType shank)
         => shank == CobLikeShankType.Std ? "SLB_STD_overlay_sketch" : "SLB_180_DEG_REV_overlay_sketch";
 
+    public static string Ra2HSlbOverlaySketch(CobLikeShankType shank)
+        => shank == CobLikeShankType.Std ? "RA2H_SLB_STD_FRONT_overlay_sketch" : "RA2H_SLB_180_DEG_REV_FRONT_overlay_sketch";
+
     public static string FrontOverlayFeature(CobLikeShankType shank)
         => shank == CobLikeShankType.Std ? "PGB_STD_FRONT_overlay" : "PGB_180_DEG_REV_FRONT_overlay";
 
@@ -91,6 +94,7 @@ public static class CobLikeFeatureCatalog
             "VW_LEFT_case_1_overlay_sketch", "VW_LEFT_case_2_overlay_sketch",
             "VW_LEFT_case_3_overlay_sketch", "VW_LEFT_case_4_overlay_sketch",
             "SLB_STD_overlay_sketch", "SLB_180_DEG_REV_overlay_sketch",
+            "RA2H_SLB_STD_FRONT_overlay_sketch", "RA2H_SLB_180_DEG_REV_FRONT_overlay_sketch",
             "PGB_STD_FRONT_overlay", "PGB_180_DEG_REV_FRONT_overlay"
         }) names.Add(n);
 

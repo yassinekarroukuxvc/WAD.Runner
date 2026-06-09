@@ -14,9 +14,6 @@ namespace WAD.Runner.DrawingAutomation.Execution;
 
 /// <summary>
 /// Single drawing automation entry point.
-///
-/// Existing Program.cs calls are preserved through compatibility wrappers in
-/// WAD.Runner.DrawingAutomation.Executors. New code can call this class directly.
 /// </summary>
 public static class DrawingAutomationExecutor
 {

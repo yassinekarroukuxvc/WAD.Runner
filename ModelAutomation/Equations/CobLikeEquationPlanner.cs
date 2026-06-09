@@ -25,6 +25,8 @@ public sealed class CobLikeEquationPlanner : StandardEquationPlanner
         var dims = new Dictionary<DimensionKey, DomDim>(wedge.Dimensions);
 
         ApplyVraDefault(facts, dims);
+        ApplyHFromHhFallback(dims);
+
         var funnelGap = EquationGeometry.FunnelGapMmOrDefault(facts);
         UpsertLengthMm(dims, EquationCatalog.Names.FunnelGap, funnelGap);
 
@@ -59,7 +61,27 @@ public sealed class CobLikeEquationPlanner : StandardEquationPlanner
         var vraKey = DimensionKey.From("VRA");
         var missing = !dims.TryGetValue(vraKey, out var vra) || vra is null;
         var zero = !missing && vra!.Nominal.Value == 0m;
-        if (missing || zero) UpsertAngleDeg(dims, "VRA", DefaultVraDeg);
+
+        if (missing || zero)
+            UpsertAngleDeg(dims, "VRA", DefaultVraDeg);
+    }
+
+    private static void ApplyHFromHhFallback(IDictionary<DimensionKey, DomDim> dims)
+    {
+        var hKey = DimensionKey.From("H");
+        var hhKey = DimensionKey.From("HH");
+
+        if (!dims.TryGetValue(hhKey, out var hh) || hh is null)
+            return;
+
+        if (hh.Nominal.Value <= 0m)
+            return;
+
+        var hMissing = !dims.TryGetValue(hKey, out var h) || h is null;
+        var hZero = !hMissing && h!.Nominal.Value == 0m;
+
+        if (hMissing || hZero)
+            UpsertLengthMm(dims, "H", hh.Nominal.Value);
     }
 
     private static void UpsertLengthMm(IDictionary<DimensionKey, DomDim> dims, string key, decimal mm)

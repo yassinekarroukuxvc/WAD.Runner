@@ -19,7 +19,6 @@ namespace WAD.Runner.DrawingAutomation.Execution.Overlay;
 ///
 /// This pipeline handles overlay sheet preparation, overlay view scales,
 /// overlay annotation positions, overlay tables, calibration note/box, and TIFF export.
-/// It deliberately contains no model feature handling.
 /// </summary>
 public sealed class OverlayDrawingPipeline : IDrawingPipeline
 {

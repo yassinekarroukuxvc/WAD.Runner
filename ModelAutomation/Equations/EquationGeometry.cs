@@ -15,17 +15,31 @@ internal static class EquationGeometry
     {
         if (!facts.TryGetLengthMm("FNO", out var fno) || fno <= 0m) return DefaultFunnelGapMm;
         if (!facts.TryGetAngleDeg("FNA", out var fna)) return DefaultFunnelGapMm;
-        if (!facts.TryGetAngleDeg("BA", out var ba)) return DefaultFunnelGapMm;
         if (!facts.TryGetAngleDeg("RA", out var ra)) return DefaultFunnelGapMm;
         if (!facts.TryGetLengthMm("H", out var h)) return DefaultFunnelGapMm;
 
+        decimal ba;
+
+        // If SLB exists, funnel gap calculation must ignore BA.
+        // In that case BA is forced to 0 even if BA exists in the data.
+        if (facts.TryGetLengthMm("VBL", out var slb) && slb > 0m)
+        {
+            ba = 0m;
+        }
+        else
+        {
+            if (!facts.TryGetAngleDeg("BA", out ba)) return DefaultFunnelGapMm;
+        }
+
         var alpha = DegToRad((double)(fna / 2m));
         var k = DegToRad((double)(ba + ra));
+
         var sinAlpha = Math.Sin(alpha);
         if (Math.Abs(sinAlpha) <= 1e-12) return DefaultFunnelGapMm;
 
         var tanA = Math.Tan(alpha);
         var tanK = Math.Tan(k);
+
         var sqrtInput = 1.0 - ((tanA * tanA) * (tanK * tanK));
         if (sqrtInput < 0.0) return DefaultFunnelGapMm;
 
@@ -34,7 +48,10 @@ internal static class EquationGeometry
 
         var fnoFactor = (double)fno * (Math.Sqrt(sqrtInput) / denominator);
         var gap = (fnoFactor - (double)h) / (2.0 * sinAlpha);
-        if (double.IsNaN(gap) || double.IsInfinity(gap) || gap <= 0.0) return DefaultFunnelGapMm;
+
+        if (double.IsNaN(gap) || double.IsInfinity(gap) || gap <= 0.0)
+            return DefaultFunnelGapMm;
+
         return (decimal)gap;
     }
 

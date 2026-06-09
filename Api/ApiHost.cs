@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -26,6 +26,7 @@ using WAD.Runner.DataManagement.Infrastructure.Serialization;
 using WAD.Runner.DataManagement.Infrastructure.Adapters;
 using WAD.Runner.DataManagement.Infrastructure.Sqlite;
 using WAD.Runner.DataManagement.Infrastructure.Transport;
+using WAD.Runner.DataManagement.Domain.Validation;
 
 using WAD.Runner.SolidWorks.Adapters;
 using WAD.Runner.Solidworks.Adapters;
@@ -228,6 +229,21 @@ public sealed class StaWorkerService : BackgroundService
                             j.FinishedUtc = DateTimeOffset.UtcNow;
                             j.Error = "Cancelled";
                             j.Message = "Cancelled";
+                        });
+                    }
+                    catch (WedgeDimensionValidationException ex)
+                    {
+                        _logger.LogWarning(
+                            ex,
+                            "Dimension validation failed before executing job {JobId}.",
+                            job.Id);
+
+                        _store.Update(job.Id, j =>
+                        {
+                            j.Status = JobStatus.Failed;
+                            j.FinishedUtc = DateTimeOffset.UtcNow;
+                            j.Error = ex.Message;
+                            j.Message = "Dimension validation failed";
                         });
                     }
                     catch (Exception ex)

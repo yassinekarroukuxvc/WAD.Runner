@@ -1,4 +1,4 @@
-﻿// Program.cs  (root of WAD.Runner)
+// Program.cs  (root of WAD.Runner)
 using System;
 using System.IO;
 using System.Linq;
@@ -26,6 +26,7 @@ using WAD.Runner.DataManagement.Infrastructure.Transport.Dtos;
 // Domain enums
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DataManagement.Domain.Validation;
 
 // Infra adapters (DB)
 using WAD.Runner.DataManagement.Infrastructure.Adapters;
@@ -332,8 +333,6 @@ switch (cmd)
 
     case "run-drawing":
         {
-            SolidWorksProcessKiller.KillAll(killVbaServer: true);
-
             var (article, subclass) = ParseArticleAndSubclass(args);
 
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
@@ -349,96 +348,96 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     templatePartPath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                        "Resources", "Templates", "COB", "Working Version",
                         "COB.SLDPRT");
 
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
                             Path.Combine(
-                                "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                                "Resources", "Templates", "COB", "Working Version",
                                 "COB_Overlay.SLDDRW"),
 
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine(
-                                "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                                "Resources", "Templates", "COB", "Working Version",
                                 "COB_drawings.SLDDRW"),
                     };
 
                     equationTemplatePathForModelPhase = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                        "Resources", "Templates", "COB", "Working Version",
                         "equations.txt");
                     break;
 
                 case WedgeType.UTUS:
                     templatePartPath = Path.Combine(
-                        "Resources", "Templates", "UT-US", "V2",
+                        "Resources", "Templates", "UT-US", "Working Version",
                         "COB.SLDPRT");
 
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
                             Path.Combine(
-                                "Resources", "Templates", "UT-US", "V2",
+                                "Resources", "Templates", "UT-US", "Working Version",
                                 "COB_Overlay.SLDDRW"),
 
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine(
-                                "Resources", "Templates", "UT-US", "V2",
+                                "Resources", "Templates", "UT-US", "Working Version",
                                 "COB_drawings.SLDDRW"),
                     };
 
                     equationTemplatePathForModelPhase = Path.Combine(
-                        "Resources", "Templates", "UT-US", "V2",
+                        "Resources", "Templates", "UT-US", "Working Version",
                         "equations.txt");
                     break;
 
                 case WedgeType.FP:
                     templatePartPath = Path.Combine(
-                        "Resources", "Templates", "FP",
+                        "Resources", "Templates", "FP","Working Version",
                         "COB.SLDPRT");
 
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
                             Path.Combine(
-                                "Resources", "Templates", "FP",
+                                "Resources", "Templates", "FP", "Working Version",
                                 "COB_Overlay.SLDDRW"),
 
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine(
-                                "Resources", "Templates", "FP",
+                                "Resources", "Templates", "FP", "Working Version",
                                 "COB_drawings.SLDDRW"),
                     };
 
                     equationTemplatePathForModelPhase = Path.Combine(
-                        "Resources", "Templates", "FP",
+                        "Resources", "Templates", "FP", "Working Version",
                         "equations.txt");
                     break;
 
                 case WedgeType.OSG7:
-                    templatePartPath = Path.Combine("Resources", "Templates", "OSG7", "OSG7.SLDPRT");
+                    templatePartPath = Path.Combine("Resources", "Templates", "OSG7", "Working Version", "OSG7.SLDPRT");
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
-                            Path.Combine("Resources", "Templates", "OSG7", "OSG7_overlay.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "OSG7", "Working Version", "OSG7_overlay.SLDDRW"),
                         DrawingType.Production or DrawingType.Customer or _ =>
-                            Path.Combine("Resources", "Templates", "OSG7", "OSG7.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "OSG7", "Working Version", "OSG7.SLDDRW"),
                     };
-                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "OSG7", "equations.txt");
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "OSG7", "Working Version", "equations.txt");
                     break;
 
                 case WedgeType.CKVD:
                 default:
-                    templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CKVD_2023.SLDPRT");
+                    templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "Working Version", "CKVD_2023.SLDPRT");
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
-                            Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "OVERLAY_TEMPLATE.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "CKVD", "Working Version", "OVERLAY_TEMPLATE.SLDDRW"),
                         DrawingType.Production or DrawingType.Customer or _ =>
-                            Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CKVD_2023.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "CKVD", "Working Version", "CKVD_2023.SLDDRW"),
                     };
-                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CK.txt");
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "Working Version", "CK.txt");
                     break;
             }
 
@@ -450,6 +449,26 @@ switch (cmd)
             var getDrawing = host.Services.GetRequiredService<GetDrawingData>();
 
             var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
+
+            if (subclass == WedgeSubclass.FG)
+            {
+                var validationResult = WedgeDimensionValidator.Validate(wedgeData, wedgeTypeEnum);
+                if (!validationResult.IsValid)
+                {
+                    var message = validationResult.ToUserMessage();
+                    Logger.Error(message);
+                    Console.WriteLine(message);
+                    Environment.ExitCode = 1;
+                    break;
+                }
+            }
+            else
+            {
+                Logger.Info($"[run-drawing] Dimension validation skipped for subclass={subclass}. Only FG validation rules are active for now.");
+            }
+
+            SolidWorksProcessKiller.KillAll(killVbaServer: true);
+
             var drawingData = await getDrawing.ExecuteAsync(dtype, subclass, wedgeTypeEnum, article, CancellationToken.None);
 
             var outputRootBase = Path.Combine("Resources", "Out");
@@ -572,8 +591,6 @@ switch (cmd)
 
     case "run-model":
         {
-            SolidWorksProcessKiller.KillAll(killVbaServer: true);
-
             var (article, subclass) = ParseArticleAndSubclass(args);
 
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
@@ -642,9 +659,19 @@ switch (cmd)
 
             try
             {
-                using var sw = sessFactory.Create(visible: true);
-
                 var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
+
+                if (subclass == WedgeSubclass.FG)
+                {
+                    WedgeDimensionValidator.ValidateOrThrow(wedgeData, wedgeTypeEnum);
+                }
+                else
+                {
+                    Logger.Info($"[run-model] Dimension validation skipped for subclass={subclass}. Only FG validation rules are active for now.");
+                }
+
+                SolidWorksProcessKiller.KillAll(killVbaServer: true);
+                using var sw = sessFactory.Create(visible: true);
 
                 var job = new ModelJobRequest
                 {
@@ -663,6 +690,13 @@ switch (cmd)
 
                 Logger.Success($"[run-model] Completed. Output: {resultPath}");
                 Console.WriteLine($"Model automation complete.\nOutput: {resultPath}");
+            }
+            catch (WedgeDimensionValidationException ex)
+            {
+                Logger.Error("[run-model] Dimension validation failed:");
+                Logger.Error(ex.Message);
+                Console.WriteLine(ex.Message);
+                Environment.ExitCode = 1;
             }
             catch (Exception ex)
             {

@@ -15,7 +15,9 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
 
     protected CobLikeConfigurationRulesBase(string logPrefix)
     {
-        _logPrefix = string.IsNullOrWhiteSpace(logPrefix) ? nameof(CobLikeConfigurationRulesBase) : logPrefix;
+        _logPrefix = string.IsNullOrWhiteSpace(logPrefix)
+            ? nameof(CobLikeConfigurationRulesBase)
+            : logPrefix;
     }
 
     public ConfigurationPlan Resolve(
@@ -27,16 +29,22 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
         if (drawingType != DrawingType.Overlay)
             return Build("Default", explicitToggleSteps, false, "non-overlay");
 
-        if (subclass == WedgeSubclass.PGB)
-            return Build("std_cut", explicitToggleSteps, false, "PGB overlay standard cut");
-
         var facts = wedge is null ? null : new WedgeFacts(wedge);
-        var finalConfig = ResolveFgOverlayConfig(facts);
+
+        var finalConfig = subclass == WedgeSubclass.PGB
+            ? ResolvePgbOverlayConfig(facts)
+            : ResolveFgOverlayConfig(facts);
 
         if (ConfigurationPlanFactory.HasExplicitSteps(explicitToggleSteps))
             return Build(finalConfig, explicitToggleSteps, true, "explicit override");
 
-        return Build(finalConfig, BuildFgOverlaySteps(), true, "FG overlay multi-config");
+        return Build(
+            finalConfig,
+            BuildOverlaySteps(),
+            true,
+            subclass == WedgeSubclass.PGB
+                ? "PGB overlay multi-config"
+                : "FG overlay multi-config");
     }
 
     protected virtual string ResolveFgOverlayConfig(WedgeFacts? facts)
@@ -46,10 +54,22 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
 
         if (!hasVw && !hasVr) return "std_cut";
         if (hasVw && hasVr) return "non_std_cut";
+
         return "Default";
     }
 
-    protected virtual IReadOnlyList<FeatureToggleStep> BuildFgOverlaySteps()
+    protected virtual string ResolvePgbOverlayConfig(WedgeFacts? facts)
+    {
+        var hasVw = facts?.HasPositive("VW") == true;
+        var hasVr = facts?.HasPositive("VR") == true;
+
+        if (!hasVw && !hasVr) return "std_cut";
+        if (hasVw && hasVr) return "non_std_cut";
+
+        return "Default";
+    }
+
+    protected virtual IReadOnlyList<FeatureToggleStep> BuildOverlaySteps()
         => new[]
         {
             ConfigurationPlanFactory.Step("Default", "default_config"),
@@ -57,7 +77,11 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
             ConfigurationPlanFactory.Step("non_std_cut", "non_std_cut")
         };
 
-    private ConfigurationPlan Build(string finalConfig, IReadOnlyList<FeatureToggleStep>? steps, bool explicitSteps, string reason)
+    private ConfigurationPlan Build(
+        string finalConfig,
+        IReadOnlyList<FeatureToggleStep>? steps,
+        bool explicitSteps,
+        string reason)
     {
         var plan = explicitSteps || ConfigurationPlanFactory.HasExplicitSteps(steps)
             ? ConfigurationPlanFactory.ForExplicit(finalConfig, steps)

@@ -1,4 +1,4 @@
-﻿// WAD.Runner.Api/SolidWorksAutomationExecutor.cs
+// WAD.Runner.Api/SolidWorksAutomationExecutor.cs
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using WAD.Runner.Application.UseCases;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DataManagement.Domain.Validation;
 using WAD.Runner.DataManagement.Infrastructure.Parsing;
 
 using WAD.Runner.DrawingAutomation;
@@ -43,7 +44,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
 
     public string Execute(JobInfo job, Action<ProgressUpdate> report)
     {
-        CleanupSolidWorksBeforeJob(job, report);
+        var solidWorksTouched = false;
 
         try
         {
@@ -81,8 +82,18 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
             var modelOrchestrator = sp.GetRequiredService<ModelAutomationOrchestrator>();
             var sessFactory = sp.GetRequiredService<ISwSessionFactory>();
 
+            var validatedWedges = LoadAndValidateWedges(
+                job,
+                payload,
+                subclass,
+                getWedge,
+                report);
+
+            CleanupSolidWorksBeforeJob(job, report);
+            solidWorksTouched = true;
+
             // Steps:
-            //  1) Load data
+            //  1) Use prevalidated wedge data + load drawing data
             //  2) Model phase
             //  3) Drawing phase
             const int StepsPerRun = 3;
@@ -92,23 +103,22 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
 
             string? lastResultPdf = null;
 
-            foreach (var article in payload.ArticleNumbers)
+            foreach (var articleRaw in payload.ArticleNumbers)
             {
+                var article = articleRaw.Trim();
+                var validatedWedge = validatedWedges[article];
+                var wedgeData = validatedWedge.WedgeData;
+                var wedgeType = validatedWedge.WedgeType;
+
                 foreach (var dtypeName in drawingTypeNames)
                 {
                     if (!Enum.TryParse<DrawingType>(dtypeName, true, out var dtype))
                         dtype = DrawingType.Production;
 
                     // ---------------------------------
-                    // Step 1) Load data
+                    // Step 1) Load drawing data after wedge dimensions passed validation
                     // ---------------------------------
-                    report(Progress(++doneSteps, totalSteps, $"Loading data for {article} ({dtype})…"));
-
-                    var wedgeData = getWedge.ExecuteAsync(article, subclass, CancellationToken.None)
-                                            .GetAwaiter()
-                                            .GetResult();
-
-                    var wedgeType = ResolveWedgeType(wedgeData, payload);
+                    report(Progress(++doneSteps, totalSteps, $"Loading drawing data for {article} ({dtype})…"));
 
                     _logger.LogInformation(
                         "Job {JobId}: starting automation for article={Article}, subclass={Subclass}, type={Type}, wtype={WType}",
@@ -134,117 +144,117 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                     {
                         case WedgeType.COB:
                             templatePartPath = Path.Combine(
-                                "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                                "Resources", "Templates", "COB", "Working Version",
                                 "COB.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
                                     Path.Combine(
-                                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                                        "Resources", "Templates", "COB", "Working Version",
                                         "COB_Overlay.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
                                     Path.Combine(
-                                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                                        "Resources", "Templates", "COB", "Working Version",
                                         "COB_drawings.SLDDRW"),
                             };
 
                             equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
+                                "Resources", "Templates", "COB", "Working Version",
                                 "equations.txt");
                             break;
 
                         case WedgeType.UTUS:
                             templatePartPath = Path.Combine(
-                                "Resources", "Templates", "UT-US", "V2",
+                                "Resources", "Templates", "UT-US", "Working Version",
                                 "COB.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
                                     Path.Combine(
-                                        "Resources", "Templates", "UT-US", "V2",
+                                        "Resources", "Templates", "UT-US", "Working Version",
                                         "COB_Overlay.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
                                     Path.Combine(
-                                        "Resources", "Templates", "UT-US", "V2",
+                                        "Resources", "Templates", "UT-US", "Working Version",
                                         "COB_drawings.SLDDRW"),
                             };
 
                             equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "UT-US", "V2",
+                                "Resources", "Templates", "UT-US", "Working Version",
                                 "equations.txt");
                             break;
 
                         case WedgeType.FP:
                             templatePartPath = Path.Combine(
-                                "Resources", "Templates", "FP",
+                                "Resources", "Templates", "FP", "Working Version",
                                 "COB.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
                                     Path.Combine(
-                                        "Resources", "Templates", "FP",
+                                        "Resources", "Templates", "FP", "Working Version",
                                         "COB_Overlay.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
                                     Path.Combine(
-                                        "Resources", "Templates", "FP",
+                                        "Resources", "Templates", "FP", "Working Version",
                                         "COB_drawings.SLDDRW"),
                             };
 
                             equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "FP",
+                                "Resources", "Templates", "FP", "Working Version",
                                 "equations.txt");
                             break;
 
                         case WedgeType.OSG7:
                             templatePartPath = Path.Combine(
-                                "Resources", "Templates", "OSG7",
+                                "Resources", "Templates", "OSG7", "Working Version",
                                 "OSG7.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
                                     Path.Combine(
-                                        "Resources", "Templates", "OSG7",
+                                        "Resources", "Templates", "OSG7", "Working Version",
                                         "OSG7_overlay.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
                                     Path.Combine(
-                                        "Resources", "Templates", "OSG7",
+                                        "Resources", "Templates", "OSG7", "Working Version",
                                         "OSG7.SLDDRW"),
                             };
 
                             equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "OSG7",
+                                "Resources", "Templates", "OSG7", "Working Version",
                                 "equations.txt");
                             break;
 
                         case WedgeType.CKVD:
                         default:
                             templatePartPath = Path.Combine(
-                                "Resources", "Templates", "CKVD", "CKVDv4",
+                                "Resources", "Templates", "CKVD", "Working Version",
                                 "CKVD_2023.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
                                     Path.Combine(
-                                        "Resources", "Templates", "CKVD", "CKVDv4",
+                                        "Resources", "Templates", "CKVD", "Working Version",
                                         "OVERLAY_TEMPLATE.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
                                     Path.Combine(
-                                        "Resources", "Templates", "CKVD", "CKVDv4",
+                                        "Resources", "Templates", "CKVD", "Working Version",
                                         "CKVD_2023.SLDDRW"),
                             };
 
                             equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "CKVD", "CKVDv4",
+                                "Resources", "Templates", "CKVD", "Working Version",
                                 "CK.txt");
                             break;
                     }
@@ -423,8 +433,80 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
         }
         finally
         {
-            CleanupSolidWorksAfterJob(job);
+            if (solidWorksTouched)
+                CleanupSolidWorksAfterJob(job);
         }
+    }
+
+    private Dictionary<string, ValidatedWedgeData> LoadAndValidateWedges(
+        JobInfo job,
+        RunRequest payload,
+        WedgeSubclass subclass,
+        GetWedgeData getWedge,
+        Action<ProgressUpdate> report)
+    {
+        var validated = new Dictionary<string, ValidatedWedgeData>(StringComparer.OrdinalIgnoreCase);
+        var errors = new List<DimensionValidationIssue>();
+        var shouldValidateDimensions = subclass == WedgeSubclass.FG;
+
+        foreach (var articleRaw in payload.ArticleNumbers!.Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var article = articleRaw.Trim();
+            report(new ProgressUpdate(0, shouldValidateDimensions
+                ? $"Validating dimensions for {article}…"
+                : $"Loading wedge data for {article}; dimension validation skipped for PGB…"));
+
+            var wedgeData = getWedge.ExecuteAsync(article, subclass, CancellationToken.None)
+                                    .GetAwaiter()
+                                    .GetResult();
+
+            var wedgeType = ResolveWedgeType(wedgeData, payload);
+
+            if (shouldValidateDimensions)
+            {
+                var validationResult = WedgeDimensionValidator.Validate(wedgeData, wedgeType);
+
+                if (!validationResult.IsValid)
+                {
+                    errors.AddRange(validationResult.Issues);
+                    continue;
+                }
+
+                _logger.LogInformation(
+                    "Job {JobId}: dimension validation passed for article={Article}, subclass={Subclass}, wtype={WType}.",
+                    job.Id,
+                    article,
+                    subclass,
+                    wedgeType);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Job {JobId}: dimension validation skipped for article={Article}, subclass={Subclass}, wtype={WType}. Only FG validation rules are active for now.",
+                    job.Id,
+                    article,
+                    subclass,
+                    wedgeType);
+            }
+
+            validated[article] = new ValidatedWedgeData(wedgeData, wedgeType);
+        }
+
+        if (errors.Count > 0)
+        {
+            var first = errors[0];
+            var result = new DimensionValidationResult(first.ArticleNumber, first.WedgeType, errors);
+            throw new WedgeDimensionValidationException(result);
+        }
+
+        if (validated.Count == 0)
+            throw new InvalidOperationException("Job payload does not contain any non-empty article numbers.");
+
+        report(new ProgressUpdate(0, shouldValidateDimensions
+            ? "Dimension validation passed. Starting SolidWorks automation…"
+            : "Dimension validation skipped for PGB. Starting SolidWorks automation…"));
+
+        return validated;
     }
 
     private void CleanupSolidWorksBeforeJob(JobInfo job, Action<ProgressUpdate> report)
@@ -490,6 +572,8 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
 
         return new List<string> { (payload.DrawingType ?? "Production").Trim() };
     }
+
+    private sealed record ValidatedWedgeData(WedgeData WedgeData, WedgeType WedgeType);
 
     private static WedgeType ResolveWedgeType(WedgeData wedgeData, RunRequest payload)
     {

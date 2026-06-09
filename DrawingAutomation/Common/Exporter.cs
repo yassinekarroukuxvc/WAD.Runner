@@ -11,7 +11,7 @@ namespace WAD.Runner.DrawingAutomation.Common;
 public static class Exporter
 {
     /// <summary>
-    /// Export a PDF of all sheets (Black & White). Uses ModelDocExtension.SaveAs3 with ExportPdfData.
+    /// Export a PDF of all sheets (Black & White).
     /// </summary>
     public static void SavePdfAllSheets(SldWorks app, DrawingService ds, string outputPath)
     {

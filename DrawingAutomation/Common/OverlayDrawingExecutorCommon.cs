@@ -550,9 +550,10 @@ namespace WAD.Runner.DrawingAutomation.Common
 
         private static string GetOverlayMagnificationSourceKey(WedgeType wedgeType)
         {
-            return wedgeType == WedgeType.CKVD ? "FL" : "T";
+            return wedgeType is WedgeType.CKVD or WedgeType.OSG7
+                ? "FL"
+                : "T";
         }
-
         private static bool UsesRefPoint2(WedgeType wedgeType)
         {
             return wedgeType == WedgeType.CKVD;

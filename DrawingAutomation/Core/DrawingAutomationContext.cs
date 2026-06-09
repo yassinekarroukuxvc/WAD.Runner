@@ -12,10 +12,6 @@ namespace WAD.Runner.DrawingAutomation.Core;
 
 /// <summary>
 /// Runtime context for one drawing automation run.
-///
-/// This object intentionally contains drawing concerns only. Model generation,
-/// equation updates and model feature state changes stay outside DrawingAutomation.
-/// The drawing phase receives a finished part path through DrawingRun.ModPartPath.
 /// </summary>
 public sealed class DrawingAutomationContext
 {
