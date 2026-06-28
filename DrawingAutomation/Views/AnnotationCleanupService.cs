@@ -1,39 +1,22 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
-using WAD.Runner.Application;                           // Logger
-using WAD.Runner.DataManagement.Domain.Drawing;         // DrawingData
-using WAD.Runner.DataManagement.Domain.Planning;        // LayoutContext, LayoutMath, DimensionSpec
-using WAD.Runner.DrawingAutomation.SolidWorks;          // DrawingService
-using WAD.Runner.DataManagement.Infrastructure.Mapping; // DimensionKeyPolicy
+using WAD.Runner.Application;
+using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Planning;
+using WAD.Runner.DrawingAutomation.SolidWorks;
+using WAD.Runner.DataManagement.Infrastructure.Mapping;
 
 namespace WAD.Runner.DrawingAutomation.Views;
 
-/// <summary>
-/// Centralized helpers for cleaning up annotations on a drawing,
-/// e.g. removing dimensions whose value is 0 based on planning data.
-///
-/// PERFORMANCE NOTES:
-/// - ReadDisplayDimensions accepts a computeNormalized flag: NormalizeDimName is only
-///   invoked for the FullNameCleanup path, saving N string operations per view in the
-///   ZeroCleanup and KeyCleanup paths.
-/// - NormalizeDimName is span-based: no Trim('"') intermediate string, no Split('@')
-///   array — only one .ToString() allocation at the end.
-/// - RemoveZeroDimensionsFromDrawing builds zeroKeys directly into a HashSet and
-///   extends it in-place, avoiding a full copy into a second collection.
-/// - DeleteDimensionsByPredicate batch-selects all candidates and issues a single
-///   DeleteSelection2 COM call. On failure it falls back to per-item deletion so
-///   error granularity is never lost.
-/// </summary>
+
 public static class AnnotationCleanupService
 {
-    // =========================
-    // Internal DTO
-    // =========================
+
 
     private sealed class DisplayDimInfo
     {
@@ -43,25 +26,14 @@ public static class AnnotationCleanupService
         public string FullName { get; init; } = string.Empty;
         public string Prefix { get; init; } = string.Empty;
 
-        /// <summary>
-        /// Only populated when ReadDisplayDimensions is called with computeNormalized=true
-        /// (i.e. the FullNameCleanup path). Empty string otherwise.
-        /// </summary>
+
         public string NormalizedFullName { get; init; } = string.Empty;
     }
 
-    // Reused static array — avoids a heap allocation on every call to
-    // RemoveZeroDimensionsFromDrawing for the three always-included keys.
+
     private static readonly string[] AlwaysIncludedKeys = { "FX", "VR", "VRR" };
 
-    // =========================
-    // 0) DIAGNOSTICS
-    // =========================
 
-    /// <summary>
-    /// Dumps all drawing DisplayDimensions (Name + FullName) found in a given logical view.
-    /// Use this to verify what SolidWorks is actually returning before you try to delete.
-    /// </summary>
     public static void DumpDisplayDimensionNames(
         DrawingService ds,
         IDictionary<string, string> nameMap,
@@ -77,7 +49,7 @@ public static class AnnotationCleanupService
             return;
         }
 
-        // Diagnostics only — no normalized names needed.
+
         var infos = ReadDisplayDimensions(view, computeNormalized: false);
         if (infos.Count == 0)
         {
@@ -95,21 +67,7 @@ public static class AnnotationCleanupService
         }
     }
 
-    // =========================
-    // 1) ZERO VALUE CLEANUP
-    // =========================
 
-    /// <summary>
-    /// Uses planning data (LayoutContext + DimensionRules output) to identify
-    /// which dimension keys have a value of 0 (mm or deg), then removes any
-    /// corresponding annotations from all logical views.
-    ///
-    /// - Length keys → compared in mm via LayoutMath.Dmm
-    /// - Angle keys  → compared in deg via LayoutMath.Ddeg
-    ///
-    /// We also explicitly include FX/VR/VRR in the key set so they are cleaned
-    /// even if no DimensionSpec exists for them.
-    /// </summary>
     public static void RemoveZeroDimensionsFromDrawing(
     DrawingService ds,
     IDictionary<string, string> nameMap,
@@ -124,9 +82,7 @@ public static class AnnotationCleanupService
         if (ctx == null) return;
         if (dims == null) return;
 
-        // Build zeroKeys directly into a HashSet — no intermediate List, no Distinct() call.
-        // VR_MAX / VR_MIN / VRR_MAX / VRR_MIN are excluded here; they are added below
-        // only when their parent key is zero or hideVrExtremaAnnotations is set.
+
         var zeroKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var d in dims)
@@ -141,11 +97,11 @@ public static class AnnotationCleanupService
             TryAddIfZero(zeroKeys, keyStr, ctx);
         }
 
-        // Always evaluate the three implicit keys.
+
         foreach (var key in AlwaysIncludedKeys)
             TryAddIfZero(zeroKeys, key, ctx);
 
-        // Extend zeroKeys in-place with derived extrema prefixes — no copy needed.
+
         if (zeroKeys.Contains("VR"))
         {
             zeroKeys.Add("VR_MAX");
@@ -198,7 +154,7 @@ public static class AnnotationCleanupService
                 continue;
             }
 
-            // ZeroCleanup matches by Prefix only — NormalizedFullName is never read.
+
             var infos = ReadDisplayDimensions(view, computeNormalized: false);
             if (infos.Count == 0)
                 continue;
@@ -230,14 +186,7 @@ public static class AnnotationCleanupService
         Logger.Info($"[ZeroCleanup] Total deleted dimension annotations: {totalDeleted}");
     }
 
-    // =========================
-    // 2) MANUAL KEY CLEANUP
-    // =========================
 
-    /// <summary>
-    /// Deletes dimension annotations (DisplayDimensions) in ONE logical view,
-    /// matching a list of keys (prefix match on Dimension.FullName up to '@').
-    /// </summary>
     public static int RemoveDimensionsByKeysInView(
         DrawingService ds,
         IDictionary<string, string> nameMap,
@@ -269,7 +218,7 @@ public static class AnnotationCleanupService
             return 0;
         }
 
-        // KeyCleanup matches by Prefix only — NormalizedFullName is never read.
+
         var infos = ReadDisplayDimensions(view, computeNormalized: false);
         if (infos.Count == 0)
             return 0;
@@ -285,27 +234,7 @@ public static class AnnotationCleanupService
         return deleted;
     }
 
-    // =========================
-    // 3) FULL NAME CLEANUP
-    // =========================
 
-    /// <summary>
-    /// Deletes dimension annotations (DisplayDimensions) in ONE logical view,
-    /// matching a list of FULL names (Dimension.FullName), e.g. "TD@ANNOT_180_DEG_REV_TOP_sketch".
-    ///
-    /// SolidWorks appends extra suffix segments, commonly:
-    /// - "@&lt;PartName&gt;.Part"
-    /// - "@1"
-    /// - "&lt;1&gt;"
-    ///
-    /// This method:
-    ///  - matches exact
-    ///  - matches normalized exact (Key@Sketch)
-    ///  - matches normalized starts-with (tolerate suffixes)
-    ///
-    /// If deleted == 0, it auto-dumps the first N existing dims in that view so you immediately
-    /// see what SolidWorks calls them.
-    /// </summary>
     public static int RemoveDimensionsByFullNamesInView(
         DrawingService ds,
         IDictionary<string, string> nameMap,
@@ -342,7 +271,7 @@ public static class AnnotationCleanupService
             return 0;
         }
 
-        // FullNameCleanup is the only path that needs NormalizedFullName per dimension.
+
         var infos = ReadDisplayDimensions(view, computeNormalized: true);
         if (infos.Count == 0)
             return 0;
@@ -370,18 +299,7 @@ public static class AnnotationCleanupService
         return deleted;
     }
 
-    // =========================
-    // Internal helpers
-    // =========================
 
-    /// <summary>
-    /// Batch-selects all matching annotations and issues a SINGLE DeleteSelection2 COM call.
-    /// This reduces COM round-trips from 2N (Select + Delete per item) to N+1 in the common
-    /// case where all selections succeed.
-    ///
-    /// On batch-delete failure the method falls back to per-item deletion, preserving
-    /// full error-granularity logging.
-    /// </summary>
     private static int DeleteDimensionsByPredicate(
         ModelDoc2 model,
         IReadOnlyList<DisplayDimInfo> infos,
@@ -389,7 +307,7 @@ public static class AnnotationCleanupService
         Func<DisplayDimInfo, string> successMessage,
         Func<DisplayDimInfo, Exception, string> failureMessage)
     {
-        // ---- Phase 1: collect candidates (no COM calls) -------------------------
+
         var candidates = new List<DisplayDimInfo>();
         for (int i = 0; i < infos.Count; i++)
         {
@@ -401,8 +319,7 @@ public static class AnnotationCleanupService
         if (candidates.Count == 0)
             return 0;
 
-        // ---- Phase 2: batch-select all candidates (N COM calls) -----------------
-        // First annotation clears the existing selection; the rest append.
+
         var selected = new List<DisplayDimInfo>(candidates.Count);
 
         for (int i = 0; i < candidates.Count; i++)
@@ -416,15 +333,15 @@ public static class AnnotationCleanupService
             }
             catch
             {
-                // Silently skip any annotation whose Select2 throws;
-                // it will simply be absent from the batch.
+
+
             }
         }
 
         if (selected.Count == 0)
             return 0;
 
-        // ---- Phase 3: single DeleteSelection2 (1 COM call) ----------------------
+
         try
         {
             model.Extension.DeleteSelection2((int)swDeleteSelectionOptions_e.swDelete_Absorbed);
@@ -436,18 +353,18 @@ public static class AnnotationCleanupService
         }
         catch
         {
-            // Batch delete failed (e.g. mixed absorbed/non-absorbed items, SW state issue).
-            // Fall back to per-item path to preserve error granularity.
+
+
         }
 
-        // ---- Phase 4: per-item fallback -----------------------------------------
+
         int deleted = 0;
 
         foreach (var info in selected)
         {
             try
             {
-                // Use append=false each time to reset selection before each individual delete.
+
                 info.Annotation!.Select2(false, -1);
                 model.Extension.DeleteSelection2((int)swDeleteSelectionOptions_e.swDelete_Absorbed);
                 deleted++;
@@ -462,14 +379,7 @@ public static class AnnotationCleanupService
         return deleted;
     }
 
-    /// <summary>
-    /// Reads all DisplayDimensions from a view into a flat list.
-    ///
-    /// <paramref name="computeNormalized"/>: pass true only when NormalizedFullName will
-    /// actually be used (i.e. the FullNameCleanup path). For ZeroCleanup and KeyCleanup,
-    /// passing false skips NormalizeDimName entirely, saving one string operation per
-    /// dimension across every view in the drawing.
-    /// </summary>
+
     private static List<DisplayDimInfo> ReadDisplayDimensions(View view, bool computeNormalized)
     {
         var result = new List<DisplayDimInfo>();
@@ -514,13 +424,13 @@ public static class AnnotationCleanupService
                     Name = name,
                     FullName = fullName,
                     Prefix = prefix,
-                    // Skip NormalizeDimName when caller will never read NormalizedFullName.
+
                     NormalizedFullName = computeNormalized ? NormalizeDimName(fullName) : string.Empty
                 });
             }
             catch
             {
-                // ignore broken dimension
+
             }
         }
 
@@ -551,13 +461,7 @@ public static class AnnotationCleanupService
         return false;
     }
 
-    /// <summary>
-    /// Normalizes SW dimension name strings to improve matching.
-    /// Span-based: no intermediate string allocations — only one .ToString() at the end.
-    ///   - Trims whitespace and surrounding quotes
-    ///   - Removes "&lt;...&gt;" suffix
-    ///   - Keeps only the first two '@'-delimited segments (Key@Sketch)
-    /// </summary>
+
     private static string NormalizeDimName(string s)
     {
         if (string.IsNullOrWhiteSpace(s))
@@ -565,16 +469,16 @@ public static class AnnotationCleanupService
 
         var span = s.AsSpan().Trim();
 
-        // Trim surrounding quotes if present.
+
         if (span.Length >= 2 && span[0] == '"' && span[span.Length - 1] == '"')
             span = span[1..^1];
 
-        // Remove everything from the first '<' onward.
+
         var ltIdx = span.IndexOf('<');
         if (ltIdx >= 0)
             span = span[..ltIdx];
 
-        // Keep only Key@Sketch (first two segments when split by '@').
+
         var atIdx = span.IndexOf('@');
         if (atIdx >= 0)
         {
@@ -593,11 +497,7 @@ public static class AnnotationCleanupService
         return atIdx >= 0 ? fullName[..atIdx] : fullName;
     }
 
-    /// <summary>
-    /// Evaluates one key and adds it to <paramref name="zeroKeys"/> if its value is
-    /// effectively zero (abs &lt; 1e-6). Extracted to avoid duplicating the try/catch
-    /// inside the foreach loops of RemoveZeroDimensionsFromDrawing.
-    /// </summary>
+
     private static void TryAddIfZero(HashSet<string> zeroKeys, string keyStr, LayoutContext ctx)
     {
         try
@@ -611,7 +511,7 @@ public static class AnnotationCleanupService
         }
         catch
         {
-            // Key not present in context — skip.
+
         }
     }
 
@@ -644,7 +544,7 @@ public static class AnnotationCleanupService
             View v = dd.IGetFirstView();
             if (v == null) return null;
 
-            v = v.IGetNextView(); // skip sheet
+            v = v.IGetNextView();
 
             int guard = 0;
             while (v != null && guard++ < 512)
@@ -660,7 +560,7 @@ public static class AnnotationCleanupService
                 }
                 catch
                 {
-                    // ignore
+
                 }
 
                 v = v.IGetNextView();

@@ -1,12 +1,7 @@
-﻿using System;
+using System;
 
 namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 
-/// <summary>
-/// Shared COB-like derived geometry calculations.
-/// This prevents subtle mismatches between equation normalization, equation-file
-/// rewriting, tolerance planning, and overlay feature selection.
-/// </summary>
 public static class CobLikeGeometryCalculator
 {
     private const decimal DefaultFunnelGapInch = 0.0003m;

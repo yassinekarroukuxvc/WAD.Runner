@@ -1,28 +1,23 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using SolidWorks.Interop.sldworks;
-using WAD.Runner.Application;                          // Logger
-using WAD.Runner.DataManagement.Domain.Drawing;       // DrawingData
-using WAD.Runner.DrawingAutomation.Interop;           // InteropCompat
-using WAD.Runner.DrawingAutomation.SolidWorks;        // DrawingService
+using WAD.Runner.Application;
+using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DrawingAutomation.Interop;
+using WAD.Runner.DrawingAutomation.SolidWorks;
 
 namespace WAD.Runner.DrawingAutomation.Views;
 
-/// <summary>
-/// Computes a unified scale from the Front view outline so the views fill the sheet
-/// without clipping, then applies that scale to Front/Side/Top.
-/// - Uses only SW geometry (no wedge dimensions).
-/// - Robust across interop versions via InteropCompat helpers.
-/// </summary>
+
 public sealed class ViewAutoScaleService
 {
     public sealed record Policy(
-        double FillRatioHeight,   // e.g., 0.80 → fill 80% of the sheet height
-        double MinScale,          // e.g., 2.0
-        double MaxScale,          // e.g., 8.0
-        double Step,              // e.g., 0.5
-        double TopMarginMm = 0.0, // reserved margins
+        double FillRatioHeight,
+        double MinScale,
+        double MaxScale,
+        double Step,
+        double TopMarginMm = 0.0,
         double BottomMarginMm = 0.0
     );
 
@@ -59,7 +54,7 @@ public sealed class ViewAutoScaleService
             return policy.MinScale;
         }
 
-        // Start from at least MinScale
+
         InteropCompat.TrySetScale(front, Math.Max(InteropCompat.GetScaleDecimalOr(front, 1.0), policy.MinScale));
         HardRebuild();
 
@@ -73,7 +68,7 @@ public sealed class ViewAutoScaleService
         var availableH_m = Math.Max(0.0,
             sheetH_m - (policy.TopMarginMm + policy.BottomMarginMm) / 1000.0);
 
-        // Climb scale until outline height exceeds target fill, or we hit max
+
         var best = policy.MinScale;
         for (double s = policy.MinScale; s <= policy.MaxScale + 1e-9; s += policy.Step)
         {
@@ -88,12 +83,12 @@ public sealed class ViewAutoScaleService
 
             var fills = hFront_m / availableH_m;
             if (fills <= policy.FillRatioHeight + 1e-9)
-                best = s; // still fits → keep going
+                best = s;
             else
-                break;    // went too far → step back
+                break;
         }
 
-        // Apply the unified scale to all logical targets
+
         var sideName = nameMap.TryGetValue("Side", out var sn) ? sn : "Side";
         var topName = nameMap.TryGetValue("Top", out var tn) ? tn : "Top";
 
@@ -111,7 +106,6 @@ public sealed class ViewAutoScaleService
         return best;
     }
 
-    // ── internals ─────────────────────────────────────────────────────────
 
     private void HardRebuild()
     {

@@ -33,7 +33,6 @@ using WAD.Runner.Solidworks.Adapters;
 
 namespace WAD.Runner.Api;
 
-// ---------- Options used by the API host ----------
 public sealed class RunnerOptions
 {
     public string? Urls { get; set; }
@@ -44,23 +43,18 @@ public sealed class RunnerOptions
     public int QueueCapacity { get; set; } = 64;
 }
 
-// ---------- Models / DTOs ----------
 public record RunRequest
 {
     public List<string>? ArticleNumbers { get; init; }
 
-    // New style (preferred)
     public List<string>? DrawingTypes { get; init; }
 
-    // Single-type fallback
     public string? DrawingType { get; init; } = "Production";
 
-    public string Subclass { get; init; } = "FG"; // FG | PGB
+    public string Subclass { get; init; } = "FG";
 
-    // NOTE: validated, but /run will force OutputFolder into JobsRoot/<jobId>/results.
     public string? OutputFolder { get; init; }
 
-    // Legacy style (web app currently uses Options["drawingTypes"])
     public Dictionary<string, string>? Options { get; init; }
 }
 
@@ -104,12 +98,11 @@ public sealed class JobInfo
     public DateTimeOffset? FinishedUtc { get; set; }
     public int ProgressPercent { get; set; }
     public string? Message { get; set; }
-    public string? ResultPath { get; set; }   // file or directory
+    public string? ResultPath { get; set; }
     public string? Error { get; set; }
 
     public RunRequest? Payload { get; set; }
 
-    // Final normalized list used by executor (multi-type execution)
     public List<string> DrawingTypesNormalized { get; init; } = new();
 }
 
@@ -137,13 +130,11 @@ public sealed class JobStore
 
 public record ProgressUpdate(int Percent, string Message);
 
-// Executor interface – implemented by SolidWorksAutomationExecutor in another file
 public interface IAutomationExecutor
 {
     string Execute(JobInfo job, Action<ProgressUpdate> report);
 }
 
-// Background STA worker that reads from the channel and calls IAutomationExecutor
 public sealed class StaWorkerService : BackgroundService
 {
     private readonly ILogger<StaWorkerService> _logger;
@@ -268,14 +259,12 @@ public sealed class StaWorkerService : BackgroundService
     }
 }
 
-// ---------- Minimal API Host ----------
 public static class ApiHost
 {
     public static async Task RunAsync(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // ---------- Configuration ----------
         builder.Configuration
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true)
@@ -300,7 +289,6 @@ public static class ApiHost
 
         builder.Services.AddHttpContextAccessor();
 
-        // ---------- Core services ----------
         builder.Services.AddSingleton<JobStore>();
         builder.Services.AddSingleton(_ => Channel.CreateBounded<JobRequest>(
             new BoundedChannelOptions(runnerOpts.QueueCapacity <= 0 ? 64 : runnerOpts.QueueCapacity)
@@ -310,9 +298,6 @@ public static class ApiHost
                 FullMode = BoundedChannelFullMode.Wait
             }));
 
-        // ============================================================
-        // WEDGE DATA SOURCE SWITCH: Java API vs SQLite
-        // ============================================================
         var useJava = builder.Configuration.GetValue<bool>("Runner:UseJavaDbApi", false);
 
         if (useJava)
@@ -367,26 +352,21 @@ public static class ApiHost
             );
         }
 
-        // Drawing config (JSON)
         var drawingCfgPath = builder.Configuration["DrawingConfig:Path"] ?? "Infrastructure/Config/drawing_config.json";
         builder.Services.AddSingleton<IDrawingDataSource>(_ => new JsonDrawingDataSource(drawingCfgPath));
 
-        // Use-cases
         builder.Services.AddTransient<GetWedgeData>();
         builder.Services.AddTransient<GetDrawingData>();
         builder.Services.AddTransient<BuildAnnotationSet>();
         builder.Services.AddTransient<PlanDrawing>();
 
-        // SolidWorks session factory
         builder.Services.AddSingleton<ISwSessionFactory, SwServiceFactory>();
 
-        // Automation executor + STA worker
         builder.Services.AddSingleton<IAutomationExecutor, SolidWorksAutomationExecutor>();
         builder.Services.AddHostedService<StaWorkerService>();
 
         var app = builder.Build();
 
-        // ---------- API Key middleware ----------
         app.Use(async (ctx, next) =>
         {
             if (ctx.Request.Path.StartsWithSegments("/health"))
@@ -410,7 +390,6 @@ public static class ApiHost
             await next();
         });
 
-        // ---------- Endpoints ----------
 
         app.MapGet("/health", () => Results.Ok(new { ok = true, ts = DateTimeOffset.UtcNow }));
 

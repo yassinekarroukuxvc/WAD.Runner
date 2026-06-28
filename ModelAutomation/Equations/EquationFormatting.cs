@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using WAD.Runner.DataManagement.Domain.Units;
 using DomDim = WAD.Runner.DataManagement.Domain.Dimensions.Dimension;
 

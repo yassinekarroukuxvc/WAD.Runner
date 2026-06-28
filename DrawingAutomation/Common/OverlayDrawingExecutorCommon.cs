@@ -1,4 +1,4 @@
-﻿// DrawingAutomation/Common/OverlayDrawingExecutorCommon.cs
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -24,18 +24,8 @@ using WAD.Runner.DrawingAutomation.Views;
 
 namespace WAD.Runner.DrawingAutomation.Common
 {
-    /// <summary>
-    /// Shared helpers for Overlay drawing execution.
-    ///
-    /// IMPORTANT:
-    /// - This class does NOT own the "Run pipeline" anymore.
-    /// - Concrete executors (FG/PGB) orchestrate the steps, and call these helpers.
-    /// </summary>
     public static class OverlayDrawingExecutorCommon
     {
-        // -----------------------------
-        // Defaults
-        // -----------------------------
 
         private static readonly string[] CobLikeOverlayDimensionKeys =
         {
@@ -67,16 +57,7 @@ namespace WAD.Runner.DrawingAutomation.Common
             return keys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         }
 
-        // -----------------------------
-        // Open / sheet management
-        // -----------------------------
 
-        /// <summary>
-        /// Opens and relinks the drawing, activates the overlay sheet (via ProfileRegistry),
-        /// deletes non-target sheets, zooms, and returns the name map for logical view names.
-        ///
-        /// No IProfile dependency: we keep 'profile' as a local var.
-        /// </summary>
         public static DrawingService OpenRelinkAndPrepareOverlaySheet(
             SldWorks swApp,
             DrawingRun run,
@@ -138,9 +119,6 @@ namespace WAD.Runner.DrawingAutomation.Common
             }
         }
 
-        // -----------------------------
-        // Overlay mag/cal + payload
-        // -----------------------------
 
         public static (LayoutContext ctx, double overlayMag, string overlayCalUm) ComputeOverlayMagCal(
             DrawingRun run,
@@ -182,9 +160,6 @@ namespace WAD.Runner.DrawingAutomation.Common
             return overlayData;
         }
 
-        // -----------------------------
-        // Views: scaling + macro reposition + VR logic
-        // -----------------------------
 
         public static void ApplyOverlayViewScales(DrawingService ds, IDictionary<string, string> nameMap, double overlayMag)
         {
@@ -579,9 +554,6 @@ namespace WAD.Runner.DrawingAutomation.Common
 
         private static double MmToIn(double mm) => mm / 25.4;
 
-        // -----------------------------
-        // Planning + table + annotation apply
-        // -----------------------------
 
         public static (IReadOnlyList<DimensionSpec> dims, List<AnnotationPositioner.Plan> planned) PlanOverlayDimensions(
             LayoutContext ctx,
@@ -666,9 +638,6 @@ namespace WAD.Runner.DrawingAutomation.Common
             }
         }
 
-        // -----------------------------
-        // Metadata + cleanup + final overlay bits
-        // -----------------------------
 
         public static void TryApplyOverlayMetadata(DrawingService ds, DrawingData drawingData, DrawingRun run)
         {
@@ -737,10 +706,10 @@ namespace WAD.Runner.DrawingAutomation.Common
                 return false;
 
             const double OverlayTlMm = 30.0;
-            //double softCapMm = OverlayTlMm * 0.012;   // 0.36 mm
-            double softCapMm = 0.5;   // 0.36 mm
-            //double hardCapMm = OverlayTlMm * 0.030;   // 0.90 mm
-            double hardCapMm = 0.6;   // 0.90 mm
+
+            double softCapMm = 0.5;
+
+            double hardCapMm = 0.6;
             const double CompressionFactor = 0.25;
 
             if (rawMm <= softCapMm)
@@ -762,9 +731,7 @@ namespace WAD.Runner.DrawingAutomation.Common
                 ? resolvedVrrMax
                 : 0.0;
 
-            // Keep this aligned with the current COB/FP behavior already used in this file.
-            // If you want to re-enable the clearance later, use:
-            // double clearance = vrMax * 0.20;
+
             double clearance = 0.0;
 
             return vrMax + vrrMax + clearance;

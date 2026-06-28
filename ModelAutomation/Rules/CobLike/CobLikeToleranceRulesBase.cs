@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -6,10 +6,6 @@ using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 
-/// <summary>
-/// Shared overlay tolerance planning for COB / FP / UTUS.
-/// The concrete classes only provide the wedge-type log prefix.
-/// </summary>
 public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
 {
     private readonly string _logPrefix;
@@ -34,8 +30,6 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
         bool isStd = facts.ShankType == CobLikeShankType.Std;
         string frontSketch = isStd ? "PGB_STD_FRONT_overlay_sketch" : "PGB_180_DEG_REV_FRONT_overlay_sketch";
 
-        // W overlay tolerances must use half tolerance because the overlay sketch
-        // applies the tolerance from the centerline/half-width side.
         AddHalfTolPairMm(updates, facts, dimKey: "W",
             utolTarget: $"W_UTOL@{prefix}_LEFT_overlay_sketch",
             ltolTarget: $"W_LTOL@{prefix}_LEFT_overlay_sketch");
@@ -96,7 +90,6 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
                 {
                     const string case4Sketch = "VW_LEFT_case_4_overlay_sketch";
 
-                    // VW overlay tolerances must use half tolerance.
                     AddHalfTolPairMm(updates, facts, dimKey: "VW",
                         utolTarget: $"VW_UTOL@{case4Sketch}",
                         ltolTarget: $"VW_LTOL@{case4Sketch}");
@@ -107,7 +100,6 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
                 {
                     const string case3Sketch = "VW_LEFT_case_3_overlay_sketch";
 
-                    // W overlay tolerances must use half tolerance.
                     AddHalfTolPairMm(updates, facts, dimKey: "W",
                         utolTarget: $"W_UTOL@{case3Sketch}",
                         ltolTarget: $"W_LTOL@{case3Sketch}");
@@ -119,7 +111,6 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
             {
                 const string case2Sketch = "VW_LEFT_case_2_overlay_sketch";
 
-                // VW overlay tolerances must use half tolerance.
                 AddHalfTolPairMm(updates, facts, dimKey: "VW",
                     utolTarget: $"VW_UTOL@{case2Sketch}",
                     ltolTarget: $"VW_LTOL@{case2Sketch}");
@@ -138,7 +129,6 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
             {
                 const string case1Sketch = "VW_LEFT_case_1_overlay_sketch";
 
-                // W and VW overlay tolerances must use half tolerance.
                 AddHalfTolPairMm(updates, facts, dimKey: "W",
                     utolTarget: $"W_UTOL@{case1Sketch}",
                     ltolTarget: $"W_LTOL@{case1Sketch}");
@@ -159,11 +149,27 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
             }
         }
 
+        // --- HOOK FOR SUBCLASS SPECIFIC RULES ---
+        ApplySubclassSpecificTolerances(updates, facts, subclass);
+
         Logger.Info($"[{_logPrefix}] {subclass} Overlay → planned updates={updates.Count} (Shank={facts.ShankType})");
         return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
     }
 
-    private void AddTolPairMm(
+    /// <summary>
+    /// Override this method in derived classes (like CobToleranceRules) to add 
+    /// subclass-specific tolerance updates that are not shared across all CobLike rules.
+    /// </summary>
+    protected virtual void ApplySubclassSpecificTolerances(
+        List<ToleranceUpdate> updates,
+        CobLikeRuleFacts facts,
+        WedgeSubclass subclass)
+    {
+        // Base implementation does nothing.
+    }
+
+    // Changed from private to protected so derived classes can use these helpers
+    protected void AddTolPairMm(
         List<ToleranceUpdate> updates,
         CobLikeRuleFacts facts,
         string dimKey,
@@ -182,7 +188,7 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
         Logger.Info($"[{_logPrefix}] {dimKey}: LTOL={ltolMm}mm → {ltolTarget}, UTOL={utolMm}mm → {utolTarget}");
     }
 
-    private void AddHalfTolPairMm(
+    protected void AddHalfTolPairMm(
         List<ToleranceUpdate> updates,
         CobLikeRuleFacts facts,
         string dimKey,
@@ -204,7 +210,7 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
         Logger.Info($"[{_logPrefix}] {dimKey}: LTOL/2={halfLtolMm}mm → {ltolTarget}, UTOL/2={halfUtolMm}mm → {utolTarget}");
     }
 
-    private void AddComputedBoundsMm(
+    protected void AddComputedBoundsMm(
         List<ToleranceUpdate> updates,
         CobLikeRuleFacts facts,
         string nomKey,

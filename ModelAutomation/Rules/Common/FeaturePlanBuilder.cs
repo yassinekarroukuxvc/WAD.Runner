@@ -1,14 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using WAD.Runner.ModelAutomation.Execution;
 
 namespace WAD.Runner.ModelAutomation.Rules.Common;
 
-/// <summary>
-/// Small mutable helper used only inside feature planners.
-/// Active names are unsuppressed; known-but-inactive names are suppressed.
-/// </summary>
 public sealed class FeaturePlanBuilder
 {
     private readonly HashSet<string> _known = new(StringComparer.OrdinalIgnoreCase);

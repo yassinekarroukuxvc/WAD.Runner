@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -7,10 +7,6 @@ using WAD.Runner.ModelAutomation.Rules.Common;
 
 namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 
-/// <summary>
-/// Declarative COB-like feature planner.
-/// The workflow is: known catalog -> active logical groups -> variant adjustments -> force suppress.
-/// </summary>
 public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 {
     protected abstract string LogPrefix { get; }
@@ -91,6 +87,7 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         plan.Activate(facts.HasVr ? CobLikeFeatureCatalog.OverlayCutNonStandard() : new[] { "cut_feature" });
         plan.Activate(ResolveLeftOverlaySketch(facts, pgb: false));
         AddFrontOverlaySketch(plan, facts, shank);
+        plan.Activate(CobLikeFeatureCatalog.FootOptionOverlaySketch(facts.ResolveFootOption()));
     }
 
     private static void AddFrontOverlaySketch(FeaturePlanBuilder plan, CobLikeFacts facts, CobLikeShankType shank)

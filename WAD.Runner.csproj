@@ -13,7 +13,6 @@
 
 	<ItemGroup>
 		<Folder Include="Application\Services\" />
-		<Folder Include="DrawingAutomation\Rules\CKVD\" />
 		<Folder Include="Resources\Out\FG\Production\" />
 		<Folder Include="Resources\Solidworks\" />
 	</ItemGroup>
@@ -99,6 +98,11 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
 		</Content>
+	</ItemGroup>
+	<ItemGroup>
+	  <Compile Remove="DrawingAutomation\Rules\CKVD\**" />
+	  <EmbeddedResource Remove="DrawingAutomation\Rules\CKVD\**" />
+	  <None Remove="DrawingAutomation\Rules\CKVD\**" />
 	</ItemGroup>
 
 	<ItemGroup>

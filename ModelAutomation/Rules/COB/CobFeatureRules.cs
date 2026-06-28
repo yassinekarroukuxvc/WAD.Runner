@@ -1,4 +1,4 @@
-﻿using WAD.Runner.ModelAutomation.Execution;
+using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.Rules.CobLike;
 using WAD.Runner.ModelAutomation.Rules.Common;
 

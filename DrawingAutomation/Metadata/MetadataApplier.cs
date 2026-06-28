@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -8,29 +8,20 @@ using System.Text.RegularExpressions;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
-using WAD.Runner.Application;                               // Logger
-using WAD.Runner.DrawingAutomation.SolidWorks;             // DrawingService
-using WAD.Runner.DataManagement.Domain.Dimensions;         // DimensionKey
-using WAD.Runner.DataManagement.Domain.Drawing;            // DrawingData, ViewConfig
-using WAD.Runner.DataManagement.Domain.Wedge;              // WedgeData, WedgeType
+using WAD.Runner.Application;
+using WAD.Runner.DrawingAutomation.SolidWorks;
+using WAD.Runner.DataManagement.Domain.Dimensions;
+using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.DrawingAutomation.Metadata
 {
-    /// <summary>
-    /// Applies drawing metadata to Summary Info and these title-block properties:
-    /// SWFormatSize, Material, Autor, COMPANY_NAME, TITLE, DRAWING_NUMBER, ADDRESS,
-    /// TYPE, SCALING_FRONT_SIDE_TOP_VIEW, DRAWN_BY, DRAWN_ON.
-    /// 
-    /// For overlay drawings, use <see cref="ApplyOverlay"/> which targets the
-    /// overlay-specific properties:
-    /// DIMENSIONS, OVERLAY_TITLE, DESCRIPTION, COINING, ENGRAVING_NOTE,
-    /// ACAD FILE #, DATE, DRAWING #.
-    /// </summary>
+
+
     public static class MetadataApplier
     {
-        /// <summary>
-        /// Standard metadata application (Production / Customer drawings).
-        /// </summary>
+
+
         public static void Apply(DrawingService ds, DrawingData drawing, WedgeData wedge)
         {
             if (ds is null) throw new ArgumentNullException(nameof(ds));
@@ -40,20 +31,15 @@ namespace WAD.Runner.DrawingAutomation.Metadata
 
             var model = ds.Model;
 
-            // 1) Summary Info (Title, Subject, etc.)
+
             ApplySummaryInfo(model, drawing, wedge);
 
-            // 2) Custom properties (exact keys as in template for standard drawings)
+
             var props = BuildTitleBlockProps(drawing, wedge);
             ApplyCustomProperties(model, props);
         }
 
-        /// <summary>
-        /// Metadata application for OVERLAY drawings.
-        /// Overlay templates use a different set of custom properties:
-        /// DIMENSIONS, OVERLAY_TITLE, DESCRIPTION, COINING, ENGRAVING_NOTE,
-        /// ACAD FILE #, DATE, DRAWING #.
-        /// </summary>
+
         public static void ApplyOverlay(
             DrawingService ds,
             DrawingData drawing,
@@ -67,17 +53,14 @@ namespace WAD.Runner.DrawingAutomation.Metadata
 
             var model = ds.Model;
 
-            // Summary info is still useful/valid for overlay drawings
+
             ApplySummaryInfo(model, drawing, wedge);
 
-            // Overlay-specific properties
+
             var overlayProps = BuildOverlayTitleBlockProps(drawing, wedge, wedgeType);
             ApplyCustomProperties(model, overlayProps);
         }
 
-        // ─────────────────────────────────────────────────────────────────────
-        // Summary Info
-        // ─────────────────────────────────────────────────────────────────────
 
         private static void ApplySummaryInfo(ModelDoc2 model, DrawingData drawing, WedgeData wedge)
         {
@@ -119,9 +102,6 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             }
         }
 
-        // ─────────────────────────────────────────────────────────────────────
-        // Title-block properties (standard drawings)
-        // ─────────────────────────────────────────────────────────────────────
 
         private static IReadOnlyDictionary<string, string> BuildTitleBlockProps(DrawingData drawing, WedgeData wedge)
         {
@@ -150,11 +130,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
                       .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
         }
 
-        /// <summary>
-        /// Build overlay-specific title block properties:
-        /// DIMENSIONS, OVERLAY_TITLE, DESCRIPTION, COINING, ENGRAVING_NOTE,
-        /// ACAD FILE #, DATE, DRAWING #.
-        /// </summary>
+
         private static IReadOnlyDictionary<string, string> BuildOverlayTitleBlockProps(
             DrawingData drawing,
             WedgeData wedge,
@@ -219,11 +195,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
 
             var baseTitle = overlayTitle.Trim();
 
-            // Remove a trailing TF, optionally preceded by separators/spaces.
-            // Examples:
-            // 12345TF      -> 12345
-            // 12345-TF     -> 12345
-            // 12345 TF     -> 12345
+
             baseTitle = Regex.Replace(
                 baseTitle,
                 @"(?:[\s\-_]*)TF\s*$",
@@ -281,9 +253,6 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             }
         }
 
-        // ─────────────────────────────────────────────────────────────────────
-        // Helpers
-        // ─────────────────────────────────────────────────────────────────────
 
         private static string FirstNonEmpty(params string?[] candidates)
             => candidates.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? string.Empty;
@@ -291,12 +260,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
         private static string? Get(IReadOnlyDictionary<string, string?>? dict, string key)
             => (dict != null && dict.TryGetValue(key, out var v)) ? v : null;
 
-        /// <summary>
-        /// Builds a multi-line DESCRIPTION for overlay drawings.
-        /// Uses '\n' so the linked note ($PRPSHEET:"DESCRIPTION") can render
-        /// multiple lines in the overlay title block.
-        /// Appends magnification text on a new line (e.g. 400X / 300X / 200X / 100X).
-        /// </summary>
+
         private static string BuildOverlayDescription(WedgeData wedge, WedgeType wedgeType)
         {
             var wdp = wedge.Properties ?? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
@@ -350,15 +314,15 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             return $"{magToken}X";
         }
 
-        /// <summary>
-        /// Same rule as EquationUpdater:
-        /// CKVD uses FL, all other wedge types use T.
-        /// </summary>
+
         private static double ComputeOverlayMagnification(WedgeData wedge, WedgeType wedgeType)
         {
-            return wedgeType == WedgeType.CKVD
-                ? ComputeOverlayMagnificationFromDimension(wedge, "FL", wedgeType)
-                : ComputeOverlayMagnificationFromDimension(wedge, "T", wedgeType);
+            string dimensionKey =
+                wedgeType == WedgeType.CKVD || wedgeType == WedgeType.OSG7
+                    ? "FL"
+                    : "T";
+
+            return ComputeOverlayMagnificationFromDimension(wedge, dimensionKey, wedgeType);
         }
 
         private static double ComputeOverlayMagnificationFromDimension(
@@ -416,12 +380,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             return (int)Math.Round(magnification);
         }
 
-        /// <summary>
-        /// Converts raw coining payloads like:
-        /// "150-00152-MA;;;;;"
-        /// into:
-        /// "FOR COINING USE 150-00152-MA"
-        /// </summary>
+
         private static string BuildCoiningText(string? rawCoining)
         {
             if (string.IsNullOrWhiteSpace(rawCoining))

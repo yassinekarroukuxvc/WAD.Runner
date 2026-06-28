@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 
 using WAD.Runner.Application;
@@ -8,9 +8,7 @@ using WAD.Runner.DrawingAutomation.Views;
 
 namespace WAD.Runner.DrawingAutomation.Planning;
 
-/// <summary>
-/// Builds drawing dimension plans after view scales are finalized.
-/// </summary>
+
 public static class DrawingDimensionPlanner
 {
     public static PlannedDrawingDimensions Plan(DrawingRun run, WAD.Runner.DataManagement.Domain.Drawing.DrawingData drawingData)

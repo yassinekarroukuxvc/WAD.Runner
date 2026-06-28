@@ -1,4 +1,4 @@
-﻿using WAD.Runner.ModelAutomation.Rules.CobLike;
+using WAD.Runner.ModelAutomation.Rules.CobLike;
 
 namespace WAD.Runner.ModelAutomation.Rules.COB;
 

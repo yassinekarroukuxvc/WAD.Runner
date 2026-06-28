@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -9,10 +9,6 @@ using WAD.Runner.ModelAutomation.Rules.Common;
 
 namespace WAD.Runner.ModelAutomation.Rules.CKVD;
 
-/// <summary>
-/// CKVD feature-toggle planning.
-/// This class is pure planning only: it does not call SolidWorks and does not rebuild.
-/// </summary>
 public sealed class CkvdFeatureRules : IFeatureRuleSet
 {
     private const decimal EqualityToleranceMm = 0.000001m;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 

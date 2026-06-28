@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 using System.IO;
-using System.Runtime.InteropServices; // DispatchWrapper
+using System.Runtime.InteropServices;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 using WAD.Runner.Application;
@@ -10,9 +10,6 @@ namespace WAD.Runner.DrawingAutomation.Common;
 
 public static class Exporter
 {
-    /// <summary>
-    /// Export a PDF of all sheets (Black & White).
-    /// </summary>
     public static void SavePdfAllSheets(SldWorks app, DrawingService ds, string outputPath)
     {
         if (app is null) throw new ArgumentNullException(nameof(app));
@@ -26,7 +23,6 @@ public static class Exporter
         var drawing = ds.Drawing;
         var ext = model.Extension;
 
-        // Collect all sheet COM objects as DispatchWrappers
         var wrappers = GetAllSheetWrappers(drawing);
         if (wrappers.Length == 0)
         {
@@ -34,12 +30,10 @@ public static class Exporter
             return;
         }
 
-        // Prepare ExportPdfData
         var pdfData = (ExportPdfData)app.GetExportFileData((int)swExportDataFileType_e.swExportPdfData);
         pdfData.SetSheets((int)swExportDataSheetsToExport_e.swExportData_ExportSpecifiedSheets, wrappers);
         pdfData.ViewPdfAfterSaving = false;
 
-        // Optional: force B&W for export and restore after
         bool prevColor = app.GetUserPreferenceToggle((int)swUserPreferenceToggle_e.swPDFExportInColor);
         bool prevHiQ = app.GetUserPreferenceToggle((int)swUserPreferenceToggle_e.swPDFExportShadedEdgesHighQuality);
         bool prevLines = app.GetUserPreferenceToggle((int)swUserPreferenceToggle_e.swPDFExportUseCurrentPrintLineWeights);
@@ -71,7 +65,6 @@ public static class Exporter
         }
         finally
         {
-            // restore preferences
             app.SetUserPreferenceToggle((int)swUserPreferenceToggle_e.swPDFExportInColor, prevColor);
             app.SetUserPreferenceToggle((int)swUserPreferenceToggle_e.swPDFExportShadedEdgesHighQuality, prevHiQ);
             app.SetUserPreferenceToggle((int)swUserPreferenceToggle_e.swPDFExportUseCurrentPrintLineWeights, prevLines);
@@ -82,14 +75,11 @@ public static class Exporter
     {
         try
         {
-            // Some interops return object[], some return string[]. We just activate each by name
-            // and read the current Sheet object.
             var namesObj = drawing.GetSheetNames() as object[];
             string[] names;
 
             if (namesObj is null)
             {
-                // Try dynamic fallback
                 dynamic dd = drawing;
                 object[] alt = dd.GetSheetNames();
                 names = Array.ConvertAll(alt, o => o?.ToString() ?? "");
@@ -109,7 +99,7 @@ public static class Exporter
                     if (drawing.GetCurrentSheet() is Sheet sheet)
                         list.Add(new DispatchWrapper(sheet));
                 }
-                catch { /* ignore this sheet */ }
+                catch {  }
             }
             return list.ToArray();
         }

@@ -10,7 +10,7 @@
 "BA" = 10deg
 "VBL"= 0.045in
 "VBLR"= 0.02in
-"VW"= 0.005
+"VW"= 0.003
 "VR"=0.01
 "VRR"=0.005
 "VRA"=90
@@ -24,7 +24,7 @@
 "RC" = 0.16764mm
 "CD" = 0.00381mm
 "GR"=0.0003
-"GD"=0.0003
+"GD"= 0.0005
 "B"=0.001
 "GA"=50
 "HA" = 30deg
@@ -89,7 +89,6 @@
 "VR@ANNOT_LEFT_sketch" = "VR"
 "VRR@ANNOT_LEFT_sketch" = "VRR"
 "VRA@ANNOT_LEFT_sketch" = "VRA"
-"CD@ANNOT_FOOT_OPTIONS_LEFT_sketch" = "CD"
 "CR@ANNOT_FOOT_OPTIONS_LEFT_sketch" = "CR"
 "GR_G@ANNOT_FOOT_OPTIONS_LEFT_sketch" = "GR"
 "GA@ANNOT_FOOT_OPTIONS_LEFT_sketch" = "GA"
@@ -138,14 +137,9 @@
 "HW@H_STD_sketch" = "HW"
 "D3@funnel_final_diametre_STD_feature"="FNA"/2
 "D1@CBRA_STD_feature"="CBRD"
-"FR@FR_VG_STD_feature" = "FR"
 "BR@BR_VG_STD_feature"="BR"
-"FR@FR_G_STD_feature" = "FR"
 "BR@BR_G_STD_feature"="BR"
 "D1@BR_C_STD_feature"="BR"
-"FR@FR_C_STD_feature"="FR"
-"FRO@FRO_STD_feature_1"="FRO"
-"FRO@FRO_STD_feature_2" = "FRO"
 "MB@ANNOT_180_DEG_REV_FRONT_sketch"="MB"
 "MB@ANNOT_STD_FRONT_sketch"="MB"
 "HW@H_180_DEG_REV_sketch" = "HW"
@@ -161,5 +155,16 @@
 "K@Engraving"="K"
 "D1@Engraving"=0.2IN
 "D2@Engraving"=0.015
+"FR@FR_VG_STD_feature" = "FR"
 "ref_point@ref_point_sketch" = 2.01175 / "scale"
 "ref_point@ref_point_180_DEG_REV_sketch"="T"/2
+"RA2H"=0.0041
+"RA2H@ANNOT_STD_FRONT_sketch"="RA2H"
+"RA2H@ANNOT_180_DEG_REV_FRONT_sketch"="RA2H"
+"CD@ANNOT_FOOT_OPTIONS_LEFT_sketch" = "CD"
+"non_std_cut@ref_point_non_std_cut_sketch"="VR"+"VRR"
+"FR@FR_C_STD_feature"="FR"
+"D1@FRO_STD_feature"="FRO"
+"D1@FR_G_STD_feature_error"="FR"
+"D02@BR_G_STD_feature"="BR"
+"D02@FR_G_STD_feature"="FR"

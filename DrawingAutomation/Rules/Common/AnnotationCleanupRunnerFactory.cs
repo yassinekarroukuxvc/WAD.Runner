@@ -1,38 +1,24 @@
-﻿// DrawingAutomation/Rules/Common/AnnotationCleanupRunnerFactory.cs
 using System.Collections.Generic;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using WAD.Runner.DrawingAutomation.Rules.CKVD;
-using WAD.Runner.DrawingAutomation.Rules.COB;
-using WAD.Runner.DrawingAutomation.Rules.FP;
-using WAD.Runner.DrawingAutomation.Rules.OSG7;
-using WAD.Runner.DrawingAutomation.Rules.UTUS;
+using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Integration;
 
 namespace WAD.Runner.DrawingAutomation.Rules.Common;
 
-/// <summary>
-/// Maps WedgeType → IDrawingCleanupRunner.
-/// </summary>
 public static class AnnotationCleanupRunnerFactory
 {
     private static readonly IReadOnlyDictionary<WedgeType, IDrawingCleanupRunner> Registry =
         new Dictionary<WedgeType, IDrawingCleanupRunner>
         {
-            [WedgeType.CKVD] = new CkvdAnnotationCleanupRunner(),
-            [WedgeType.COB] = new CobAnnotationCleanupRunner(),
-            [WedgeType.UTUS] = new UtusAnnotationCleanupRunner(),
-            [WedgeType.FP] = new FpAnnotationCleanupRunner(),
-            [WedgeType.OSG7] = new Osg7AnnotationCleanupRunner(),
+            [WedgeType.CKVD] = new AnnotationCleanupRunner(WedgeType.CKVD),
+            [WedgeType.COB] = new AnnotationCleanupRunner(WedgeType.COB),
+            [WedgeType.UTUS] = new AnnotationCleanupRunner(WedgeType.UTUS),
+            [WedgeType.FP] = new AnnotationCleanupRunner(WedgeType.FP),
+            [WedgeType.OSG7] = new AnnotationCleanupRunner(WedgeType.OSG7)
         };
 
-    /// <summary>
-    /// Returns the runner for the given wedge type, or null if this type has no cleanup runner.
-    /// </summary>
     public static IDrawingCleanupRunner? TryGet(WedgeType wedgeType)
         => Registry.TryGetValue(wedgeType, out var runner) ? runner : null;
 
-    /// <summary>
-    /// Returns true if a runner is registered for this wedge type.
-    /// </summary>
     public static bool HasRunner(WedgeType wedgeType)
         => Registry.ContainsKey(wedgeType);
 }

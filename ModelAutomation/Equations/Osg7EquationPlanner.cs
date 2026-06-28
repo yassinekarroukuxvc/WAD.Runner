@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.ModelAutomation.Core;
 using DomDim = WAD.Runner.DataManagement.Domain.Dimensions.Dimension;

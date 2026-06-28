@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.ModelAutomation.Common;

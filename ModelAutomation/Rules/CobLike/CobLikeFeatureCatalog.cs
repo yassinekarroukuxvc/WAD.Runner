@@ -1,13 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 
-/// <summary>
-/// Central name catalog for COB-like 3D template items.
-/// Feature planners deal in logical groups; physical SolidWorks names live here.
-/// </summary>
 public static class CobLikeFeatureCatalog
 {
     public static IEnumerable<string> GlobalCore()
@@ -66,6 +62,15 @@ public static class CobLikeFeatureCatalog
     public static string FrontOverlayFeature(CobLikeShankType shank)
         => shank == CobLikeShankType.Std ? "PGB_STD_FRONT_overlay" : "PGB_180_DEG_REV_FRONT_overlay";
 
+    public static string FootOptionOverlaySketch(CobLikeFootOption footOption)
+        => footOption switch
+        {
+            CobLikeFootOption.G => "G_FOOT_overlay_sketch",
+            CobLikeFootOption.VG => "VG_FOOT_overlay_sketch",
+            CobLikeFootOption.C => "C_FOOT_overlay_sketch",
+            _ => throw new ArgumentOutOfRangeException(nameof(footOption), footOption, "Unknown foot option")
+        };
+
     public static IEnumerable<string> AllManagedNames()
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -95,7 +100,7 @@ public static class CobLikeFeatureCatalog
             "VW_LEFT_case_3_overlay_sketch", "VW_LEFT_case_4_overlay_sketch",
             "SLB_STD_overlay_sketch", "SLB_180_DEG_REV_overlay_sketch",
             "RA2H_SLB_STD_FRONT_overlay_sketch", "RA2H_SLB_180_DEG_REV_FRONT_overlay_sketch",
-            "PGB_STD_FRONT_overlay", "PGB_180_DEG_REV_FRONT_overlay"
+            "PGB_STD_FRONT_overlay", "PGB_180_DEG_REV_FRONT_overlay","G_FOOT_overlay_sketch","VG_FOOT_overlay_sketch","C_FOOT_overlay_sketch"
         }) names.Add(n);
 
         return names;

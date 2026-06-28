@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using WAD.Runner.DataManagement.Domain.Wedge;    // WedgeSubclass
-using WAD.Runner.DataManagement.Domain.Drawing;  // DrawingType
+using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DataManagement.Domain.Drawing;
 
 namespace WAD.Runner.DrawingAutomation.Profiles;
 
@@ -100,7 +100,7 @@ public static class ProfilePresets
         Section: "Drawing View2"
     );
 
-    // UTUS = same as COB
+
     private static ViewNames UtusFgProductionViews() => new(
         Front: "Drawing View17",
         Side: "Drawing View16",
@@ -141,7 +141,7 @@ public static class ProfilePresets
         Section: "Drawing View2"
     );
 
-    // FP = same as UTUS
+
     private static ViewNames FpFgProductionViews() => new(
         Front: "Drawing View17",
         Side: "Drawing View16",
@@ -182,7 +182,7 @@ public static class ProfilePresets
         Section: "Drawing View2"
     );
 
-    // OSG7
+
     private static ViewNames Osg7FgProductionViews() => new(
         Front: "Drawing View4",
         Side: "Drawing View1",

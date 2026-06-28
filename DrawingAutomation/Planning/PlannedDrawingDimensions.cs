@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 using WAD.Runner.DataManagement.Domain.Planning;
 using WAD.Runner.DrawingAutomation;

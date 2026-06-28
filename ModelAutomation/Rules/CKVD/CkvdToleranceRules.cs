@@ -1,4 +1,3 @@
-﻿// ModelAutomation/Rules/CKVD/CkvdToleranceRules.cs
 using System;
 using System.Collections.Generic;
 
@@ -11,29 +10,6 @@ using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.Rules.CKVD
 {
-    /// <summary>
-    /// CKVD tolerances planning (pure logic).
-    ///
-    /// Domain contract:
-    /// - Lengths nominal in mm, angles in deg.
-    /// - Tolerances are always mm and stored on Dimension.Tol (Lower/Upper).
-    ///
-    /// Scope (mirrors current ModelEditor.ApplyCkvdDerivedDimensions behavior):
-    /// 1) Derived "min/max" parameters from VR tolerance:
-    ///    - VR_MIN@FG_Wed_VW = VR_nom - |LTOL(VR)|
-    ///    - VR_MAX@FG_Wed_VW = VR_nom + |UTOL(VR)|
-    ///
-    /// 2) Sketch tolerance parameters for selected keys.
-    ///    Most sketches use:
-    ///      - UTOL@Sketch / LTOL@Sketch
-    ///    BUT VW is special in your CKVD template:
-    ///      - VW_UTOL@FG_Wed_VW / VW_LTOL@FG_Wed_VW
-    ///
-    /// Notes:
-    /// - All updates are expressed in millimeters (ToleranceUnit.LengthMm),
-    ///   because the tolerance applier layer can convert mm → meters when writing to SW parameters.
-    /// - Lower/Upper are normalized to positive magnitudes for sketch params.
-    /// </summary>
     public sealed class CkvdToleranceRules : IToleranceRuleSet
     {
         public TolerancePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
@@ -42,9 +18,6 @@ namespace WAD.Runner.ModelAutomation.Rules.CKVD
 
             var updates = new List<ToleranceUpdate>();
 
-            // ------------------------------------------------------------
-            // 1) Derived VR_MIN / VR_MAX
-            // ------------------------------------------------------------
             AddVrMinMaxMetersAsMmUpdates(
                 updates,
                 wedge,
@@ -52,9 +25,6 @@ namespace WAD.Runner.ModelAutomation.Rules.CKVD
                 vrMinTarget: "VR_MIN@FG_Wed_VW",
                 vrMaxTarget: "VR_MAX@FG_Wed_VW");
 
-            // ------------------------------------------------------------
-            // 2) Sketch tolerance params (UTOL/LTOL) per mapping
-            // ------------------------------------------------------------
             foreach (var rule in GetTolSketchRules(subclass))
             {
                 AddTolPairMmAbs(
@@ -69,9 +39,6 @@ namespace WAD.Runner.ModelAutomation.Rules.CKVD
             return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
         }
 
-        // ============================================================
-        // Rule helpers
-        // ============================================================
 
         private static void AddTolPairMmAbs(
             List<ToleranceUpdate> updates,
@@ -127,9 +94,6 @@ namespace WAD.Runner.ModelAutomation.Rules.CKVD
                         $"{vrMinTarget}={minMm}mm, {vrMaxTarget}={maxMm}mm");
         }
 
-        // ============================================================
-        // Domain extraction helpers
-        // ============================================================
 
         private static bool TryGetLengthNominalMm(WedgeData wedge, string dimKey, out decimal nominalMm)
         {
@@ -174,15 +138,11 @@ namespace WAD.Runner.ModelAutomation.Rules.CKVD
             return true;
         }
 
-        // ============================================================
-        // Mapping rules (pure config)
-        // ============================================================
 
         private sealed record TolSketchRule(string DimKey, string UtolTarget, string LtolTarget);
 
         private static IReadOnlyList<TolSketchRule> GetTolSketchRules(WedgeSubclass subclass)
         {
-            // PGB: standard UTOL/LTOL
             if (subclass == WedgeSubclass.PGB)
             {
                 return new List<TolSketchRule>
@@ -192,18 +152,14 @@ namespace WAD.Runner.ModelAutomation.Rules.CKVD
                 };
             }
 
-            // FG: mostly standard UTOL/LTOL, but VW is special
             return new List<TolSketchRule>
             {
                 new("FL", "UTOL@FG_Wed_FL", "LTOL@FG_Wed_FL"),
                 new("W",  "UTOL@FG_Wed_W",  "LTOL@FG_Wed_W"),
                 new("B",  "UTOL@FG_Wed_B",  "LTOL@FG_Wed_B"),
 
-                // ✅ Special case you requested:
-                // VW uses VW_UTOL/VW_LTOL parameter names on FG_Wed_VW
                 new("VW", "VW_UTOL@FG_Wed_VW", "VW_LTOL@FG_Wed_VW"),
 
-                // VR remains standard UTOL/LTOL on its sketch
                 new("VR", "UTOL@FG_Wed_VR", "LTOL@FG_Wed_VR"),
             };
         }

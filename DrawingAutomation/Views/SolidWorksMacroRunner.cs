@@ -1,4 +1,4 @@
-﻿using SolidWorks.Interop.sldworks;
+using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 using System;
 using System.Collections.Generic;
@@ -17,7 +17,7 @@ public sealed class SolidWorksMacroRunner
     public string ProcedureName { get; }
     public swRunMacroOption_e Options { get; }
 
-    /// <summary>Where we write the arguments for the VBA macro to read.</summary>
+
     public string ArgsFilePath { get; private set; }
 
     public SolidWorksMacroRunner(
@@ -34,9 +34,7 @@ public sealed class SolidWorksMacroRunner
         ArgsFilePath = Path.Combine(Path.GetTempPath(), "SW_MacroArgs.ini");
     }
 
-    /// <summary>
-    /// Write arguments for the macro. Units for xIn/yIn are inches.
-    /// </summary>
+
     public void PrepareArgs(string viewName, string sketchName, double xIn, double yIn)
     {
         try
@@ -50,7 +48,7 @@ public sealed class SolidWorksMacroRunner
                 };
             File.WriteAllLines(ArgsFilePath, lines);
 
-            // Visible to the VBA macro in this SOLIDWORKS process
+
             System.Environment.SetEnvironmentVariable(
                 "SW_MACRO_ARGS",
                 ArgsFilePath,
@@ -64,20 +62,18 @@ public sealed class SolidWorksMacroRunner
         }
     }
 
-    /// <summary>
-    /// Execute using provided module/proc; on common failures, auto-discover a valid pair and retry.
-    /// </summary>
+
     public bool Run(SldWorks swApp)
     {
         if (swApp == null) return Logger.WarnAndReturnFalse("MacroRunner: swApp is null.");
         if (string.IsNullOrWhiteSpace(MacroPath)) return Logger.WarnAndReturnFalse("MacroRunner: macro path is empty.");
         if (!File.Exists(MacroPath)) return Logger.WarnAndReturnFalse($"MacroRunner: file not found: {MacroPath}");
 
-        // 1) First attempt: caller-provided module/proc
+
         if (TryRun(swApp, ModuleName, ProcedureName, out var firstErr))
             return true;
 
-        // 2) If it's likely a name/index issue, auto-discover and retry
+
         if (IsNameOrIndexProblem(firstErr))
         {
             if (TryAutoDiscoverAndRun(swApp)) return true;
@@ -88,9 +84,7 @@ public sealed class SolidWorksMacroRunner
         return false;
     }
 
-    /// <summary>
-    /// Optional: run this macro but override module/procedure just for this call.
-    /// </summary>
+
     public bool Run(SldWorks swApp, string moduleOverride, string procedureOverride)
     {
         var runner = new SolidWorksMacroRunner(
@@ -99,15 +93,12 @@ public sealed class SolidWorksMacroRunner
             string.IsNullOrWhiteSpace(procedureOverride) ? ProcedureName : procedureOverride,
             Options)
         {
-            ArgsFilePath = this.ArgsFilePath // keep same args file
+            ArgsFilePath = this.ArgsFilePath
         };
 
         return runner.Run(swApp);
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Internals
-    // ─────────────────────────────────────────────────────────────────────
 
     private bool TryRun(SldWorks swApp, string module, string proc, out int errorCode)
     {
@@ -134,10 +125,10 @@ public sealed class SolidWorksMacroRunner
     {
         try
         {
-            // Ask SOLIDWORKS what zero-argument macro methods exist in this .swp
+
             var methodsObj = swApp.GetMacroMethods(MacroPath, (int)swMacroMethods_e.swMethodsWithoutArguments);
 
-            // Normalize to string[]-ish
+
             string[] methods = Array.Empty<string>();
             switch (methodsObj)
             {
@@ -166,7 +157,7 @@ public sealed class SolidWorksMacroRunner
             Logger.Info("Discovered macro methods: " +
                         string.Join(", ", parsed.Select(p => $"{p.module}.{p.method}")));
 
-            // Prefer 'main' (case-insensitive); otherwise first
+
             (string module, string method) pick;
             var hasMain = parsed.Any(p => string.Equals(p.method, "main", StringComparison.OrdinalIgnoreCase));
             if (hasMain)
@@ -200,14 +191,14 @@ public sealed class SolidWorksMacroRunner
             var parts = s.Split('.');
             return (parts[0].Trim(), parts.Length > 1 ? parts[1].Trim() : "main");
         }
-        // Fallback: only a method name came back; assume a common default module name
+
         return ("Module1", s.Trim());
     }
 
     private static bool IsNameOrIndexProblem(int code)
     {
-        // Cross-version-safe: use numeric codes.
-        // 2 = module not found, 3 = procedure not found, 22 = invalid index (often wrong names)
+
+
         return code == 2 || code == 3 || code == 22;
     }
 

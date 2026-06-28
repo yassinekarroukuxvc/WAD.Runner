@@ -1,14 +1,10 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Core;
 
 namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 
-/// <summary>
-/// Shared COB/FP/UTUS configuration policy.
-/// Only this class decides which SolidWorks configurations must be touched.
-/// </summary>
 public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
 {
     private readonly string _logPrefix;

@@ -1,4 +1,3 @@
-﻿// ModelAutomation/SolidWorks/ModelEditor.cs
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +6,7 @@ using System.Linq;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
-using WAD.Runner.Application; // Logger
+using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using DomDimKey = WAD.Runner.DataManagement.Domain.Dimensions.DimensionKey;
 using DomWedgeData = WAD.Runner.DataManagement.Domain.Wedge.WedgeData;
@@ -16,12 +15,6 @@ using SwDim = SolidWorks.Interop.sldworks.Dimension;
 
 namespace WAD.Runner.ModelAutomation.SolidWorks
 {
-    /// <summary>
-    /// Minimal SolidWorks Part editor for ModelAutomation.
-    /// IMPORTANT:
-    /// - No implicit rebuilds in methods (except RebuildOnce()).
-    /// - Orchestrator owns the single rebuild at the end.
-    /// </summary>
     public sealed class ModelEditor : IDisposable
     {
         private readonly SldWorks _sw;
@@ -48,7 +41,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             if (!File.Exists(full))
                 throw new FileNotFoundException("Part not found.", full);
 
-            // Ensure not read-only
             var attrs = File.GetAttributes(full);
             if ((attrs & FileAttributes.ReadOnly) != 0)
             {
@@ -78,7 +70,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             _partPath = full;
 
-            // Build feature index ONCE for fast toggles.
             _toggles = FeatureToggleBatch.Build(_model);
 
             Logger.Success($"[ModelEditor] Part opened: {_partPath}");
@@ -116,10 +107,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return true;
         }
 
-        /// <summary>
-        /// Import equations from external equation file into the model.
-        /// NO rebuild here.
-        /// </summary>
         public void ImportEquationsFromFile(string equationFilePath)
         {
             if (string.IsNullOrWhiteSpace(equationFilePath) || !File.Exists(equationFilePath))
@@ -133,10 +120,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             try
             {
-                // Keep consistent and predictable during import
                 eq.AutomaticSolveOrder = true;
 
-                // IMPORTANT: do not allow SW to rebuild during import
                 eq.AutomaticRebuild = false;
 
                 eq.FilePath = equationFilePath;
@@ -144,7 +129,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 var ok = eq.UpdateValuesFromExternalEquationFile();
                 Logger.Info($"[ModelEditor] UpdateValuesFromExternalEquationFile() → {ok}");
 
-                // NO rebuild here
             }
             finally
             {
@@ -153,9 +137,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
         }
 
-        /// <summary>
-        /// Sets "Engraving" custom property (no rebuild).
-        /// </summary>
         public void SetEngraving(string? text)
         {
             Logger.Info($"[ModelEditor] SetEngraving → '{text ?? "(null)"}'");
@@ -164,10 +145,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             Logger.Info($"[ModelEditor] Engraving Set2 result: {rc}");
         }
 
-        /// <summary>
-        /// Batch apply feature toggles using the pre-built FeatureToggleBatch index.
-        /// NO rebuild here.
-        /// </summary>
         public FeatureToggleBatch.ToggleResult ApplyFeatureToggles(
             IEnumerable<string>? suppress,
             IEnumerable<string>? unsuppress,
@@ -180,10 +157,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return _toggles.Apply(suppress, unsuppress, scope);
         }
 
-        /// <summary>
-        /// Apply length tolerances for the given dimension keys (no rebuild).
-        /// Uses same strategy as your PartEditor: search all owners and probe shortName@owner.
-        /// </summary>
         public void ApplyLengthTolerances(DomWedgeData wedge, IEnumerable<DomDimKey> keys)
         {
             if (wedge is null) throw new ArgumentNullException(nameof(wedge));
@@ -211,7 +184,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                         continue;
                     }
 
-                    // Only for mm length tolerances (same as your filtering upstream)
                     double upper_m = (double)d.Tol.Upper.AsMm() / 1000.0;
                     double lower_m = (double)d.Tol.Lower.AsMm() / 1000.0;
 
@@ -241,16 +213,9 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 }
             }
 
-            // NO rebuild here
         }
 
-        // =====================================================================
-        // REBUILD / SAVE / CLOSE
-        // =====================================================================
 
-        /// <summary>
-        /// The ONLY rebuild method. Call once at the end of the workflow.
-        /// </summary>
         public void RebuildOnce()
         {
             Logger.Info("[ModelEditor] RebuildOnce");
@@ -292,7 +257,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
         public void Dispose()
         {
-            try { Close(); } catch { /* ignore */ }
+            try { Close(); } catch { }
         }
 
         private static string DecodeOpenError(int err)

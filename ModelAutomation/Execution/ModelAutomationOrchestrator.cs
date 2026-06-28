@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -18,10 +18,6 @@ using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.Execution;
 
-/// <summary>
-/// Thin workflow coordinator. It knows the fixed automation sequence, but delegates
-/// all wedge-specific decisions to the selected WedgeAutomationProfile.
-/// </summary>
 public sealed class ModelAutomationOrchestrator
 {
     private readonly ModelDimensionApplier _dimensionApplier;

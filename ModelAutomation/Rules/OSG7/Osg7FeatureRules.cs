@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -9,15 +9,6 @@ using WAD.Runner.ModelAutomation.Rules.Common;
 
 namespace WAD.Runner.ModelAutomation.Rules.OSG7;
 
-/// <summary>
-/// OSG7 feature-toggle planning for the new 3D template model.
-///
-/// Rule policy from the template designer:
-/// - only the features/sketches required by the current subclass/drawing type are unsuppressed;
-/// - every other managed OSG7 feature/sketch listed in this rule set is suppressed.
-///
-/// This class is pure planning only: no SolidWorks calls and no rebuilds.
-/// </summary>
 public sealed class Osg7FeatureRules : IFeatureRuleSet
 {
     private const decimal PositiveEpsilon = 0.000001m;

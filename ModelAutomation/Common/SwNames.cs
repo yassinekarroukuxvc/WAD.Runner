@@ -1,4 +1,4 @@
-﻿namespace WAD.Runner.ModelAutomation.Common;
+namespace WAD.Runner.ModelAutomation.Common;
 
 public static class SwNames
 {

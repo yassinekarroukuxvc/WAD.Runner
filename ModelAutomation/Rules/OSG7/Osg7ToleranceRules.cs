@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -8,11 +8,6 @@ using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.Rules.OSG7;
 
-/// <summary>
-/// OSG7 overlay tolerance planning for the new 3D template model.
-/// These updates drive sketch dimensions such as W_UTOL@FG_W_overlay_sketch;
-/// they are not drawing annotation tolerance formatting.
-/// </summary>
 public sealed class Osg7ToleranceRules : IToleranceRuleSet
 {
     private const decimal PositiveEpsilonMm = 0.000001m;
@@ -179,7 +174,6 @@ public sealed class Osg7ToleranceRules : IToleranceRuleSet
         var lAbs = decimal.Abs(lowerMm);
         var uAbs = decimal.Abs(upperMm);
 
-        // Per designer rule: the target names are intentionally reversed.
         var vrrMinTargetValue = vrrMm + uAbs;
         var vrrMaxTargetValue = vrrMm - lAbs;
 

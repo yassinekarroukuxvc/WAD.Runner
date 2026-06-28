@@ -34,9 +34,7 @@ using WAD.Runner.DataManagement.Infrastructure.Sqlite;
 
 // Drawing Automation
 using WAD.Runner.DrawingAutomation;
-using WAD.Runner.DrawingAutomation.Executors.FG;
 using WAD.Runner.DrawingAutomation.Executors;
-using WAD.Runner.DrawingAutomation.Executors.PGB;
 using WAD.Runner.DrawingAutomation.Common;
 using WAD.Runner.DrawingAutomation.Views;
 

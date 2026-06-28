@@ -1,4 +1,4 @@
-﻿using WAD.Runner.DrawingAutomation.Views;
+using WAD.Runner.DrawingAutomation.Views;
 
 namespace WAD.Runner.DrawingAutomation.Profiles;
 

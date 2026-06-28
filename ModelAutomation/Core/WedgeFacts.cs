@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Units;
@@ -6,10 +6,6 @@ using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.ModelAutomation.Core;
 
-/// <summary>
-/// Safe, centralized read-only view of WedgeData.
-/// Rule classes should use this instead of directly parsing Properties/Dimensions.
-/// </summary>
 public sealed class WedgeFacts
 {
     private const decimal DefaultPositiveEpsilon = 0.000001m;

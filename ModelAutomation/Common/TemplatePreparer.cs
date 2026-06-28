@@ -1,4 +1,4 @@
-﻿using WAD.Runner.Application;
+using WAD.Runner.Application;
 
 namespace WAD.Runner.ModelAutomation.Common;
 

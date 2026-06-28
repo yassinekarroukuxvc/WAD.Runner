@@ -1,4 +1,4 @@
-﻿using WAD.Runner.Application;
+using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.ModelAutomation.Core;
 using WAD.Runner.DataManagement.Domain.Wedge;

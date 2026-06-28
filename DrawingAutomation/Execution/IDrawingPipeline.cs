@@ -1,4 +1,4 @@
-﻿using WAD.Runner.DrawingAutomation.Core;
+using WAD.Runner.DrawingAutomation.Core;
 
 namespace WAD.Runner.DrawingAutomation.Execution;
 

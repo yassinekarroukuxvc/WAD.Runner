@@ -1,4 +1,4 @@
-﻿// DrawingAutomation/Executors/Common/DrawingExecutorPipeline.cs
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,15 +22,11 @@ using WAD.Runner.DrawingAutomation.Rules.Common;
 
 namespace WAD.Runner.DrawingAutomation.Executors.Common
 {
-    /// <summary>
-    /// Pipeline utilities ONLY (no wedge-type decisions).
-    /// Executors orchestrate ordering + wedge-specific steps.
-    /// </summary>
+
+
     public static class DrawingExecutorPipeline
     {
-        // ------------------------------------------------------------
-        // State DTO used by executors
-        // ------------------------------------------------------------
+
 
         public sealed class PipelineState
         {
@@ -47,9 +43,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             public required IReadOnlyList<AnnotationPositioner.Plan> Plans { get; init; }
         }
 
-        // ------------------------------------------------------------
-        // Entry-ish helpers
-        // ------------------------------------------------------------
 
         public static void LogBanner(string banner) => Logger.Info(banner);
 
@@ -71,11 +64,11 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             if (drawingData is null) throw new ArgumentNullException(nameof(drawingData));
             if (profile is null) throw new ArgumentNullException(nameof(profile));
 
-            // 2) Open + relink
+
             Logger.Info("[2/11] Open + relink drawing…");
             var ds = DrawingExecutorCommon.InitializeAndRelink(swApp, run);
 
-            // 3) Activate target sheet + delete others
+
             Logger.Info("[3/11] Activate target sheet via profile…");
             var sheetName = profile.SheetSelector(ds.GetSheetNames());
             TryActivateSheet(ds, sheetName);
@@ -96,7 +89,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
 
             ds.ZoomToSheet();
 
-            var nameMap = ProfileHelpers.ToNameMap(profile); // logical -> actual SW view name
+            var nameMap = ProfileHelpers.ToNameMap(profile);
             var placer = new ViewPlacementService(ds, nameMap);
 
             return new PipelineState
@@ -113,13 +106,13 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             if (st is null) throw new ArgumentNullException(nameof(st));
             if (drawingData is null) throw new ArgumentNullException(nameof(drawingData));
 
-            // 4) Place primary views
+
             Logger.Info("[4/11] Place Front/Side/Top views…");
             st.Placer.Apply("Front", drawingData);
             st.Placer.Apply("Side", drawingData);
             st.Placer.Apply("Top", drawingData);
 
-            // 5) Place secondary views
+
             Logger.Info("[5/11] Place Detail/Section views…");
             _ = new SecondaryViewPlacementService(st.Ds, st.NameMap);
             st.Placer.ApplyDetailAndSection(drawingData);
@@ -161,7 +154,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             if (drawingData is null) throw new ArgumentNullException(nameof(drawingData));
             if (profile is null) throw new ArgumentNullException(nameof(profile));
 
-            // 7) Autoscale
+
             Logger.Info("[7/11] Compute unified scale from Front outline (post-breaklines) …");
             var autoscale = new ViewAutoScaleService(st.Ds);
             var policy = ProfileHelpers.ToAutoScalePolicy(profile.Scale);
@@ -171,7 +164,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
                 $"[Exec] Scales → Front={drawingData.Views["Front"].Scale:0.###}, " +
                 $"Side={drawingData.Views["Side"].Scale:0.###}, Top={drawingData.Views["Top"].Scale:0.###}");
 
-            // 7b) Re-apply placements at new scales
+
             Logger.Info("[7b/11] Re-apply placements at new scales…");
             st.Placer.Apply("Front", drawingData);
             st.Placer.Apply("Side", drawingData);
@@ -218,7 +211,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
         DrawingRun run,
         DrawingData drawingData)
         {
-            // Per-wedge annotation cleanup (COB / UTUS / FP / CKVD / OSG7 / future types)
+
             var runner = AnnotationCleanupRunnerFactory.TryGet(run.WedgeType);
             if (runner == null)
             {
@@ -291,9 +284,6 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
             DrawingExecutorCommon.FinalizeProduction(swApp, ds, outputPdfPath);
         }
 
-        // ------------------------------------------------------------
-        // Internals (mostly unchanged)
-        // ------------------------------------------------------------
 
         private static void DumpDimensionSpecs(IEnumerable<DimensionSpec> dims, string title)
         {
@@ -470,7 +460,7 @@ namespace WAD.Runner.DrawingAutomation.Executors.Common
 
                 View v = dd.IGetFirstView();
                 if (v == null) return null;
-                v = v.IGetNextView(); // skip sheet
+                v = v.IGetNextView();
 
                 int guard = 0;
                 while (v != null && guard++ < 512)

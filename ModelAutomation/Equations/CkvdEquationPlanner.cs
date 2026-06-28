@@ -1,4 +1,4 @@
-﻿using WAD.Runner.ModelAutomation.Core;
+using WAD.Runner.ModelAutomation.Core;
 
 namespace WAD.Runner.ModelAutomation.Equations;
 

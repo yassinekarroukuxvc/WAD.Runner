@@ -1,18 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
-using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Rules.Common;
 using WAD.Runner.DrawingAutomation.SolidWorks;
 
 namespace WAD.Runner.DrawingAutomation.Rules.Annotation;
 
-/// <summary>
-/// Applies drawing annotation visibility/deletion rules only.
-/// This is not model feature handling.
-/// </summary>
 public static class DrawingAnnotationCleanupStep
 {
     public static void Run(

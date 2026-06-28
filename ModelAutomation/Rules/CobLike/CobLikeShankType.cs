@@ -1,4 +1,4 @@
-﻿namespace WAD.Runner.ModelAutomation.Rules.CobLike;
+namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 
 public enum CobLikeShankType
 {

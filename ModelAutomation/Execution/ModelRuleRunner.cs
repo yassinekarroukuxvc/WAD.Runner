@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using WAD.Runner.Application;
@@ -19,10 +19,6 @@ public interface IFeatureRuleSet
     ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context);
 }
 
-/// <summary>
-/// Runs pure feature planning. This class performs normalization/deduplication only;
-/// it never calls SolidWorks.
-/// </summary>
 public static class ModelRuleRunner
 {
     public sealed record FeaturePlan(IReadOnlyList<string> Suppress, IReadOnlyList<string> Unsuppress)
@@ -47,8 +43,6 @@ public static class ModelRuleRunner
         var unsuppress = Normalize(raw.Unsuppress);
         var suppress = Normalize(raw.Suppress);
 
-        // Unsuppress wins inside a single plan. Forced suppression must already be applied
-        // by the planner itself by removing the item from active before returning.
         suppress.RemoveWhere(x => unsuppress.Contains(x));
 
         return new FeaturePlan(

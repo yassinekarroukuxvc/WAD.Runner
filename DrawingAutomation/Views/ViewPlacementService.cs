@@ -1,22 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using SolidWorks.Interop.sldworks;
-using WAD.Runner.Application;                          // Logger
-using WAD.Runner.DataManagement.Domain.Drawing;       // DrawingData, ViewConfig
-using WAD.Runner.DrawingAutomation.Interop;           // InteropCompat
-using WAD.Runner.DrawingAutomation.SolidWorks;        // DrawingService
+using WAD.Runner.Application;
+using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DrawingAutomation.Interop;
+using WAD.Runner.DrawingAutomation.SolidWorks;
 
 namespace WAD.Runner.DrawingAutomation.Views
 {
-    /// <summary>
-    /// Applies scale and position to drawing views based on DrawingData.Views.
-    /// - Supports any logical view key ("Front", "Side", "Top", "Detail", "Section", etc.)
-    /// - Uses an optional logical→actual name map to resolve SolidWorks view names.
-    /// - Breaks alignment and unlocks the view (best effort)
-    /// - Applies Scale (if &gt; 0) and PositionMm (mm → meters, clamped to sheet)
-    /// - Rebuilds and redraws after placement.
-    /// </summary>
+
+
     public sealed class ViewPlacementService
     {
         private readonly DrawingService _ds;
@@ -32,9 +26,7 @@ namespace WAD.Runner.DrawingAutomation.Views
             _logicalToActual = logicalToActual ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
-        /// <summary>
-        /// Place a single view by logical key (e.g. "Front", "Side", "Top", "Detail", "Section").
-        /// </summary>
+
         public bool Apply(string logicalKey, DrawingData drawingData)
         {
             if (string.IsNullOrWhiteSpace(logicalKey) || drawingData is null) return false;
@@ -53,17 +45,17 @@ namespace WAD.Runner.DrawingAutomation.Views
 
             try
             {
-                // 1) Break alignment / unlock pos (best effort)
+
                 InteropCompat.TryBreakAlignment(view);
                 InteropCompat.TryUnlock(view);
 
-                // 2) Scale
+
                 if (viewCfg.Scale > 0)
                 {
                     InteropCompat.TrySetScale(view, viewCfg.Scale);
                 }
 
-                // 3) Position (mm -> m)
+
                 var x_mm = (viewCfg.PositionMm is { Length: >= 2 }) ? viewCfg.PositionMm[0] : 0.0;
                 var y_mm = (viewCfg.PositionMm is { Length: >= 2 }) ? viewCfg.PositionMm[1] : 0.0;
 
@@ -77,7 +69,7 @@ namespace WAD.Runner.DrawingAutomation.Views
 
                 view.Position = new[] { x_m, y_m };
 
-                // 4) Rebuild + redraw
+
                 HardRebuild();
 
                 Logger.Info(
@@ -95,9 +87,7 @@ namespace WAD.Runner.DrawingAutomation.Views
             }
         }
 
-        /// <summary>
-        /// Convenience: place Front / Side / Top based on DrawingData.Views.
-        /// </summary>
+
         public void ApplyFrontSideTop(DrawingData drawingData)
         {
             Apply("Front", drawingData);
@@ -105,16 +95,13 @@ namespace WAD.Runner.DrawingAutomation.Views
             Apply("Top", drawingData);
         }
 
-        /// <summary>
-        /// Convenience: place Detail / Section based on DrawingData.Views.
-        /// </summary>
+
         public void ApplyDetailAndSection(DrawingData drawingData)
         {
             Apply("Detail", drawingData);
             Apply("Section", drawingData);
         }
 
-        // ── helpers ───────────────────────────────────────────────────────────
 
         private void HardRebuild()
         {

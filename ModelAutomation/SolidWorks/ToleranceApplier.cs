@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -9,10 +9,6 @@ using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.SolidWorks
 {
-    /// <summary>
-    /// Applies a TolerancePlan by setting named sketch dimension values.
-    /// NOTE: This is NOT "dimension tolerance" formatting. These are sketch params like W_UTOL@Sketch.
-    /// </summary>
     public sealed class ToleranceApplier
     {
         private readonly ModelDoc2 _swModel;
@@ -70,9 +66,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
         private static double ToSystemValue(decimal value, ToleranceUnit unit)
         {
-            // SolidWorks SystemValue:
-            // - Length in meters
-            // - Angle in radians
             return unit switch
             {
                 ToleranceUnit.LengthMm => (double)(value / 1000m),

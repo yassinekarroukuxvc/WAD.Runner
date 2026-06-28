@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using SolidWorks.Interop.sldworks;
@@ -17,11 +17,7 @@ using WAD.Runner.DrawingAutomation.Views;
 
 namespace WAD.Runner.DrawingAutomation.Execution.Production;
 
-/// <summary>
-/// Production and customer drawing workflow.
-/// The order is explicit and readable, while each detailed action is isolated
-/// in a service/step class.
-/// </summary>
+
 public sealed class ProductionDrawingPipeline : IDrawingPipeline
 {
     public bool CanHandle(DrawingAutomationContext context)

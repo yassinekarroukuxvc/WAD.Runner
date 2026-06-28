@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -21,8 +21,7 @@ public static class ProfileRegistry
         if (Registry.TryGetValue(exact, out var profile))
             return profile;
 
-        // Customer drawings currently use the production workflow for several PGB paths.
-        // Keep that fallback centralized instead of branching in Program.cs or executors.
+
         if (type == DrawingType.Customer)
         {
             var productionFallback = new RegisteredDrawingProfileKey(wedgeType, subclass, DrawingType.Production);

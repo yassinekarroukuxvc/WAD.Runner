@@ -1,4 +1,3 @@
-// WAD.Runner.Api/SolidWorksAutomationExecutor.cs
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,13 +15,10 @@ using WAD.Runner.DataManagement.Infrastructure.Parsing;
 
 using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Executors;
-using WAD.Runner.DrawingAutomation.Executors.FG;
-using WAD.Runner.DrawingAutomation.Executors.PGB;
 
 using WAD.Runner.Solidworks.Adapters;
 using WAD.Runner.SolidWorks.Adapters;
 
-// Use ModelAutomation same as Program.cs
 using WAD.Runner.ModelAutomation.Common;
 using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.SolidWorks;
@@ -56,21 +52,12 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
             if (payload.ArticleNumbers is null || payload.ArticleNumbers.Count == 0)
                 throw new InvalidOperationException("Job payload has no ArticleNumbers.");
 
-            // -----------------------------
-            // Parse subclass
-            // -----------------------------
             var subclassStr = (payload.Subclass ?? "FG").Trim();
             if (!Enum.TryParse<WedgeSubclass>(subclassStr, true, out var subclass))
                 subclass = WedgeSubclass.FG;
 
-            // -----------------------------
-            // Drawing types to run
-            // -----------------------------
             var drawingTypeNames = ResolveDrawingTypes(job, payload);
 
-            // -----------------------------
-            // Output root
-            // -----------------------------
             var outputRootBase = payload.OutputFolder ?? Path.Combine("Resources", "Out");
             Directory.CreateDirectory(outputRootBase);
 
@@ -92,10 +79,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
             CleanupSolidWorksBeforeJob(job, report);
             solidWorksTouched = true;
 
-            // Steps:
-            //  1) Use prevalidated wedge data + load drawing data
-            //  2) Model phase
-            //  3) Drawing phase
             const int StepsPerRun = 3;
             var totalRuns = payload.ArticleNumbers.Count * drawingTypeNames.Count;
             var totalSteps = totalRuns * StepsPerRun;
@@ -115,9 +98,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                     if (!Enum.TryParse<DrawingType>(dtypeName, true, out var dtype))
                         dtype = DrawingType.Production;
 
-                    // ---------------------------------
-                    // Step 1) Load drawing data after wedge dimensions passed validation
-                    // ---------------------------------
                     report(Progress(++doneSteps, totalSteps, $"Loading drawing data for {article} ({dtype})…"));
 
                     _logger.LogInformation(
@@ -132,10 +112,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                                 .GetAwaiter()
                                                 .GetResult();
 
-                    // ---------------------------------
-                    // Templates
-                    // Match Program.cs run-drawing
-                    // ---------------------------------
                     string templatePartPath;
                     string templateDrawingPath;
                     string equationTemplatePathForModelPhase;
@@ -259,9 +235,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             break;
                     }
 
-                    // ---------------------------------
-                    // Plan outputs
-                    // ---------------------------------
                     var plan = PathPlanner.Build(
                         article: article,
                         subclass: subclass,
@@ -288,9 +261,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                         OutputTiffPath = null
                     };
 
-                    // ---------------------------------
-                    // Step 2) MODEL phase
-                    // ---------------------------------
                     report(Progress(++doneSteps, totalSteps, $"Running model phase for {article} ({dtype})…"));
 
                     string? modelResultPath;
@@ -317,9 +287,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                                           .GetResult();
                     }
 
-                    // ---------------------------------
-                    // Step 3) DRAWING phase
-                    // ---------------------------------
                     report(Progress(++doneSteps, totalSteps, $"Running drawing phase for {article} ({dtype})…"));
 
                     using (var swDraw = sessFactory.Create(visible: true))
@@ -589,7 +556,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
             return parsedFromStoredStyle;
         }
 
-        // Temporary fallback during migration from frontend-provided wedge type
         if (payload.Options is not null &&
             payload.Options.TryGetValue("wedgeType", out var oldValue) &&
             WedgeStyleParser.TryParseWedgeType(oldValue, out var parsedFromPayload))

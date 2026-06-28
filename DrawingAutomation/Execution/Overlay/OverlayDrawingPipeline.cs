@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using SolidWorks.Interop.sldworks;
@@ -14,12 +14,7 @@ using WAD.Runner.DrawingAutomation.SolidWorks;
 
 namespace WAD.Runner.DrawingAutomation.Execution.Overlay;
 
-/// <summary>
-/// Overlay drawing workflow.
-///
-/// This pipeline handles overlay sheet preparation, overlay view scales,
-/// overlay annotation positions, overlay tables, calibration note/box, and TIFF export.
-/// </summary>
+
 public sealed class OverlayDrawingPipeline : IDrawingPipeline
 {
     public bool CanHandle(DrawingAutomationContext context)

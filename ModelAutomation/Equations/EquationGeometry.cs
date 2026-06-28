@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Core;
@@ -20,8 +20,6 @@ internal static class EquationGeometry
 
         decimal ba;
 
-        // If SLB exists, funnel gap calculation must ignore BA.
-        // In that case BA is forced to 0 even if BA exists in the data.
         if (facts.TryGetLengthMm("VBL", out var slb) && slb > 0m)
         {
             ba = 0m;

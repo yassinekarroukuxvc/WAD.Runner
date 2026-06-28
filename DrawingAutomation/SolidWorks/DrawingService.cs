@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -13,9 +13,7 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
 {
     public sealed class DrawingService
     {
-        // ───────────────────────────────────────────────────────────────────────
-        // Nested types
-        // ───────────────────────────────────────────────────────────────────────
+
 
         public sealed record DeleteSheetsResult(
             bool Ok,
@@ -24,10 +22,7 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             IReadOnlyList<string> NotDeleted
         );
 
-        /// <summary>
-        /// Best-effort "fast mode" to reduce UI/graphics overhead during batch changes.
-        /// Uses only safe calls + cached reflection.
-        /// </summary>
+
         private sealed class FastModeScope : IDisposable
         {
             private readonly SldWorks _swApp;
@@ -116,9 +111,6 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             }
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // Fields
-        // ───────────────────────────────────────────────────────────────────────
 
         private readonly SldWorks _swApp;
 
@@ -145,9 +137,6 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
         public DrawingDoc? Drawing => _drawing;
         public string DrawingPath => _drawingPath;
 
-        // ───────────────────────────────────────────────────────────────────────
-        // Open / Relink / Lifecycle
-        // ───────────────────────────────────────────────────────────────────────
 
         public void OpenDrawing(string filePath, bool rebuildAfterOpen = false)
         {
@@ -364,9 +353,6 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             action();
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // Sheet helpers
-        // ───────────────────────────────────────────────────────────────────────
 
         public void ActivateSheet(string sheetName)
         {
@@ -524,9 +510,6 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             }
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // Metadata hooks (stubs)
-        // ───────────────────────────────────────────────────────────────────────
 
         public void SetSummaryInformation(WAD.Runner.DataManagement.Domain.Drawing.DrawingData dd)
         {
@@ -549,9 +532,6 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             }
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // Overlay calibration helpers
-        // ───────────────────────────────────────────────────────────────────────
 
         public void DrawCalibrationBoxOnSheetFormat(double overlayScaling)
         {
@@ -754,9 +734,6 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             }
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // Reference discovery
-        // ───────────────────────────────────────────────────────────────────────
 
         private IEnumerable<string> EnumerateReferencedModelPaths()
         {
@@ -814,9 +791,6 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             return results;
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // Portable reflection helper
-        // ───────────────────────────────────────────────────────────────────────
 
         private static MethodInfo? FindMethod(Type t, string name, BindingFlags flags, Type[] paramTypes)
         {

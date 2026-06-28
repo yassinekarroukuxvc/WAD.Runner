@@ -1,23 +1,20 @@
-﻿// DrawingAutomation/Interop/InteropCompat.cs
+
 using System;
 using System.Globalization;
 using SolidWorks.Interop.sldworks;
 
 namespace WAD.Runner.DrawingAutomation.Interop;
 
-/// <summary>
-/// Centralized fallbacks for tricky interop calls across SW versions.
-/// Keep all reflection/dynamic tries here.
-/// </summary>
+
 internal static class InteropCompat
 {
-    // ── View alignment / locking ──────────────────────────────────────────
+
 
     public static void TryBreakAlignment(View v)
     {
         if (v is null) return;
 
-        try { dynamic dv = v; dv.BreakAlignment(); return; } catch { /* try next */ }
+        try { dynamic dv = v; dv.BreakAlignment(); return; } catch {  }
         TryInvokeNoArgs(v, "BreakAlignment");
         TryInvokeNoArgs(v, "BreakParentAlignment");
     }
@@ -25,10 +22,9 @@ internal static class InteropCompat
     public static void TryUnlock(View v)
     {
         if (v is null) return;
-        try { v.PositionLocked = false; } catch { /* ignore */ }
+        try { v.PositionLocked = false; } catch {  }
     }
 
-    // ── View scale ────────────────────────────────────────────────────────
 
     public static double GetScaleDecimalOr(View v, double fallback = 1.0)
     {
@@ -46,18 +42,13 @@ internal static class InteropCompat
         }
     }
 
-    // ── View outline (for autoscale) ──────────────────────────────────────
 
-    /// <summary>
-    /// Try to read view outline as meters (x1,y1,x2,y2). Returns true on success.
-    /// Supports GetOutline() returning double[] or object[], and the ref-args variation.
-    /// </summary>
     public static bool TryGetViewOutline(View v, out double x1, out double y1, out double x2, out double y2)
     {
         x1 = y1 = x2 = y2 = 0.0;
         if (v is null) return false;
 
-        // pattern 1: GetOutline() -> double[4]
+
         try
         {
             var arrObj = v.GetOutline();
@@ -75,9 +66,9 @@ internal static class InteropCompat
                 return true;
             }
         }
-        catch { /* fall through */ }
+        catch {  }
 
-        // pattern 2: GetOutline(ref x1, ref y1, ref x2, ref y2) via dynamic
+
         try
         {
             double rx1 = 0, ry1 = 0, rx2 = 0, ry2 = 0;
@@ -86,18 +77,17 @@ internal static class InteropCompat
             x1 = rx1; y1 = ry1; x2 = rx2; y2 = ry2;
             return true;
         }
-        catch { /* give up */ }
+        catch {  }
 
         return false;
     }
 
-    // ── View → referenced model path (optional helper) ────────────────────
 
     public static string? TryGetReferencedModelPath(View v)
     {
         if (v is null) return null;
 
-        // v.ReferencedDocument?.GetPathName()
+
         try
         {
             var p = (v.ReferencedDocument as ModelDoc2)?.GetPathName();
@@ -105,7 +95,7 @@ internal static class InteropCompat
         }
         catch { }
 
-        // dv.GetReferencedModelName2()
+
         try
         {
             dynamic dv = v;
@@ -114,7 +104,7 @@ internal static class InteropCompat
         }
         catch { }
 
-        // dv.GetReferencedModelName()
+
         try
         {
             dynamic dv = v;
@@ -126,7 +116,6 @@ internal static class InteropCompat
         return null;
     }
 
-    // ── internals ─────────────────────────────────────────────────────────
 
     private static bool TryInvokeNoArgs(object target, string methodName)
     {

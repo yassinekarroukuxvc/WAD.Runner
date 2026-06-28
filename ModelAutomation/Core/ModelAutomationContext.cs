@@ -1,13 +1,9 @@
-﻿using System;
+using System;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Common;
 
 namespace WAD.Runner.ModelAutomation.Core;
 
-/// <summary>
-/// Immutable context passed through planning layers.
-/// It is the only object rule/planner code needs; SolidWorks adapters never live here.
-/// </summary>
 public sealed class ModelAutomationContext
 {
     public ModelAutomationContext(ModelJobRequest job, PathPlanner.Plan paths)

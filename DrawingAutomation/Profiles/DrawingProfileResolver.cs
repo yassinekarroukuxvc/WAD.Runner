@@ -1,11 +1,9 @@
-﻿using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.DrawingAutomation.Profiles;
 
-/// <summary>
-/// Single place that maps (WedgeType, WedgeSubclass, DrawingType) → DrawingProfile.
-/// </summary>
+
 public static class DrawingProfileResolver
 {
     public static DrawingProfile Resolve(WedgeType wedgeType, WedgeSubclass subclass, DrawingType drawingType)

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 using WAD.Runner.DrawingAutomation.SolidWorks;
 using WAD.Runner.DrawingAutomation.Views;

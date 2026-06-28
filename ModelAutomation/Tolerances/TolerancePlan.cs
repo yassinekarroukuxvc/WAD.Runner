@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,9 +20,9 @@ public sealed record TolerancePlan(IReadOnlyList<ToleranceUpdate> Updates)
 }
 
 public sealed record ToleranceUpdate(
-    string TargetDimensionName,    // e.g. "W_UTOL@PGB_LEFT_overlay_sketch"
-    decimal Value,                 // numeric value in domain units (mm/deg)
-    ToleranceUnit Unit             // LengthMm or AngleDeg
+    string TargetDimensionName,
+    decimal Value,
+    ToleranceUnit Unit
 );
 
 public enum ToleranceUnit

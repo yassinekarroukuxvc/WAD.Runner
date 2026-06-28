@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using WAD.Runner.Application;
 using WAD.Runner.ModelAutomation.Equations;
 
@@ -11,10 +11,6 @@ public enum DimensionApplyMode
 
 public sealed record DimensionApplyResult(bool Success, string MethodUsed, string? Error = null);
 
-/// <summary>
-/// Applies an already-built equation plan to the model.
-/// All wedge-specific equation decisions happen before this adapter is called.
-/// </summary>
 public sealed class ModelDimensionApplier
 {
     private readonly EquationFileWriter _writer;

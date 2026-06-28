@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Equations;
@@ -12,10 +12,6 @@ using WAD.Runner.ModelAutomation.Rules.CobLike;
 
 namespace WAD.Runner.ModelAutomation.Rules;
 
-/// <summary>
-/// Single wedge-type composition root. Adding a wedge type should normally mean
-/// adding one profile here plus its small planner classes.
-/// </summary>
 public static class WedgeAutomationProfileRegistry
 {
     private static readonly IReadOnlyDictionary<WedgeType, WedgeAutomationProfile> Profiles =

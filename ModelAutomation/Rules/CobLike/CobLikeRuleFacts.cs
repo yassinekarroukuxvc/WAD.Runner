@@ -1,15 +1,10 @@
-﻿using System;
+using System;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 
-/// <summary>
-/// Centralized read-only helper around COB-like wedge data.
-/// Keeps repeated parsing / dimension lookups in one place so the rule files
-/// stay focused on the actual business rules.
-/// </summary>
 public sealed class CobLikeRuleFacts
 {
     public CobLikeRuleFacts(WedgeData wedge)
@@ -27,6 +22,8 @@ public sealed class CobLikeRuleFacts
 
     public CobLikeShankType ShankType => ResolveShankType(Wedge);
 
+    // Convenience property to easily access the resolved foot option
+    public CobLikeFootOption FootOption => ResolveFootOption();
 
     public bool HasLargeOverlayVrCase
     {
@@ -185,6 +182,34 @@ public sealed class CobLikeRuleFacts
             return CobLikeShankType.Rev180;
 
         return CobLikeShankType.Std;
+    }
+
+    /// <summary>
+    /// Resolves the foot option based on wedge properties and specific dimension flags.
+    /// </summary>
+    public CobLikeFootOption ResolveFootOption()
+    {
+        var raw =
+            GetPropLoose(Wedge, "Wed-Foot_Option") ??
+            GetPropLoose(Wedge, "Wed-FootOption") ??
+            GetPropLoose(Wedge, "Foot_Option") ??
+            GetPropLoose(Wedge, "FootOption") ??
+            string.Empty;
+
+        raw = NormalizeDbToken(raw);
+
+        var foot = raw switch
+        {
+            var x when EqualsAny(x, "SW_G", "G") => CobLikeFootOption.G,
+            var x when EqualsAny(x, "SW_VG", "VG") => CobLikeFootOption.VG,
+            var x when EqualsAny(x, "SW_CG", "CG", "CC") => CobLikeFootOption.CC,
+            _ => CobLikeFootOption.C
+        };
+
+        if (foot == CobLikeFootOption.C && IsDimPositive("CBRA") && IsDimPositive("CBRD") && IsDimPositive("CBRL"))
+            return CobLikeFootOption.C_WithCbr;
+
+        return foot;
     }
 
     public static string? GetPropLoose(WedgeData wedge, string key)

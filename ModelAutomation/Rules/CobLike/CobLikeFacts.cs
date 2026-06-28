@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Core;

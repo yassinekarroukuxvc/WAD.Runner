@@ -1,21 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using SolidWorks.Interop.sldworks;
-using WAD.Runner.Application;                          // Logger
-using WAD.Runner.DataManagement.Domain.Drawing;       // DrawingData
-using WAD.Runner.DrawingAutomation.Interop;           // InteropCompat, ViewFinder
-using WAD.Runner.DrawingAutomation.SolidWorks;        // DrawingService
+using WAD.Runner.Application;
+using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DrawingAutomation.Interop;
+using WAD.Runner.DrawingAutomation.SolidWorks;
 
 namespace WAD.Runner.DrawingAutomation.Views;
 
-/// <summary>
-/// Helper for "secondary" views (typically Detail / Section) where we:
-/// - Position a given view in inches (logical view name → actual view)
-/// - Optionally run a VBA macro that uses view/sketch name + coordinates
-/// Intended to complement ViewPlacementService (which is mm + DrawingData based).
-/// </summary>
+
 public sealed class SecondaryViewPlacementService
 {
     private readonly DrawingService _ds;
@@ -33,14 +28,7 @@ public sealed class SecondaryViewPlacementService
         _logicalToActual = logicalToActual ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Places a view (by logical key) using inches as input.
-    /// - Resolves logicalKey → actual SW view name via the map (fallback: logicalKey)
-    /// - Inches → meters
-    /// - Optionally clamps to sheet bounds
-    /// - Breaks alignment + unlocks
-    /// - Sets position and rebuilds
-    /// </summary>
+
     public bool TrySetViewPositionInches(string logicalKey, double xIn, double yIn, bool clampToSheet = true)
     {
         if (string.IsNullOrWhiteSpace(logicalKey))
@@ -57,7 +45,7 @@ public sealed class SecondaryViewPlacementService
             return false;
         }
 
-        // inches → meters
+
         double x_m = xIn * 0.0254;
         double y_m = yIn * 0.0254;
 
@@ -66,8 +54,7 @@ public sealed class SecondaryViewPlacementService
             if (clampToSheet && TryGetSheetSize(out var w, out var h))
                 (x_m, y_m) = ClampToSheet(x_m, y_m, w, h);
 
-            // unlock / break alignment (best effort)
-            //InteropCompat.TryBreakAlignment(view);
+
             InteropCompat.TryUnlock(view);
 
             view.Position = new[] { x_m, y_m };
@@ -86,13 +73,7 @@ public sealed class SecondaryViewPlacementService
         }
     }
 
-    // ───────────────────────────── MACRO LAUNCHER ─────────────────────────────
 
-    /// <summary>
-    /// Runs a VBA macro for a given view (if the macro file exists).
-    /// Writes arguments (viewName, sketchName, X_IN, Y_IN) to the macro args file.
-    /// View is resolved from logicalViewName via the map if provided.
-    /// </summary>
     public static void RunMacroForViewIfAvailable(
         SldWorks swApp,
         string? macroFile,
@@ -116,7 +97,7 @@ public sealed class SecondaryViewPlacementService
                 return;
             }
 
-            // Resolve logical → actual for logging / macro arg
+
             string actualViewName = logicalViewName;
             if (logicalToActual != null &&
                 logicalToActual.TryGetValue(logicalViewName, out var mapped) &&
@@ -153,7 +134,6 @@ public sealed class SecondaryViewPlacementService
         }
     }
 
-    // ───────────────────────────── helpers ─────────────────────────────
 
     private void TryRebuild()
     {

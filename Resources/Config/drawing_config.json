@@ -48,8 +48,22 @@
         "CKVD": {
           "Common": {
             "Views": {
-              "Front": { "Params": { "BreaklineGap": 7.5 } },
-              "Section": { "PositionMm": [ 240, 200 ] }
+              "Front": {
+                "Params": { "BreaklineGap": 7.5 },
+                "PositionMm": [ 35, 100 ]
+              },
+              "Side": {
+                "PositionMm": [ 65, 100 ]
+              },
+              "Top": {
+                "PositionMm": [ 65, 195 ]
+              },
+              "Detail": {
+                "PositionMm": [ 150, 200 ]
+              },
+              "Section": {
+                "PositionMm": [ 220, 200 ]
+              }
             },
             "Tables": {
               "DimTable": { "PositionMm": [ 194, 43 ] }
@@ -61,8 +75,22 @@
         "OSG7": {
           "Common": {
             "Views": {
-              "Front": { "Params": { "BreaklineGap": 7.5 } },
-              "Section": { "PositionMm": [ 240, 200 ] }
+              "Front": {
+                "Params": { "BreaklineGap": 7.5 },
+                "PositionMm": [ 25, 100 ]
+              },
+              "Side": {
+                "PositionMm": [ 65, 100 ]
+              },
+              "Top": {
+                "PositionMm": [ 65, 195 ]
+              },
+              "Detail": {
+                "PositionMm": [ 150, 200 ]
+              },
+              "Section": {
+                "PositionMm": [ 220, 200 ]
+              }
             },
             "Tables": {
               "DimTable": { "PositionMm": [ 194, 43 ] }

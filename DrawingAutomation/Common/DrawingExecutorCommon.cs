@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -13,10 +13,6 @@ namespace WAD.Runner.DrawingAutomation.Common
 {
     public static class DrawingExecutorCommon
     {
-        /// <summary>
-        /// Copy template → try relink while closed → open drawing → optional in-session relink.
-        /// Rebuild/zoom are optional because they are expensive and should only happen when needed.
-        /// </summary>
         public static DrawingService InitializeAndRelink(
             SldWorks swApp,
             DrawingRun run,
@@ -71,9 +67,6 @@ namespace WAD.Runner.DrawingAutomation.Common
             return ds;
         }
 
-        /// <summary>
-        /// Save, export PDF if requested, then close.
-        /// </summary>
         public static void FinalizeProduction(SldWorks swApp, DrawingService ds, string? pdfOutputPath = null)
         {
             if (ds is null) return;
@@ -103,10 +96,6 @@ namespace WAD.Runner.DrawingAutomation.Common
                 try { ds.Close(); } catch { }
             }
         }
-
-        // ───────────────────────────────────────────────────────────────────────
-        // TIFF EXPORT HELPERS
-        // ───────────────────────────────────────────────────────────────────────
 
         private static bool ConfigureTiffExportUseSheetSize(SldWorks swApp, DrawingService ds, int dpi)
         {
@@ -246,8 +235,6 @@ namespace WAD.Runner.DrawingAutomation.Common
 
         public static bool SaveCurrentSheetAsTiff(SldWorks swApp, DrawingService ds, string outputFullPath, int dpi)
             => SaveCurrentSheetAsTiffUseSheetSize(swApp, ds, outputFullPath, dpi);
-
-        // ───────────────────────────────────────────────────────────────────────
 
         private static bool TryRelinkWhileClosed(
             SldWorks swApp,

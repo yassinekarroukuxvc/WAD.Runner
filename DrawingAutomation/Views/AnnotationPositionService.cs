@@ -1,4 +1,4 @@
-﻿// DrawingAutomation/Views/AnnotationPositionService.cs
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,30 +6,20 @@ using System.Linq;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
-using WAD.Runner.Application;                          // Logger
-using WAD.Runner.DataManagement.Domain.Drawing;       // DrawingData
-using WAD.Runner.DataManagement.Domain.Wedge;         // WedgeData
-using WAD.Runner.DataManagement.Domain.Dimensions;    // DimensionKey
-using WAD.Runner.DataManagement.Domain.Units;         // Quantity, UnitKind
-using WAD.Runner.DrawingAutomation.SolidWorks;        // DrawingService
+using WAD.Runner.Application;
+using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DataManagement.Domain.Dimensions;
+using WAD.Runner.DataManagement.Domain.Units;
+using WAD.Runner.DrawingAutomation.SolidWorks;
 
-// Resolve SolidWorks vs Domain type name clash:
+
 using SwDimension = SolidWorks.Interop.sldworks.Dimension;
 
 namespace WAD.Runner.DrawingAutomation.Views
 {
-    /// <summary>
-    /// Positions annotations (dimensions) in specific views.
-    /// - Plan positions are sheet millimeters; API uses meters.
-    /// - Moves the note box via Annotation.SetPosition2.
-    /// - Matching: exact token (before '@') → relaxed name → numeric; pick nearest when multiple.
-    ///
-    /// PERFORMANCE NOTES:
-    /// - Enumerate each view only once.
-    /// - Cache parsed dimension metadata per view.
-    /// - Avoid repeated COM calls during matching.
-    /// - Rebuild once at the end.
-    /// </summary>
+
+
     public sealed class AnnotationPositioner
     {
         private readonly DrawingService _ds;
@@ -118,16 +108,15 @@ namespace WAD.Runner.DrawingAutomation.Views
 
                     try
                     {
-                        // Some SolidWorks display dimensions (FD in PGB section views is one of them)
-                        // do not reliably react to Annotation.SetPosition2 alone.
-                        // Try the DisplayDimension text point first, then also move the Annotation.
+
+
                         bool movedTextPoint = TrySetDisplayDimensionTextPoint(target.DisplayDimension, x_m, y_m, 0.0);
 
-                        // Move twice to counter post-solve nudge
+
                         target.Annotation.SetPosition2(x_m, y_m, 0.0);
                         target.Annotation.SetPosition2(x_m, y_m, 0.0);
 
-                        // Center all non-angle dimensions
+
                         try
                         {
                             if (target.HasNumericValue)
@@ -154,7 +143,6 @@ namespace WAD.Runner.DrawingAutomation.Views
             Logger.Success($"[DimPos] Applied={applied}, Missed={missed}.");
         }
 
-        // --------------------------- Plan DTO ---------------------------
 
         public sealed class Plan
         {
@@ -174,7 +162,6 @@ namespace WAD.Runner.DrawingAutomation.Views
             };
         }
 
-        // --------------------------- Cached view dimension info ---------------------------
 
         private sealed class DisplayDimensionInfo
         {
@@ -190,7 +177,6 @@ namespace WAD.Runner.DrawingAutomation.Views
             public UnitKind Unit { get; init; } = UnitKind.Millimeter;
         }
 
-        // --------------------------- Finders ---------------------------
 
         private View? FindView(DrawingDoc dd, string logicalViewName)
         {
@@ -203,7 +189,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                 var v = dd.IGetFirstView();
                 if (v == null) return null;
 
-                v = v.IGetNextView(); // skip sheet
+                v = v.IGetNextView();
                 int guard = 0;
 
                 while (v != null && guard++ < 1024)
@@ -268,7 +254,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                 }
                 catch
                 {
-                    // ignore
+
                 }
 
                 try
@@ -289,7 +275,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                 }
                 catch
                 {
-                    // ignore
+
                 }
 
                 result.Add(new DisplayDimensionInfo
@@ -310,7 +296,7 @@ namespace WAD.Runner.DrawingAutomation.Views
             return result;
         }
 
-        /// <summary>Preferred enumeration via annotations.</summary>
+
         private static IReadOnlyList<DisplayDimension> EnumerateDisplayDimensionsFromAnnotations(View v)
         {
             var list = new List<DisplayDimension>(64);
@@ -333,13 +319,13 @@ namespace WAD.Runner.DrawingAutomation.Views
             }
             catch
             {
-                // best effort
+
             }
 
             return list;
         }
 
-        /// <summary>Legacy enumeration using View.GetDisplayDimensions().</summary>
+
         private static IReadOnlyList<DisplayDimension> EnumerateDisplayDimensionsLegacy(View v)
         {
             var list = new List<DisplayDimension>(64);
@@ -359,22 +345,19 @@ namespace WAD.Runner.DrawingAutomation.Views
             }
             catch
             {
-                // best effort
+
             }
 
             return list;
         }
 
-        // --------------------------- Matching (token → nearest) ---------------------------
 
         private static DisplayDimensionInfo? FindDisplayDimensionSmart(IReadOnlyList<DisplayDimensionInfo> inView, Plan p, WedgeData wedge)
         {
             if (inView == null || inView.Count == 0)
                 return null;
 
-            // A) Prefer the exact expected SolidWorks full-name when we can infer it.
-            // This matters for PGB section views where multiple dimensions can share the
-            // same token, for example FD, but only one belongs to the active front annotation sketch.
+
             var expectedMatches = new List<DisplayDimensionInfo>();
             foreach (var expectedFullName in BuildExpectedFullNames(wedge, p))
             {
@@ -395,7 +378,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                     return PickNearest(expectedMatches, p.PositionMm);
             }
 
-            // B) exact token before '@'
+
             var exactMatches = new List<DisplayDimensionInfo>();
             for (int i = 0; i < inView.Count; i++)
             {
@@ -410,13 +393,7 @@ namespace WAD.Runner.DrawingAutomation.Views
             if (exactMatches.Count == 1) return exactMatches[0];
             if (exactMatches.Count > 1) return PickNearest(exactMatches, p.PositionMm);
 
-            // C) strict full-name fallback only.
-            // IMPORTANT: do NOT use substring matching here.
-            // The old full.IndexOf(key) fallback caused bad matches like:
-            //   G   -> FD because DEG contains G
-            //   FRO -> FD because FRONT starts with FRO
-            //   H   -> FD because sketch contains h
-            // That is why FD was moved by G/FRO/H and ended in the wrong final location.
+
             var strictFullNameMatches = new List<DisplayDimensionInfo>();
             for (int i = 0; i < inView.Count; i++)
             {
@@ -430,7 +407,7 @@ namespace WAD.Runner.DrawingAutomation.Views
             if (strictFullNameMatches.Count == 1) return strictFullNameMatches[0];
             if (strictFullNameMatches.Count > 1) return PickNearest(strictFullNameMatches, p.PositionMm);
 
-            // D) numeric fallback
+
             if (TryGetTargetNumeric(p, out var targetVal, out var targetUnit))
             {
                 const double epsMm = 0.0005;
@@ -509,10 +486,10 @@ namespace WAD.Runner.DrawingAutomation.Views
                     yield break;
                 }
 
-                // Most section cavity dimensions, including FD/T/RA, live on the front annotation sketch.
+
                 yield return $"{key}@{frontSketch}";
 
-                // Some older 180° REV templates had this typo for G/CGR/CGD. Keep it as a safe fallback.
+
                 if (is180 && (key.Equals("G", StringComparison.OrdinalIgnoreCase) ||
                               key.Equals("CGR", StringComparison.OrdinalIgnoreCase) ||
                               key.Equals("CGD", StringComparison.OrdinalIgnoreCase)))
@@ -580,8 +557,7 @@ namespace WAD.Runner.DrawingAutomation.Views
             var actual = actualFullName.Trim().Trim('"');
             var wanted = key.Trim();
 
-            // Accept only true dimension-token starts, for example "FD@..." or "FD<1>@...".
-            // Reject substring hits such as "G" inside "DEG", "FRO" inside "FRONT", etc.
+
             if (!actual.StartsWith(wanted, StringComparison.OrdinalIgnoreCase))
                 return false;
 
@@ -654,7 +630,7 @@ namespace WAD.Runner.DrawingAutomation.Views
             }
             catch
             {
-                // Some interop versions do not expose SetTextPoint2. Fall through to SetTextPoint.
+
             }
 
             try
@@ -678,7 +654,6 @@ namespace WAD.Runner.DrawingAutomation.Views
             return idx > 0 ? full[..idx] : full;
         }
 
-        // --------------------------- Numeric helpers ---------------------------
 
         private static bool TryGetDimensionNumeric(SwDimension dim, out double value, out UnitKind unit)
         {
@@ -689,8 +664,8 @@ namespace WAD.Runner.DrawingAutomation.Views
             {
                 if (dim == null) return false;
 
-                int type = dim.GetType();     // 1 = angular, 2 = linear
-                double raw = dim.SystemValue; // SI units
+                int type = dim.GetType();
+                double raw = dim.SystemValue;
 
                 if (!double.IsFinite(raw)) return false;
 
@@ -733,7 +708,6 @@ namespace WAD.Runner.DrawingAutomation.Views
             return false;
         }
 
-        // --------------------------- debug dump ---------------------------
 
         private static void DumpViewDimensions(string viewName, IReadOnlyList<DisplayDimensionInfo> list)
         {
@@ -753,11 +727,10 @@ namespace WAD.Runner.DrawingAutomation.Views
             }
             catch
             {
-                // ignore
+
             }
         }
 
-        // --------------------------- misc ---------------------------
 
         private static string SafeName(View v)
         {
@@ -932,7 +905,6 @@ namespace WAD.Runner.DrawingAutomation.Views
             }
         }
 
-        // ---------------- helpers ----------------
 
         private static Dictionary<string, HashSet<DisplayDimension>> SnapshotDisplayDimensionsByView(DrawingDoc dd)
         {
@@ -941,7 +913,7 @@ namespace WAD.Runner.DrawingAutomation.Views
             View v = dd.IGetFirstView();
             if (v == null) return map;
 
-            v = v.IGetNextView(); // skip sheet
+            v = v.IGetNextView();
 
             int guard = 0;
             while (v != null && guard++ < 2048)
@@ -985,11 +957,11 @@ namespace WAD.Runner.DrawingAutomation.Views
             }
             catch
             {
-                // best effort
+
             }
         }
 
-        // Reference-based HashSet comparer for COM objects
+
         private sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T> where T : class
         {
             public static readonly ReferenceEqualityComparer<T> Instance = new();

@@ -278,12 +278,12 @@ public static class WedgeDimensionValidator
                 RequiredStandalone = Slots("TL", "TD", "TDF", "FL", "E", "ISA", "W", "F", "FR", "BR", "GD", "B", "FA", "BA", "GA", "GR"),
                 RequiredOrGroups = new[]
                 {
-                    Group("X, XF", Slot("X"), Slot("XF"))
+                    Group("X, XF", Slot("X"), Slot("FX"))
                 },
                 OptionalStandalone = Slots("TIP"),
                 ConditionalAndGroups = new[]
                 {
-                    Group("VW, VR, VRR, VRA", Slot("VW"), Slot("VR"), Slot("VRR"), Slot("VRA"))
+                    Group("VW, VR, VRR, VRA", Slot("VW"), Slot("VR"), Slot("VRR"))
                 }
             };
         }
@@ -300,7 +300,7 @@ public static class WedgeDimensionValidator
                 OptionalStandalone = Slots("VBL", "BA", "W2", "F", "BR", "BRO", "CL", "FLC", "GO", "FLG", "FLER", "CBL", "C", "MI", "FNO", "T1", "MFL"),
                 ConditionalAndGroups = new[]
                 {
-                    Group("VW, VR, VRR, VRA", Slot("VW"), Slot("VR"), Slot("VRR"), Slot("VRA")),
+                    Group("VW, VR, VRR, VRA", Slot("VW"), Slot("VR"), Slot("VRR")),
                     Group("CD, RC/CR", Slot("CD"), Slot("RC/CR", "RC", "CR")),
                     Group("CGD, CGR, G", Slot("CGD"), Slot("CGR"), Slot("G")),
                     Group("CBRD, CBRL, CBRA", Slot("CBRD"), Slot("CBRL"), Slot("CBRA")),

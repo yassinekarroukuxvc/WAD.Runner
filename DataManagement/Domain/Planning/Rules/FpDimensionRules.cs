@@ -1,4 +1,3 @@
-﻿using SQLitePCL;
 using System.Collections.Generic;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Drawing;
@@ -127,27 +126,28 @@ internal static class FpDimensionRules
         var GR = LayoutMath.Dmm(ctx, "GR");
         var CD = LayoutMath.Dmm(ctx, "CD");
         var CR = LayoutMath.Dmm(ctx, "CR");
+        var VRR = LayoutMath.Dmm(ctx, "VRR");
 
         PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
             D[0], D[1]);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
-            D[0], D[1] + 20);
+            D[0], bandMidY + (VR + VRR) * dsv);
 
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
-            D[0], bandMidY - 30);
+            D[0], bandMidY - 25);
 
         PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal,
-            D[0], bandMidY - 10);
+            D[0], bandMidY - 5);
 
         PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal,
-            D[0], bandMidY - 20);
-
-        PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal,
             D[0], bandMidY - 15);
 
+        PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal,
+            D[0], bandMidY - 10);
+
         PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal,
-            D[0], bandMidY - 25);
+            D[0], bandMidY - 20);
 
         PlaceDim(ctx, diag, outList, "GD", Detail, DimAxis.Vertical,
             D[0] + (W / 2.0 * dsv) + 10.0, bandMidY + dsv * GD / 2.0);
@@ -176,12 +176,17 @@ internal static class FpDimensionRules
     {
         var FAdeg = LayoutMath.TryDdeg(ctx, "FA");
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
+        var VBL = LayoutMath.Dmm(ctx, "VBL");
 
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
             52,
             114);
+
         PlaceDim(ctx, diag, outList, "TL", Side, DimAxis.Horizontal,
             S[0] - ssv * TD / 2.0 - 7.5, S[1]);
+
+        PlaceDim(ctx, diag, outList, "VBL", Side, DimAxis.Horizontal,
+            S[0] + ssv * TD / 2.0 + 4, S[1] - L_side / 2.0 + VBL / 2 * ssv);
     }
 
     private static void AddSection(
