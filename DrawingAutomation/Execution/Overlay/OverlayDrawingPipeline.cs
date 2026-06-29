@@ -7,7 +7,7 @@ using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DrawingAutomation;
-using WAD.Runner.DrawingAutomation.Common;
+using WAD.Runner.DrawingAutomation.Common.Overlay;
 using WAD.Runner.DrawingAutomation.Core;
 using WAD.Runner.DrawingAutomation.Overlay;
 using WAD.Runner.DrawingAutomation.SolidWorks;
@@ -34,7 +34,7 @@ public sealed class OverlayDrawingPipeline : IDrawingPipeline
         _ = context.RunPartAutomation();
 
         Logger.Info("[Overlay/2] Open, relink and prepare overlay sheet...");
-        var drawingService = OverlayDrawingExecutorCommon.OpenRelinkAndPrepareOverlaySheet(
+        var drawingService = OverlaySheetHelper.OpenRelinkAndPrepareOverlaySheet(
             context.SwApp,
             run,
             drawingData,
@@ -44,46 +44,46 @@ public sealed class OverlayDrawingPipeline : IDrawingPipeline
 
         Logger.Info("[Overlay/3] Compute magnification, calibration and payload...");
         var (layoutContext, overlayMagnification, overlayCalibrationUm) =
-            OverlayDrawingExecutorCommon.ComputeOverlayMagCal(run, drawingData);
+            OverlayMagnificationService.ComputeOverlayMagCal(run, drawingData);
 
-        var overlayKeys = OverlayDrawingExecutorCommon.DefaultOverlayDimKeys(run.WedgeType);
-        var overlayPayload = OverlayDrawingExecutorCommon.BuildOverlayPayload(run, drawingData, overlayKeys);
+        var overlayKeys = OverlayMagnificationService.DefaultOverlayDimKeys(run.WedgeType);
+        var overlayPayload = OverlayPayloadBuilder.BuildOverlayPayload(run, drawingData, overlayKeys);
 
         drawingService.Rebuild();
 
         Logger.Info("[Overlay/4] Apply overlay view scales and positions...");
-        OverlayDrawingExecutorCommon.ApplyOverlayViewScales(drawingService, viewNames, overlayMagnification);
-        OverlayDrawingExecutorCommon.TryRepositionAllOverlayViews(context.SwApp, drawingService, run, viewNames);
+        OverlayViewScaler.ApplyOverlayViewScales(drawingService, viewNames, overlayMagnification);
+        OverlayViewScaler.TryRepositionAllOverlayViews(context.SwApp, drawingService, run, viewNames);
 
         if (isCkvd)
         {
             Logger.Info("[Overlay/5] Apply CKVD overlay view cleanup...");
-            OverlayDrawingExecutorCommon.DeleteFrontViewIfVrZero(drawingService, viewNames, layoutContext);
+            OverlayViewScaler.DeleteFrontViewIfVrZero(drawingService, viewNames, layoutContext);
         }
 
         drawingService.Rebuild();
         drawingService.ZoomToSheet();
 
         Logger.Info("[Overlay/6] Plan overlay dimensions and create table...");
-        var (dims, plans) = OverlayDrawingExecutorCommon.PlanOverlayDimensions(
+        var (dims, plans) = OverlayAnnotationHelper.PlanOverlayDimensions(
             layoutContext,
             run.WedgeType,
             context.PlannedOverlayDimensions);
 
-        OverlayDrawingExecutorCommon.TryCreateOverlayDimTable(
+        OverlayAnnotationHelper.TryCreateOverlayDimTable(
             context.SwApp,
             drawingService,
             drawingData,
             overlayPayload);
 
         Logger.Info("[Overlay/7] Apply overlay annotations and metadata...");
-        OverlayDrawingExecutorCommon.TryApplyAnnotationPositions(drawingService, viewNames, run, drawingData, plans);
-        OverlayDrawingExecutorCommon.TryApplyOverlayMetadata(drawingService, drawingData, run);
-        OverlayDrawingExecutorCommon.TryCleanupZeroDims(drawingService, viewNames, layoutContext, drawingData, dims, run);
+        OverlayAnnotationHelper.TryApplyAnnotationPositions(drawingService, viewNames, run, drawingData, plans);
+        OverlayAnnotationHelper.TryApplyOverlayMetadata(drawingService, drawingData, run);
+        OverlayAnnotationHelper.TryCleanupZeroDims(drawingService, viewNames, layoutContext, drawingData, dims, run);
 
         Logger.Info("[Overlay/8] Draw calibration box/note and export TIFF...");
-        OverlayDrawingExecutorCommon.TryCalibrationBoxAndNote(drawingService, overlayMagnification, overlayCalibrationUm);
-        OverlayDrawingExecutorCommon.ExportOverlayTiff(context.SwApp, drawingService, run);
+        OverlayAnnotationHelper.TryCalibrationBoxAndNote(drawingService, overlayMagnification, overlayCalibrationUm);
+        OverlayTiffExporter.ExportOverlayTiff(context.SwApp, drawingService, run);
     }
 
     private static void BindReferencedConfigurations(
@@ -101,7 +101,7 @@ public sealed class OverlayDrawingPipeline : IDrawingPipeline
 
         if (!isCkvd)
         {
-            OverlayDrawingExecutorCommon.TryBindOverlayViewConfigurations(drawingService, run, viewNames);
+            OverlayAnnotationHelper.TryBindOverlayViewConfigurations(drawingService, run, viewNames);
             return;
         }
 

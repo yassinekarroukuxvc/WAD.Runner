@@ -20,6 +20,8 @@ namespace WAD.Runner.DrawingAutomation.Execution.Production;
 
 public sealed class ProductionDrawingPipeline : IDrawingPipeline
 {
+    private const int ViewIterationGuard = 512;
+
     public bool CanHandle(DrawingAutomationContext context)
     => context.DrawingData.DrawingType != WAD.Runner.DataManagement.Domain.Wedge.DrawingType.Overlay;
 
@@ -241,7 +243,7 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
         view = view?.IGetNextView();
 
         var guard = 0;
-        while (view is not null && guard++ < 512)
+        while (view is not null && guard++ < ViewIterationGuard)
         {
             try
             {

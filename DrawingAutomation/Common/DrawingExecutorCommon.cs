@@ -97,7 +97,7 @@ namespace WAD.Runner.DrawingAutomation.Common
             }
         }
 
-        private static bool ConfigureTiffExportUseSheetSize(SldWorks swApp, DrawingService ds, int dpi)
+        private static bool ConfigureTiffExport(SldWorks swApp, DrawingService ds, int dpi)
         {
             try
             {
@@ -174,7 +174,7 @@ namespace WAD.Runner.DrawingAutomation.Common
                     return false;
                 }
 
-                if (!ConfigureTiffExportUseSheetSize(swApp, ds, dpi))
+                if (!ConfigureTiffExport(swApp, ds, dpi))
                     return false;
 
                 ds.RunInFastMode(() =>
@@ -220,18 +220,6 @@ namespace WAD.Runner.DrawingAutomation.Common
                 return false;
             }
         }
-
-        public static bool ConfigureTiffExportSheetSize100Dpi(SldWorks swApp, DrawingService ds)
-            => ConfigureTiffExportUseSheetSize(swApp, ds, 100);
-
-        public static bool SaveCurrentSheetAsTiff100Dpi(SldWorks swApp, DrawingService ds, string outputFullPath)
-            => SaveCurrentSheetAsTiffUseSheetSize(swApp, ds, outputFullPath, 100);
-
-        public static bool ConfigureTiffExportSheetSize200Dpi(SldWorks swApp, DrawingService ds)
-            => ConfigureTiffExportUseSheetSize(swApp, ds, 200);
-
-        public static bool SaveCurrentSheetAsTiff200Dpi(SldWorks swApp, DrawingService ds, string outputFullPath)
-            => SaveCurrentSheetAsTiffUseSheetSize(swApp, ds, outputFullPath, 200);
 
         public static bool SaveCurrentSheetAsTiff(SldWorks swApp, DrawingService ds, string outputFullPath, int dpi)
             => SaveCurrentSheetAsTiffUseSheetSize(swApp, ds, outputFullPath, dpi);

@@ -34,9 +34,7 @@ using WAD.Runner.DataManagement.Infrastructure.Sqlite;
 
 // Drawing Automation
 using WAD.Runner.DrawingAutomation;
-using WAD.Runner.DrawingAutomation.Executors;
-using WAD.Runner.DrawingAutomation.Common;
-using WAD.Runner.DrawingAutomation.Views;
+using WAD.Runner.DrawingAutomation.Execution;
 
 // SolidWorks sessions/factory
 using WAD.Runner.Solidworks.Adapters;
@@ -392,7 +390,7 @@ switch (cmd)
 
                 case WedgeType.FP:
                     templatePartPath = Path.Combine(
-                        "Resources", "Templates", "FP","Working Version",
+                        "Resources", "Templates", "FP", "Working Version",
                         "COB.SLDPRT");
 
                     templateDrawingPath = dtype switch
@@ -529,7 +527,7 @@ switch (cmd)
             }
 
             // -----------------------------
-            // DRAWING phase (unchanged)
+            // DRAWING phase
             // -----------------------------
             var sessFactory2 = host.Services.GetRequiredService<ISwSessionFactory>();
             using (var swDraw = sessFactory2.Create(visible: true))
@@ -543,18 +541,18 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Customer → using FG Customer executor (temporary).");
-                                ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                DrawingAutomationExecutor.RunProduction(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
 
                             case DrawingType.Overlay:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Overlay → using PGB Overlay drawing executor…");
-                                OverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                DrawingAutomationExecutor.RunOverlay(swDraw.App, run, drawingData, runModelAutomation, plannedOverlayDimensions: null);
                                 break;
 
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=PGB, Type=Production → using PGB Production drawing executor…");
-                                ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                DrawingAutomationExecutor.RunProduction(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
                         }
                         break;
@@ -565,18 +563,18 @@ switch (cmd)
                         {
                             case DrawingType.Customer:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Customer → using FG Customer drawing executor…");
-                                ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                DrawingAutomationExecutor.RunProduction(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
 
                             case DrawingType.Overlay:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Overlay → using FG Overlay drawing executor…");
-                                OverlayDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation, plannedDims: null);
+                                DrawingAutomationExecutor.RunOverlay(swDraw.App, run, drawingData, runModelAutomation, plannedOverlayDimensions: null);
                                 break;
 
                             case DrawingType.Production:
                             default:
                                 Logger.Info("[run-drawing] Subclass=FG, Type=Production → using FG Production drawing executor…");
-                                ProductionDrawingExecutor.Run(swDraw.App, run, drawingData, runModelAutomation);
+                                DrawingAutomationExecutor.RunProduction(swDraw.App, run, drawingData, runModelAutomation);
                                 break;
                         }
                         break;
@@ -785,6 +783,7 @@ static WedgeType ParseWedgeTypeEnum(string[] a)
         _ => WedgeType.CKVD
     };
 }
+
 static string ResolveSqliteConnectionString(string rawValue, string contentRootPath)
 {
     if (string.IsNullOrWhiteSpace(rawValue))

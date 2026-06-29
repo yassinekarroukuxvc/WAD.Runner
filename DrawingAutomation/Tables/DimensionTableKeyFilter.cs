@@ -49,12 +49,8 @@ namespace WAD.Runner.DrawingAutomation.Tables
                             "B","BF",
                             "G",
                             "VR",
-                            "W","VW","FR","BR","ERD","FLER","ERW",
+                            "W","VW","FR","BR","ERW",
                             "TL","TD","TDF",
-                            "FX",
-                            "GA",
-                            "GO",
-                            "T1",
                             "VFL",
                             "Y",
                             "ERW"
@@ -62,11 +58,9 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                         [DrawingType.Customer] = new[]
                         {
-                            "T","F",
-                            "FD", "FL",
+                            "T",
                             "H",
                             "VBL",
-                            "RC", "CD", "GR", "GD",
                             "B","BF",
                             "G",
                             "VR",
@@ -115,12 +109,8 @@ namespace WAD.Runner.DrawingAutomation.Tables
                             "B","BF",
                             "G",
                             "VR",
-                            "W","VW","FR","BR","ERD","FLER","ERW",
+                            "W","VW","FR","BR","ERW",
                             "TL","TD","TDF",
-                            "FX",
-                            "GA",
-                            "GO",
-                            "T1",
                             "VFL",
                             "Y",
                             "ERW"
@@ -128,11 +118,9 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                         [DrawingType.Customer] = new[]
                         {
-                            "T","F",
-                            "FD", "FL",
+                            "T",
                             "H",
                             "VBL",
-                            "RC", "CD", "GR", "GD",
                             "B","BF",
                             "G",
                             "VR",
@@ -181,12 +169,8 @@ namespace WAD.Runner.DrawingAutomation.Tables
                             "B","BF",
                             "G",
                             "VR",
-                            "W","VW","FR","BR","ERD","FLER","ERW",
+                            "W","VW","FR","BR","ERW",
                             "TL","TD","TDF",
-                            "FX",
-                            "GA",
-                            "GO",
-                            "T1",
                             "VFL",
                             "Y",
                             "ERW"
@@ -194,11 +178,9 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                         [DrawingType.Customer] = new[]
                         {
-                            "T","F",
-                            "FD", "FL",
+                            "T",
                             "H",
                             "VBL",
-                            "RC", "CD", "GR", "GD",
                             "B","BF",
                             "G",
                             "VR",
@@ -221,6 +203,52 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         {
                             "W", "ISA",
                             "T", "FD"
+                        },
+
+                        [DrawingType.Overlay] = new[]
+                        {
+                            "TL", "TD", "TDF", "W", "ISA",
+                            "K",
+                            "BA"
+                        }
+                    }
+                },
+
+                [WedgeType.CKVD] = new Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>()
+                {
+
+                    [WedgeSubclass.FG] = new Dictionary<DrawingType, string[]>()
+                    {
+                        [DrawingType.Production] = new[]
+                        {
+                            "FL","F","B","GD","GR",
+                            "VR","W","VW",
+                            "FR","BR",
+                            "FX","X","E"
+                        },
+
+                        [DrawingType.Customer] = new[]
+                        {
+                            "FL","F","B","GD","GR",
+                            "VR","W","VW",
+                            "FR","BR",
+                            "FX","X","E"
+                        },
+
+                        [DrawingType.Overlay] = new[]
+                        {
+                            "TL", "TD", "TDF", "W", "ISA",
+                            "K","BA"
+                        }
+                    },
+
+
+                    [WedgeSubclass.PGB] = new Dictionary<DrawingType, string[]>()
+                    {
+                        [DrawingType.Production] = new[]
+                        {
+                            "W", "ISA",
+                            "T", "FL"
                         },
 
                         [DrawingType.Overlay] = new[]

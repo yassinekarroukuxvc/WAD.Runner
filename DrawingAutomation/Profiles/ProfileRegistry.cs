@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
@@ -9,11 +7,22 @@ namespace WAD.Runner.DrawingAutomation.Profiles;
 
 public static class ProfileRegistry
 {
-    private static readonly IReadOnlyDictionary<RegisteredDrawingProfileKey, DrawingProfile> Registry =
-        DrawingProfileCatalog
-            .CreateDefault()
-            .GroupBy(x => x.Key)
-            .ToDictionary(g => g.Key, g => g.Last().Profile);
+    private static readonly IReadOnlyDictionary<RegisteredDrawingProfileKey, DrawingProfile> Registry;
+
+    static ProfileRegistry()
+    {
+        var dict = new Dictionary<RegisteredDrawingProfileKey, DrawingProfile>();
+        foreach (var registration in DrawingProfileCatalog.CreateDefault())
+        {
+            if (dict.ContainsKey(registration.Key))
+                throw new InvalidOperationException(
+                    $"Duplicate drawing profile key: {registration.Key}. Each (WedgeType, Subclass, DrawingType) must be registered exactly once.");
+
+            dict[registration.Key] = registration.Profile;
+        }
+
+        Registry = dict;
+    }
 
     public static DrawingProfile Get(WedgeType wedgeType, WedgeSubclass subclass, DrawingType type)
     {

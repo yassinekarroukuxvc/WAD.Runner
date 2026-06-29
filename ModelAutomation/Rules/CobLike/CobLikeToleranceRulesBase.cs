@@ -157,7 +157,20 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
     }
 
     /// <summary>
-    /// Override this method in derived classes (like CobToleranceRules) to add 
+    /// Resolves the foot-width overlay sketch name to use for tolerance targets,
+    /// following the same logic as the feature rules: smallest of W, VW, W2.
+    /// </summary>
+    protected string ResolveFootWidthSketch(CobLikeRuleFacts facts)
+    {
+        var footOption = facts.FootOption;
+        var wVal = facts.GetNominalValue("W");
+        var vwVal = facts.GetNominalValue("VW");
+        var w2Val = facts.GetNominalValue("W2");
+        return CobLikeFeatureCatalog.FootWidthSketch(footOption, wVal, vwVal, w2Val);
+    }
+
+    /// <summary>
+    /// Override this method in derived classes (like CobToleranceRules) to add
     /// subclass-specific tolerance updates that are not shared across all CobLike rules.
     /// </summary>
     protected virtual void ApplySubclassSpecificTolerances(

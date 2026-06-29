@@ -14,7 +14,7 @@ using WAD.Runner.DataManagement.Domain.Validation;
 using WAD.Runner.DataManagement.Infrastructure.Parsing;
 
 using WAD.Runner.DrawingAutomation;
-using WAD.Runner.DrawingAutomation.Executors;
+using WAD.Runner.DrawingAutomation.Execution;
 
 using WAD.Runner.Solidworks.Adapters;
 using WAD.Runner.SolidWorks.Adapters;
@@ -303,7 +303,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                             "Job {JobId}: PGB Customer → FG Customer executor (temporary).",
                                             job.Id);
 
-                                        ProductionDrawingExecutor.Run(
+                                        DrawingAutomationExecutor.RunProduction(
                                             swDraw.App,
                                             run,
                                             drawingData,
@@ -315,12 +315,12 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                             "Job {JobId}: PGB Overlay → PGB Overlay executor.",
                                             job.Id);
 
-                                        OverlayDrawingExecutor.Run(
+                                        DrawingAutomationExecutor.RunOverlay(
                                             swDraw.App,
                                             run,
                                             drawingData,
                                             runModelAutomation,
-                                            plannedDims: null);
+                                            null);
                                         break;
 
                                     case DrawingType.Production:
@@ -329,7 +329,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                             "Job {JobId}: PGB Production → PGB Production executor.",
                                             job.Id);
 
-                                        ProductionDrawingExecutor.Run(
+                                        DrawingAutomationExecutor.RunProduction(
                                             swDraw.App,
                                             run,
                                             drawingData,
@@ -347,7 +347,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                             "Job {JobId}: FG Customer → FG Customer executor.",
                                             job.Id);
 
-                                        ProductionDrawingExecutor.Run(
+                                        DrawingAutomationExecutor.RunProduction(
                                             swDraw.App,
                                             run,
                                             drawingData,
@@ -359,12 +359,12 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                             "Job {JobId}: FG Overlay → FG Overlay executor.",
                                             job.Id);
 
-                                        OverlayDrawingExecutor.Run(
+                                        DrawingAutomationExecutor.RunOverlay(
                                             swDraw.App,
                                             run,
                                             drawingData,
                                             runModelAutomation,
-                                            plannedDims: null);
+                                            null);
                                         break;
 
                                     case DrawingType.Production:
@@ -373,7 +373,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                             "Job {JobId}: FG Production → FG Production executor.",
                                             job.Id);
 
-                                        ProductionDrawingExecutor.Run(
+                                        DrawingAutomationExecutor.RunProduction(
                                             swDraw.App,
                                             run,
                                             drawingData,

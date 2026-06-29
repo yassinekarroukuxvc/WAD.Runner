@@ -10,6 +10,6 @@ public sealed class FpFeatureRules : CobLikeFeatureRulesBase
 
     protected override void ApplyVariantAdjustments(CobLikeFacts facts, CobLikeShankType shank, FeatureRuleContext context, FeaturePlanBuilder plan)
     {
-        AddFeatureGroup(plan, "ROUND_BR", shank);
+        ActivateFeature(plan, "ROUND_BR", shank);
     }
 }
