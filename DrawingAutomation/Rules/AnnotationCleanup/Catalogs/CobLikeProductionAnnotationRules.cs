@@ -39,6 +39,7 @@ public sealed class CobLikeProductionAnnotationRules : AnnotationRuleCatalogBase
             Keep("COB-PROD-DETAIL-VRA", Detail, "VRA@ANNOT_LEFT_sketch", DimsPositive("VW", "VR"), "Legacy rule: VRA follows VW/VR, not VRA positivity."),
             Keep("COB-PROD-DETAIL-W2", Detail, "W2@ANNOT_LEFT_sketch", DimPositive("W2"), "Keep W2 only when W2 is positive."),
             Keep("COB-PROD-DETAIL-GA", Detail, "GA@ANNOT_FOOT_OPTIONS_LEFT_sketch", DimPositive("GA"), "Keep GA only when GA is positive."),
+            Keep("COB-PROD-DETAIL-CL", Detail, "CL@ANNOT_FOOT_OPTIONS_LEFT_sketch", DimPositive("CL"), "Keep CD only when CD is positive."),
             Keep("COB-PROD-DETAIL-CD", Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch", DimPositive("CD"), "Keep CD only when CD is positive."),
             Keep("COB-PROD-DETAIL-GD", Detail, "GD@ANNOT_FOOT_OPTIONS_LEFT_sketch", DimPositive("GD"), "Production only: keep GD when GD is positive."),
             Keep("COB-PROD-DETAIL-B", Detail, "B@ANNOT_FOOT_OPTIONS_LEFT_sketch", DimPositive("B"), "Production only: keep B when B is positive."),
@@ -59,9 +60,9 @@ public sealed class CobLikeProductionAnnotationRules : AnnotationRuleCatalogBase
             KeepOptionalOverride("COB-PROD-SECTION-ERD", Section, ctx => ctx.ErdAnnotationFullName, "ERD@{FrontSketch}", DimPositive("ERD"), "Production only: keep ERD when ERD is positive; use full-name override when supplied."),
 
             // SECTION VIEW - FL foot annotations. Legacy behavior: these are controlled by F, not FL.
-            Keep("COB-PROD-SECTION-FL-C", Section, "FL_C@{FrBrSketch}", All(DimPositive("TL"), FootIn(C, CC, C_WITH_CBR)), "Keep FL_C when F is positive and foot is C, CC, or C_WITH_CBR."),
-            Keep("COB-PROD-SECTION-FL-G", Section, "FL_G@{FrBrSketch}", All(DimPositive("TL"), FootIs(G)), "Keep FL_G when F is positive and foot is G."),
-            Keep("COB-PROD-SECTION-FL-VG", Section, "FL_VG@{FrBrSketch}", All(DimPositive("TL"), FootIs(VG)), "Keep FL_VG when F is positive and foot is VG."),
+            Keep("COB-PROD-SECTION-FL-C", Section, "FL_C@{FrBrSketch}", All(DimPositive("TL"), FootIn(C, CC, C_WITH_CBR)), "Keep FL_C when T is positive and foot is C, CC, or C_WITH_CBR."),
+            Keep("COB-PROD-SECTION-FL-G", Section, "FL_G@{FrBrSketch}", All(DimPositive("TL"), FootIs(G)), "Keep FL_G when T is positive and foot is G."),
+            Keep("COB-PROD-SECTION-FL-VG", Section, "FL_VG@{FrBrSketch}", All(DimPositive("TL"), FootIs(VG)), "Keep FL_VG when T is positive and foot is VG."),
 
             // SECTION VIEW - CG/CC dimensions
             Keep("COB-PROD-SECTION-G", Section, "G@{FrontSketch}", All(DimPositive("G"), FootIn(CG, CC)), "Keep G for CG/CC when G is positive."),

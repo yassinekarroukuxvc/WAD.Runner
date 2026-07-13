@@ -222,6 +222,16 @@ public static class CobLikeFeatureCatalog
     public const string VwLeftCase3 = "VW_LEFT_case_3_overlay_sketch";
     public const string VwLeftCase4 = "VW_LEFT_case_4_overlay_sketch";
 
+    public static IEnumerable<string> AllLeftOverlaySketches()
+    {
+        yield return LeftSketchPgb;
+        yield return LeftSketchFg;
+        yield return VwLeftCase1;
+        yield return VwLeftCase2;
+        yield return VwLeftCase3;
+        yield return VwLeftCase4;
+    }
+
     // -------------------------------------------------------------------------
     // ERW overlay sketches (FG only — mutually exclusive per shank)
     // -------------------------------------------------------------------------
@@ -308,13 +318,8 @@ public static class CobLikeFeatureCatalog
         foreach (var shank in new[] { CobLikeShankType.Std, CobLikeShankType.Rev180 })
             Add(AllFrontSketches(shank));
 
-        // Overlay: left sketches
-        names.Add(LeftSketchPgb);
-        names.Add(LeftSketchFg);
-        names.Add(VwLeftCase1);
-        names.Add(VwLeftCase2);
-        names.Add(VwLeftCase3);
-        names.Add(VwLeftCase4);
+        // Overlay: all left sketches
+        Add(AllLeftOverlaySketches());
 
         // Overlay: ERW sketches
         Add(AllErwOverlaySketches());

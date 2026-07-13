@@ -37,7 +37,6 @@ public sealed class CobLikeCustomerAnnotationRules : AnnotationRuleCatalogBase
             Keep("COB-CUST-DETAIL-VW", Detail, "VW@ANNOT_LEFT_sketch", DimsPositive("VW", "VR"), "Keep VW when both VW and VR are positive."),
             Keep("COB-CUST-DETAIL-VR", Detail, "VR@ANNOT_LEFT_sketch", DimsPositive("VW", "VR"), "Keep VR when both VW and VR are positive."),
             Keep("COB-CUST-DETAIL-VRA", Detail, "VRA@ANNOT_LEFT_sketch", DimsPositive("VW", "VR"), "Legacy rule: VRA follows VW/VR, not VRA positivity."),
-            Keep("COB-CUST-DETAIL-W2", Detail, "W2@ANNOT_LEFT_sketch", DimPositive("W2"), "Keep W2 only when W2 is positive."),
             Keep("COB-CUST-DETAIL-GA", Detail, "GA@ANNOT_FOOT_OPTIONS_LEFT_sketch", DimPositive("GA"), "Keep GA only when GA is positive."),
             Keep("COB-CUST-DETAIL-CD", Detail, "CD@ANNOT_FOOT_OPTIONS_LEFT_sketch", DimPositive("CD"), "Keep CD only when CD is positive."),
 
@@ -50,9 +49,9 @@ public sealed class CobLikeCustomerAnnotationRules : AnnotationRuleCatalogBase
             Keep("COB-CUST-SECTION-RA2", Section, "RA2@{FrontSketch}", DimPositive("RA2"), "Keep RA2 only when RA2 is positive."),
 
             // SECTION VIEW - FL foot annotations. Legacy behavior: these are controlled by F, not FL.
-            Keep("COB-CUST-SECTION-FL-C", Section, "FL_C@{FrontSketch}", All(DimPositive("F"), FootIn(C, CC, C_WITH_CBR)), "Keep FL_C when F is positive and foot is C, CC, or C_WITH_CBR."),
-            Keep("COB-CUST-SECTION-FL-G", Section, "FL_G@{FrontSketch}", All(DimPositive("F"), FootIs(G)), "Keep FL_G when F is positive and foot is G."),
-            Keep("COB-CUST-SECTION-FL-VG", Section, "FL_VG@{FrontSketch}", All(DimPositive("F"), FootIs(VG)), "Keep FL_VG when F is positive and foot is VG."),
+            Keep("COB-CUST-SECTION-FL-C", Section, "FL_C@{FrontSketch}", All(DimPositive("TL"), FootIn(C, CC, C_WITH_CBR)), "Keep FL_C when T is positive and foot is C, CC, or C_WITH_CBR."),
+            Keep("COB-CUST-SECTION-FL-G", Section, "FL_G@{FrontSketch}", All(DimPositive("TL"), FootIs(G)), "Keep FL_G when T is positive and foot is G."),
+            Keep("COB-CUST-SECTION-FL-VG", Section, "FL_VG@{FrontSketch}", All(DimPositive("TL"), FootIs(VG)), "Keep FL_VG when T is positive and foot is VG."),
 
             // SECTION VIEW - customer keeps only G for CG/CC. CGR/CGD are production-only.
             Keep("COB-CUST-SECTION-G", Section, "G@{FrontSketch}", All(DimPositive("G"), FootIn(CG, CC)), "Customer: keep G for CG/CC when G is positive."),

@@ -30,7 +30,7 @@ public sealed class FpToleranceRules : CobLikeToleranceRulesBase
 
             case CobLikeFootOption.G:
                 AddComputedBoundsMm(updates, facts, "GD", $"GD_MAX@{footSketch}", $"GD_MIN@{footSketch}");
-                AddComputedBoundsMm(updates, facts, "GO", $"GO_MAX@{footSketch}", $"GO_MIN@{footSketch}");
+                AddComputedBoundsMm(updates, facts, "GR", $"GO_MAX@{footSketch}", $"GR_MIN@{footSketch}");
                 break;
 
             case CobLikeFootOption.VG:

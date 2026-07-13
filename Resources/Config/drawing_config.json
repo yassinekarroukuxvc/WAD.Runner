@@ -132,7 +132,7 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 65, 0 ] },
+              "DimTable": { "PositionMm": [ 60, 0 ] },
               "HowToOrder": { "PositionMm": [ 196, 210 ] }
             },
 
@@ -173,7 +173,7 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 65, 0 ] },
+              "DimTable": { "PositionMm": [ 60, 0 ] },
               "HowToOrder": { "PositionMm": [ 196, 210 ] }
             },
 
@@ -214,7 +214,7 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 65, 0 ] },
+              "DimTable": { "PositionMm": [ 60, 0 ] },
               "HowToOrder": { "PositionMm": [ 196, 210 ] }
             },
 
@@ -290,7 +290,7 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 65, 0 ] },
+              "DimTable": { "PositionMm": [ 60, 0 ] },
               "HowToOrder": { "PositionMm": [ 196, 210 ] }
             },
 
@@ -331,7 +331,7 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 65, 0 ] },
+              "DimTable": { "PositionMm": [ 60, 0 ] },
               "HowToOrder": { "PositionMm": [ 196, 210 ] }
             },
 
@@ -372,7 +372,7 @@
 
             "Tables": {
               "TitleBlock": { "PositionMm": [ 15, 15 ] },
-              "DimTable": { "PositionMm": [ 65, 0 ] },
+              "DimTable": { "PositionMm": [ 60, 0 ] },
               "HowToOrder": { "PositionMm": [ 196, 210 ] }
             },
 

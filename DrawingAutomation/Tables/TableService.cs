@@ -364,7 +364,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
             string header,
             double fontSizeM,
             double charWidthRatio = 0.60,
-            double paddingMm = 8.0)
+            double paddingMm = 1.0)
         {
             int maxChars = string.IsNullOrEmpty(header) ? 0 : header.Length;
             foreach (var r in rows)

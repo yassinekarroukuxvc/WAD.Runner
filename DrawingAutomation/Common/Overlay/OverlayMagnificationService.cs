@@ -30,7 +30,7 @@ namespace WAD.Runner.DrawingAutomation.Common.Overlay
             "W", "FD", "T", "VBL", "VBLR", "VW", "VR", "VRR", "RA2H", "RA", "RA2",
             "TL", "TD", "TDF", "CGR", "G", "CGD", "FRO", "CR", "RC", "CD", "GR", "GD",
             "B", "MB", "H", "FNO", "FL", "ERL", "ERD", "CBRL", "CBRD", "FLC", "CL",
-            "MI", "Y", "ERW", "FLER", "MFL", "BF", "FR", "CBL"
+            "MI", "Y", "ERW", "FLER", "MFL", "BF", "FR", "CBL","HA","FNA"
         };
 
         private static readonly string[] CkvdOverlayDimensionKeys =

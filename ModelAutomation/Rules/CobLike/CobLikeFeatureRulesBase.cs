@@ -91,11 +91,12 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
     {
         plan.Activate(CobLikeFeatureCatalog.OverlayCommon());
         plan.Activate(CobLikeFeatureCatalog.PgbFrontOverlayFeature(shank));
+
         plan.Activate(facts.HasVr
             ? CobLikeFeatureCatalog.OverlayCutNonStandard()
             : CobLikeFeatureCatalog.OverlayCutStandard());
 
-        plan.Activate(ResolveLeftSketch(facts, pgb: true));
+        ActivateLeftSketch(plan, facts, pgb: true);
         ActivateFrontSketch(plan, facts, shank);
     }
 
@@ -134,14 +135,16 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         CobLikeFootOption foot)
     {
         plan.Activate(CobLikeFeatureCatalog.OverlayCommon());
+
         plan.Activate(facts.HasVr
             ? CobLikeFeatureCatalog.OverlayCutNonStandard()
-            : new[] { "cut_feature" });
+            : CobLikeFeatureCatalog.OverlayCutStandard());
 
-        plan.Activate(ResolveLeftSketch(facts, pgb: false));
+        
         ActivateFrontSketch(plan, facts, shank);
         ActivateErwOverlaySketch(plan, shank);
         ActivateFootWidthSketch(plan, facts, foot);
+        ActivateLeftSketch(plan, facts, pgb: false);
     }
 
     // =========================================================================
@@ -159,7 +162,12 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         var slb = CobLikeFeatureCatalog.SlbSketch(shank);
         var ra2hSlb = CobLikeFeatureCatalog.Ra2HSlbSketch(shank);
 
-        var active = (facts.HasRa2H, facts.HasVbl) switch
+        // Keep this consistent with BuildFgPlan(), where the SLB feature is activated
+        // from the VBL dimension.
+        var hasVbl = facts.IsPositive("VBL");
+        var hasRa2H = facts.HasRa2H;
+
+        var active = (hasRa2H, hasVbl) switch
         {
             (true, true) => ra2hSlb,
             (true, false) => ra2h,
@@ -167,7 +175,26 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
             (false, false) => front,
         };
 
+        Logger.Info(
+            $"[CobLikeFeatureRules] Front overlay sketch selection — " +
+            $"RA2H={hasRa2H}, VBL={hasVbl}, active={active}");
+
         foreach (var sketch in CobLikeFeatureCatalog.AllFrontSketches(shank))
+        {
+            if (string.Equals(sketch, active, StringComparison.OrdinalIgnoreCase))
+                plan.Activate(sketch);
+            else
+                plan.Deactivate(sketch);
+        }
+    }
+    /// <summary>
+    /// Activates exactly one left overlay sketch and deactivates the other left overlay sketches.
+    /// </summary>
+    private static void ActivateLeftSketch(FeaturePlanBuilder plan, CobLikeFacts facts, bool pgb)
+    {
+        var active = ResolveLeftSketch(facts, pgb);
+
+        foreach (var sketch in CobLikeFeatureCatalog.AllLeftOverlaySketches())
         {
             if (string.Equals(sketch, active, StringComparison.OrdinalIgnoreCase))
                 plan.Activate(sketch);
@@ -182,7 +209,10 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
     private static string ResolveLeftSketch(CobLikeFacts facts, bool pgb)
     {
         if (!facts.HasVw)
+        {
+            Logger.Blue("Activating PGB/FG Left Overlay Sketch");
             return pgb ? CobLikeFeatureCatalog.LeftSketchPgb : CobLikeFeatureCatalog.LeftSketchFg;
+        }
 
         if (facts.HasLargeOverlayVrCase)
             return facts.AreEqual("VW", "W")

@@ -14,6 +14,11 @@ internal static class UtusDimensionRules
     private const string Detail = "Detail";
     private const string Section = "Section";
 
+    // SHEET SIZE
+    private const double SheetWidthMm = 276.0;
+    private const double SheetHeightMm = 213.0;
+    private const double EdgeMarginMm = 10.0;
+
     public static List<DimensionSpec> Build(LayoutContext ctx, PlannerDiagnostics diag)
     {
         var dims = new List<DimensionSpec>();
@@ -135,19 +140,19 @@ internal static class UtusDimensionRules
             D[0], bandMidY + (VR + VRR) * dsv);
 
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
-            D[0], bandMidY - 25);
-
-        PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal,
-            D[0], bandMidY - 5);
-
-        PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal,
             D[0], bandMidY - 15);
 
+        PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal,
+            D[0], bandMidY - 3);
+
+        PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal,
+            D[0], bandMidY - 9);
+
         PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal,
-            D[0], bandMidY - 10);
+            D[0], bandMidY - 6);
 
         PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal,
-            D[0], bandMidY - 20);
+            D[0], bandMidY - 12);
 
         PlaceDim(ctx, diag, outList, "GD", Detail, DimAxis.Vertical,
             D[0] + (W / 2.0 * dsv) + 10.0, bandMidY + dsv * GD / 2.0);
@@ -213,52 +218,61 @@ internal static class UtusDimensionRules
         var RA2 = LayoutMath.Ddeg(ctx, "RA2");
 
         PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FL / 2 * scv, bandMidY - 25);
+            Sec[0] - (TDF / 2) * scv + FL / 2 * scv, bandMidY - 15);
+
+        PlaceDim(ctx, diag, outList, "FL_C", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + FR + FD / 2 * scv, bandMidY - 3);
+
+        PlaceDim(ctx, diag, outList, "FL_G", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + FR + FD / 2 * scv, bandMidY - 3);
+
+        PlaceDim(ctx, diag, outList, "FL_VG", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + FR + FD / 2 * scv, bandMidY - 3);
 
         PlaceDim(ctx, diag, outList, "G", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + G / 2 * scv, bandMidY - 20);
+            Sec[0] - (TDF / 2) * scv + G / 2 * scv, bandMidY - 12);
 
         PlaceDim(ctx, diag, outList, "FR_C", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 5);
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 3);
 
         PlaceDim(ctx, diag, outList, "FR_VG", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 5);
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 3);
 
         PlaceDim(ctx, diag, outList, "FR_CG", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 5);
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 3);
 
         PlaceDim(ctx, diag, outList, "FR_G", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 5);
+            Sec[0] - (TDF / 2) * scv - 10, bandMidY - 3);
 
         PlaceDim(ctx, diag, outList, "BR_C", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 5);
+            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 3);
 
         PlaceDim(ctx, diag, outList, "BR_VG", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 5);
+            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 3);
 
         PlaceDim(ctx, diag, outList, "BR_CG", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 5);
+            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 3);
 
         PlaceDim(ctx, diag, outList, "BR_G", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 5);
+            Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 3);
 
         PlaceDim(ctx, diag, outList, "FRO", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv - 10, bandMidY);
 
         PlaceDim(ctx, diag, outList, "ERL", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY - 35);
+            Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY - 21);
 
         PlaceDim(ctx, diag, outList, "FD", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FD / 2 * scv, bandMidY - 30);
+            Sec[0] - (TDF / 2.0) * scv + (FD / 2.0) * scv, bandMidY - 18.0);
 
         PlaceDim(ctx, diag, outList, "T", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T / 2 * scv, bandMidY - 40);
+            Sec[0] - (TDF / 2) * scv + T / 2 * scv, bandMidY - 24);
 
         PlaceDim(ctx, diag, outList, "ERD", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv + 10, bandMidY + ERD * scv / 2);
 
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + T * scv * (Math.Tan(HA * (Math.PI / 180.0))));
+            Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + ((T - FD) * scv) * (Math.Tan(HA * (Math.PI / 180.0))));
 
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + (((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2);
@@ -267,25 +281,28 @@ internal static class UtusDimensionRules
             Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY + ERD / 2 * scv);
 
         PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv + 25, bandMidY + T * scv * (Math.Tan(HA * (Math.PI / 180.0))) + 10);
+            Sec[0] - (TDF / 2) * scv + T * scv + 25, bandMidY + ((T - FD) * scv) * (Math.Tan(HA * (Math.PI / 180.0))) + 10);
 
         PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv + 20, bandMidY + 10);
+
+        PlaceDim(ctx, diag, outList, "CBRA", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + T * scv + 23, bandMidY + 10);
 
         PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv + 20, bandMidY + (((T - FD) * scv) * Math.Tan((RA + RA2) * (Math.PI / 180.0))) / 2);
 
         PlaceDim(ctx, diag, outList, "F_C", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 15);
+            Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 9);
 
         PlaceDim(ctx, diag, outList, "F_G", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 15);
+            Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 9);
 
         PlaceDim(ctx, diag, outList, "F_VG", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 15);
+            Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 9);
 
         PlaceDim(ctx, diag, outList, "CBRL", Section, DimAxis.Horizontal,
-            180, bandMidY - 10);
+            180, bandMidY - 6);
 
         PlaceDim(ctx, diag, outList, "CGD", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv - 10, bandMidY + CGD / 2 * scv);
@@ -313,8 +330,6 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "E", Side, DimAxis.Horizontal, 75, 3.0);
         PlaceDim(ctx, diag, outList, "X", Side, DimAxis.Horizontal, 76.2, 14.732);
         PlaceDim(ctx, diag, outList, "FX", Side, DimAxis.Horizontal, 76.2, 14.732);
-
-        PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal, 152.4, 13.462);
 
         var FAdeg = LayoutMath.TryDdeg(ctx, "FA");
         PlaceDim(ctx, diag, outList, "FA", Side, DimAxis.Horizontal,
@@ -360,6 +375,8 @@ internal static class UtusDimensionRules
             return;
         }
 
+        var pos = ClampToSheet(diag, view, key, x, y);
+
         if (!ctx.TryGetDim(key, out var d))
         {
             diag.MissingDimension(key);
@@ -368,7 +385,7 @@ internal static class UtusDimensionRules
                 Id = $"{view}:{key}",
                 View = view,
                 Key = new DimensionKey(key),
-                PositionMm = new[] { x, y },
+                PositionMm = pos,
                 Axis = axis,
                 Nominal = Quantity.MmOf(0.01m),
                 Tol = default,
@@ -387,7 +404,7 @@ internal static class UtusDimensionRules
             Id = $"{view}:{key}",
             View = view,
             Key = d.Key,
-            PositionMm = new[] { x, y },
+            PositionMm = pos,
             Axis = axis,
             Nominal = d.Nominal,
             Tol = d.Tol,
@@ -409,4 +426,37 @@ internal static class UtusDimensionRules
                comment,
                @"\bMIN\b",
                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static double[] ClampToSheet(
+        PlannerDiagnostics diag,
+        string view,
+        string key,
+        double x,
+        double y)
+    {
+        double minX = EdgeMarginMm;
+        double maxX = SheetWidthMm - EdgeMarginMm;
+        double minY = EdgeMarginMm;
+        double maxY = SheetHeightMm - EdgeMarginMm;
+
+        double cx = x;
+        double cy = y;
+
+        // Guard against Math.Tan(angle) blowing up near 90 degrees, or any NaN from bad input.
+        if (double.IsNaN(cx) || double.IsInfinity(cx)) cx = SheetWidthMm / 2.0;
+        if (double.IsNaN(cy) || double.IsInfinity(cy)) cy = SheetHeightMm / 2.0;
+
+        cx = Math.Clamp(cx, minX, maxX);
+        cy = Math.Clamp(cy, minY, maxY);
+
+        if (cx != x || cy != y)
+        {
+            diag.Suspicious(
+                "PLN010",
+                $"{view}:{key} position ({x:F1},{y:F1}) was outside sheet bounds " +
+                $"({SheetWidthMm}x{SheetHeightMm}mm) - clamped to ({cx:F1},{cy:F1}).");
+        }
+
+        return new[] { cx, cy };
+    }
 }
