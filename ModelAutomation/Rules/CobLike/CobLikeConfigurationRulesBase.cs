@@ -68,9 +68,9 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
     protected virtual IReadOnlyList<FeatureToggleStep> BuildOverlaySteps()
         => new[]
         {
-            ConfigurationPlanFactory.Step("Default", "default_config"),
-            ConfigurationPlanFactory.Step("std_cut", "std_cut"),
-            ConfigurationPlanFactory.Step("non_std_cut", "non_std_cut")
+            ConfigurationPlanFactory.Step("Default", OverlayCutProfiles.DefaultConfiguration),
+            ConfigurationPlanFactory.Step("std_cut", OverlayCutProfiles.StandardCut),
+            ConfigurationPlanFactory.Step("non_std_cut", OverlayCutProfiles.NonStandardCut)
         };
 
     private ConfigurationPlan Build(

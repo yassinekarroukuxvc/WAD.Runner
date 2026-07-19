@@ -12,10 +12,12 @@ public sealed class FpToleranceRules : CobLikeToleranceRulesBase
 
     protected override void ApplySubclassSpecificTolerances(
         List<ToleranceUpdate> updates,
-        CobLikeRuleFacts facts,
+        CobLikeFacts facts,
         WedgeSubclass subclass)
     {
-        var footOption = facts.ResolveFootOption();
+        if (subclass != WedgeSubclass.FG) return;
+
+        var footOption = facts.FootOption;
 
         // Resolve the foot-width sketch (smallest of W / VW / W2 for this foot option).
         var footSketch = ResolveFootWidthSketch(facts);
@@ -30,7 +32,7 @@ public sealed class FpToleranceRules : CobLikeToleranceRulesBase
 
             case CobLikeFootOption.G:
                 AddComputedBoundsMm(updates, facts, "GD", $"GD_MAX@{footSketch}", $"GD_MIN@{footSketch}");
-                AddComputedBoundsMm(updates, facts, "GR", $"GO_MAX@{footSketch}", $"GR_MIN@{footSketch}");
+                AddComputedBoundsMm(updates, facts, "GR", $"GR_MAX@{footSketch}", $"GR_MIN@{footSketch}");
                 break;
 
             case CobLikeFootOption.VG:

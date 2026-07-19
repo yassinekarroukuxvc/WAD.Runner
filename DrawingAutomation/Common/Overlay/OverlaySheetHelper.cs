@@ -14,12 +14,9 @@ using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 using WAD.Runner.DrawingAutomation.Common;
-using WAD.Runner.DrawingAutomation.Metadata;
-using WAD.Runner.DrawingAutomation.Overlay;
+using WAD.Runner.DrawingAutomation.Core;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.SolidWorks;
-using WAD.Runner.DrawingAutomation.Tables;
-using WAD.Runner.DrawingAutomation.Views;
 
 namespace WAD.Runner.DrawingAutomation.Common.Overlay
 {
@@ -40,19 +37,27 @@ namespace WAD.Runner.DrawingAutomation.Common.Overlay
             Logger.Info("[Open] Open + relink overlay drawing…");
             var ds = DrawingExecutorCommon.InitializeAndRelink(swApp, run);
 
-            Logger.Info("[Sheet] Activate overlay sheet via profile…");
-            var availableSheets = ds.GetSheetNames();
-            var sheetName = profile.SheetSelector(availableSheets);
+            try
+            {
+                Logger.Info("[Sheet] Activate overlay sheet via profile…");
+                var availableSheets = ds.GetSheetNames();
+                var sheetName = profile.SheetSelector(availableSheets);
 
-            TryActivateSheet(ds, sheetName);
+                TryActivateSheet(ds, sheetName);
 
-            Logger.Info("[Sheet] Delete non-target sheets…");
-            DeleteAllSheetsExcept(ds, sheetName);
+                Logger.Info("[Sheet] Delete non-target sheets…");
+                DeleteAllSheetsExcept(ds, sheetName);
 
-            ds.ZoomToSheet();
+                ds.ZoomToSheet();
 
-            nameMap = ProfileHelpers.ToNameMap(profile);
-            return ds;
+                nameMap = DrawingViewNameMap.FromProfile(profile);
+                return ds;
+            }
+            catch
+            {
+                ds.Close();
+                throw;
+            }
         }
 
         public static void TryActivateSheet(DrawingService ds, string sheetName)

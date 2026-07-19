@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DrawingAutomation.Core;
 
 namespace WAD.Runner.DrawingAutomation.Overlay;
 
@@ -209,18 +210,8 @@ public static class DrawingViewConfigBinder
         => Regex.Replace(s ?? string.Empty, @"\s+", " ").Trim().ToLowerInvariant();
 
     private static bool IsOverlayCutWedgeType(WedgeType? wedgeType)
-    {
-        if (wedgeType is null)
-            return false;
-
-        var name = wedgeType.Value.ToString()
-            .Replace("/", "")
-            .Replace("_", "")
-            .Replace("-", "")
-            .ToUpperInvariant();
-
-        return name is "COB" or "FP" or "UTUS";
-    }
+        => wedgeType is not null &&
+           DrawingWedgeBehaviorCatalog.Get(wedgeType.Value).Family == DrawingWedgeFamily.CobLike;
 
 
     private static string GetConfigNameForLogicalView(

@@ -14,18 +14,37 @@ public sealed class DrawingPipelineRouter
 
     public DrawingPipelineRouter(IEnumerable<IDrawingPipeline>? pipelines = null)
     {
-        _pipelines = (pipelines ?? DefaultPipelines()).ToList();
+        _pipelines = (pipelines ?? DefaultPipelines())
+            .Where(pipeline => pipeline is not null)
+            .ToArray();
+
+        if (_pipelines.Count == 0)
+            throw new ArgumentException("At least one drawing pipeline must be registered.", nameof(pipelines));
     }
 
     public void Run(DrawingAutomationContext context)
     {
         if (context is null) throw new ArgumentNullException(nameof(context));
 
-        var pipeline = _pipelines.FirstOrDefault(p => p.CanHandle(context));
-        if (pipeline is null)
-            throw new NotSupportedException($"No drawing pipeline registered for '{context.DrawingData.DrawingType}'.");
+        var matches = _pipelines
+            .Where(pipeline => pipeline.CanHandle(context))
+            .Take(2)
+            .ToArray();
 
-        pipeline.Run(context);
+        if (matches.Length == 0)
+        {
+            throw new NotSupportedException(
+                $"No drawing pipeline is registered for '{context.DrawingData.DrawingType}'.");
+        }
+
+        if (matches.Length > 1)
+        {
+            throw new InvalidOperationException(
+                $"More than one drawing pipeline can handle '{context.DrawingData.DrawingType}'. " +
+                "Pipeline conditions must be mutually exclusive.");
+        }
+
+        matches[0].Run(context);
     }
 
     private static IEnumerable<IDrawingPipeline> DefaultPipelines()

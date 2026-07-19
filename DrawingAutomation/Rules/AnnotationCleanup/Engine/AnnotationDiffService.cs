@@ -15,9 +15,14 @@ public sealed class AnnotationDiffService
     {
         var results = new List<AnnotationDeletionTarget>();
 
-        foreach (var kv in existingByView ?? new Dictionary<string, IReadOnlyCollection<string>>())
+        var safeExistingByView =
+            existingByView ??
+            new Dictionary<string, IReadOnlyCollection<string>>();
+
+        foreach (var kv in safeExistingByView)
         {
             var viewName = kv.Key;
+
             var existing = kv.Value?
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x.Trim())
@@ -28,8 +33,26 @@ public sealed class AnnotationDiffService
             if (existing.Count == 0)
                 continue;
 
+            /*
+             * This variable must be declared before TryGetValue.
+             *
+             * Using:
+             *
+             * keepExpectedByView?.TryGetValue(
+             *     viewName,
+             *     out var keepExpectedRaw);
+             *
+             * can leave keepExpectedRaw unassigned when
+             * keepExpectedByView is null.
+             */
             IReadOnlyCollection<string>? keepExpectedRaw = null;
-            keepExpectedByView?.TryGetValue(viewName, out keepExpectedRaw);
+
+            if (keepExpectedByView is not null)
+            {
+                keepExpectedByView.TryGetValue(
+                    viewName,
+                    out keepExpectedRaw);
+            }
 
             var keepExpected = keepExpectedRaw?
                 .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -39,26 +62,60 @@ public sealed class AnnotationDiffService
                 ?? new List<string>();
 
             var matcher = new SmartAnnotationMatcher(existing);
-            var keepActual = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var keepActual =
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var expected in keepExpected)
             {
-                if (matcher.TryFindExistingMatch(expected, out var actual))
+                foreach (var actual in matcher.FindExistingMatches(expected))
+                {
                     keepActual.Add(actual);
+                }
+            }
+
+            /*
+             * Fail closed when keep rules exist for the view but none
+             * match the current drawing template.
+             *
+             * This protects against deleting every annotation after a
+             * template dimension has been renamed.
+             */
+            if (keepExpected.Count > 0 && keepActual.Count == 0)
+            {
+                Logger.Warn(
+                    $"[AnnotationDiff] View '{viewName}' has " +
+                    $"{existing.Count} existing dimensions and " +
+                    $"{keepExpected.Count} expected keep names, but zero matches. " +
+                    "Cleanup for this view was skipped to prevent destructive deletion.");
+
+                continue;
             }
 
             foreach (var actual in existing)
             {
                 if (!keepActual.Contains(actual))
-                    results.Add(new AnnotationDeletionTarget(viewName, actual));
+                {
+                    results.Add(
+                        new AnnotationDeletionTarget(
+                            viewName,
+                            actual));
+                }
             }
         }
 
+        var distinctResults = results
+            .GroupBy(
+                x =>
+                    x.ViewName.Trim() +
+                    "||" +
+                    x.AnnotationFullName.Trim(),
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+
         return new ReadOnlyCollection<AnnotationDeletionTarget>(
-            results
-                .GroupBy(x => NormalizeName(x.ViewName) + "||" + NormalizeName(x.AnnotationFullName), StringComparer.OrdinalIgnoreCase)
-                .Select(g => g.First())
-                .ToList());
+            distinctResults);
     }
 
     public void DumpDeletionPlan(
@@ -67,36 +124,52 @@ public sealed class AnnotationDiffService
         string tagPrefix,
         int maxPerView = 200)
     {
-        if (deletions == null)
+        if (deletions is null)
         {
-            Logger.Warn($"[{tagPrefix}.PlanDump] {title}: deletions list is NULL.");
+            Logger.Warn(
+                $"[{tagPrefix}.PlanDump] {title}: deletions list is NULL.");
+
             return;
         }
 
-        Logger.Info($"[{tagPrefix}.PlanDump] {title}: total deletions planned = {deletions.Count}");
+        Logger.Info(
+            $"[{tagPrefix}.PlanDump] {title}: " +
+            $"total deletions planned = {deletions.Count}");
 
         if (deletions.Count == 0)
             return;
 
         var byView = deletions
-            .GroupBy(d => d.ViewName, StringComparer.OrdinalIgnoreCase)
-            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(
+                deletion => deletion.ViewName,
+                StringComparer.OrdinalIgnoreCase)
+            .OrderBy(
+                group => group.Key,
+                StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         foreach (var group in byView)
         {
-            Logger.Info($"[{tagPrefix}.PlanDump] View '{group.Key}' planned deletions = {group.Count()}");
+            Logger.Info(
+                $"[{tagPrefix}.PlanDump] View '{group.Key}' " +
+                $"planned deletions = {group.Count()}");
 
-            var i = 0;
+            var count = 0;
+
             foreach (var deletion in group)
             {
-                if (i++ >= maxPerView)
+                if (count++ >= maxPerView)
                 {
-                    Logger.Info($"[{tagPrefix}.PlanDump]   ... truncated (maxPerView={maxPerView})");
+                    Logger.Info(
+                        $"[{tagPrefix}.PlanDump]   ... truncated " +
+                        $"(maxPerView={maxPerView})");
+
                     break;
                 }
 
-                Logger.Info($"[{tagPrefix}.PlanDump]   - {deletion.AnnotationFullName}");
+                Logger.Info(
+                    $"[{tagPrefix}.PlanDump]   - " +
+                    deletion.AnnotationFullName);
             }
         }
     }
@@ -106,93 +179,135 @@ public sealed class AnnotationDiffService
         string tagPrefix,
         int maxPerView = 250)
     {
-        foreach (var kv in existingByView ?? new Dictionary<string, IReadOnlyCollection<string>>())
+        var safeExistingByView =
+            existingByView ??
+            new Dictionary<string, IReadOnlyCollection<string>>();
+
+        foreach (var kv in safeExistingByView)
         {
             var list = kv.Value?.ToList() ?? new List<string>();
-            Logger.Info($"[{tagPrefix}.ExistingDump] View '{kv.Key}' existing DIM full-names = {list.Count}");
 
-            var i = 0;
+            Logger.Info(
+                $"[{tagPrefix}.ExistingDump] View '{kv.Key}' " +
+                $"existing DIM full-names = {list.Count}");
+
+            var count = 0;
+
             foreach (var fullName in list)
             {
-                if (i++ >= maxPerView)
+                if (count++ >= maxPerView)
                 {
-                    Logger.Info($"[{tagPrefix}.ExistingDump]   ... truncated (maxPerView={maxPerView})");
+                    Logger.Info(
+                        $"[{tagPrefix}.ExistingDump]   ... truncated " +
+                        $"(maxPerView={maxPerView})");
+
                     break;
                 }
 
-                Logger.Info($"[{tagPrefix}.ExistingDump]   - {fullName}");
+                Logger.Info(
+                    $"[{tagPrefix}.ExistingDump]   - {fullName}");
             }
         }
     }
 
     private sealed class SmartAnnotationMatcher
     {
-        private readonly Dictionary<string, string> _normalizedToActual;
+        private readonly IReadOnlyDictionary<
+            string,
+            IReadOnlyList<string>> _identityToActual;
+
+        private readonly IReadOnlyDictionary<
+            string,
+            IReadOnlyList<string>> _dimensionToActual;
 
         public SmartAnnotationMatcher(IEnumerable<string> existing)
         {
-            _normalizedToActual = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var actuals = (existing ?? Array.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            foreach (var actual in existing.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()))
-            {
-                _normalizedToActual.TryAdd(NormalizeName(actual), actual);
-            }
+            _identityToActual = actuals
+                .GroupBy(
+                    AnnotationNameIdentity.Normalize,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                        (IReadOnlyList<string>)group
+                            .ToList()
+                            .AsReadOnly(),
+                    StringComparer.OrdinalIgnoreCase);
+
+            _dimensionToActual = actuals
+                .GroupBy(
+                    AnnotationNameIdentity.GetDimensionName,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                        (IReadOnlyList<string>)group
+                            .ToList()
+                            .AsReadOnly(),
+                    StringComparer.OrdinalIgnoreCase);
         }
 
-        public bool TryFindExistingMatch(string expected, out string actual)
+        public IReadOnlyCollection<string> FindExistingMatches(
+            string expected)
         {
-            actual = string.Empty;
             if (string.IsNullOrWhiteSpace(expected))
-                return false;
+                return Array.Empty<string>();
 
-            var normalized = NormalizeName(expected);
-            if (_normalizedToActual.TryGetValue(normalized, out actual))
-                return true;
+            var matches =
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var variant in GenerateCandidateNames(expected))
+            foreach (
+                var identity in
+                AnnotationNameIdentity.GetSafeCandidateIdentities(expected))
             {
-                if (_normalizedToActual.TryGetValue(NormalizeName(variant), out actual))
-                    return true;
+                if (!_identityToActual.TryGetValue(
+                        identity,
+                        out var actuals))
+                {
+                    continue;
+                }
+
+                foreach (var actual in actuals)
+                {
+                    matches.Add(actual);
+                }
             }
 
-            return false;
+            if (matches.Count > 0)
+            {
+                return matches
+                    .ToList()
+                    .AsReadOnly();
+            }
+
+            /*
+             * Compatibility fallback:
+             *
+             * Preserve an annotation by its short dimension name only
+             * when that short name occurs exactly once in the view.
+             *
+             * We never guess when multiple annotations share the same
+             * dimension name.
+             */
+            var dimensionName =
+                AnnotationNameIdentity.GetDimensionName(expected);
+
+            if (!string.IsNullOrWhiteSpace(dimensionName) &&
+                _dimensionToActual.TryGetValue(
+                    dimensionName,
+                    out var sameName) &&
+                sameName.Count == 1)
+            {
+                return sameName;
+            }
+
+            return Array.Empty<string>();
         }
-    }
-
-    private static IEnumerable<string> GenerateCandidateNames(string expectedFullName)
-    {
-        yield return expectedFullName;
-
-        if (expectedFullName.EndsWith("_sketch", StringComparison.OrdinalIgnoreCase))
-            yield return expectedFullName[..^"_sketch".Length];
-
-        var at = expectedFullName.IndexOf('@');
-        if (at > 0 && at < expectedFullName.Length - 1)
-        {
-            var key = expectedFullName[..at];
-            var sketch = expectedFullName[(at + 1)..];
-
-            if (sketch.EndsWith("_sketch", StringComparison.OrdinalIgnoreCase))
-                yield return key + "@" + sketch[..^"_sketch".Length];
-
-            if (sketch.Contains("_FRONT_FRONT_", StringComparison.OrdinalIgnoreCase))
-                yield return key + "@" + sketch.Replace("_FRONT_FRONT_", "_FRONT_", StringComparison.OrdinalIgnoreCase);
-        }
-
-        if (expectedFullName.Contains("_FRONT_FRONT_", StringComparison.OrdinalIgnoreCase))
-            yield return expectedFullName.Replace("_FRONT_FRONT_", "_FRONT_", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeName(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return string.Empty;
-
-        var noSpaces = new string(value.Trim().Where(c => !char.IsWhiteSpace(c)).ToArray());
-        var parts = noSpaces.Split('@');
-        if (parts.Length >= 2)
-            noSpaces = parts[0] + "@" + parts[1];
-
-        return noSpaces.ToUpperInvariant();
     }
 }

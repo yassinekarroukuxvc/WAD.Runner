@@ -29,6 +29,9 @@ public static class DrawingAutomationExecutor
         if (drawingData is null) throw new ArgumentNullException(nameof(drawingData));
         if (runPartAutomation is null) throw new ArgumentNullException(nameof(runPartAutomation));
 
+        DrawingRunValidator.Validate(run);
+        _ = DrawingWedgeBehaviorCatalog.Get(run.WedgeType);
+
         var profile = DrawingProfileResolver.Resolve(run, drawingData);
         Logger.Info($"[DrawingAutomation] Profile = {profile.ProfileName} ({run.WedgeType}/{run.Wedge.Subclass}/{drawingData.DrawingType})");
 

@@ -1,206 +1,383 @@
 using System;
 using System.Collections.Generic;
-
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using WAD.Runner.ModelAutomation.Rules.Common;
+using WAD.Runner.ModelAutomation.Core;
 using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.Rules.OSG7;
 
 public sealed class Osg7ToleranceRules : IToleranceRuleSet
 {
-    private const decimal PositiveEpsilonMm = 0.000001m;
-    private const string LogPrefix = nameof(Osg7ToleranceRules);
-
-    public TolerancePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
+    public TolerancePlan Build(
+        WedgeData wedge,
+        DrawingType drawingType,
+        WedgeSubclass subclass)
     {
         if (wedge is null)
             throw new ArgumentNullException(nameof(wedge));
 
         if (drawingType != DrawingType.Overlay)
-        {
-            Logger.Info($"[Osg7ToleranceRules] {drawingType} drawing -> no overlay tolerance updates.");
             return TolerancePlan.Empty;
-        }
 
+        var facts = new WedgeFacts(wedge);
         var updates = new List<ToleranceUpdate>();
 
         if (subclass == WedgeSubclass.PGB)
-            BuildPgbOverlayRules(wedge, updates);
+        {
+            BuildPgbOverlayRules(
+                facts,
+                updates);
+        }
         else
-            BuildFgOverlayRules(wedge, updates);
+        {
+            BuildFgOverlayRules(
+                facts,
+                updates);
+        }
 
-        Logger.Info($"[Osg7ToleranceRules] Planned updates={updates.Count} (Subclass={subclass}, DrawingType={drawingType})");
+        Logger.Info(
+            $"[Osg7ToleranceRules] Planned updates={updates.Count} " +
+            $"(Subclass={subclass}, DrawingType={drawingType}).");
 
         return updates.Count == 0
             ? TolerancePlan.Empty
             : new TolerancePlan(updates);
     }
 
-    private static void BuildPgbOverlayRules(WedgeData wedge, List<ToleranceUpdate> updates)
+    private static void BuildPgbOverlayRules(
+        WedgeFacts facts,
+        List<ToleranceUpdate> updates)
     {
-        AddHalfTolPairMm(
+        /*
+         * Updated PGB FL targets:
+         *
+         * FL_MIN@PGB_FL_overlay_sketch
+         * FL_MAX@PGB_FL_overlay_sketch
+         *
+         * These targets receive the complete
+         * minimum and maximum FL values.
+         */
+        AddStandardBounds(
             updates,
-            wedge,
-            dimKey: "FL",
-            utolTarget: "FL_UTOL@PGB_FL_overlay_sketch",
-            ltolTarget: "FL_LTOL@PGB_FL_overlay_sketch");
+            facts,
+            dimensionKey: "FL",
+            minTarget: "FL_MIN@PGB_FL_overlay_sketch",
+            maxTarget: "FL_MAX@PGB_FL_overlay_sketch");
 
-        AddHalfTolPairMm(
+        /*
+         * Updated PGB W targets:
+         *
+         * W_MIN@PGB_W_overlay_sketch
+         * W_MAX@PGB_W_overlay_sketch
+         *
+         * These targets receive the complete
+         * minimum and maximum W values.
+         */
+        AddStandardBounds(
             updates,
-            wedge,
-            dimKey: "W",
-            utolTarget: "W_UTOL@PGB_W_overlay_sketch",
-            ltolTarget: "W_LTOL@PGB_W_overlay_sketch");
+            facts,
+            dimensionKey: "W",
+            minTarget: "W_MIN@PGB_W_overlay_sketch",
+            maxTarget: "W_MAX@PGB_W_overlay_sketch");
     }
 
-    private static void BuildFgOverlayRules(WedgeData wedge, List<ToleranceUpdate> updates)
+    private static void BuildFgOverlayRules(
+        WedgeFacts facts,
+        List<ToleranceUpdate> updates)
     {
-        AddHalfTolPairMm(
+        /*
+         * FG FL still uses tolerance-zone
+         * displacement values:
+         *
+         * FL_LTOL@FG_FL_overlay_sketch
+         * FL_UTOL@FG_FL_overlay_sketch
+         *
+         * Each target receives half of its
+         * respective tolerance magnitude.
+         */
+        AddHalfTolerancePair(
             updates,
-            wedge,
-            dimKey: "W",
-            utolTarget: "W_UTOL@FG_W_overlay_sketch",
-            ltolTarget: "W_LTOL@FG_W_overlay_sketch");
+            facts,
+            dimensionKey: "FL",
+            upperTarget: "FL_UTOL@FG_FL_overlay_sketch",
+            lowerTarget: "FL_LTOL@FG_FL_overlay_sketch");
 
-        AddHalfTolPairMm(
+        /*
+         * Updated FG W targets:
+         *
+         * W_MIN@FG_W_overlay_sketch
+         * W_MAX@FG_W_overlay_sketch
+         */
+        AddStandardBounds(
             updates,
-            wedge,
-            dimKey: "FL",
-            utolTarget: "FL_UTOL@FG_FL_overlay_sketch",
-            ltolTarget: "FL_LTOL@FG_FL_overlay_sketch");
+            facts,
+            dimensionKey: "W",
+            minTarget: "W_MIN@FG_W_overlay_sketch",
+            maxTarget: "W_MAX@FG_W_overlay_sketch");
 
-        if (HasPositiveNominalMm(wedge, "VR"))
+        /*
+         * FG_VR_overlay_sketch is only active when
+         * the VR feature is present.
+         */
+        if (facts.HasPositive("VR"))
         {
-            AddVrBoundsMm(updates, wedge);
-            AddVrrBoundsMm(updates, wedge);
-        }
-        else
-        {
-            Logger.Info("[Osg7ToleranceRules] VR <= 0 or missing -> skipping FG_VR_overlay_sketch tolerance updates.");
-        }
-
-        if (HasPositiveNominalMm(wedge, "GD"))
-        {
-            AddHalfTolPairMm(
+            /*
+             * Updated VW targets:
+             *
+             * VW_MIN@FG_VR_overlay_sketch
+             * VW_MAX@FG_VR_overlay_sketch
+             */
+            AddStandardBounds(
                 updates,
-                wedge,
-                dimKey: "GD",
-                utolTarget: "GD_UTOL@FG_G_overlay_sketch",
-                ltolTarget: "GD_LTOL@FG_G_overlay_sketch");
+                facts,
+                dimensionKey: "VW",
+                minTarget: "VW_MIN@FG_VR_overlay_sketch",
+                maxTarget: "VW_MAX@FG_VR_overlay_sketch");
+
+            /*
+             * VR targets:
+             *
+             * VR_MIN@FG_VR_overlay_sketch
+             * VR_MAX@FG_VR_overlay_sketch
+             */
+            AddStandardBounds(
+                updates,
+                facts,
+                dimensionKey: "VR",
+                minTarget: "VR_MIN@FG_VR_overlay_sketch",
+                maxTarget: "VR_MAX@FG_VR_overlay_sketch");
+
+            /*
+             * VRR targets:
+             *
+             * VRR_MIN@FG_VR_overlay_sketch
+             * VRR_MAX@FG_VR_overlay_sketch
+             *
+             * The existing reversed mapping is
+             * preserved because the direction of
+             * the VRR sketch dimension is reversed.
+             */
+            AddReversedVrrBounds(
+                updates,
+                facts);
         }
-        else
+
+        /*
+         * FG_G_overlay_sketch is only active when
+         * the G feature is present.
+         *
+         * The feature activation currently uses
+         * a positive GD value.
+         */
+        if (facts.HasPositive("GD"))
         {
-            Logger.Info("[Osg7ToleranceRules] G <= 0 or missing -> skipping FG_G_overlay_sketch tolerance updates.");
+            /*
+             * Updated B targets:
+             *
+             * B_MIN@FG_G_overlay_sketch
+             * B_MAX@FG_G_overlay_sketch
+             */
+            AddStandardBounds(
+                updates,
+                facts,
+                dimensionKey: "B",
+                minTarget: "B_MIN@FG_G_overlay_sketch",
+                maxTarget: "B_MAX@FG_G_overlay_sketch");
+
+            /*
+             * Updated GD targets:
+             *
+             * GD_MIN@FG_G_overlay_sketch
+             * GD_MAX@FG_G_overlay_sketch
+             */
+            AddStandardBounds(
+                updates,
+                facts,
+                dimensionKey: "GD",
+                minTarget: "GD_MIN@FG_G_overlay_sketch",
+                maxTarget: "GD_MAX@FG_G_overlay_sketch");
+
+            /*
+             * New GA targets:
+             *
+             * GA_MIN@FG_G_overlay_sketch
+             * GA_MAX@FG_G_overlay_sketch
+             */
+            AddStandardBounds(
+                updates,
+                facts,
+                dimensionKey: "GA",
+                minTarget: "GA_MIN@FG_G_overlay_sketch",
+                maxTarget: "GA_MAX@FG_G_overlay_sketch");
         }
     }
 
-    private static void AddTolPairMm(
+    /// <summary>
+    /// Adds half of the upper and lower tolerance magnitudes.
+    ///
+    /// This is used by overlay sketch dimensions that represent
+    /// the displacement of each side of the tolerance zone rather
+    /// than the complete minimum and maximum dimension values.
+    /// </summary>
+    private static void AddHalfTolerancePair(
         List<ToleranceUpdate> updates,
-        WedgeData wedge,
-        string dimKey,
-        string utolTarget,
-        string ltolTarget)
+        WedgeFacts facts,
+        string dimensionKey,
+        string upperTarget,
+        string lowerTarget)
     {
-        if (!WedgeDimensionReader.TryGetLengthToleranceMm(wedge, dimKey, out var lowerMm, out var upperMm, LogPrefix))
+        if (!facts.TryGetLengthToleranceMagnitudesMm(
+                dimensionKey,
+                out var lowerAbsoluteMm,
+                out var upperAbsoluteMm))
         {
-            Logger.Warn($"[Osg7ToleranceRules] Missing/invalid tolerance for '{dimKey}' " +
-                        $"(skipping: {ltolTarget}, {utolTarget}).");
+            Logger.Warn(
+                "[Osg7ToleranceRules] " +
+                $"Missing or invalid tolerance for '{dimensionKey}'. " +
+                $"Targets '{upperTarget}' and '{lowerTarget}' were skipped.");
+
             return;
         }
 
-        var lAbs = decimal.Abs(lowerMm);
-        var uAbs = decimal.Abs(upperMm);
+        var upperHalfToleranceMm =
+            upperAbsoluteMm / 2m;
 
-        updates.Add(new ToleranceUpdate(utolTarget, uAbs, ToleranceUnit.LengthMm));
-        updates.Add(new ToleranceUpdate(ltolTarget, lAbs, ToleranceUnit.LengthMm));
+        var lowerHalfToleranceMm =
+            lowerAbsoluteMm / 2m;
 
-        Logger.Info($"[Osg7ToleranceRules] {dimKey}: UTOL={uAbs}mm -> {utolTarget}, LTOL={lAbs}mm -> {ltolTarget}");
-    }
+        updates.Add(
+            new ToleranceUpdate(
+                upperTarget,
+                upperHalfToleranceMm,
+                ToleranceUnit.LengthMm));
 
-    private static void AddHalfTolPairMm(
-        List<ToleranceUpdate> updates,
-        WedgeData wedge,
-        string dimKey,
-        string utolTarget,
-        string ltolTarget)
-    {
-        if (!WedgeDimensionReader.TryGetLengthToleranceMm(wedge, dimKey, out var lowerMm, out var upperMm, LogPrefix))
-        {
-            Logger.Warn($"[Osg7ToleranceRules] Missing/invalid tolerance for '{dimKey}' " +
-                        $"(skipping half tolerance: {ltolTarget}, {utolTarget}).");
-            return;
-        }
-
-        var lHalfAbs = decimal.Abs(lowerMm) / 2m;
-        var uHalfAbs = decimal.Abs(upperMm) / 2m;
-
-        updates.Add(new ToleranceUpdate(utolTarget, uHalfAbs, ToleranceUnit.LengthMm));
-        updates.Add(new ToleranceUpdate(ltolTarget, lHalfAbs, ToleranceUnit.LengthMm));
+        updates.Add(
+            new ToleranceUpdate(
+                lowerTarget,
+                lowerHalfToleranceMm,
+                ToleranceUnit.LengthMm));
 
         Logger.Info(
-            $"[Osg7ToleranceRules] {dimKey}: HALF UTOL={uHalfAbs}mm -> {utolTarget}, " +
-            $"HALF LTOL={lHalfAbs}mm -> {ltolTarget}");
+            "[Osg7ToleranceRules] Half-tolerance update -> " +
+            $"dimension={dimensionKey}, " +
+            $"lowerTarget={lowerTarget}, " +
+            $"lowerValue={lowerHalfToleranceMm} mm, " +
+            $"upperTarget={upperTarget}, " +
+            $"upperValue={upperHalfToleranceMm} mm.");
     }
 
-    private static void AddVrBoundsMm(List<ToleranceUpdate> updates, WedgeData wedge)
+    /// <summary>
+    /// Adds the complete mathematical minimum and maximum values:
+    ///
+    /// minimum = nominal - absolute lower tolerance
+    /// maximum = nominal + absolute upper tolerance
+    /// </summary>
+    private static void AddStandardBounds(
+        List<ToleranceUpdate> updates,
+        WedgeFacts facts,
+        string dimensionKey,
+        string minTarget,
+        string maxTarget)
     {
-        if (!TryGetLengthNominalAndToleranceMm(wedge, "VR", out var vrMm, out var lowerMm, out var upperMm))
+        if (!facts.TryGetLengthBoundsMm(
+                dimensionKey,
+                out var minimumMm,
+                out var maximumMm))
         {
-            Logger.Warn("[Osg7ToleranceRules] Missing/invalid VR nominal/tolerance (skipping VR bounds).");
+            Logger.Warn(
+                "[Osg7ToleranceRules] " +
+                $"Missing or invalid nominal/tolerance for '{dimensionKey}'. " +
+                $"Targets '{minTarget}' and '{maxTarget}' were skipped.");
+
             return;
         }
 
-        var lAbs = decimal.Abs(lowerMm);
-        var uAbs = decimal.Abs(upperMm);
-        var vrMax = vrMm + uAbs;
-        var vrMin = vrMm - lAbs;
+        updates.Add(
+            new ToleranceUpdate(
+                minTarget,
+                minimumMm,
+                ToleranceUnit.LengthMm));
 
-        updates.Add(new ToleranceUpdate("VR_MAX@FG_VR_overlay_sketch", vrMax, ToleranceUnit.LengthMm));
-        updates.Add(new ToleranceUpdate("VR_MIN@FG_VR_overlay_sketch", vrMin, ToleranceUnit.LengthMm));
+        updates.Add(
+            new ToleranceUpdate(
+                maxTarget,
+                maximumMm,
+                ToleranceUnit.LengthMm));
 
-        Logger.Info($"[Osg7ToleranceRules] VR: NOM={vrMm}mm, UTOL={uAbs}mm, LTOL={lAbs}mm -> VR_MAX={vrMax}mm, VR_MIN={vrMin}mm");
+        Logger.Info(
+            "[Osg7ToleranceRules] Bounds update -> " +
+            $"dimension={dimensionKey}, " +
+            $"minTarget={minTarget}, " +
+            $"minimum={minimumMm} mm, " +
+            $"maxTarget={maxTarget}, " +
+            $"maximum={maximumMm} mm.");
     }
 
-    private static void AddVrrBoundsMm(List<ToleranceUpdate> updates, WedgeData wedge)
+    /// <summary>
+    /// Adds the VRR bounds using the reversed sketch direction.
+    ///
+    /// Mathematical minimum:
+    /// nominal - lower tolerance
+    ///
+    /// Mathematical maximum:
+    /// nominal + upper tolerance
+    ///
+    /// Because the SolidWorks sketch dimension runs in the
+    /// opposite direction:
+    ///
+    /// VRR_MIN receives the mathematical maximum.
+    /// VRR_MAX receives the mathematical minimum.
+    /// </summary>
+    private static void AddReversedVrrBounds(
+        List<ToleranceUpdate> updates,
+        WedgeFacts facts)
     {
-        if (!TryGetLengthNominalAndToleranceMm(wedge, "VRR", out var vrrMm, out var lowerMm, out var upperMm))
+        if (!facts.TryGetLengthMm(
+                "VRR",
+                out var nominalMm) ||
+            !facts.TryGetLengthToleranceMagnitudesMm(
+                "VRR",
+                out var lowerAbsoluteMm,
+                out var upperAbsoluteMm))
         {
-            Logger.Warn("[Osg7ToleranceRules] Missing/invalid VRR nominal/tolerance (skipping VRR bounds).");
+            Logger.Warn(
+                "[Osg7ToleranceRules] " +
+                "Missing or invalid VRR nominal/tolerance. " +
+                "Targets 'VRR_MIN@FG_VR_overlay_sketch' and " +
+                "'VRR_MAX@FG_VR_overlay_sketch' were skipped.");
+
             return;
         }
 
-        var lAbs = decimal.Abs(lowerMm);
-        var uAbs = decimal.Abs(upperMm);
+        var mathematicalMinimumMm =
+            nominalMm - lowerAbsoluteMm;
 
-        var vrrMinTargetValue = vrrMm + uAbs;
-        var vrrMaxTargetValue = vrrMm - lAbs;
+        var mathematicalMaximumMm =
+            nominalMm + upperAbsoluteMm;
 
-        updates.Add(new ToleranceUpdate("VRR_MIN@FG_VR_overlay_sketch", vrrMinTargetValue, ToleranceUnit.LengthMm));
-        updates.Add(new ToleranceUpdate("VRR_MAX@FG_VR_overlay_sketch", vrrMaxTargetValue, ToleranceUnit.LengthMm));
+        /*
+         * Reversed target assignment:
+         *
+         * VRR_MIN target <- mathematical maximum
+         * VRR_MAX target <- mathematical minimum
+         */
+        updates.Add(
+            new ToleranceUpdate(
+                "VRR_MIN@FG_VR_overlay_sketch",
+                mathematicalMaximumMm,
+                ToleranceUnit.LengthMm));
 
-        Logger.Info($"[Osg7ToleranceRules] VRR: NOM={vrrMm}mm, UTOL={uAbs}mm, LTOL={lAbs}mm -> VRR_MIN={vrrMinTargetValue}mm, VRR_MAX={vrrMaxTargetValue}mm");
-    }
+        updates.Add(
+            new ToleranceUpdate(
+                "VRR_MAX@FG_VR_overlay_sketch",
+                mathematicalMinimumMm,
+                ToleranceUnit.LengthMm));
 
-    private static bool HasPositiveNominalMm(WedgeData wedge, string dimKey)
-    {
-        return WedgeDimensionReader.TryGetLengthNominalMm(wedge, dimKey, out var valueMm, LogPrefix)
-               && valueMm > PositiveEpsilonMm;
-    }
-
-    private static bool TryGetLengthNominalAndToleranceMm(
-        WedgeData wedge,
-        string dimKey,
-        out decimal nominalMm,
-        out decimal lowerMm,
-        out decimal upperMm)
-    {
-        nominalMm = 0m;
-        lowerMm = 0m;
-        upperMm = 0m;
-
-        return WedgeDimensionReader.TryGetLengthNominalMm(wedge, dimKey, out nominalMm, LogPrefix)
-               && WedgeDimensionReader.TryGetLengthToleranceMm(wedge, dimKey, out lowerMm, out upperMm, LogPrefix);
+        Logger.Info(
+            "[Osg7ToleranceRules] Reversed VRR bounds update -> " +
+            $"nominal={nominalMm} mm, " +
+            $"VRR_MIN target value={mathematicalMaximumMm} mm, " +
+            $"VRR_MAX target value={mathematicalMinimumMm} mm.");
     }
 }

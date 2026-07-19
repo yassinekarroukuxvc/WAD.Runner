@@ -22,11 +22,7 @@ public sealed class AnnotationCleanupPlanner
         return _catalogs
             .GetRules(ctx.Profile)
             .Where(rule => rule.When.IsMatch(ctx))
-            .Select(rule => new ExpectedAnnotation(
-                rule.View,
-                rule.Name.Resolve(ctx),
-                rule.Id,
-                rule.Reason))
+            .SelectMany(rule => ResolveAcceptedNames(rule, ctx))
             .Where(x => !string.IsNullOrWhiteSpace(x.FullName))
             .GroupBy(x => Key(x.View, x.FullName), StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
@@ -62,8 +58,26 @@ public sealed class AnnotationCleanupPlanner
             StringComparer.OrdinalIgnoreCase);
     }
 
-    private static string Key(AnnotationView view, string fullName)
+    private static IEnumerable<ExpectedAnnotation> ResolveAcceptedNames(
+        AnnotationKeepRule rule,
+        AnnotationCleanupContext ctx)
     {
-        return $"{view}||{fullName.Trim().ToUpperInvariant()}";
+        yield return new ExpectedAnnotation(
+            rule.View,
+            rule.Name.Resolve(ctx),
+            rule.Id,
+            rule.Reason);
+
+        foreach (var alias in rule.Aliases ?? Array.Empty<AnnotationNameTemplate>())
+        {
+            yield return new ExpectedAnnotation(
+                rule.View,
+                alias.Resolve(ctx),
+                rule.Id,
+                rule.Reason);
+        }
     }
+
+    private static string Key(AnnotationView view, string fullName)
+        => $"{view}||{AnnotationNameIdentity.Normalize(fullName)}";
 }

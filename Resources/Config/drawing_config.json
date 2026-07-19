@@ -4,10 +4,12 @@
   "Defaults": {
     "Views": {
       "Front": {
+        "Params": { "breakline_gap_mm": 2 },
         "PositionMm": [ 35, 100 ],
         "Scale": 3.0
       },
       "Side": {
+        "Params": { "breakline_gap_mm": 2 },
         "PositionMm": [ 85, 100 ],
         "Scale": 3.0
       },
@@ -16,10 +18,12 @@
         "Scale": 3.0
       },
       "Detail": {
+        "Params": { "breakline_gap_mm": 50 },
         "PositionMm": [ 170, 200 ],
         "Scale": 45.0
       },
       "Section": {
+        "Params": { "breakline_gap_mm": 50 },
         "PositionMm": [ 220, 200 ],
         "Scale": 45.0
       }
@@ -49,19 +53,22 @@
           "Common": {
             "Views": {
               "Front": {
-                "Params": { "BreaklineGap": 7.5 },
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 35, 100 ]
               },
               "Side": {
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 65, 100 ]
               },
               "Top": {
                 "PositionMm": [ 65, 195 ]
               },
               "Detail": {
+                "Params": { "breakline_gap_mm": 50 },
                 "PositionMm": [ 150, 200 ]
               },
               "Section": {
+                "Params": { "breakline_gap_mm": 50 },
                 "PositionMm": [ 220, 200 ]
               }
             },
@@ -76,19 +83,22 @@
           "Common": {
             "Views": {
               "Front": {
-                "Params": { "BreaklineGap": 7.5 },
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 25, 100 ]
               },
               "Side": {
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 65, 100 ]
               },
               "Top": {
                 "PositionMm": [ 65, 195 ]
               },
               "Detail": {
+                "Params": { "breakline_gap_mm": 50 },
                 "PositionMm": [ 150, 200 ]
               },
               "Section": {
+                "Params": { "breakline_gap_mm": 50 },
                 "PositionMm": [ 220, 200 ]
               }
             },
@@ -103,6 +113,7 @@
           "Common": {
             "Views": {
               "Detail": {
+                "Params": { "breakline_gap_mm": 50 },
                 "PositionMm": [ 100, 170 ],
                 "Scale": 140.0,
                 "Params": {
@@ -110,6 +121,7 @@
                 }
               },
               "Section": {
+                "Params": { "breakline_gap_mm": 50 },
                 "Scale": 140.0,
                 "PositionMm": [ 220, 170 ],
                 "Params": {
@@ -121,10 +133,12 @@
                 "scale": 7
               },
               "Front": {
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 20, 100 ],
                 "scale": 7
               },
               "Side": {
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 45, 100 ],
                 "scale": 7
               }
@@ -144,6 +158,7 @@
           "Common": {
             "Views": {
               "Detail": {
+                "Params": { "breakline_gap_mm": 50 },
                 "PositionMm": [ 100, 170 ],
                 "Scale": 140.0,
                 "Params": {
@@ -151,6 +166,7 @@
                 }
               },
               "Section": {
+                "Params": { "breakline_gap_mm": 50 },
                 "Scale": 140.0,
                 "PositionMm": [ 220, 170 ],
                 "Params": {
@@ -162,10 +178,12 @@
                 "scale": 7
               },
               "Front": {
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 20, 100 ],
                 "scale": 7
               },
               "Side": {
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 45, 100 ],
                 "scale": 7
               }
@@ -185,6 +203,7 @@
           "Common": {
             "Views": {
               "Detail": {
+                "Params": { "breakline_gap_mm": 50 },
                 "PositionMm": [ 100, 170 ],
                 "Scale": 140.0,
                 "Params": {
@@ -192,6 +211,7 @@
                 }
               },
               "Section": {
+                "Params": { "breakline_gap_mm": 50 },
                 "Scale": 140.0,
                 "PositionMm": [ 220, 170 ],
                 "Params": {
@@ -203,10 +223,12 @@
                 "scale": 7
               },
               "Front": {
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 20, 100 ],
                 "scale": 7
               },
               "Side": {
+                "Params": { "breakline_gap_mm": 2 },
                 "PositionMm": [ 45, 100 ],
                 "scale": 7
               }
@@ -234,7 +256,7 @@
         "CKVD": {
           "Common": {
             "Views": {
-              "Front": { "Params": { "BreaklineGap": 7.5 } },
+              "Front": { "Params": { "breakline_gap_mm": 2 } },
               "Section": { "PositionMm": [ 240, 200 ] }
             },
             "Tables": {
@@ -247,7 +269,7 @@
         "OSG7": {
           "Common": {
             "Views": {
-              "Front": { "Params": { "BreaklineGap": 7.5 } },
+              "Front": { "Params": { "breakline_gap_mm": 2 } },
               "Section": { "PositionMm": [ 240, 200 ] }
             },
             "Tables": {
@@ -398,7 +420,7 @@
         "COB": {
           "Common": {
             "Views": {
-              "Side": { "Params": { "BreaklineGap": 8.0 } }
+              "Side": { "Params": { "breakline_gap_mm": 8.0 } }
             },
             "Metadata": { "SpecialNote": "COB overlay tuning" }
           }
@@ -407,7 +429,7 @@
         "FP": {
           "Common": {
             "Views": {
-              "Side": { "Params": { "BreaklineGap": 8.0 } }
+              "Side": { "Params": { "breakline_gap_mm": 8.0 } }
             },
             "Metadata": { "SpecialNote": "FP overlay tuning" }
           }
@@ -416,7 +438,7 @@
         "UTUS": {
           "Common": {
             "Views": {
-              "Side": { "Params": { "BreaklineGap": 8.0 } }
+              "Side": { "Params": { "breakline_gap_mm": 8.0 } }
             },
             "Metadata": { "SpecialNote": "UTUS overlay tuning" }
           }

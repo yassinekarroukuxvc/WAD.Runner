@@ -14,6 +14,7 @@ using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 using WAD.Runner.DrawingAutomation.Common;
+using WAD.Runner.DrawingAutomation.Core;
 using WAD.Runner.DrawingAutomation.Metadata;
 using WAD.Runner.DrawingAutomation.Overlay;
 using WAD.Runner.DrawingAutomation.Profiles;
@@ -186,8 +187,9 @@ namespace WAD.Runner.DrawingAutomation.Common.Overlay
                     return;
                 }
 
-                bool hasVw = HasPositiveDimension(run, "VW");
-                bool hasVr = HasPositiveDimension(run, "VR");
+                var facts = new DrawingWedgeFacts(run.Wedge);
+                bool hasVw = facts.HasPositiveLength("VW");
+                bool hasVr = facts.HasPositiveLength("VR");
 
                 var logicalViewsToBind = new[] { "Front", "Side", "Top", "Detail", "Section" };
 
@@ -233,7 +235,7 @@ namespace WAD.Runner.DrawingAutomation.Common.Overlay
             if (run?.Wedge == null)
                 return false;
 
-            if (run.WedgeType is not (WedgeType.COB or WedgeType.UTUS or WedgeType.FP))
+            if (DrawingWedgeBehaviorCatalog.Get(run.WedgeType).Family != DrawingWedgeFamily.CobLike)
                 return false;
 
             double rawMm = ComputeCobLikeRawNonStdCutMm(run.Wedge);
@@ -312,61 +314,13 @@ namespace WAD.Runner.DrawingAutomation.Common.Overlay
                 return false;
 
             double nominal = (double)dim.Nominal.AsMm();
-            double upperTolerance = (double)dim.Tol.Upper.Value;
+            double upperTolerance = (double)decimal.Abs(dim.Tol.Upper.AsMm());
             value = nominal + upperTolerance;
             return true;
         }
 
         private static bool TryGetDimMm(WedgeData wedge, string key, out double value)
-        {
-            value = 0.0;
-
-            if (wedge?.Dimensions is null)
-                return false;
-
-            if (!wedge.Dimensions.TryGetValue(DimensionKey.From(key), out var dim) || dim is null)
-                return false;
-
-            if (dim.Nominal.Unit != UnitKind.Millimeter)
-                return false;
-
-            value = (double)dim.Nominal.AsMm();
-            return true;
-        }
-
-        private static bool HasPositiveDimension(DrawingRun run, string key)
-        {
-            try
-            {
-                double valueMm = GetDimMm(run, key);
-
-                return !double.IsNaN(valueMm)
-                    && !double.IsInfinity(valueMm)
-                    && Math.Abs(valueMm) > 1e-6;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static double GetDimMm(DrawingRun run, string key)
-        {
-            try
-            {
-                if (run?.Wedge?.Dimensions == null)
-                    return double.NaN;
-
-                if (!run.Wedge.Dimensions.TryGetValue(DimensionKey.From(key), out var dim) || dim == null)
-                    return double.NaN;
-
-                return Convert.ToDouble(dim.Nominal.Value);
-            }
-            catch
-            {
-                return double.NaN;
-            }
-        }
+            => new DrawingWedgeFacts(wedge).TryGetLengthMm(key, out value);
 
     }
 }

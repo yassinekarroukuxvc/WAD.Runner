@@ -30,10 +30,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             "cut_plan_feature",
             "non_std_cut_feature",
             "non_std_cut_plan_feature",
-            "ERW_STD_feature",
             "ERW_STD_sketch",
-            "ERW_180_DEG_REV_feature",
-            "ERW_180_DEG_REV_sketch"
+            "ERW_STD_feature",
+            "ERW_180_DEG_REV_sketch",
+            "ERW_180_DEG_REV_feature"
         };
 
         private static readonly Dictionary<string, string> SwTypeToSelectionType =
@@ -112,19 +112,11 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             var map = new Dictionary<string, FeatureEntry>(StringComparer.OrdinalIgnoreCase);
 
-            var f = (Feature)part.FirstFeature();
-            while (f != null)
+            var feature = (Feature)part.FirstFeature();
+            while (feature != null)
             {
-                TryAdd(map, f);
-
-                var sub = (Feature)f.GetFirstSubFeature();
-                while (sub != null)
-                {
-                    TryAdd(map, sub);
-                    sub = (Feature)sub.GetNextSubFeature();
-                }
-
-                f = (Feature)f.GetNextFeature();
+                AddFeatureTree(map, feature);
+                feature = (Feature)feature.GetNextFeature();
             }
 
             Logger.Info($"[FeatureToggleBatch] Index built → {map.Count} features (incl. sub-features).");
@@ -284,12 +276,13 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 return;
             }
 
-            ToggleOneByActiveSelection(name, suppress, res);
+            ToggleOneByActiveSelection(name, suppress, scope, res);
         }
 
         private void ToggleOneByActiveSelection(
             string name,
             bool suppress,
+            swInConfigurationOpts_e scope,
             ToggleResult res)
         {
             if (string.IsNullOrWhiteSpace(name))
@@ -299,8 +292,27 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             if (!TrySelectByNameHeuristics(name, append: false))
             {
-                res.Missing.Add(name);
                 _model.ClearSelection2(true);
+
+                if (!_index.TryGetValue(name, out var entry))
+                {
+                    res.Missing.Add(name);
+                    return;
+                }
+
+                if (TrySet(
+                        entry,
+                        suppress,
+                        scope,
+                        out var fallbackError))
+                {
+                    entry.IsSuppressedCached = suppress;
+                    if (suppress) res.Suppressed.Add(name);
+                    else res.Unsuppressed.Add(name);
+                    return;
+                }
+
+                res.Failed[name] = fallbackError;
                 return;
             }
 
@@ -694,6 +706,18 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             return false;
         }
 
+
+        private static void AddFeatureTree(Dictionary<string, FeatureEntry> map, Feature feature)
+        {
+            TryAdd(map, feature);
+
+            var subFeature = (Feature)feature.GetFirstSubFeature();
+            while (subFeature != null)
+            {
+                AddFeatureTree(map, subFeature);
+                subFeature = (Feature)subFeature.GetNextSubFeature();
+            }
+        }
 
         private static void TryAdd(Dictionary<string, FeatureEntry> map, Feature f)
         {

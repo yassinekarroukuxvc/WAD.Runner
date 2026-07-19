@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Linq;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.ModelAutomation.Common;
@@ -10,8 +12,7 @@ public static class PathPlanner
         string PartPath,
         string EquationsPath,
         string PdfPath,
-        string FileBase
-    );
+        string FileBase);
 
     public static Plan Build(
         string article,
@@ -20,53 +21,40 @@ public static class PathPlanner
         string outputRoot,
         string? fileBase = null)
     {
-        if (string.IsNullOrWhiteSpace(article))
-            throw new ArgumentException("Article is required.", nameof(article));
-
-
+        var safeArticle = SanitizeFileName(article, "UNKNOWN");
         var baseRoot = string.IsNullOrWhiteSpace(outputRoot)
             ? Path.Combine("Resources", "Out")
-            : outputRoot;
+            : outputRoot.Trim();
 
-        var sub = subclass.ToString();
-        var dtype = drawingType.ToString();
+        var subclassSegment = subclass.ToString();
+        var drawingTypeSegment = drawingType.ToString();
+        var normalizedRoot = Path.GetFullPath(baseRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
-        var normalized = Path.GetFullPath(baseRoot.Trim().TrimEnd('\\', '/'));
-        var segs = normalized.Split(
-            Path.DirectorySeparatorChar,
-            Path.AltDirectorySeparatorChar,
+        var segments = normalizedRoot.Split(
+            new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
             StringSplitOptions.RemoveEmptyEntries);
 
-        bool alreadyScoped =
-            segs.Length >= 3 &&
-            segs[^1].Equals(article, StringComparison.OrdinalIgnoreCase) &&
-            segs[^2].Equals(dtype, StringComparison.OrdinalIgnoreCase) &&
-            segs[^3].Equals(sub, StringComparison.OrdinalIgnoreCase);
+        var alreadyScoped = segments.Length >= 3
+                            && segments[^1].Equals(safeArticle, StringComparison.OrdinalIgnoreCase)
+                            && segments[^2].Equals(drawingTypeSegment, StringComparison.OrdinalIgnoreCase)
+                            && segments[^3].Equals(subclassSegment, StringComparison.OrdinalIgnoreCase);
 
         var workDir = alreadyScoped
-            ? normalized
-            : Path.GetFullPath(Path.Combine(baseRoot, sub, dtype, article));
+            ? normalizedRoot
+            : Path.GetFullPath(Path.Combine(normalizedRoot, subclassSegment, drawingTypeSegment, safeArticle));
 
         Directory.CreateDirectory(workDir);
 
-
         var suffix = ResolveSuffix(subclass, drawingType);
-        var fb = string.IsNullOrWhiteSpace(fileBase)
-            ? $"{article}{suffix}"
-            : fileBase.Trim();
-
-        var partPath = Path.Combine(workDir, $"{fb}.SLDPRT");
-        var equationsPath = Path.Combine(workDir, "equations.txt");
-        var pdfPath = Path.Combine(workDir, $"{fb}.pdf");
-
+        var defaultFileBase = $"{safeArticle}{suffix}";
+        var safeFileBase = SanitizeFileName(fileBase, defaultFileBase);
 
         return new Plan(
             WorkDir: workDir,
-            PartPath: partPath,
-            EquationsPath: equationsPath,
-            PdfPath: pdfPath,
-            FileBase: fb
-        );
+            PartPath: Path.Combine(workDir, $"{safeFileBase}.SLDPRT"),
+            EquationsPath: Path.Combine(workDir, "equations.txt"),
+            PdfPath: Path.Combine(workDir, $"{safeFileBase}.pdf"),
+            FileBase: safeFileBase);
     }
 
     private static string ResolveSuffix(WedgeSubclass subclass, DrawingType drawingType)
@@ -77,13 +65,30 @@ public static class PathPlanner
         {
             (true, DrawingType.Production) => "D",
             (true, DrawingType.Overlay) => "TF",
-
             (false, DrawingType.Production) => "P",
             (false, DrawingType.Customer) => "C",
             (false, DrawingType.Overlay) => "TF",
-
             _ => throw new NotSupportedException(
                 $"Unsupported combination: subclass={subclass}, drawingType={drawingType}")
         };
+    }
+
+    private static string SanitizeFileName(string? value, string fallback)
+    {
+        var candidate = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        var invalid = Path.GetInvalidFileNameChars()
+            .Concat(new[] { '<', '>', ':', '"', '/', '\\', '|', '?', '*' })
+            .ToHashSet();
+
+        var cleaned = new string(candidate
+            .Select(ch => char.IsControl(ch) || invalid.Contains(ch) ? '_' : ch)
+            .ToArray())
+            .Trim()
+            .TrimEnd('.', ' ');
+
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned is "." or "..")
+            return fallback;
+
+        return cleaned;
     }
 }

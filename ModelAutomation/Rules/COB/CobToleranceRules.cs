@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Rules.CobLike;
@@ -12,10 +12,12 @@ public sealed class CobToleranceRules : CobLikeToleranceRulesBase
 
     protected override void ApplySubclassSpecificTolerances(
         List<ToleranceUpdate> updates,
-        CobLikeRuleFacts facts,
+        CobLikeFacts facts,
         WedgeSubclass subclass)
     {
-        var footOption = facts.ResolveFootOption();
+        if (subclass != WedgeSubclass.FG) return;
+
+        var footOption = facts.FootOption;
 
         // Resolve the foot-width sketch (smallest of W / VW / W2 for this foot option).
         var footSketch = ResolveFootWidthSketch(facts);

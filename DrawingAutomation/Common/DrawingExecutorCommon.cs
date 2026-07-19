@@ -22,49 +22,54 @@ namespace WAD.Runner.DrawingAutomation.Common
             if (swApp is null) throw new ArgumentNullException(nameof(swApp));
             if (run is null) throw new ArgumentNullException(nameof(run));
 
-            var destDrw = Path.GetFullPath(run.ModDrawingPath);
-            var srcDrw = Path.GetFullPath(run.TemplateDrawingPath);
-            var newPart = Path.GetFullPath(run.ModPartPath);
-            var oldPart = string.IsNullOrWhiteSpace(run.TemplatePartPath)
+            var destinationDrawing = Path.GetFullPath(run.ModDrawingPath);
+            var templateDrawing = Path.GetFullPath(run.TemplateDrawingPath);
+            var generatedPart = Path.GetFullPath(run.ModPartPath);
+            var templatePart = string.IsNullOrWhiteSpace(run.TemplatePartPath)
                 ? string.Empty
                 : Path.GetFullPath(run.TemplatePartPath);
 
-            var destDir = Path.GetDirectoryName(destDrw)
-                ?? throw new InvalidOperationException($"Invalid destination drawing path: '{destDrw}'");
+            CopyDrawingTemplate(templateDrawing, destinationDrawing);
 
-            Directory.CreateDirectory(destDir);
-
-            if (File.Exists(destDrw))
+            if (!File.Exists(generatedPart))
             {
-                try { File.SetAttributes(destDrw, FileAttributes.Normal); } catch { }
-                File.Delete(destDrw);
-                Logger.Info($"[Init] Deleted existing destination drawing → '{destDrw}'");
+                Logger.Warn(
+                    $"[Init] Target part not found yet (relink will still try): {generatedPart}");
             }
 
-            File.Copy(srcDrw, destDrw, overwrite: true);
-            Logger.Info($"[Init] Copied drawing template → '{destDrw}'");
+            var closedRelinkOk = TryRelinkWhileClosed(
+                swApp,
+                destinationDrawing,
+                templatePart,
+                generatedPart);
 
-            if (!File.Exists(destDrw))
-                throw new FileNotFoundException("Destination drawing missing after copy.", destDrw);
+            var drawingService = new DrawingService(swApp);
 
-            if (!File.Exists(newPart))
-                Logger.Warn($"[Init] Target part not found yet (relink will still try): {newPart}");
+            try
+            {
+                drawingService.OpenDrawing(destinationDrawing, rebuildAfterOpen: false);
 
-            var closedRelinkOk = TryRelinkWhileClosed(swApp, destDrw, oldPart, newPart);
+                if (!closedRelinkOk)
+                {
+                    drawingService.ReplaceReferencedModel(
+                        destinationDrawing,
+                        templatePart,
+                        generatedPart);
+                }
 
-            var ds = new DrawingService(swApp);
-            ds.OpenDrawing(destDrw, rebuildAfterOpen: false);
+                if (rebuildAfterOpen)
+                    drawingService.Rebuild(redraw: false);
 
-            if (!closedRelinkOk)
-                ds.ReplaceReferencedModel(destDrw, oldPart, newPart);
+                if (zoomAfterOpen)
+                    drawingService.ZoomToSheet();
 
-            if (rebuildAfterOpen)
-                ds.Rebuild(redraw: false);
-
-            if (zoomAfterOpen)
-                ds.ZoomToSheet();
-
-            return ds;
+                return drawingService;
+            }
+            catch
+            {
+                drawingService.Close();
+                throw;
+            }
         }
 
         public static void FinalizeProduction(SldWorks swApp, DrawingService ds, string? pdfOutputPath = null)
@@ -94,6 +99,66 @@ namespace WAD.Runner.DrawingAutomation.Common
             finally
             {
                 try { ds.Close(); } catch { }
+            }
+        }
+
+        private static void CopyDrawingTemplate(
+            string templateDrawing,
+            string destinationDrawing)
+        {
+            if (!File.Exists(templateDrawing))
+                throw new FileNotFoundException("Drawing template was not found.", templateDrawing);
+
+            if (string.Equals(
+                    templateDrawing,
+                    destinationDrawing,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "The destination drawing cannot be the same file as the drawing template.");
+            }
+
+            var destinationDirectory = Path.GetDirectoryName(destinationDrawing)
+                ?? throw new InvalidOperationException(
+                    $"Invalid destination drawing path: '{destinationDrawing}'");
+
+            Directory.CreateDirectory(destinationDirectory);
+
+            var temporaryDrawing = Path.Combine(
+                destinationDirectory,
+                $".{Path.GetFileName(destinationDrawing)}.{Guid.NewGuid():N}.tmp");
+
+            try
+            {
+                File.Copy(templateDrawing, temporaryDrawing, overwrite: true);
+
+                if (File.Exists(destinationDrawing))
+                {
+                    try { File.SetAttributes(destinationDrawing, FileAttributes.Normal); }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn(
+                            $"[Init] Could not normalize existing drawing attributes: {ex.Message}");
+                    }
+                }
+
+                File.Move(temporaryDrawing, destinationDrawing, overwrite: true);
+                Logger.Info($"[Init] Copied drawing template → '{destinationDrawing}'");
+            }
+            finally
+            {
+                if (File.Exists(temporaryDrawing))
+                {
+                    try { File.Delete(temporaryDrawing); }
+                    catch { }
+                }
+            }
+
+            if (!File.Exists(destinationDrawing))
+            {
+                throw new FileNotFoundException(
+                    "Destination drawing is missing after template copy.",
+                    destinationDrawing);
             }
         }
 

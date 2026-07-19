@@ -8,228 +8,470 @@ using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using DomDimKey = WAD.Runner.DataManagement.Domain.Dimensions.DimensionKey;
-using DomWedgeData = WAD.Runner.DataManagement.Domain.Wedge.WedgeData;
 
-using SwDim = SolidWorks.Interop.sldworks.Dimension;
+using DomDimKey =
+    WAD.Runner.DataManagement.Domain.Dimensions.DimensionKey;
+
+using DomWedgeData =
+    WAD.Runner.DataManagement.Domain.Wedge.WedgeData;
+
+using SwDim =
+    SolidWorks.Interop.sldworks.Dimension;
 
 namespace WAD.Runner.ModelAutomation.SolidWorks
 {
     public sealed class ModelEditor : IDisposable
     {
         private readonly SldWorks _sw;
+
         private ModelDoc2? _model;
         private string _partPath = "";
-        private int _err, _warn;
+
+        private int _err;
+        private int _warn;
 
         private FeatureToggleBatch? _toggles;
 
         public ModelEditor(SldWorks swApp)
         {
-            _sw = swApp ?? throw new ArgumentNullException(nameof(swApp));
+            _sw = swApp ??
+                throw new ArgumentNullException(
+                    nameof(swApp));
         }
 
-        public ModelDoc2 Model => _model ?? throw new InvalidOperationException("No active part loaded.");
+        public ModelDoc2 Model =>
+            _model ??
+            throw new InvalidOperationException(
+                "No active part loaded.");
+
         public string PartPath => _partPath;
 
         public void OpenPart(string partPath)
         {
             if (string.IsNullOrWhiteSpace(partPath))
-                throw new ArgumentNullException(nameof(partPath));
-
-            var full = Path.GetFullPath(partPath);
-            if (!File.Exists(full))
-                throw new FileNotFoundException("Part not found.", full);
-
-            var attrs = File.GetAttributes(full);
-            if ((attrs & FileAttributes.ReadOnly) != 0)
             {
-                Logger.Warn($"[ModelEditor] Clearing read-only attribute: {full}");
-                File.SetAttributes(full, attrs & ~FileAttributes.ReadOnly);
+                throw new ArgumentNullException(
+                    nameof(partPath));
             }
 
-            _err = 0; _warn = 0;
+            var full = Path.GetFullPath(partPath);
 
-            Logger.Info($"[ModelEditor] OpenPart → '{full}'");
-            var doc = _sw.OpenDoc6(
+            if (!File.Exists(full))
+            {
+                throw new FileNotFoundException(
+                    "Part not found.",
+                    full);
+            }
+
+            var attributes = File.GetAttributes(full);
+
+            if ((attributes & FileAttributes.ReadOnly) != 0)
+            {
+                Logger.Warn(
+                    "[ModelEditor] Clearing " +
+                    $"read-only attribute: {full}");
+
+                File.SetAttributes(
+                    full,
+                    attributes & ~FileAttributes.ReadOnly);
+            }
+
+            _err = 0;
+            _warn = 0;
+
+            Logger.Info(
+                $"[ModelEditor] OpenPart → '{full}'");
+
+            var document = _sw.OpenDoc6(
                 full,
                 (int)swDocumentTypes_e.swDocPART,
-                (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
+                (int)swOpenDocOptions_e
+                    .swOpenDocOptions_Silent,
                 "",
                 ref _err,
                 ref _warn);
 
-            _model = doc as ModelDoc2;
+            _model = document as ModelDoc2;
+
             if (_model is null)
             {
                 var reason = DecodeOpenError(_err);
-                Logger.Error($"[ModelEditor] Failed to open part. err={_err} ({reason}), warn={_warn}. Path: {full}");
+
+                Logger.Error(
+                    "[ModelEditor] Failed to open part. " +
+                    $"err={_err} ({reason}), " +
+                    $"warn={_warn}. Path: {full}");
+
                 throw new InvalidOperationException(
-                    $"Failed to open part. err={_err} ({reason}), warn={_warn}\nPath: {full}");
+                    "Failed to open part. " +
+                    $"err={_err} ({reason}), " +
+                    $"warn={_warn}\nPath: {full}");
             }
 
             _partPath = full;
 
-            _toggles = FeatureToggleBatch.Build(_model);
+            _toggles =
+                FeatureToggleBatch.Build(_model);
 
-            Logger.Success($"[ModelEditor] Part opened: {_partPath}");
+            Logger.Success(
+                $"[ModelEditor] Part opened: {_partPath}");
         }
 
-        public bool ActivateConfiguration(string configName)
+        public bool ActivateConfiguration(
+            string configName)
         {
             if (string.IsNullOrWhiteSpace(configName))
             {
-                Logger.Warn("[ModelEditor] ActivateConfiguration skipped (empty name).");
+                Logger.Warn(
+                    "[ModelEditor] " +
+                    "ActivateConfiguration skipped " +
+                    "(empty name).");
+
                 return false;
             }
 
-            Logger.Info($"[ModelEditor] ActivateConfiguration → '{configName}'");
+            Logger.Info(
+                "[ModelEditor] " +
+                $"ActivateConfiguration → '{configName}'");
 
-            var namesObj = Model.GetConfigurationNames();
-            var names = (namesObj as object[] ?? Array.Empty<object>())
-                .Select(o => o?.ToString())
-                .Where(s => !string.IsNullOrWhiteSpace(s))
+            var configurationNamesObject =
+                Model.GetConfigurationNames();
+
+            var configurationNames =
+                (configurationNamesObject as object[] ??
+                 Array.Empty<object>())
+                .Select(value => value?.ToString())
+                .Where(
+                    value =>
+                        !string.IsNullOrWhiteSpace(value))
                 .ToList();
 
             var target =
-                names.FirstOrDefault(n => string.Equals(n, configName, StringComparison.Ordinal)) ??
-                names.FirstOrDefault(n => string.Equals(n, configName, StringComparison.OrdinalIgnoreCase));
+                configurationNames.FirstOrDefault(
+                    name => string.Equals(
+                        name,
+                        configName,
+                        StringComparison.Ordinal))
+                ??
+                configurationNames.FirstOrDefault(
+                    name => string.Equals(
+                        name,
+                        configName,
+                        StringComparison.OrdinalIgnoreCase));
 
             if (target is null)
             {
-                Logger.Warn($"[ModelEditor] Config '{configName}' not found; keeping current.");
-                Logger.Info($"[ModelEditor] Available configs: {string.Join(", ", names)}");
+                Logger.Warn(
+                    "[ModelEditor] " +
+                    $"Config '{configName}' not found; " +
+                    "keeping current.");
+
+                Logger.Info(
+                    "[ModelEditor] Available configs: " +
+                    string.Join(", ", configurationNames));
+
                 return false;
             }
 
+            /*
+             * Old configuration handling:
+             *
+             * We intentionally call ShowConfiguration2
+             * without using its Boolean return value.
+             *
+             * Some SolidWorks documents can return false
+             * even though the requested configuration is
+             * already active or usable.
+             *
+             * A found configuration is therefore treated
+             * as successfully handled, matching the behavior
+             * used before the refactoring.
+             */
             Model.ShowConfiguration2(target);
-            Logger.Success($"[ModelEditor] Activated configuration: {target}");
+
+            Logger.Success(
+                "[ModelEditor] Activated configuration: " +
+                target);
+
             return true;
         }
 
-        public void ImportEquationsFromFile(string equationFilePath)
+        public void ImportEquationsFromFile(
+            string equationFilePath)
         {
-            if (string.IsNullOrWhiteSpace(equationFilePath) || !File.Exists(equationFilePath))
-                throw new FileNotFoundException("Equations file not found.", equationFilePath);
+            if (string.IsNullOrWhiteSpace(
+                    equationFilePath) ||
+                !File.Exists(equationFilePath))
+            {
+                throw new FileNotFoundException(
+                    "Equations file not found.",
+                    equationFilePath);
+            }
 
-            Logger.Info($"[ModelEditor] ImportEquationsFromFile → '{equationFilePath}'");
+            Logger.Info(
+                "[ModelEditor] " +
+                $"ImportEquationsFromFile → " +
+                $"'{equationFilePath}'");
 
-            var eq = Model.GetEquationMgr();
-            bool prevAutoSolve = eq.AutomaticSolveOrder;
-            bool prevAutoRebuild = eq.AutomaticRebuild;
+            var equationManager =
+                Model.GetEquationMgr();
+
+            var previousAutomaticSolveOrder =
+                equationManager.AutomaticSolveOrder;
+
+            var previousAutomaticRebuild =
+                equationManager.AutomaticRebuild;
 
             try
             {
-                eq.AutomaticSolveOrder = true;
+                equationManager.AutomaticSolveOrder =
+                    true;
 
-                eq.AutomaticRebuild = false;
+                equationManager.AutomaticRebuild =
+                    false;
 
-                eq.FilePath = equationFilePath;
+                equationManager.FilePath =
+                    equationFilePath;
 
-                var ok = eq.UpdateValuesFromExternalEquationFile();
-                Logger.Info($"[ModelEditor] UpdateValuesFromExternalEquationFile() → {ok}");
+                var updated =
+                    equationManager
+                        .UpdateValuesFromExternalEquationFile();
 
+                Logger.Info(
+                    "[ModelEditor] " +
+                    "UpdateValuesFromExternalEquationFile()" +
+                    $" → {updated}");
+
+                if (!updated)
+                {
+                    throw new InvalidOperationException(
+                        "SolidWorks failed to update " +
+                        "values from the external " +
+                        "equation file.");
+                }
             }
             finally
             {
-                eq.AutomaticSolveOrder = prevAutoSolve;
-                eq.AutomaticRebuild = prevAutoRebuild;
+                equationManager.AutomaticSolveOrder =
+                    previousAutomaticSolveOrder;
+
+                equationManager.AutomaticRebuild =
+                    previousAutomaticRebuild;
             }
         }
 
         public void SetEngraving(string? text)
         {
-            Logger.Info($"[ModelEditor] SetEngraving → '{text ?? "(null)"}'");
-            var mgr = Model.Extension.get_CustomPropertyManager("");
-            var rc = mgr.Set2("Engraving", text ?? "");
-            Logger.Info($"[ModelEditor] Engraving Set2 result: {rc}");
+            Logger.Info(
+                "[ModelEditor] " +
+                $"SetEngraving → '{text ?? "(null)"}'");
+
+            var propertyManager =
+                Model.Extension
+                    .get_CustomPropertyManager("");
+
+            var result =
+                propertyManager.Set2(
+                    "Engraving",
+                    text ?? "");
+
+            Logger.Info(
+                "[ModelEditor] " +
+                $"Engraving Set2 result: {result}");
         }
 
-        public FeatureToggleBatch.ToggleResult ApplyFeatureToggles(
-            IEnumerable<string>? suppress,
-            IEnumerable<string>? unsuppress,
-            swInConfigurationOpts_e scope = swInConfigurationOpts_e.swThisConfiguration)
+        public FeatureToggleBatch.ToggleResult
+            ApplyFeatureToggles(
+                IEnumerable<string>? suppress,
+                IEnumerable<string>? unsuppress,
+                swInConfigurationOpts_e scope =
+                    swInConfigurationOpts_e
+                        .swThisConfiguration)
         {
             if (_toggles is null)
-                _toggles = FeatureToggleBatch.Build(Model);
+            {
+                _toggles =
+                    FeatureToggleBatch.Build(Model);
+            }
 
-            Logger.Info("[ModelEditor] ApplyFeatureToggles (batch)");
-            return _toggles.Apply(suppress, unsuppress, scope);
+            Logger.Info(
+                "[ModelEditor] " +
+                "ApplyFeatureToggles (batch)");
+
+            return _toggles.Apply(
+                suppress,
+                unsuppress,
+                scope);
         }
 
-        public void ApplyLengthTolerances(DomWedgeData wedge, IEnumerable<DomDimKey> keys)
+        public void ApplyLengthTolerances(
+            DomWedgeData wedge,
+            IEnumerable<DomDimKey> keys)
         {
-            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
-            if (keys is null) return;
-
-            var keysList = keys.Select(k => k.Value).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
-            if (keysList.Count == 0)
+            if (wedge is null)
             {
-                Logger.Info("[ModelEditor] ApplyLengthTolerances → no keys");
+                throw new ArgumentNullException(
+                    nameof(wedge));
+            }
+
+            if (keys is null)
+                return;
+
+            var keyNames =
+                keys
+                    .Select(key => key.Value)
+                    .Where(
+                        value =>
+                            !string.IsNullOrWhiteSpace(
+                                value))
+                    .Distinct()
+                    .ToList();
+
+            if (keyNames.Count == 0)
+            {
+                Logger.Info(
+                    "[ModelEditor] " +
+                    "ApplyLengthTolerances → no keys");
+
                 return;
             }
 
-            Logger.Info($"[ModelEditor] ApplyLengthTolerances → [{string.Join(", ", keysList)}]");
+            Logger.Info(
+                "[ModelEditor] " +
+                "ApplyLengthTolerances → [" +
+                string.Join(", ", keyNames) +
+                "]");
 
-            var owners = GetAllFeatureAndSketchNames(Model);
-            Logger.Info($"[ModelEditor] Owners discovered: {owners.Count}");
+            var owners =
+                GetAllFeatureAndSketchNames(Model);
 
-            foreach (var shortName in keysList)
+            Logger.Info(
+                "[ModelEditor] " +
+                $"Owners discovered: {owners.Count}");
+
+            foreach (var shortName in keyNames)
             {
                 try
                 {
-                    if (!wedge.Dimensions.TryGetValue(DomDimKey.From(shortName), out var d) || d is null)
+                    if (!wedge.Dimensions.TryGetValue(
+                            DomDimKey.From(shortName),
+                            out var dimensionData) ||
+                        dimensionData is null)
                     {
-                        Logger.Warn($"[ModelEditor] Tolerance input missing key '{shortName}'.");
+                        Logger.Warn(
+                            "[ModelEditor] " +
+                            "Tolerance input missing key " +
+                            $"'{shortName}'.");
+
                         continue;
                     }
 
-                    double upper_m = (double)d.Tol.Upper.AsMm() / 1000.0;
-                    double lower_m = (double)d.Tol.Lower.AsMm() / 1000.0;
+                    var upperAbsoluteMeters =
+                        (double)decimal.Abs(
+                            dimensionData.Tol.Upper.AsMm())
+                        / 1000.0;
 
-                    if (!TryGetDimensionByShortName(Model, shortName, owners, out var swDim) || swDim is null)
+                    var lowerAbsoluteMeters =
+                        (double)decimal.Abs(
+                            dimensionData.Tol.Lower.AsMm())
+                        / 1000.0;
+
+                    if (!TryGetDimensionByShortName(
+                            Model,
+                            shortName,
+                            owners,
+                            out var solidWorksDimension) ||
+                        solidWorksDimension is null)
                     {
-                        Logger.Warn($"[ModelEditor] Could not locate Dimension for '{shortName}' (owner unknown).");
+                        Logger.Warn(
+                            "[ModelEditor] " +
+                            "Could not locate Dimension for " +
+                            $"'{shortName}' " +
+                            "(owner unknown).");
+
                         continue;
                     }
 
-                    var tol = swDim.Tolerance;
-                    if (tol is null)
+                    var tolerance =
+                        solidWorksDimension.Tolerance;
+
+                    if (tolerance is null)
                     {
-                        Logger.Warn($"[ModelEditor] Tolerance object null for '{shortName}'.");
+                        Logger.Warn(
+                            "[ModelEditor] " +
+                            "Tolerance object null for " +
+                            $"'{shortName}'.");
+
                         continue;
                     }
 
-                    tol.Type = (Math.Abs(upper_m - lower_m) > 1e-12)
-                        ? (int)swTolType_e.swTolBILAT
-                        : (int)swTolType_e.swTolSYMMETRIC;
+                    tolerance.Type =
+                        Math.Abs(
+                            upperAbsoluteMeters -
+                            lowerAbsoluteMeters) > 1e-12
+                            ? (int)swTolType_e.swTolBILAT
+                            : (int)swTolType_e
+                                .swTolSYMMETRIC;
 
-                    tol.SetValues(-lower_m, upper_m);
-                    Logger.Success($"[ModelEditor] Tolerance applied '{shortName}' → +{upper_m:G6} / -{lower_m:G6} m.");
+                    tolerance.SetValues(
+                        -lowerAbsoluteMeters,
+                        upperAbsoluteMeters);
+
+                    Logger.Success(
+                        "[ModelEditor] " +
+                        $"Tolerance applied '{shortName}' " +
+                        $"→ +{upperAbsoluteMeters:G6} / " +
+                        $"-{lowerAbsoluteMeters:G6} m.");
                 }
                 catch (Exception ex)
                 {
-                    Logger.Warn($"[ModelEditor] ApplyLengthTolerances failed for '{shortName}': {ex.Message}");
+                    Logger.Warn(
+                        "[ModelEditor] " +
+                        "ApplyLengthTolerances failed " +
+                        $"for '{shortName}': {ex.Message}");
                 }
             }
-
         }
-
 
         public void RebuildOnce()
         {
-            Logger.Info("[ModelEditor] RebuildOnce");
+            Logger.Info(
+                "[ModelEditor] RebuildOnce");
+
             Model.EditRebuild3();
             Model.ForceRebuild3(false);
             Model.GraphicsRedraw2();
-            Logger.Success("[ModelEditor] Rebuild complete.");
+
+            Logger.Success(
+                "[ModelEditor] Rebuild complete.");
         }
 
         public void Save()
         {
             Logger.Info("[ModelEditor] Save");
-            Model.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent, ref _err, ref _warn);
-            Logger.Success($"[ModelEditor] Saved (err={_err}, warn={_warn})");
+
+            _err = 0;
+            _warn = 0;
+
+            var saved = Model.Save3(
+                (int)swSaveAsOptions_e
+                    .swSaveAsOptions_Silent,
+                ref _err,
+                ref _warn);
+
+            if (!saved || _err != 0)
+            {
+                throw new InvalidOperationException(
+                    "SolidWorks failed to save the part. " +
+                    $"success={saved}, " +
+                    $"err={_err}, " +
+                    $"warn={_warn}, " +
+                    $"path={_partPath}");
+            }
+
+            Logger.Success(
+                "[ModelEditor] " +
+                $"Saved (warn={_warn})");
         }
 
         public void Close()
@@ -237,15 +479,31 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             if (string.IsNullOrWhiteSpace(_partPath))
                 return;
 
-            Logger.Info($"[ModelEditor] Close → '{_partPath}'");
+            Logger.Info(
+                $"[ModelEditor] Close → '{_partPath}'");
+
             try
             {
-                _sw.CloseDoc(_partPath);
-                Logger.Success("[ModelEditor] Closed.");
+                var documentTitle =
+                    _model?.GetTitle();
+
+                if (string.IsNullOrWhiteSpace(
+                        documentTitle))
+                {
+                    documentTitle =
+                        Path.GetFileName(_partPath);
+                }
+
+                _sw.CloseDoc(documentTitle);
+
+                Logger.Success(
+                    "[ModelEditor] Closed.");
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[ModelEditor] Close exception: {ex.Message}");
+                Logger.Warn(
+                    "[ModelEditor] Close exception: " +
+                    ex.Message);
             }
             finally
             {
@@ -257,60 +515,116 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
         public void Dispose()
         {
-            try { Close(); } catch { }
+            try
+            {
+                Close();
+            }
+            catch
+            {
+                // Dispose must not hide the original
+                // automation exception.
+            }
         }
 
-        private static string DecodeOpenError(int err)
-            => err switch
+        private static string DecodeOpenError(int error)
+        {
+            return error switch
             {
-                1 => "Generic/unknown open error",
-                2 => "File could not be opened (check path/permissions/unsupported version/already locked)",
-                3 => "File not found",
-                4 => "Invalid file or version",
-                _ => "Unspecified"
-            };
+                1 =>
+                    "Generic/unknown open error",
 
-        private static List<string> GetAllFeatureAndSketchNames(ModelDoc2 model)
+                2 =>
+                    "File could not be opened " +
+                    "(check path/permissions/" +
+                    "unsupported version/already locked)",
+
+                3 =>
+                    "File not found",
+
+                4 =>
+                    "Invalid file or version",
+
+                _ =>
+                    "Unspecified"
+            };
+        }
+
+        private static List<string>
+            GetAllFeatureAndSketchNames(
+                ModelDoc2 model)
         {
             var names = new List<string>();
+
             var part = (PartDoc)model;
-            var f = (Feature)part.FirstFeature();
+            var feature =
+                (Feature)part.FirstFeature();
 
-            while (f != null)
+            while (feature is not null)
             {
-                if (!string.IsNullOrWhiteSpace(f.Name))
-                    names.Add(f.Name);
-
-                var sub = (Feature)f.GetFirstSubFeature();
-                while (sub != null)
+                if (!string.IsNullOrWhiteSpace(
+                        feature.Name))
                 {
-                    if (!string.IsNullOrWhiteSpace(sub.Name))
-                        names.Add(sub.Name);
-                    sub = (Feature)sub.GetNextSubFeature();
+                    names.Add(feature.Name);
                 }
 
-                f = (Feature)f.GetNextFeature();
+                var subFeature =
+                    (Feature)feature
+                        .GetFirstSubFeature();
+
+                while (subFeature is not null)
+                {
+                    if (!string.IsNullOrWhiteSpace(
+                            subFeature.Name))
+                    {
+                        names.Add(subFeature.Name);
+                    }
+
+                    subFeature =
+                        (Feature)subFeature
+                            .GetNextSubFeature();
+                }
+
+                feature =
+                    (Feature)feature.GetNextFeature();
             }
 
-            return names.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return names
+                .Distinct(
+                    StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
-        private static bool TryGetDimensionByShortName(ModelDoc2 model, string shortName, List<string> owners, out SwDim? swDim)
+        private static bool TryGetDimensionByShortName(
+            ModelDoc2 model,
+            string shortName,
+            List<string> owners,
+            out SwDim? solidWorksDimension)
         {
             foreach (var owner in owners)
             {
-                var probe = $"{shortName}@{owner}";
-                var dim = model.Parameter(probe) as SwDim;
-                if (dim != null)
+                var parameterName =
+                    $"{shortName}@{owner}";
+
+                var dimension =
+                    model.Parameter(parameterName)
+                    as SwDim;
+
+                if (dimension is not null)
                 {
-                    Logger.Info($"[ModelEditor] Resolved '{probe}'");
-                    swDim = dim;
+                    Logger.Info(
+                        "[ModelEditor] " +
+                        $"Resolved '{parameterName}'");
+
+                    solidWorksDimension = dimension;
                     return true;
                 }
             }
 
-            Logger.Warn($"[ModelEditor] Not found for '{shortName}@*'");
-            swDim = null;
+            Logger.Warn(
+                "[ModelEditor] " +
+                $"Not found for '{shortName}@*'");
+
+            solidWorksDimension = null;
             return false;
         }
     }

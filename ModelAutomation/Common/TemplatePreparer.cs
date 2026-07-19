@@ -1,45 +1,58 @@
+using System;
+using System.IO;
 using WAD.Runner.Application;
 
 namespace WAD.Runner.ModelAutomation.Common;
 
 public static class TemplatePreparer
 {
-
-
     public static void CopyTemplate(string source, string destination, bool overwrite = true)
     {
-
         if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(destination))
-        {
-            Logger.Error("[TemplatePreparer] Source or destination is empty.");
             throw new ArgumentException("Source and destination must be non-empty paths.");
+
+        var sourceFullPath = Path.GetFullPath(source);
+        var destinationFullPath = Path.GetFullPath(destination);
+
+        if (!File.Exists(sourceFullPath))
+            throw new FileNotFoundException("Template file not found.", sourceFullPath);
+
+        if (string.Equals(sourceFullPath, destinationFullPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Logger.Info($"[TemplatePreparer] Source already matches destination: {sourceFullPath}");
+            return;
         }
 
-        if (!File.Exists(source))
+        var destinationDirectory = Path.GetDirectoryName(destinationFullPath);
+        if (!string.IsNullOrWhiteSpace(destinationDirectory))
+            Directory.CreateDirectory(destinationDirectory);
+
+        if (File.Exists(destinationFullPath) && !overwrite)
         {
-            Logger.Error($"[TemplatePreparer] Template file not found: {source}");
-            throw new FileNotFoundException("Template file not found.", source);
+            Logger.Info($"[TemplatePreparer] Destination exists; overwrite disabled: {destinationFullPath}");
+            return;
         }
 
-        var destDir = Path.GetDirectoryName(destination);
-        if (!string.IsNullOrWhiteSpace(destDir) && !Directory.Exists(destDir))
-        {
-            Directory.CreateDirectory(destDir);
-        }
+        var temporaryPath = destinationFullPath + ".tmp-" + Guid.NewGuid().ToString("N");
 
-        if (File.Exists(destination))
+        try
         {
-            if (overwrite)
+            File.Copy(sourceFullPath, temporaryPath, overwrite: true);
+
+            if (File.Exists(destinationFullPath))
             {
-                Logger.Warn($"[TemplatePreparer] Destination exists; deleting: {destination}");
-                File.Delete(destination);
+                var attributes = File.GetAttributes(destinationFullPath);
+                if ((attributes & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(destinationFullPath, attributes & ~FileAttributes.ReadOnly);
             }
-            else
-            {
-                return;
-            }
-        }
 
-        File.Copy(source, destination);
+            File.Move(temporaryPath, destinationFullPath, overwrite: true);
+            Logger.Info($"[TemplatePreparer] Copied template -> {destinationFullPath}");
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
+        }
     }
 }

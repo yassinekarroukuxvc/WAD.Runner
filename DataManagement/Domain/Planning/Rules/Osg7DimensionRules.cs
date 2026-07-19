@@ -130,7 +130,11 @@ internal static class Osg7DimensionRules
         var GD = LayoutMath.Dmm(ctx, "GD");
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
-            D[0] + 3.5,
+            D[0] - 3.5,
+            D[1]);
+
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
+            D[0] + 10,
             D[1]);
 
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
@@ -201,6 +205,7 @@ internal static class Osg7DimensionRules
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
         var X = LayoutMath.Dmm(ctx, "X");
+        var F = LayoutMath.Dmm(ctx, "F");
         var FX = LayoutMath.Dmm(ctx, "FX");
 
         if (X == 0)
@@ -222,6 +227,14 @@ internal static class Osg7DimensionRules
             Sec[1] - 40.0);
 
         PlaceDim(ctx, diag, outList, "BR", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + (FX * scv) + (FL * scv) + 10,
+            Sec[1] - 40.0);
+
+        PlaceDim(ctx, diag, outList, "BRX", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + (FX * scv) + (FL * scv),
+            Sec[1] - 40.0);
+
+        PlaceDim(ctx, diag, outList, "FRX", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + (FX * scv) + (FL * scv) + 10,
             Sec[1] - 40.0);
     }

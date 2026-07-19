@@ -1,17 +1,27 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.ModelAutomation.Core;
 using WAD.Runner.ModelAutomation.Execution;
-using WAD.Runner.ModelAutomation.Rules.Common;
 
 namespace WAD.Runner.ModelAutomation.Rules.OSG7;
 
 public sealed class Osg7FeatureRules : IFeatureRuleSet
 {
-    private const decimal PositiveEpsilon = 0.000001m;
+    /*
+     * These features are required for every OSG7 model,
+     * regardless of subclass or drawing type.
+     */
+    private static readonly string[] AlwaysOnNames =
+    {
+        "FRA_surface",
+        "BRA_surface",
+        "Trim_feature",
+        "BR_cut",
+        "FR_cut"
+    };
 
     private static readonly string[] PgbBaseNames =
     {
@@ -49,11 +59,37 @@ public sealed class Osg7FeatureRules : IFeatureRuleSet
         "VFL_sketch"
     };
 
+    /*
+     * Taper_line_sketch is used for production
+     * and customer drawings, but not for overlays.
+     */
+    private static readonly string[] DrawingTaperLineNames =
+    {
+        "Taper_line_sketch"
+    };
+
     private static readonly string[] CommonOverlayNames =
     {
         "ref_point",
         "cut_plan_feature",
         "cut_feature"
+    };
+
+    /*
+     * Exactly one of these two sketches is active
+     * for an overlay:
+     *
+     * - Standard case: FR_BR_overlay_sketch
+     * - VFL case:      FR_BR_VFL_overlay_sketch
+     */
+    private static readonly string[] StandardFrBrOverlayNames =
+    {
+        "FR_BR_overlay_sketch"
+    };
+
+    private static readonly string[] VflFrBrOverlayNames =
+    {
+        "FR_BR_VFL_overlay_sketch"
     };
 
     private static readonly string[] PgbOverlayAlwaysNames =
@@ -86,7 +122,12 @@ public sealed class Osg7FeatureRules : IFeatureRuleSet
         "FG_G_overlay_sketch"
     };
 
-    public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
+    private static readonly IReadOnlyCollection<string>
+        AllManagedNames = BuildAllManagedNames();
+
+    public ModelRuleRunner.FeaturePlan Build(
+        WedgeData wedge,
+        FeatureRuleContext context)
     {
         if (wedge is null)
             throw new ArgumentNullException(nameof(wedge));
@@ -94,31 +135,96 @@ public sealed class Osg7FeatureRules : IFeatureRuleSet
         if (context is null)
             throw new ArgumentNullException(nameof(context));
 
-        var isPgb = context.Subclass == WedgeSubclass.PGB;
-        var isOverlay = context.DrawingType == DrawingType.Overlay;
-        var hasVr = HasPositiveNominal(wedge, "VR");
-        var hasVfl = HasPositiveNominal(wedge, "VFL");
-        var hasG = HasPositiveNominal(wedge, "GD");
+        var facts = new WedgeFacts(wedge);
+
+        var isPgb =
+            context.Subclass == WedgeSubclass.PGB;
+
+        var isOverlay =
+            context.DrawingType == DrawingType.Overlay;
+
+        var isProductionOrCustomer =
+            context.DrawingType == DrawingType.Production ||
+            context.DrawingType == DrawingType.Customer;
+
+        var hasVr =
+            HasPositiveLength(facts, "VR");
+
+        var hasVfl =
+            HasPositiveLength(facts, "VFL");
+
+        var hasG =
+            HasPositiveLength(facts, "GD");
 
         Logger.Info(
-            $"[Osg7FeatureRules] Build -> subclass={context.Subclass}, drawingType={context.DrawingType}, " +
-            $"isPGB={isPgb}, overlay={isOverlay}, VR>0={hasVr}, VFL>0={hasVfl}, G>0={hasG}");
+            "[Osg7FeatureRules] Build -> " +
+            $"subclass={context.Subclass}, " +
+            $"drawingType={context.DrawingType}, " +
+            $"VR>0={hasVr}, " +
+            $"VFL>0={hasVfl}, " +
+            $"GD>0={hasG}.");
 
         var active = NewNameSet();
 
-        if (isPgb)
-            AddPgbRules(active, isOverlay, hasVr, hasVfl);
-        else
-            AddFgRules(active, isOverlay, hasVr, hasVfl, hasG);
+        /*
+         * The new taper construction features must
+         * always remain active.
+         */
+        AddAll(active, AlwaysOnNames);
 
-        var suppress = GetAllManagedNames();
+        /*
+         * Production and customer drawings use the
+         * normal taper-line sketch.
+         */
+        if (isProductionOrCustomer)
+            AddAll(active, DrawingTaperLineNames);
+
+        if (isPgb)
+        {
+            AddPgbRules(
+                active,
+                isOverlay,
+                hasVr,
+                hasVfl);
+        }
+        else
+        {
+            AddFgRules(
+                active,
+                isOverlay,
+                hasVr,
+                hasVfl,
+                hasG);
+        }
+
+        var suppress =
+            new HashSet<string>(
+                AllManagedNames,
+                StringComparer.OrdinalIgnoreCase);
+
         suppress.ExceptWith(active);
 
-        Logger.Success($"[Osg7FeatureRules] Build -> done. unsuppress={active.Count}, suppress={suppress.Count}");
+        var suppressOrdered =
+            suppress
+                .OrderBy(
+                    name => name,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        var activeOrdered =
+            active
+                .OrderBy(
+                    name => name,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        Logger.Info(
+            "[Osg7FeatureRules] Active features/sketches -> " +
+            string.Join(", ", activeOrdered));
 
         return new ModelRuleRunner.FeaturePlan(
-            Suppress: suppress.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
-            Unsuppress: active.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray());
+            suppressOrdered,
+            activeOrdered);
     }
 
     private static void AddPgbRules(
@@ -138,17 +244,12 @@ public sealed class Osg7FeatureRules : IFeatureRuleSet
         if (!isOverlay)
             return;
 
-        AddAll(active, CommonOverlayNames);
+        AddCommonOverlayRules(active, hasVfl);
+
         AddAll(active, PgbOverlayAlwaysNames);
 
         if (!hasVr)
-        {
             AddAll(active, PgbOverlayWNames);
-        }
-        else
-        {
-            Logger.Info("[Osg7FeatureRules] Overlay + VR>0 -> suppressing PGB_W_overlay_sketch.");
-        }
     }
 
     private static void AddFgRules(
@@ -169,17 +270,12 @@ public sealed class Osg7FeatureRules : IFeatureRuleSet
         if (!isOverlay)
             return;
 
-        AddAll(active, CommonOverlayNames);
+        AddCommonOverlayRules(active, hasVfl);
+
         AddAll(active, FgOverlayAlwaysNames);
 
         if (!hasVr)
-        {
             AddAll(active, FgOverlayWNames);
-        }
-        else
-        {
-            Logger.Info("[Osg7FeatureRules] Overlay + VR>0 -> suppressing FG_W_overlay_sketch.");
-        }
 
         if (hasVr)
             AddAll(active, FgVrOverlayNames);
@@ -188,40 +284,90 @@ public sealed class Osg7FeatureRules : IFeatureRuleSet
             AddAll(active, FgGOverlayNames);
     }
 
-    private static HashSet<string> GetAllManagedNames()
+    private static void AddCommonOverlayRules(
+        HashSet<string> active,
+        bool hasVfl)
     {
-        var all = NewNameSet();
+        AddAll(active, CommonOverlayNames);
 
-        AddAll(all, PgbBaseNames);
-        AddAll(all, FgBaseNames);
-        AddAll(all, VrNames);
-        AddAll(all, VflNames);
-        AddAll(all, CommonOverlayNames);
+        /*
+         * The sketches are mutually exclusive.
+         *
+         * A positive VFL value means the VFL feature
+         * is required and the VFL-specific taper
+         * overlay sketch must be used.
+         */
+        if (hasVfl)
+        {
+            AddAll(active, VflFrBrOverlayNames);
 
-        AddAll(all, PgbOverlayAlwaysNames);
-        AddAll(all, PgbOverlayWNames);
+            Logger.Info(
+                "[Osg7FeatureRules] Overlay taper selection -> " +
+                "FR_BR_VFL_sketch.");
+        }
+        else
+        {
+            AddAll(active, StandardFrBrOverlayNames);
 
-        AddAll(all, FgOverlayAlwaysNames);
-        AddAll(all, FgOverlayWNames);
-
-        AddAll(all, FgVrOverlayNames);
-        AddAll(all, FgGOverlayNames);
-
-        return all;
+            Logger.Info(
+                "[Osg7FeatureRules] Overlay taper selection -> " +
+                "FR_BR_overlays_sketch.");
+        }
     }
 
-    private static bool HasPositiveNominal(WedgeData wedge, string key)
-        => WedgeDimensionReader.HasPositiveNominal(wedge, key, PositiveEpsilon);
+    private static bool HasPositiveLength(
+        WedgeFacts facts,
+        string key)
+    {
+        return facts.TryGetLengthMm(
+                   key,
+                   out var valueMillimeters) &&
+               valueMillimeters >
+               WedgeFacts.DefaultPositiveEpsilon;
+    }
+
+    private static IReadOnlyCollection<string>
+        BuildAllManagedNames()
+    {
+        var names = NewNameSet();
+
+        AddAll(names, AlwaysOnNames);
+        AddAll(names, PgbBaseNames);
+        AddAll(names, FgBaseNames);
+        AddAll(names, VrNames);
+        AddAll(names, VflNames);
+        AddAll(names, DrawingTaperLineNames);
+        AddAll(names, CommonOverlayNames);
+        AddAll(names, StandardFrBrOverlayNames);
+        AddAll(names, VflFrBrOverlayNames);
+        AddAll(names, PgbOverlayAlwaysNames);
+        AddAll(names, PgbOverlayWNames);
+        AddAll(names, FgOverlayAlwaysNames);
+        AddAll(names, FgOverlayWNames);
+        AddAll(names, FgVrOverlayNames);
+        AddAll(names, FgGOverlayNames);
+
+        return names
+            .OrderBy(
+                name => name,
+                StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 
     private static HashSet<string> NewNameSet()
-        => new(StringComparer.OrdinalIgnoreCase);
-
-    private static void AddAll(HashSet<string> set, IEnumerable<string> items)
     {
-        foreach (var name in items)
+        return new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void AddAll(
+        HashSet<string> target,
+        IEnumerable<string> names)
+    {
+        foreach (var name in names)
         {
             if (!string.IsNullOrWhiteSpace(name))
-                set.Add(name.Trim());
+                target.Add(name.Trim());
         }
     }
 }

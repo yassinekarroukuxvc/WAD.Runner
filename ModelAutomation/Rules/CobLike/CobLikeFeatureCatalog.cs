@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -6,7 +6,7 @@ namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 
 /// <summary>
 /// Single source of truth for every SolidWorks feature/sketch name that WAD manages
-/// for COB-like wedge types (COB, FP).
+/// for COB-like wedge types (COB, FP, UTUS).
 ///
 /// Naming convention in the 3D model:
 ///   {BASE}_{SHANK}_feature      e.g. TDF_STD_feature, TDF_180_DEG_REV_feature
@@ -202,6 +202,15 @@ public static class CobLikeFeatureCatalog
             ? "RA2H_SLB_STD_FRONT_overlay_sketch"
             : "RA2H_SLB_180_DEG_REV_FRONT_overlay_sketch";
 
+    public static string ResolveFrontSketch(CobLikeShankType shank, bool hasRa2H, bool hasVbl)
+        => (hasRa2H, hasVbl) switch
+        {
+            (true, true) => Ra2HSlbSketch(shank),
+            (true, false) => Ra2HSketch(shank),
+            (false, true) => SlbSketch(shank),
+            _ => FrontSketch(shank)
+        };
+
     /// <summary>All four front overlay sketch names for a given shank (used to deactivate the unused ones).</summary>
     public static IEnumerable<string> AllFrontSketches(CobLikeShankType shank)
     {
@@ -263,13 +272,20 @@ public static class CobLikeFeatureCatalog
             _ => "C"   // C, C_WithCbr, CC
         };
 
-        // Start with W as baseline; only consider VW/W2 when they are positive.
-        var suffix = "W";
-        var min = w;
+        // Pick the smallest positive width. If no positive width exists, keep W as
+        // a safe deterministic fallback because every supported foot family has a W sketch.
+        var selected = new[]
+            {
+                (Key: "W", Value: w, Priority: 0),
+                (Key: "VW", Value: vw, Priority: 1),
+                (Key: "W2", Value: w2, Priority: 2)
+            }
+            .Where(x => x.Value > 0m)
+            .OrderBy(x => x.Value)
+            .ThenBy(x => x.Priority)
+            .FirstOrDefault();
 
-        if (vw > 0m && vw < min) { min = vw; suffix = "VW"; }
-        if (w2 > 0m && w2 < min) { suffix = "W2"; }
-
+        var suffix = string.IsNullOrWhiteSpace(selected.Key) ? "W" : selected.Key;
         return $"{prefix}_FOOT_{suffix}_overlay_sketch";
     }
 
@@ -285,7 +301,11 @@ public static class CobLikeFeatureCatalog
     // The plan builder suppresses anything known but not activated.
     // =========================================================================
 
-    public static IEnumerable<string> AllManagedNames()
+    private static readonly IReadOnlyCollection<string> ManagedNames = BuildManagedNames();
+
+    public static IReadOnlyCollection<string> AllManagedNames() => ManagedNames;
+
+    private static IReadOnlyCollection<string> BuildManagedNames()
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -327,6 +347,6 @@ public static class CobLikeFeatureCatalog
         // Overlay: foot-width sketches (9 combinations)
         Add(AllFootWidthSketches());
 
-        return names;
+        return names.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 }

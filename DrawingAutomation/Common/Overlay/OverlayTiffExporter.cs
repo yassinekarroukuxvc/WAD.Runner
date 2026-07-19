@@ -46,7 +46,9 @@ namespace WAD.Runner.DrawingAutomation.Common.Overlay
                     tiffPath = Path.ChangeExtension(basePath, ".tif");
                 }
 
-                Directory.CreateDirectory(Path.GetDirectoryName(tiffPath)!);
+                var outputDirectory = Path.GetDirectoryName(tiffPath);
+                if (!string.IsNullOrWhiteSpace(outputDirectory))
+                    Directory.CreateDirectory(outputDirectory);
 
                 if (!DrawingExecutorCommon.SaveCurrentSheetAsTiff(swApp, ds, tiffPath, 200))
                     Logger.Warn("[Overlay] TIFF export reported failure; see logs above.");

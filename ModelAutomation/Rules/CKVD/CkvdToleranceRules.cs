@@ -1,167 +1,102 @@
 using System;
 using System.Collections.Generic;
-
 using WAD.Runner.Application;
-using WAD.Runner.DataManagement.Domain.Dimensions;
-using WAD.Runner.DataManagement.Domain.Drawing;
-using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.ModelAutomation.Core;
 using WAD.Runner.ModelAutomation.Tolerances;
 
-namespace WAD.Runner.ModelAutomation.Rules.CKVD
+namespace WAD.Runner.ModelAutomation.Rules.CKVD;
+
+public sealed class CkvdToleranceRules : IToleranceRuleSet
 {
-    public sealed class CkvdToleranceRules : IToleranceRuleSet
+    public TolerancePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
     {
-        public TolerancePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
+        if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+
+        var facts = new WedgeFacts(wedge);
+        var updates = new List<ToleranceUpdate>();
+
+        AddBounds(
+            updates,
+            facts,
+            "VR",
+            "VR_MIN@FG_Wed_VW",
+            "VR_MAX@FG_Wed_VW");
+
+        foreach (var rule in GetToleranceSketchRules(subclass))
         {
-            if (wedge is null) throw new ArgumentNullException(nameof(wedge));
-
-            var updates = new List<ToleranceUpdate>();
-
-            AddVrMinMaxMetersAsMmUpdates(
+            AddTolerancePair(
                 updates,
-                wedge,
-                nominalKey: "VR",
-                vrMinTarget: "VR_MIN@FG_Wed_VW",
-                vrMaxTarget: "VR_MAX@FG_Wed_VW");
-
-            foreach (var rule in GetTolSketchRules(subclass))
-            {
-                AddTolPairMmAbs(
-                    updates,
-                    wedge,
-                    dimKey: rule.DimKey,
-                    utolTarget: rule.UtolTarget,
-                    ltolTarget: rule.LtolTarget);
-            }
-
-            Logger.Info($"[CkvdToleranceRules] Planned updates={updates.Count} (Subclass={subclass}, DrawingType={drawingType})");
-            return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
+                facts,
+                rule.DimensionKey,
+                rule.UpperTarget,
+                rule.LowerTarget);
         }
 
+        Logger.Info(
+            $"[CkvdToleranceRules] Planned updates={updates.Count} " +
+            $"(Subclass={subclass}, DrawingType={drawingType}).");
 
-        private static void AddTolPairMmAbs(
-            List<ToleranceUpdate> updates,
-            WedgeData wedge,
-            string dimKey,
-            string utolTarget,
-            string ltolTarget)
+        return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
+    }
+
+    private static void AddTolerancePair(
+        List<ToleranceUpdate> updates,
+        WedgeFacts facts,
+        string dimensionKey,
+        string upperTarget,
+        string lowerTarget)
+    {
+        if (!facts.TryGetLengthToleranceMagnitudesMm(dimensionKey, out var lowerAbsMm, out var upperAbsMm))
         {
-            if (!TryGetLengthToleranceMm(wedge, dimKey, out var lowerMm, out var upperMm))
-            {
-                Logger.Warn($"[CkvdToleranceRules] Missing/invalid tolerance for '{dimKey}' (skipping: {ltolTarget}, {utolTarget})");
-                return;
-            }
-
-            var lAbs = decimal.Abs(lowerMm);
-            var uAbs = decimal.Abs(upperMm);
-
-            updates.Add(new ToleranceUpdate(utolTarget, uAbs, ToleranceUnit.LengthMm));
-            updates.Add(new ToleranceUpdate(ltolTarget, lAbs, ToleranceUnit.LengthMm));
-
-            Logger.Info($"[CkvdToleranceRules] {dimKey}: |LTOL|={lAbs}mm → {ltolTarget}, |UTOL|={uAbs}mm → {utolTarget}");
+            Logger.Warn($"[CkvdToleranceRules] Missing/invalid tolerance for '{dimensionKey}'.");
+            return;
         }
 
-        private static void AddVrMinMaxMetersAsMmUpdates(
-            List<ToleranceUpdate> updates,
-            WedgeData wedge,
-            string nominalKey,
-            string vrMinTarget,
-            string vrMaxTarget)
+        updates.Add(new ToleranceUpdate(upperTarget, upperAbsMm, ToleranceUnit.LengthMm));
+        updates.Add(new ToleranceUpdate(lowerTarget, lowerAbsMm, ToleranceUnit.LengthMm));
+    }
+
+    private static void AddBounds(
+        List<ToleranceUpdate> updates,
+        WedgeFacts facts,
+        string dimensionKey,
+        string minTarget,
+        string maxTarget)
+    {
+        if (!facts.TryGetLengthBoundsMm(dimensionKey, out var minMm, out var maxMm))
         {
-            if (!TryGetLengthNominalMm(wedge, nominalKey, out var nomMm))
-            {
-                Logger.Warn($"[CkvdToleranceRules] Missing/invalid nominal for '{nominalKey}' (skipping {vrMinTarget}/{vrMaxTarget}).");
-                return;
-            }
-
-            if (!TryGetLengthToleranceMm(wedge, nominalKey, out var lowerMm, out var upperMm))
-            {
-                Logger.Warn($"[CkvdToleranceRules] Missing/invalid tolerance for '{nominalKey}' (skipping {vrMinTarget}/{vrMaxTarget}).");
-                return;
-            }
-
-            var lAbs = decimal.Abs(lowerMm);
-            var uAbs = decimal.Abs(upperMm);
-
-            var minMm = nomMm - lAbs;
-            var maxMm = nomMm + uAbs;
-
-            updates.Add(new ToleranceUpdate(vrMinTarget, minMm, ToleranceUnit.LengthMm));
-            updates.Add(new ToleranceUpdate(vrMaxTarget, maxMm, ToleranceUnit.LengthMm));
-
-            Logger.Info($"[CkvdToleranceRules] {nominalKey}: NOM={nomMm}mm, |LTOL|={lAbs}mm, |UTOL|={uAbs}mm → " +
-                        $"{vrMinTarget}={minMm}mm, {vrMaxTarget}={maxMm}mm");
+            Logger.Warn($"[CkvdToleranceRules] Missing/invalid nominal or tolerance for '{dimensionKey}'.");
+            return;
         }
 
+        updates.Add(new ToleranceUpdate(minTarget, minMm, ToleranceUnit.LengthMm));
+        updates.Add(new ToleranceUpdate(maxTarget, maxMm, ToleranceUnit.LengthMm));
+    }
 
-        private static bool TryGetLengthNominalMm(WedgeData wedge, string dimKey, out decimal nominalMm)
+    private sealed record ToleranceSketchRule(
+        string DimensionKey,
+        string UpperTarget,
+        string LowerTarget);
+
+    private static IReadOnlyList<ToleranceSketchRule> GetToleranceSketchRules(WedgeSubclass subclass)
+    {
+        if (subclass == WedgeSubclass.PGB)
         {
-            nominalMm = 0m;
-
-            if (wedge?.Dimensions is null) return false;
-
-            var key = DimensionKey.From(dimKey);
-            var dim = wedge.TryGet(key);
-            if (dim is null) return false;
-
-            if (dim.Nominal.Unit != UnitKind.Millimeter)
+            return new[]
             {
-                Logger.Warn($"[CkvdToleranceRules] '{dimKey}' nominal unit is {dim.Nominal.Unit} (expected Millimeter).");
-                return false;
-            }
-
-            nominalMm = dim.Nominal.Value;
-            return true;
-        }
-
-        private static bool TryGetLengthToleranceMm(WedgeData wedge, string dimKey, out decimal lowerMm, out decimal upperMm)
-        {
-            lowerMm = 0m;
-            upperMm = 0m;
-
-            if (wedge?.Dimensions is null) return false;
-
-            var key = DimensionKey.From(dimKey);
-            var dim = wedge.TryGet(key);
-            if (dim is null) return false;
-
-            if (dim.Nominal.Unit != UnitKind.Millimeter)
-            {
-                Logger.Warn($"[CkvdToleranceRules] '{dimKey}' nominal unit is {dim.Nominal.Unit} (expected Millimeter).");
-                return false;
-            }
-
-            lowerMm = dim.Tol.Lower.Value;
-            upperMm = dim.Tol.Upper.Value;
-
-            return true;
-        }
-
-
-        private sealed record TolSketchRule(string DimKey, string UtolTarget, string LtolTarget);
-
-        private static IReadOnlyList<TolSketchRule> GetTolSketchRules(WedgeSubclass subclass)
-        {
-            if (subclass == WedgeSubclass.PGB)
-            {
-                return new List<TolSketchRule>
-                {
-                    new("FL", "UTOL@PGB_Wed_FL", "LTOL@PGB_Wed_FL"),
-                    new("W",  "UTOL@PGB_Wed_W",  "LTOL@PGB_Wed_W"),
-                };
-            }
-
-            return new List<TolSketchRule>
-            {
-                new("FL", "UTOL@FG_Wed_FL", "LTOL@FG_Wed_FL"),
-                new("W",  "UTOL@FG_Wed_W",  "LTOL@FG_Wed_W"),
-                new("B",  "UTOL@FG_Wed_B",  "LTOL@FG_Wed_B"),
-
-                new("VW", "VW_UTOL@FG_Wed_VW", "VW_LTOL@FG_Wed_VW"),
-
-                new("VR", "UTOL@FG_Wed_VR", "LTOL@FG_Wed_VR"),
+                new ToleranceSketchRule("FL", "UTOL@PGB_Wed_FL", "LTOL@PGB_Wed_FL"),
+                new ToleranceSketchRule("W", "UTOL@PGB_Wed_W", "LTOL@PGB_Wed_W")
             };
         }
+
+        return new[]
+        {
+            new ToleranceSketchRule("FL", "UTOL@FG_Wed_FL", "LTOL@FG_Wed_FL"),
+            new ToleranceSketchRule("W", "UTOL@FG_Wed_W", "LTOL@FG_Wed_W"),
+            new ToleranceSketchRule("B", "UTOL@FG_Wed_B", "LTOL@FG_Wed_B"),
+            new ToleranceSketchRule("VW", "VW_UTOL@FG_Wed_VW", "VW_LTOL@FG_Wed_VW"),
+            new ToleranceSketchRule("VR", "UTOL@FG_Wed_VR", "LTOL@FG_Wed_VR")
+        };
     }
 }

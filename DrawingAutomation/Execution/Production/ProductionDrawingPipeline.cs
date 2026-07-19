@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 
-using SolidWorks.Interop.sldworks;
-
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DrawingAutomation;
@@ -17,118 +15,207 @@ using WAD.Runner.DrawingAutomation.Views;
 
 namespace WAD.Runner.DrawingAutomation.Execution.Production;
 
-
 public sealed class ProductionDrawingPipeline : IDrawingPipeline
 {
-    private const int ViewIterationGuard = 512;
-
-    public bool CanHandle(DrawingAutomationContext context)
-    => context.DrawingData.DrawingType != WAD.Runner.DataManagement.Domain.Wedge.DrawingType.Overlay;
-
-    public void Run(DrawingAutomationContext context)
+    public bool CanHandle(
+        DrawingAutomationContext context)
     {
-        if (context is null) throw new ArgumentNullException(nameof(context));
-
-        Logger.Info($"=== WAD Drawing ▶ {context.Run.Wedge.Subclass}/{context.DrawingData.DrawingType} | {context.Run.WedgeType} ===");
-
-        RunModelPhaseBoundary(context);
-
-        var state = OpenRelinkAndPrepare(context);
-
-        PlaceViews(state, context.DrawingData);
-        ApplyBreaklines(state, context.Run, context.DrawingData);
-        AutoScaleAndRepositionViews(state, context.DrawingData, context.Profile.Scale);
-
-        var planned = DrawingDimensionPlanner.Plan(context.Run, context.DrawingData);
-
-        DrawingAnnotationCleanupStep.Run(state.DrawingService, state.ViewNames, context.Run, context.DrawingData);
-        ApplyAnnotationPositions(state, context.Run, context.DrawingData, planned.AnnotationPlans);
-        ApplyMetadata(state.DrawingService, context.DrawingData, context.Run.Wedge);
-        DrawingTableStep.Run(context.SwApp, state.DrawingService, context.Run, context.DrawingData);
-        DrawingExecutorCommon.FinalizeProduction(context.SwApp, state.DrawingService, context.Run.OutputPdfPath);
+        return context.DrawingData.DrawingType
+            != WAD.Runner.DataManagement.Domain.Wedge.DrawingType.Overlay;
     }
 
-    private static void RunModelPhaseBoundary(DrawingAutomationContext context)
+    public void Run(
+        DrawingAutomationContext context)
     {
-        Logger.Info("[Drawing/1] Ensure model phase has completed...");
-        _ = context.RunPartAutomation();
-    }
+        if (context is null)
+            throw new ArgumentNullException(nameof(context));
 
-    private static DrawingPipelineState OpenRelinkAndPrepare(DrawingAutomationContext context)
-    {
-        Logger.Info("[Drawing/2] Open, relink and prepare drawing sheet...");
+        Logger.Info(
+            $"=== WAD Drawing ▶ " +
+            $"{context.Run.Wedge.Subclass}/" +
+            $"{context.DrawingData.DrawingType} | " +
+            $"{context.Run.WedgeType} ===");
 
-        var drawingService = DrawingExecutorCommon.InitializeAndRelink(context.SwApp, context.Run);
-        var targetSheet = context.Profile.SheetSelector(drawingService.GetSheetNames());
+        DrawingPipelineState? state = null;
 
-        TryActivateSheet(drawingService, targetSheet);
-
-        var deleteResult = drawingService.DeleteAllSheetsExcept2(targetSheet);
-        if (!deleteResult.Ok)
+        try
         {
-            Logger.Warn(deleteResult.NotDeleted.Count > 0
-                ? $"[Sheets] Some sheets could not be deleted: {string.Join(", ", deleteResult.NotDeleted)}"
-                : "[Sheets] DeleteAllSheetsExcept2 returned a warning.");
+            // ---------------------------------------------------------
+            // 1. Finish model automation before opening the drawing.
+            // ---------------------------------------------------------
+            RunModelPhaseBoundary(
+                context);
+
+            // ---------------------------------------------------------
+            // 2. Open drawing, relink model, prepare the target sheet.
+            // ---------------------------------------------------------
+            state =
+                OpenRelinkAndPrepare(
+                    context);
+
+            // ---------------------------------------------------------
+            // 3. Stabilize the entire drawing-view layout.
+            //
+            // One coordinator owns:
+            //
+            // - Detail/Section configured scales
+            // - Front/Side/Top autoscale
+            // - breakline recalculation against current/final scale
+            // - final view positions
+            // - rebuild boundaries
+            //
+            // The pipeline no longer knows the internal sequencing.
+            // ---------------------------------------------------------
+            ApplyViewLayout(
+                state,
+                context);
+
+            // ---------------------------------------------------------
+            // 4. Plan dimensions only after geometry, scale, breaklines,
+            // and positions are final.
+            // ---------------------------------------------------------
+            var planned =
+                DrawingDimensionPlanner.Plan(
+                    context.Run,
+                    context.DrawingData);
+
+            DrawingAnnotationCleanupStep.Run(
+                state.DrawingService,
+                state.ViewNames,
+                context.Run,
+                context.DrawingData);
+
+            ApplyAnnotationPositions(
+                state,
+                context.Run,
+                context.DrawingData,
+                planned.AnnotationPlans);
+
+            ApplyMetadata(
+                state.DrawingService,
+                context.DrawingData,
+                context.Run.Wedge);
+
+            DrawingTableStep.Run(
+                context.SwApp,
+                state.DrawingService,
+                context.Run,
+                context.DrawingData);
+
+            DrawingExecutorCommon.FinalizeProduction(
+                context.SwApp,
+                state.DrawingService,
+                context.Run.OutputPdfPath);
         }
-
-        drawingService.ZoomToSheet();
-
-        var viewNames = DrawingViewNameMap.FromProfile(context.Profile);
-        var placer = new ViewPlacementService(drawingService, viewNames);
-
-        return new DrawingPipelineState
+        finally
         {
-            DrawingService = drawingService,
-            ViewNames = viewNames,
-            ViewPlacement = placer,
-            ActiveSheetName = targetSheet
-        };
+            state?.DrawingService.Close();
+        }
     }
 
-    private static void PlaceViews(DrawingPipelineState state, DrawingData drawingData)
+    private static void RunModelPhaseBoundary(
+        DrawingAutomationContext context)
     {
-        Logger.Info("[Drawing/3] Place primary and secondary views...");
-        state.ViewPlacement.Apply("Front", drawingData);
-        state.ViewPlacement.Apply("Side", drawingData);
-        state.ViewPlacement.Apply("Top", drawingData);
-        state.ViewPlacement.ApplyDetailAndSection(drawingData);
-        state.DrawingService.Rebuild();
+        Logger.Info(
+            "[Drawing/1] Ensure model phase has completed...");
+
+        _ =
+            context.RunPartAutomation();
+
+        DrawingRunValidator.EnsureGeneratedPartExists(
+            context.Run);
     }
 
-    private static void ApplyBreaklines(DrawingPipelineState state, DrawingRun run, DrawingData drawingData)
+    private static DrawingPipelineState OpenRelinkAndPrepare(
+        DrawingAutomationContext context)
     {
-        Logger.Info("[Drawing/4] Apply breaklines...");
-        EnsureDefaultBreaklineGaps(drawingData);
+        Logger.Info(
+            "[Drawing/2] Open, relink and prepare drawing sheet...");
 
-        foreach (var logicalView in new[] { "Front", "Side", "Detail", "Section" })
-            TryApplyBreakline(state.DrawingService, state.ViewNames, logicalView, run, drawingData);
+        var drawingService =
+            DrawingExecutorCommon.InitializeAndRelink(
+                context.SwApp,
+                context.Run);
 
-        state.DrawingService.Rebuild();
+        try
+        {
+            var targetSheet =
+                context.Profile.SheetSelector(
+                    drawingService.GetSheetNames());
+
+            TryActivateSheet(
+                drawingService,
+                targetSheet);
+
+            var deleteResult =
+                drawingService.DeleteAllSheetsExcept2(
+                    targetSheet);
+
+            if (!deleteResult.Ok)
+            {
+                Logger.Warn(
+                    deleteResult.NotDeleted.Count > 0
+                        ? $"[Sheets] Some sheets could not be deleted: " +
+                          $"{string.Join(", ", deleteResult.NotDeleted)}"
+                        : "[Sheets] DeleteAllSheetsExcept2 returned a warning.");
+            }
+
+            drawingService.ZoomToSheet();
+
+            var viewNames =
+                DrawingViewNameMap.FromProfile(
+                    context.Profile);
+
+            /*
+             * Keep ViewPlacement initialized for DrawingPipelineState
+             * compatibility with other pipelines.
+             *
+             * The new Production pipeline itself uses
+             * DrawingViewLayoutCoordinator.
+             */
+            var placementCompatibility =
+                new ViewPlacementService(
+                    drawingService,
+                    viewNames);
+
+            return new DrawingPipelineState
+            {
+                DrawingService =
+                    drawingService,
+
+                ViewNames =
+                    viewNames,
+
+                ViewPlacement =
+                    placementCompatibility,
+
+                ActiveSheetName =
+                    targetSheet
+            };
+        }
+        catch
+        {
+            drawingService.Close();
+            throw;
+        }
     }
 
-    private static void AutoScaleAndRepositionViews(
+    private static void ApplyViewLayout(
         DrawingPipelineState state,
-        DrawingData drawingData,
-        WAD.Runner.DrawingAutomation.Profiles.ScalePolicy scalePolicy)
+        DrawingAutomationContext context)
     {
-        Logger.Info("[Drawing/5] Auto-scale and re-apply view positions...");
+        Logger.Info(
+            "[Drawing/3] Stabilize drawing view layout...");
 
-        var autoscale = new ViewAutoScaleService(state.DrawingService);
-        var policy = new ViewAutoScaleService.Policy(
-            FillRatioHeight: scalePolicy.FillRatioHeight,
-            MinScale: scalePolicy.MinScale,
-            MaxScale: scalePolicy.MaxScale,
-            Step: scalePolicy.Step,
-            TopMarginMm: scalePolicy.TopMarginMm,
-            BottomMarginMm: scalePolicy.BottomMarginMm);
+        var coordinator =
+            new DrawingViewLayoutCoordinator(
+                state.DrawingService,
+                state.ViewNames);
 
-        autoscale.ApplyUnifiedScaleFromFront(drawingData, policy, state.ViewNames);
-
-        state.ViewPlacement.Apply("Front", drawingData);
-        state.ViewPlacement.Apply("Side", drawingData);
-        state.ViewPlacement.Apply("Top", drawingData);
-        state.ViewPlacement.ApplyDetailAndSection(drawingData);
-        state.DrawingService.Rebuild();
+        coordinator.Apply(
+            context.Run,
+            context.DrawingData,
+            context.Profile);
     }
 
     private static void ApplyAnnotationPositions(
@@ -137,124 +224,77 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
         DrawingData drawingData,
         IEnumerable<AnnotationPositioner.Plan> plans)
     {
-        Logger.Info("[Drawing/6] Apply annotation positions...");
+        Logger.Info(
+            "[Drawing/4] Apply annotation positions...");
+
         try
         {
-            var positioner = new AnnotationPositioner(state.DrawingService, state.ViewNames);
-            positioner.Apply(run.Wedge, drawingData, plans);
-        }
-        catch (Exception ex)
-        {
-            Logger.Warn($"[Drawing/6] Annotation positioning failed, continuing: {ex.Message}");
-        }
-    }
+            var positioner =
+                new AnnotationPositioner(
+                    state.DrawingService,
+                    state.ViewNames);
 
-    private static void ApplyMetadata(DrawingService drawingService, DrawingData drawingData, WAD.Runner.DataManagement.Domain.Wedge.WedgeData wedge)
-    {
-        Logger.Info("[Drawing/7] Apply drawing metadata...");
-        try
-        {
-            MetadataApplier.Apply(drawingService, drawingData, wedge);
-            drawingService.Rebuild();
-        }
-        catch (Exception ex)
-        {
-            Logger.Warn($"[Metadata] Failed, continuing: {ex.Message}");
-        }
-    }
-
-    private static void TryActivateSheet(DrawingService drawingService, string sheetName)
-    {
-        try
-        {
-            var drawing = drawingService.Drawing ?? throw new InvalidOperationException("No active drawing.");
-            drawing.ActivateSheet(sheetName);
-            Logger.Info($"[Sheets] Activated: {sheetName}");
-            drawingService.Rebuild();
-        }
-        catch (Exception ex)
-        {
-            Logger.Warn($"[Sheets] Failed to activate '{sheetName}', continuing: {ex.Message}");
-        }
-    }
-
-    private static void EnsureDefaultBreaklineGaps(DrawingData drawingData)
-    {
-        if (drawingData.Views is null) return;
-        SetDefaultGap(drawingData, "Front", 2.0);
-        SetDefaultGap(drawingData, "Side", 2.0);
-        SetDefaultGap(drawingData, "Detail", 50.0);
-        SetDefaultGap(drawingData, "Section", 50.0);
-    }
-
-    private static void SetDefaultGap(DrawingData drawingData, string logicalView, double defaultMm)
-    {
-        if (!drawingData.Views.TryGetValue(logicalView, out var view) || view is null) return;
-        if (!view.Params.ContainsKey("breakline_gap_mm"))
-            view.Params["breakline_gap_mm"] = defaultMm;
-    }
-
-    private static void TryApplyBreakline(
-        DrawingService drawingService,
-        IDictionary<string, string> viewNames,
-        string logicalView,
-        DrawingRun run,
-        DrawingData drawingData)
-    {
-        try
-        {
-            var model = drawingService.Model;
-            var drawing = drawingService.Drawing;
-            if (model is null || drawing is null) return;
-
-            var view = FindView(drawingService, logicalView, viewNames);
-            if (view is null)
-            {
-                Logger.Warn($"[Breaklines] View '{logicalView}' not found; skipping.");
-                return;
-            }
-
-            var handler = new BreaklineHandler(view, model);
-            var ok = handler.ApplyBreakline(
-                logicalView,
-                drawingData.DrawingType,
-                run.Wedge.Subclass,
+            positioner.Apply(
                 run.Wedge,
-                drawingData);
-
-            if (!ok)
-                Logger.Warn($"[Breaklines] Apply failed for '{logicalView}'.");
+                drawingData,
+                plans);
         }
         catch (Exception ex)
         {
-            Logger.Warn($"[Breaklines] '{logicalView}' failed, continuing: {ex.Message}");
+            Logger.Warn(
+                $"[Drawing/4] Annotation positioning failed, continuing: " +
+                $"{ex.Message}");
         }
     }
 
-    private static View? FindView(DrawingService drawingService, string logicalName, IDictionary<string, string> viewNames)
+    private static void ApplyMetadata(
+        DrawingService drawingService,
+        DrawingData drawingData,
+        WAD.Runner.DataManagement.Domain.Wedge.WedgeData wedge)
     {
-        if (drawingService.Drawing is not DrawingDoc drawing) return null;
+        Logger.Info(
+            "[Drawing/5] Apply drawing metadata...");
 
-        var actualName = viewNames.TryGetValue(logicalName, out var mapped) && !string.IsNullOrWhiteSpace(mapped)
-            ? mapped
-            : logicalName;
-
-        var view = drawing.IGetFirstView();
-        view = view?.IGetNextView();
-
-        var guard = 0;
-        while (view is not null && guard++ < ViewIterationGuard)
+        try
         {
-            try
-            {
-                if (string.Equals(view.Name, actualName, StringComparison.OrdinalIgnoreCase))
-                    return view;
-            }
-            catch { }
+            MetadataApplier.Apply(
+                drawingService,
+                drawingData,
+                wedge);
 
-            view = view.IGetNextView();
+            drawingService.Rebuild();
         }
+        catch (Exception ex)
+        {
+            Logger.Warn(
+                $"[Metadata] Failed, continuing: {ex.Message}");
+        }
+    }
 
-        return null;
+    private static void TryActivateSheet(
+        DrawingService drawingService,
+        string sheetName)
+    {
+        try
+        {
+            var drawing =
+                drawingService.Drawing
+                ?? throw new InvalidOperationException(
+                    "No active drawing.");
+
+            drawing.ActivateSheet(
+                sheetName);
+
+            Logger.Info(
+                $"[Sheets] Activated: {sheetName}");
+
+            drawingService.Rebuild();
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(
+                $"[Sheets] Failed to activate '{sheetName}', continuing: " +
+                $"{ex.Message}");
+        }
     }
 }

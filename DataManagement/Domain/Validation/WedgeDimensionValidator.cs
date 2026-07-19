@@ -3,35 +3,232 @@ using System.Collections.Generic;
 using System.Linq;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using DomDim = WAD.Runner.DataManagement.Domain.Dimensions.Dimension;
+
+using DomDim =
+    WAD.Runner.DataManagement.Domain.Dimensions.Dimension;
 
 namespace WAD.Runner.DataManagement.Domain.Validation;
 
 public static class WedgeDimensionValidator
 {
-    public static DimensionValidationResult Validate(WedgeData wedge, WedgeType wedgeType)
+    // Small tolerance used when comparing calculated dimension values.
+    // This prevents insignificant decimal precision differences from
+    // triggering a validation error.
+    private const decimal DimensionComparisonTolerance = 0.000001m;
+
+    public static DimensionValidationResult Validate(
+        WedgeData wedge,
+        WedgeType wedgeType)
     {
         if (wedge is null)
             throw new ArgumentNullException(nameof(wedge));
 
-        var ruleSet = WedgeDimensionValidationRuleSet.For(wedgeType);
-        var issues = new List<DimensionValidationIssue>();
+        var ruleSet =
+            WedgeDimensionValidationRuleSet.For(wedgeType);
 
-        ValidateRequiredStandalone(wedge, wedgeType, ruleSet.RequiredStandalone, issues);
-        ValidateRequiredAndGroups(wedge, wedgeType, ruleSet.RequiredAndGroups, issues);
-        ValidateRequiredOrGroups(wedge, wedgeType, ruleSet.RequiredOrGroups, issues);
-        ValidateConditionalAndGroups(wedge, wedgeType, ruleSet.ConditionalAndGroups, issues);
-        ValidateConditionalOrGroups(wedge, wedgeType, ruleSet.ConditionalOrGroups, issues);
+        var issues =
+            new List<DimensionValidationIssue>();
 
-        return new DimensionValidationResult(wedge.ArticleNumber, wedgeType, issues);
+        ValidateRequiredStandalone(
+            wedge,
+            wedgeType,
+            ruleSet.RequiredStandalone,
+            issues);
+
+        ValidateRequiredAndGroups(
+            wedge,
+            wedgeType,
+            ruleSet.RequiredAndGroups,
+            issues);
+
+        ValidateRequiredOrGroups(
+            wedge,
+            wedgeType,
+            ruleSet.RequiredOrGroups,
+            issues);
+
+        ValidateConditionalAndGroups(
+            wedge,
+            wedgeType,
+            ruleSet.ConditionalAndGroups,
+            issues);
+
+        ValidateConditionalOrGroups(
+            wedge,
+            wedgeType,
+            ruleSet.ConditionalOrGroups,
+            issues);
+
+        // ------------------------------------------------------------
+        // Wedge-type-specific value validation
+        // ------------------------------------------------------------
+        if (wedgeType == WedgeType.OSG7)
+        {
+            ValidateOsg7FrxBrxRelationship(
+                wedge,
+                wedgeType,
+                issues);
+        }
+
+        return new DimensionValidationResult(
+            wedge.ArticleNumber,
+            wedgeType,
+            issues);
     }
 
-    public static void ValidateOrThrow(WedgeData wedge, WedgeType wedgeType)
+    public static void ValidateOrThrow(
+        WedgeData wedge,
+        WedgeType wedgeType)
     {
-        var result = Validate(wedge, wedgeType);
+        var result =
+            Validate(wedge, wedgeType);
+
         if (!result.IsValid)
             throw new WedgeDimensionValidationException(result);
     }
+
+    // ================================================================
+    // OSG7 SPECIFIC VALIDATION
+    // ================================================================
+
+    /// <summary>
+    /// When both FRX and BRX exist in the OSG7 database and are > 0,
+    /// they must respect:
+    ///
+    ///     BRX = FL - F - FRX
+    ///     FRX = FL - F - BRX
+    ///
+    /// If only FRX exists, only BRX exists, or neither exists,
+    /// this validation does not apply.
+    /// </summary>
+    private static void ValidateOsg7FrxBrxRelationship(
+        WedgeData wedge,
+        WedgeType wedgeType,
+        List<DimensionValidationIssue> issues)
+    {
+        if (!TryGetPositiveDimensionValue(
+                wedge,
+                "FRX",
+                out var frx))
+        {
+            return;
+        }
+
+        if (!TryGetPositiveDimensionValue(
+                wedge,
+                "BRX",
+                out var brx))
+        {
+            return;
+        }
+
+        // FL and F are already required OSG7 dimensions.
+        // If either one is missing/invalid, their normal required-dimension
+        // validation will report the problem. Avoid creating an additional
+        // misleading FRX/BRX relationship error.
+        if (!TryGetPositiveDimensionValue(
+                wedge,
+                "FL",
+                out var fl))
+        {
+            return;
+        }
+
+        if (!TryGetPositiveDimensionValue(
+                wedge,
+                "F",
+                out var f))
+        {
+            return;
+        }
+
+        var expectedBrx =
+            fl - f - frx;
+
+        var expectedFrx =
+            fl - f - brx;
+
+        var brxIsValid =
+            AreApproximatelyEqual(
+                brx,
+                expectedBrx);
+
+        var frxIsValid =
+            AreApproximatelyEqual(
+                frx,
+                expectedFrx);
+
+        if (brxIsValid && frxIsValid)
+            return;
+
+        var failedRules =
+            new List<string>();
+
+        if (!brxIsValid)
+        {
+            failedRules.Add(
+                $"BRX is {brx}, but " +
+                $"FL - F - FRX = " +
+                $"{fl} - {f} - {frx} = {expectedBrx}");
+        }
+
+        if (!frxIsValid)
+        {
+            failedRules.Add(
+                $"FRX is {frx}, but " +
+                $"FL - F - BRX = " +
+                $"{fl} - {f} - {brx} = {expectedFrx}");
+        }
+
+        AddIssue(
+            wedge,
+            wedgeType,
+            issues,
+            "OSG7 Cross-Dimension Validation",
+            "FRX / BRX relationship",
+            "FRX, BRX",
+            "invalid FRX/BRX relationship. " +
+            "When both FRX and BRX are > 0, the following rules must be satisfied: " +
+            "BRX = FL - F - FRX and FRX = FL - F - BRX. " +
+            $"Actual values: FL={fl}, F={f}, FRX={frx}, BRX={brx}. " +
+            $"Validation details: {string.Join("; ", failedRules)}.");
+    }
+
+    private static bool TryGetPositiveDimensionValue(
+        WedgeData wedge,
+        string key,
+        out decimal value)
+    {
+        value = 0m;
+
+        if (!TryGetDimension(
+                wedge,
+                key,
+                out var dimension))
+        {
+            return false;
+        }
+
+        if (dimension is null)
+            return false;
+
+        value =
+            dimension.Nominal.Value;
+
+        return value > 0m;
+    }
+
+    private static bool AreApproximatelyEqual(
+        decimal actual,
+        decimal expected)
+    {
+        return Math.Abs(actual - expected)
+               <= DimensionComparisonTolerance;
+    }
+
+    // ================================================================
+    // STANDARD VALIDATION
+    // ================================================================
 
     private static void ValidateRequiredStandalone(
         WedgeData wedge,
@@ -51,7 +248,10 @@ public static class WedgeDimensionValidator
                 "Type 1-1 Required standalone",
                 slot.DisplayName,
                 slot.DisplayName,
-                BuildMissingOrInvalidMessage(wedge, slot, "must be > 0"));
+                BuildMissingOrInvalidMessage(
+                    wedge,
+                    slot,
+                    "must be > 0"));
         }
     }
 
@@ -63,7 +263,8 @@ public static class WedgeDimensionValidator
     {
         foreach (var group in groups)
         {
-            foreach (var slot in group.Slots.Where(s => !s.IsPositive(wedge)))
+            foreach (var slot in group.Slots.Where(
+                         s => !s.IsPositive(wedge)))
             {
                 AddIssue(
                     wedge,
@@ -72,7 +273,10 @@ public static class WedgeDimensionValidator
                     "Type 1-2 Required AND group",
                     group.DisplayName,
                     slot.DisplayName,
-                    BuildMissingOrInvalidMessage(wedge, slot, $"is required by group [{group.DisplayName}] and must be > 0"));
+                    BuildMissingOrInvalidMessage(
+                        wedge,
+                        slot,
+                        $"is required by group [{group.DisplayName}] and must be > 0"));
             }
         }
     }
@@ -85,8 +289,11 @@ public static class WedgeDimensionValidator
     {
         foreach (var group in groups)
         {
-            if (group.Slots.Any(s => s.IsPositive(wedge)))
+            if (group.Slots.Any(
+                    s => s.IsPositive(wedge)))
+            {
                 continue;
+            }
 
             AddIssue(
                 wedge,
@@ -107,11 +314,16 @@ public static class WedgeDimensionValidator
     {
         foreach (var group in groups)
         {
-            var positiveSlots = group.Slots.Where(s => s.IsPositive(wedge)).ToList();
+            var positiveSlots =
+                group.Slots
+                    .Where(s => s.IsPositive(wedge))
+                    .ToList();
+
             if (positiveSlots.Count == 0)
                 continue;
 
-            foreach (var slot in group.Slots.Where(s => !s.IsPositive(wedge)))
+            foreach (var slot in group.Slots.Where(
+                         s => !s.IsPositive(wedge)))
             {
                 AddIssue(
                     wedge,
@@ -123,7 +335,8 @@ public static class WedgeDimensionValidator
                     BuildMissingOrInvalidMessage(
                         wedge,
                         slot,
-                        $"must be > 0 because conditional group [{group.DisplayName}] is active. Triggered by: {string.Join(", ", positiveSlots.Select(s => s.DisplayName))}"));
+                        $"must be > 0 because conditional group [{group.DisplayName}] is active. " +
+                        $"Triggered by: {string.Join(", ", positiveSlots.Select(s => s.DisplayName))}"));
             }
         }
     }
@@ -136,7 +349,11 @@ public static class WedgeDimensionValidator
     {
         foreach (var group in groups)
         {
-            var positiveSlots = group.Slots.Where(s => s.IsPositive(wedge)).ToList();
+            var positiveSlots =
+                group.Slots
+                    .Where(s => s.IsPositive(wedge))
+                    .ToList();
+
             if (positiveSlots.Count <= 1)
                 continue;
 
@@ -146,23 +363,45 @@ public static class WedgeDimensionValidator
                 issues,
                 "Type 2-3 Conditional OR group",
                 group.DisplayName,
-                string.Join(", ", positiveSlots.Select(s => s.DisplayName)),
-                $"at most one of [{group.DisplayName}] is expected to be > 0. Found: {string.Join(", ", positiveSlots.Select(s => s.DisplayName))}");
+                string.Join(
+                    ", ",
+                    positiveSlots.Select(
+                        s => s.DisplayName)),
+                $"at most one of [{group.DisplayName}] is expected to be > 0. " +
+                $"Found: {string.Join(", ", positiveSlots.Select(s => s.DisplayName))}");
         }
     }
 
-    private static string BuildMissingOrInvalidMessage(WedgeData wedge, DimensionSlot slot, string suffix)
+    private static string BuildMissingOrInvalidMessage(
+        WedgeData wedge,
+        DimensionSlot slot,
+        string suffix)
     {
-        var presentAliases = slot.Aliases.Where(a => TryGetDimension(wedge, a, out _)).ToList();
+        var presentAliases =
+            slot.Aliases
+                .Where(
+                    a => TryGetDimension(
+                        wedge,
+                        a,
+                        out _))
+                .ToList();
 
         if (presentAliases.Count == 0)
             return $"missing; {suffix}";
 
-        var values = presentAliases
-            .Select(a => TryGetDimension(wedge, a, out var d) ? $"{a}={d!.Nominal.Value}" : a)
-            .ToList();
+        var values =
+            presentAliases
+                .Select(
+                    a => TryGetDimension(
+                        wedge,
+                        a,
+                        out var d)
+                        ? $"{a}={d!.Nominal.Value}"
+                        : a)
+                .ToList();
 
-        return $"invalid ({string.Join(", ", values)}); {suffix}";
+        return
+            $"invalid ({string.Join(", ", values)}); {suffix}";
     }
 
     private static void AddIssue(
@@ -174,24 +413,35 @@ public static class WedgeDimensionValidator
         string dimension,
         string message)
     {
-        issues.Add(new DimensionValidationIssue(
-            wedge.ArticleNumber,
-            wedgeType,
-            requirementType,
-            ruleName,
-            dimension,
-            message));
+        issues.Add(
+            new DimensionValidationIssue(
+                wedge.ArticleNumber,
+                wedgeType,
+                requirementType,
+                ruleName,
+                dimension,
+                message));
     }
 
-    private static bool TryGetDimension(WedgeData wedge, string key, out DomDim? dimension)
+    private static bool TryGetDimension(
+        WedgeData wedge,
+        string key,
+        out DomDim? dimension)
     {
         dimension = null;
 
-        if (wedge.Dimensions is null || wedge.Dimensions.Count == 0)
+        if (wedge.Dimensions is null ||
+            wedge.Dimensions.Count == 0)
+        {
             return false;
+        }
 
-        var target = DimensionKey.From(key);
-        if (wedge.Dimensions.TryGetValue(target, out var exact))
+        var target =
+            DimensionKey.From(key);
+
+        if (wedge.Dimensions.TryGetValue(
+                target,
+                out var exact))
         {
             dimension = exact;
             return dimension is not null;
@@ -199,8 +449,13 @@ public static class WedgeDimensionValidator
 
         foreach (var kvp in wedge.Dimensions)
         {
-            if (!string.Equals(kvp.Key.Value, key, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(
+                    kvp.Key.Value,
+                    key,
+                    StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
+            }
 
             dimension = kvp.Value;
             return dimension is not null;
@@ -209,28 +464,59 @@ public static class WedgeDimensionValidator
         return false;
     }
 
+    // ================================================================
+    // DIMENSION RULE TYPES
+    // ================================================================
+
     internal sealed class DimensionSlot
     {
         public string DisplayName { get; }
+
         public IReadOnlyList<string> Aliases { get; }
 
-        public DimensionSlot(string displayName, params string[] aliases)
+        public DimensionSlot(
+            string displayName,
+            params string[] aliases)
         {
             if (string.IsNullOrWhiteSpace(displayName))
-                throw new ArgumentException("Display name cannot be empty.", nameof(displayName));
+            {
+                throw new ArgumentException(
+                    "Display name cannot be empty.",
+                    nameof(displayName));
+            }
 
-            DisplayName = displayName.Trim();
-            Aliases = aliases is { Length: > 0 }
-                ? aliases.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
-                : new[] { DisplayName };
+            DisplayName =
+                displayName.Trim();
+
+            Aliases =
+                aliases is { Length: > 0 }
+                    ? aliases
+                        .Where(
+                            a => !string.IsNullOrWhiteSpace(a))
+                        .Select(
+                            a => a.Trim())
+                        .Distinct(
+                            StringComparer.OrdinalIgnoreCase)
+                        .ToArray()
+                    : new[]
+                    {
+                        DisplayName
+                    };
         }
 
-        public bool IsPositive(WedgeData wedge)
+        public bool IsPositive(
+            WedgeData wedge)
         {
             foreach (var alias in Aliases)
             {
-                if (WedgeDimensionValidator.TryGetDimension(wedge, alias, out var dimension) && dimension!.Nominal.Value > 0m)
+                if (WedgeDimensionValidator.TryGetDimension(
+                        wedge,
+                        alias,
+                        out var dimension) &&
+                    dimension!.Nominal.Value > 0m)
+                {
                     return true;
+                }
             }
 
             return false;
@@ -240,86 +526,305 @@ public static class WedgeDimensionValidator
     internal sealed class DimensionGroup
     {
         public string DisplayName { get; }
+
         public IReadOnlyList<DimensionSlot> Slots { get; }
 
-        public DimensionGroup(string displayName, params DimensionSlot[] slots)
+        public DimensionGroup(
+            string displayName,
+            params DimensionSlot[] slots)
         {
             if (string.IsNullOrWhiteSpace(displayName))
-                throw new ArgumentException("Display name cannot be empty.", nameof(displayName));
+            {
+                throw new ArgumentException(
+                    "Display name cannot be empty.",
+                    nameof(displayName));
+            }
 
-            DisplayName = displayName.Trim();
-            Slots = slots ?? Array.Empty<DimensionSlot>();
+            DisplayName =
+                displayName.Trim();
+
+            Slots =
+                slots ??
+                Array.Empty<DimensionSlot>();
         }
     }
 
     internal sealed class WedgeDimensionValidationRuleSet
     {
-        public IReadOnlyList<DimensionSlot> RequiredStandalone { get; init; } = Array.Empty<DimensionSlot>();
-        public IReadOnlyList<DimensionGroup> RequiredAndGroups { get; init; } = Array.Empty<DimensionGroup>();
-        public IReadOnlyList<DimensionGroup> RequiredOrGroups { get; init; } = Array.Empty<DimensionGroup>();
-        public IReadOnlyList<DimensionSlot> OptionalStandalone { get; init; } = Array.Empty<DimensionSlot>();
-        public IReadOnlyList<DimensionGroup> ConditionalAndGroups { get; init; } = Array.Empty<DimensionGroup>();
-        public IReadOnlyList<DimensionGroup> ConditionalOrGroups { get; init; } = Array.Empty<DimensionGroup>();
+        public IReadOnlyList<DimensionSlot>
+            RequiredStandalone
+        { get; init; }
+            = Array.Empty<DimensionSlot>();
 
-        public static WedgeDimensionValidationRuleSet For(WedgeType wedgeType)
+        public IReadOnlyList<DimensionGroup>
+            RequiredAndGroups
+        { get; init; }
+            = Array.Empty<DimensionGroup>();
+
+        public IReadOnlyList<DimensionGroup>
+            RequiredOrGroups
+        { get; init; }
+            = Array.Empty<DimensionGroup>();
+
+        public IReadOnlyList<DimensionSlot>
+            OptionalStandalone
+        { get; init; }
+            = Array.Empty<DimensionSlot>();
+
+        public IReadOnlyList<DimensionGroup>
+            ConditionalAndGroups
+        { get; init; }
+            = Array.Empty<DimensionGroup>();
+
+        public IReadOnlyList<DimensionGroup>
+            ConditionalOrGroups
+        { get; init; }
+            = Array.Empty<DimensionGroup>();
+
+        public static WedgeDimensionValidationRuleSet For(
+            WedgeType wedgeType)
         {
             return wedgeType switch
             {
-                WedgeType.CKVD => BuildCkvdRules(),
-                WedgeType.COB or WedgeType.UTUS or WedgeType.FP => BuildCobLikeRules(),
-                _ => new WedgeDimensionValidationRuleSet()
+                WedgeType.CKVD =>
+                    BuildCkvdRules(),
+
+                WedgeType.OSG7 =>
+                    BuildOsg7Rules(),
+
+                WedgeType.COB or
+                WedgeType.UTUS or
+                WedgeType.FP =>
+                    BuildCobLikeRules(),
+
+                _ =>
+                    new WedgeDimensionValidationRuleSet()
             };
         }
 
-        private static WedgeDimensionValidationRuleSet BuildCkvdRules()
+        private static WedgeDimensionValidationRuleSet
+            BuildCkvdRules()
         {
             return new WedgeDimensionValidationRuleSet
             {
-                RequiredStandalone = Slots("TL", "TD", "TDF", "FL", "E", "ISA", "W", "F", "FR", "BR", "GD", "B", "FA", "BA", "GA", "GR"),
-                RequiredOrGroups = new[]
-                {
-                    Group("X, XF", Slot("X"), Slot("FX"))
-                },
-                OptionalStandalone = Slots("TIP"),
-                ConditionalAndGroups = new[]
-                {
-                    Group("VW, VR, VRR, VRA", Slot("VW"), Slot("VR"), Slot("VRR"))
-                }
+                RequiredStandalone =
+                    Slots(
+                        "TL",
+                        "TD",
+                        "TDF",
+                        "FL",
+                        "E",
+                        "ISA",
+                        "W",
+                        "F",
+                        "FR",
+                        "BR",
+                        "GD",
+                        "B",
+                        "FA",
+                        "BA",
+                        "GA",
+                        "GR"),
+
+                RequiredOrGroups =
+                    new[]
+                    {
+                        Group(
+                            "X, FX",
+                            Slot("X"),
+                            Slot("FX"))
+                    },
+
+                OptionalStandalone =
+                    Slots("TIP"),
+
+                ConditionalAndGroups =
+                    new[]
+                    {
+                        Group(
+                            "VW, VR, VRR, VRA",
+                            Slot("VW"),
+                            Slot("VR"),
+                            Slot("VRR"))
+                    }
             };
         }
 
-        private static WedgeDimensionValidationRuleSet BuildCobLikeRules()
+        private static WedgeDimensionValidationRuleSet
+            BuildOsg7Rules()
         {
             return new WedgeDimensionValidationRuleSet
             {
-                RequiredStandalone = Slots("TL", "TD", "TDF", "FL", "T", "FD", "RA", "ISA", "W", "BF", "FR", "ERL", "ERW", "ERD", "CA", "HA", "Y", "MB", "FNA"),
-                RequiredOrGroups = new[]
-                {
-                    Group("H, HH", Slot("H"), Slot("HH"))
-                },
-                OptionalStandalone = Slots("VBL", "BA", "W2", "F", "BR", "BRO", "CL", "FLC", "GO", "FLG", "FLER", "CBL", "C", "MI", "FNO", "T1", "MFL"),
-                ConditionalAndGroups = new[]
-                {
-                    Group("VW, VR, VRR, VRA", Slot("VW"), Slot("VR"), Slot("VRR")),
-                    Group("CD, RC/CR", Slot("CD"), Slot("RC/CR", "RC", "CR")),
-                    Group("CGD, CGR, G", Slot("CGD"), Slot("CGR"), Slot("G")),
-                    Group("CBRD, CBRL, CBRA", Slot("CBRD"), Slot("CBRL"), Slot("CBRA")),
-                    Group("B, GR, GA", Slot("B"), Slot("GR"), Slot("GA")),
-                    Group("GD, GR", Slot("GD"), Slot("GR"))
-                }
+                RequiredStandalone =
+                    Slots(
+                        "TL",
+                        "TD",
+                        "TDF",
+                        "FL",
+                        "ISA",
+                        "W",
+                        "F",
+                        "FR",
+                        "BR",
+                        "GD",
+                        "B",
+                        "FA",
+                        "BA",
+                        "GA"),
+
+                RequiredOrGroups =
+                    new[]
+                    {
+                        Group(
+                            "X, FX",
+                            Slot("X"),
+                            Slot("FX"))
+                    },
+
+                // FRX and BRX are optional database values.
+                // Their relationship is validated separately when
+                // both are present and > 0.
+                OptionalStandalone =
+                    Slots(
+                        "VFL",
+                        "FRX",
+                        "BRX"),
+
+                ConditionalAndGroups =
+                    new[]
+                    {
+                        Group(
+                            "VW, VR, VRR, VRA",
+                            Slot("VW"),
+                            Slot("VR"),
+                            Slot("VRR"))
+                    }
             };
         }
 
-        private static DimensionSlot Slot(string key)
-            => new(key, key);
+        private static WedgeDimensionValidationRuleSet
+            BuildCobLikeRules()
+        {
+            return new WedgeDimensionValidationRuleSet
+            {
+                RequiredStandalone =
+                    Slots(
+                        "TL",
+                        "TD",
+                        "TDF",
+                        "FL",
+                        "T",
+                        "FD",
+                        "RA",
+                        "ISA",
+                        "W",
+                        "BF",
+                        "FR",
+                        "ERL",
+                        "ERW",
+                        "ERD",
+                        "CA",
+                        "HA",
+                        "Y",
+                        "MB",
+                        "FNA"),
 
-        private static DimensionSlot Slot(string displayName, params string[] aliases)
-            => new(displayName, aliases);
+                RequiredOrGroups =
+                    new[]
+                    {
+                        Group(
+                            "H, HH",
+                            Slot("H"),
+                            Slot("HH"))
+                    },
 
-        private static DimensionSlot[] Slots(params string[] keys)
-            => keys.Select(Slot).ToArray();
+                OptionalStandalone =
+                    Slots(
+                        "VBL",
+                        "BA",
+                        "W2",
+                        "F",
+                        "BR",
+                        "BRO",
+                        "CL",
+                        "FLC",
+                        "GO",
+                        "FLG",
+                        "FLER",
+                        "CBL",
+                        "C",
+                        "MI",
+                        "FNO",
+                        "T1",
+                        "MFL"),
 
-        private static DimensionGroup Group(string displayName, params DimensionSlot[] slots)
-            => new(displayName, slots);
+                ConditionalAndGroups =
+                    new[]
+                    {
+                        Group(
+                            "VW, VR, VRR, VRA",
+                            Slot("VW"),
+                            Slot("VR"),
+                            Slot("VRR")),
+
+                        Group(
+                            "CD, RC/CR",
+                            Slot("CD"),
+                            Slot(
+                                "RC/CR",
+                                "RC",
+                                "CR")),
+
+                        Group(
+                            "CGD, CGR, G",
+                            Slot("CGD"),
+                            Slot("CGR"),
+                            Slot("G")),
+
+                        Group(
+                            "CBRD, CBRL, CBRA",
+                            Slot("CBRD"),
+                            Slot("CBRL"),
+                            Slot("CBRA")),
+
+                        Group(
+                            "B, GR, GA",
+                            Slot("B"),
+                            Slot("GR"),
+                            Slot("GA")),
+
+                        Group(
+                            "GD, GR",
+                            Slot("GD"),
+                            Slot("GR"))
+                    }
+            };
+        }
+
+        private static DimensionSlot Slot(
+            string key)
+            => new(
+                key,
+                key);
+
+        private static DimensionSlot Slot(
+            string displayName,
+            params string[] aliases)
+            => new(
+                displayName,
+                aliases);
+
+        private static DimensionSlot[] Slots(
+            params string[] keys)
+            => keys
+                .Select(Slot)
+                .ToArray();
+
+        private static DimensionGroup Group(
+            string displayName,
+            params DimensionSlot[] slots)
+            => new(
+                displayName,
+                slots);
     }
 }

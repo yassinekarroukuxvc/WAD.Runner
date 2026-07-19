@@ -14,6 +14,13 @@ public enum ToggleApplicationMode
 
 public sealed record FeatureToggleStep(string ConfigurationName, string? FeatureRuleProfile = null);
 
+public static class OverlayCutProfiles
+{
+    public const string DefaultConfiguration = "default_config";
+    public const string StandardCut = "std_cut";
+    public const string NonStandardCut = "non_std_cut";
+}
+
 public sealed record ConfigurationPlan(
     string ConfigurationName,
     ToggleApplicationMode ToggleMode,

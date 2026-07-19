@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+
 using WAD.Runner.DataManagement.Domain.Wedge;
-using WAD.Runner.DataManagement.Domain.Drawing;
 
 namespace WAD.Runner.DrawingAutomation.Profiles;
 
 public static class ProfilePresets
 {
-    private static readonly IReadOnlyList<string> StdOrder =
+    private static readonly IReadOnlyList<string> StandardViewOrder =
         new[] { "Front", "Side", "Top", "Detail", "Section" };
 
     private static readonly ScalePolicy DefaultScale = new(
@@ -17,500 +17,348 @@ public static class ProfilePresets
         MaxScale: 8.0,
         Step: 0.5,
         TopMarginMm: 0.0,
-        BottomMarginMm: 0.0
-    );
+        BottomMarginMm: 0.0);
 
-    private static ViewNames CkvdFgProductionViews() => new(
+    private static readonly ViewNames CkvdFgProductionViews = new(
         Front: "Drawing View49",
         Side: "Drawing View48",
         Top: "Drawing View42",
         Detail: "Drawing View44",
-        Section: "Section View V-V"
-    );
+        Section: "Section View V-V");
 
-    private static ViewNames CkvdFgCustomerViews() => new(
+    private static readonly ViewNames CkvdFgCustomerViews = new(
         Front: "Drawing View54",
         Side: "Drawing View53",
         Top: "Drawing View50",
         Detail: "Drawing View51",
-        Section: "Section View Y-Y"
-    );
+        Section: "Section View Y-Y");
 
-    private static ViewNames CkvdFgOverlayViews() => new(
+    private static readonly ViewNames CkvdFgOverlayViews = new(
         Front: "Drawing View5",
         Side: "Drawing View4",
         Top: "Drawing View3",
         Detail: "Drawing View1",
-        Section: "Drawing View2"
-    );
+        Section: "Drawing View2");
 
-    private static ViewNames CkvdPgbProductionViews() => new(
+    private static readonly ViewNames CkvdPgbProductionViews = new(
         Front: "Drawing View56",
         Side: "Drawing View55",
         Top: "Drawing View37",
         Detail: "Drawing View46",
-        Section: "Section View W-W"
-    );
+        Section: "Section View W-W");
 
-    private static ViewNames CkvdPgbOverlayViews() => new(
-        Front: "Drawing View5",
-        Side: "Drawing View4",
-        Top: "Drawing View3",
-        Detail: "Drawing View1",
-        Section: "Drawing View2"
-    );
+    private static readonly ViewNames CkvdPgbOverlayViews = CkvdFgOverlayViews;
 
-    private static ViewNames CobFgProductionViews() => new(
+    private static readonly ViewNames CobLikeFgProductionViews = new(
         Front: "Drawing View17",
         Side: "Drawing View16",
         Top: "Drawing View18",
         Detail: "Drawing View19",
-        Section: "Section View AA-AA"
-    );
+        Section: "Section View AA-AA");
 
-    private static ViewNames CobFgCustomerViews() => new(
+    private static readonly ViewNames CobLikeFgCustomerViews = new(
         Front: "Drawing View2",
         Side: "Drawing View1",
         Top: "Drawing View3",
         Detail: "Drawing View4",
-        Section: "Section View AA-AA"
-    );
+        Section: "Section View AA-AA");
 
-    private static ViewNames CobFgOverlayViews() => new(
+    private static readonly ViewNames CobLikeFgOverlayViews = new(
         Front: "COB_FG_Ovl_Front",
         Side: "COB_FG_Ovl_Side",
         Top: "COB_FG_Ovl_Top",
         Detail: "Drawing View3",
-        Section: "Drawing View4"
-    );
+        Section: "Drawing View4");
 
-    private static ViewNames CobPgbProductionViews() => new(
+    private static readonly ViewNames CobLikePgbProductionViews = new(
         Front: "Drawing View22",
         Side: "Drawing View21",
         Top: "Drawing View23",
         Detail: "Drawing View24",
-        Section: "Section View AA-AA"
-    );
+        Section: "Section View AA-AA");
 
-    private static ViewNames CobPgbOverlayViews() => new(
+    private static readonly ViewNames CobLikePgbOverlayViews = new(
         Front: "COB_PGB_Ovl_Front",
         Side: "COB_PGB_Ovl_Side",
         Top: "COB_PGB_Ovl_Top",
         Detail: "Drawing View1",
-        Section: "Drawing View2"
-    );
+        Section: "Drawing View2");
 
-
-    private static ViewNames UtusFgProductionViews() => new(
-        Front: "Drawing View17",
-        Side: "Drawing View16",
-        Top: "Drawing View18",
-        Detail: "Drawing View19",
-        Section: "Section View AA-AA"
-    );
-
-    private static ViewNames UtusFgCustomerViews() => new(
-        Front: "Drawing View2",
-        Side: "Drawing View1",
-        Top: "Drawing View3",
-        Detail: "Drawing View4",
-        Section: "Section View AA-AA"
-    );
-
-    private static ViewNames UtusFgOverlayViews() => new(
-        Front: "COB_FG_Ovl_Front",
-        Side: "COB_FG_Ovl_Side",
-        Top: "COB_FG_Ovl_Top",
-        Detail: "Drawing View3",
-        Section: "Drawing View4"
-    );
-
-    private static ViewNames UtusPgbProductionViews() => new(
-        Front: "Drawing View22",
-        Side: "Drawing View21",
-        Top: "Drawing View23",
-        Detail: "Drawing View24",
-        Section: "Section View AA-AA"
-    );
-
-    private static ViewNames UtusPgbOverlayViews() => new(
-        Front: "COB_PGB_Ovl_Front",
-        Side: "COB_PGB_Ovl_Side",
-        Top: "COB_PGB_Ovl_Top",
-        Detail: "Drawing View1",
-        Section: "Drawing View2"
-    );
-
-
-    private static ViewNames FpFgProductionViews() => new(
-        Front: "Drawing View17",
-        Side: "Drawing View16",
-        Top: "Drawing View18",
-        Detail: "Drawing View19",
-        Section: "Section View AA-AA"
-    );
-
-    private static ViewNames FpFgCustomerViews() => new(
-        Front: "Drawing View2",
-        Side: "Drawing View1",
-        Top: "Drawing View3",
-        Detail: "Drawing View4",
-        Section: "Section View AA-AA"
-    );
-
-    private static ViewNames FpFgOverlayViews() => new(
-        Front: "COB_FG_Ovl_Front",
-        Side: "COB_FG_Ovl_Side",
-        Top: "COB_FG_Ovl_Top",
-        Detail: "Drawing View3",
-        Section: "Drawing View4"
-    );
-
-    private static ViewNames FpPgbProductionViews() => new(
-        Front: "Drawing View22",
-        Side: "Drawing View21",
-        Top: "Drawing View23",
-        Detail: "Drawing View24",
-        Section: "Section View AA-AA"
-    );
-
-    private static ViewNames FpPgbOverlayViews() => new(
-        Front: "COB_PGB_Ovl_Front",
-        Side: "COB_PGB_Ovl_Side",
-        Top: "COB_PGB_Ovl_Top",
-        Detail: "Drawing View1",
-        Section: "Drawing View2"
-    );
-
-
-    private static ViewNames Osg7FgProductionViews() => new(
-        Front: "Drawing View4",
-        Side: "Drawing View1",
-        Top: "Drawing View3",
-        Detail: "Drawing View5",
-        Section: "Section View AC-AC"
-    );
-
-    private static ViewNames Osg7FgCustomerViews() => new(
+    private static readonly ViewNames Osg7FgProductionViews = new(
         Front: "Drawing View19",
         Side: "Drawing View17",
         Top: "Drawing View18",
         Detail: "Drawing View20",
-        Section: "Section View AC-AC"
-    );
+        Section: "Section View AC-AC");
 
-    private static ViewNames Osg7FgOverlayViews() => new(
+    private static readonly ViewNames Osg7FgCustomerViews = new(
+        Front: "Drawing View19",
+        Side: "Drawing View17",
+        Top: "Drawing View18",
+        Detail: "Drawing View20",
+        Section: "Section View AC-AC");
+
+    private static readonly ViewNames Osg7FgOverlayViews = new(
         Front: "OSG7_FG_Ovl_Front",
         Side: "OSG7_FG_Ovl_Side",
         Top: "OSG7_FG_Ovl_Top",
         Detail: "Drawing View3",
-        Section: "Drawing View4"
-    );
+        Section: "Drawing View4");
 
-    private static ViewNames Osg7PgbProductionViews() => new(
+    private static readonly ViewNames Osg7PgbProductionViews = new(
         Front: "Drawing View14",
         Side: "Drawing View12",
         Top: "Drawing View13",
         Detail: "Drawing View15",
-        Section: "Section View AD-AD"
-    );
+        Section: "Section View AD-AD");
 
-    private static ViewNames Osg7PgbOverlayViews() => new(
+    private static readonly ViewNames Osg7PgbOverlayViews = new(
         Front: "OSG7_PGB_Ovl_Front",
         Side: "OSG7_PGB_Ovl_Side",
         Top: "OSG7_PGB_Ovl_Top",
         Detail: "Drawing View5",
-        Section: "Drawing View6"
-    );
+        Section: "Drawing View6");
 
-    private static Func<IEnumerable<string>, string> Prefer(string preferred)
-        => (available) =>
-        {
-            var hit = available?.FirstOrDefault(n =>
-                string.Equals(n?.Trim(), preferred, StringComparison.OrdinalIgnoreCase));
-            return string.IsNullOrWhiteSpace(hit) ? (available?.FirstOrDefault() ?? preferred) : hit!;
-        };
+    public static DrawingProfile CkvdFgProduction()
+        => Production(
+            WedgeSubclass.FG,
+            "CKVD FG Production",
+            CkvdFgProductionViews,
+            PreferAny("PRODUCTION"));
 
-    private static double Keep(double fb) => fb;
+    public static DrawingProfile CkvdFgCustomer()
+        => Customer(
+            WedgeSubclass.FG,
+            "CKVD FG Customer",
+            CkvdFgCustomerViews,
+            PreferAny("CUSTOMER"));
 
-    public static DrawingProfile CkvdFgProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
-        ProfileName: "CKVD FG Production",
-        SheetSelector: Prefer("PRODUCTION"),
-        ViewsOrder: StdOrder,
-        Views: CkvdFgProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile CkvdFgOverlay()
+        => Overlay(
+            WedgeSubclass.FG,
+            "CKVD FG Overlay",
+            CkvdFgOverlayViews,
+            PreferAny("OVERLAY"));
 
-    public static DrawingProfile CkvdFgCustomer() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Customer),
-        ProfileName: "CKVD FG Customer",
-        SheetSelector: Prefer("CUSTOMER"),
-        ViewsOrder: StdOrder,
-        Views: CkvdFgCustomerViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile CkvdPgbProduction()
+        => Production(
+            WedgeSubclass.PGB,
+            "CKVD PGB Production",
+            CkvdPgbProductionViews,
+            PreferAny("PGB"));
 
-    public static DrawingProfile CkvdFgOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay),
-        ProfileName: "CKVD FG Overlay",
-        SheetSelector: Prefer("OVERLAY"),
-        ViewsOrder: StdOrder,
-        Views: CkvdFgOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile CkvdPgbOverlay()
+        => Overlay(
+            WedgeSubclass.PGB,
+            "CKVD PGB Overlay",
+            CkvdPgbOverlayViews,
+            PreferAny("PGB_OVERLAY"));
 
-    public static DrawingProfile CkvdPgbProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Production),
-        ProfileName: "CKVD PGB Production",
-        SheetSelector: Prefer("PGB"),
-        ViewsOrder: StdOrder,
-        Views: CkvdPgbProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile Osg7FgProduction()
+        => Production(
+            WedgeSubclass.FG,
+            "OSG7 FG Production",
+            Osg7FgProductionViews,
+            PreferAny("CUSTOMER"));//keep it like this because this  is the correct sheet
 
-    public static DrawingProfile CkvdPgbOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Overlay),
-        ProfileName: "CKVD PGB Overlay",
-        SheetSelector: Prefer("PGB_OVERLAY"),
-        ViewsOrder: StdOrder,
-        Views: CkvdPgbOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile Osg7FgCustomer()
+        => Customer(
+            WedgeSubclass.FG,
+            "OSG7 FG Customer",
+            Osg7FgCustomerViews,
+            PreferAny("CUSTOMER"));
 
-    public static DrawingProfile Osg7FgProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
-        ProfileName: "OSG7 FG Production",
-        SheetSelector: Prefer("PRODUCTION"),
-        ViewsOrder: StdOrder,
-        Views: Osg7FgProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile Osg7FgOverlay()
+        => Overlay(
+            WedgeSubclass.FG,
+            "OSG7 FG Overlay",
+            Osg7FgOverlayViews,
+            PreferAny("FG"));
 
-    public static DrawingProfile Osg7FgCustomer() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Customer),
-        ProfileName: "OSG7 FG Customer",
-        SheetSelector: Prefer("CUSTOMER"),
-        ViewsOrder: StdOrder,
-        Views: Osg7FgCustomerViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile Osg7PgbProduction()
+        => Production(
+            WedgeSubclass.PGB,
+            "OSG7 PGB Production",
+            Osg7PgbProductionViews,
+            PreferAny("PGB"));
 
-    public static DrawingProfile Osg7FgOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay),
-        ProfileName: "OSG7 FG Overlay",
-        SheetSelector: Prefer("FG"),
-        ViewsOrder: StdOrder,
-        Views: Osg7FgOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile Osg7PgbOverlay()
+        => Overlay(
+            WedgeSubclass.PGB,
+            "OSG7 PGB Overlay",
+            Osg7PgbOverlayViews,
+            PreferAny("PGB_OVERLAY"));
 
-    public static DrawingProfile Osg7PgbProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Production),
-        ProfileName: "OSG7 PGB Production",
-        SheetSelector: Prefer("PGB"),
-        ViewsOrder: StdOrder,
-        Views: Osg7PgbProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile CobFgProduction()
+        => CobLikeFgProduction("COB");
 
-    public static DrawingProfile Osg7PgbOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Overlay),
-        ProfileName: "OSG7 PGB Overlay",
-        SheetSelector: Prefer("PGB_OVERLAY"),
-        ViewsOrder: StdOrder,
-        Views: Osg7PgbOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    public static DrawingProfile CobFgCustomer()
+        => CobLikeFgCustomer("COB");
 
+    public static DrawingProfile CobFgOverlay()
+        => CobLikeFgOverlay("COB");
+
+    public static DrawingProfile CobPgbProduction()
+        => CobLikePgbProduction("COB");
+
+    public static DrawingProfile CobPgbOverlay()
+        => CobLikePgbOverlay("COB");
+
+    public static DrawingProfile UtusFgProduction()
+        => CobLikeFgProduction("UTUS");
+
+    public static DrawingProfile UtusFgCustomer()
+        => CobLikeFgCustomer("UTUS");
+
+    public static DrawingProfile UtusFgOverlay()
+        => CobLikeFgOverlay("UTUS");
+
+    public static DrawingProfile UtusPgbProduction()
+        => CobLikePgbProduction("UTUS");
+
+    public static DrawingProfile UtusPgbOverlay()
+        => CobLikePgbOverlay("UTUS");
+
+    public static DrawingProfile FpFgProduction()
+        => CobLikeFgProduction("FP");
+
+    public static DrawingProfile FpFgCustomer()
+        => CobLikeFgCustomer("FP");
+
+    public static DrawingProfile FpFgOverlay()
+        => CobLikeFgOverlay("FP");
+
+    public static DrawingProfile FpPgbProduction()
+        => CobLikePgbProduction("FP");
+
+    public static DrawingProfile FpPgbOverlay()
+        => CobLikePgbOverlay("FP");
+
+    // Compatibility aliases retained for existing call sites outside this folder.
     public static DrawingProfile FgProduction() => CkvdFgProduction();
     public static DrawingProfile FgCustomer() => CkvdFgCustomer();
     public static DrawingProfile FgOverlay() => CkvdFgOverlay();
     public static DrawingProfile PgbProduction() => CkvdPgbProduction();
     public static DrawingProfile PgbOverlay() => CkvdPgbOverlay();
 
-    public static DrawingProfile CobFgProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
-        ProfileName: "COB FG Production",
-        SheetSelector: Prefer("PRODCUTION"),
-        ViewsOrder: StdOrder,
-        Views: CobFgProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static DrawingProfile CobLikeFgProduction(string wedgeName)
+        => Production(
+            WedgeSubclass.FG,
+            $"{wedgeName} FG Production",
+            CobLikeFgProductionViews,
+            PreferAny("PRODUCTION", "PRODCUTION"));
 
-    public static DrawingProfile CobFgCustomer() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Customer),
-        ProfileName: "COB FG Customer",
-        SheetSelector: Prefer("CUSTOMER"),
-        ViewsOrder: StdOrder,
-        Views: CobFgCustomerViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static DrawingProfile CobLikeFgCustomer(string wedgeName)
+        => Customer(
+            WedgeSubclass.FG,
+            $"{wedgeName} FG Customer",
+            CobLikeFgCustomerViews,
+            PreferAny("CUSTOMER"));
 
-    public static DrawingProfile CobFgOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay),
-        ProfileName: "COB FG Overlay",
-        SheetSelector: Prefer("FG"),
-        ViewsOrder: StdOrder,
-        Views: CobFgOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static DrawingProfile CobLikeFgOverlay(string wedgeName)
+        => Overlay(
+            WedgeSubclass.FG,
+            $"{wedgeName} FG Overlay",
+            CobLikeFgOverlayViews,
+            PreferAny("FG"));
 
-    public static DrawingProfile CobPgbProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Production),
-        ProfileName: "COB PGB Production",
-        SheetSelector: Prefer("PGB"),
-        ViewsOrder: StdOrder,
-        Views: CobPgbProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static DrawingProfile CobLikePgbProduction(string wedgeName)
+        => Production(
+            WedgeSubclass.PGB,
+            $"{wedgeName} PGB Production",
+            CobLikePgbProductionViews,
+            PreferAny("PGB"));
 
-    public static DrawingProfile CobPgbOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Overlay),
-        ProfileName: "COB PGB Overlay",
-        SheetSelector: Prefer("PGB"),
-        ViewsOrder: StdOrder,
-        Views: CobPgbOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static DrawingProfile CobLikePgbOverlay(string wedgeName)
+        => Overlay(
+            WedgeSubclass.PGB,
+            $"{wedgeName} PGB Overlay",
+            CobLikePgbOverlayViews,
+            PreferAny("PGB"));
 
-    public static DrawingProfile UtusFgProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
-        ProfileName: "UTUS FG Production",
-        SheetSelector: Prefer("PRODCUTION"),
-        ViewsOrder: StdOrder,
-        Views: UtusFgProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static DrawingProfile Production(
+        WedgeSubclass subclass,
+        string profileName,
+        ViewNames views,
+        Func<IEnumerable<string>, string> sheetSelector)
+        => Create(
+            subclass,
+            DrawingType.Production,
+            profileName,
+            views,
+            sheetSelector,
+            useBreaklines: true);
 
-    public static DrawingProfile UtusFgCustomer() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Customer),
-        ProfileName: "UTUS FG Customer",
-        SheetSelector: Prefer("CUSTOMER"),
-        ViewsOrder: StdOrder,
-        Views: UtusFgCustomerViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static DrawingProfile Customer(
+        WedgeSubclass subclass,
+        string profileName,
+        ViewNames views,
+        Func<IEnumerable<string>, string> sheetSelector)
+        => Create(
+            subclass,
+            DrawingType.Customer,
+            profileName,
+            views,
+            sheetSelector,
+            useBreaklines: true);
 
-    public static DrawingProfile UtusFgOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay),
-        ProfileName: "UTUS FG Overlay",
-        SheetSelector: Prefer("FG"),
-        ViewsOrder: StdOrder,
-        Views: UtusFgOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static DrawingProfile Overlay(
+        WedgeSubclass subclass,
+        string profileName,
+        ViewNames views,
+        Func<IEnumerable<string>, string> sheetSelector)
+        => Create(
+            subclass,
+            DrawingType.Overlay,
+            profileName,
+            views,
+            sheetSelector,
+            useBreaklines: false);
 
-    public static DrawingProfile UtusPgbProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Production),
-        ProfileName: "UTUS PGB Production",
-        SheetSelector: Prefer("PGB"),
-        ViewsOrder: StdOrder,
-        Views: UtusPgbProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static DrawingProfile Create(
+        WedgeSubclass subclass,
+        DrawingType drawingType,
+        string profileName,
+        ViewNames views,
+        Func<IEnumerable<string>, string> sheetSelector,
+        bool useBreaklines)
+        => new(
+            Key: new DrawingProfileKey(subclass, drawingType),
+            ProfileName: profileName,
+            SheetSelector: sheetSelector,
+            ViewsOrder: StandardViewOrder,
+            Views: views,
+            UseBreaklinesForView: useBreaklines
+                ? IsBreaklineView
+                : _ => false,
+            ScaleForView: (_, fallback) => fallback,
+            Scale: DefaultScale);
 
-    public static DrawingProfile UtusPgbOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Overlay),
-        ProfileName: "UTUS PGB Overlay",
-        SheetSelector: Prefer("PGB"),
-        ViewsOrder: StdOrder,
-        Views: UtusPgbOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static bool IsBreaklineView(string logicalView)
+        => logicalView is "Front" or "Side" or "Detail" or "Section";
 
-    public static DrawingProfile FpFgProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Production),
-        ProfileName: "FP FG Production",
-        SheetSelector: Prefer("PRODCUTION"),
-        ViewsOrder: StdOrder,
-        Views: FpFgProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+    private static Func<IEnumerable<string>, string> PreferAny(params string[] preferredNames)
+        => available =>
+        {
+            var sheets = (available ?? Array.Empty<string>())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToArray();
 
-    public static DrawingProfile FpFgCustomer() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Customer),
-        ProfileName: "FP FG Customer",
-        SheetSelector: Prefer("CUSTOMER"),
-        ViewsOrder: StdOrder,
-        Views: FpFgCustomerViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+            if (sheets.Length == 0)
+                throw new InvalidOperationException("The drawing contains no selectable sheets.");
 
-    public static DrawingProfile FpFgOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.FG, DrawingType.Overlay),
-        ProfileName: "FP FG Overlay",
-        SheetSelector: Prefer("FG"),
-        ViewsOrder: StdOrder,
-        Views: FpFgOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+            foreach (var preferred in preferredNames)
+            {
+                var match = sheets.FirstOrDefault(name =>
+                    string.Equals(
+                        name.Trim(),
+                        preferred,
+                        StringComparison.OrdinalIgnoreCase));
 
-    public static DrawingProfile FpPgbProduction() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Production),
-        ProfileName: "FP PGB Production",
-        SheetSelector: Prefer("PGB"),
-        ViewsOrder: StdOrder,
-        Views: FpPgbProductionViews(),
-        UseBreaklinesForView: v => v is "Front" or "Side" or "Detail" or "Section",
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+                if (!string.IsNullOrWhiteSpace(match))
+                    return match;
+            }
 
-    public static DrawingProfile FpPgbOverlay() => new(
-        Key: new DrawingProfileKey(WedgeSubclass.PGB, DrawingType.Overlay),
-        ProfileName: "FP PGB Overlay",
-        SheetSelector: Prefer("PGB"),
-        ViewsOrder: StdOrder,
-        Views: FpPgbOverlayViews(),
-        UseBreaklinesForView: v => false,
-        ScaleForView: (_, fb) => Keep(fb),
-        Scale: DefaultScale
-    );
+            return sheets[0];
+        };
 }

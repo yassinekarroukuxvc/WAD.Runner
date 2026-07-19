@@ -10,6 +10,7 @@ internal static class EquationGeometry
     private const decimal DefaultFunnelGapInch = 0.0003m;
     private const decimal InchToMm = 25.4m;
     public const decimal DefaultFunnelGapMm = DefaultFunnelGapInch * InchToMm;
+    public const decimal LargeOverlayVrThresholdMm = 0.5m;
 
     public static decimal FunnelGapMmOrDefault(WedgeFacts facts)
     {
@@ -88,8 +89,7 @@ internal static class EquationGeometry
     public static decimal OverlaySafeNonStdCutMm(decimal rawMm, double scaleDecimal, WedgeType wedgeType)
     {
         if (rawMm <= 0m) return 0m;
-        const decimal softCapMm = 0.5m;
-        if (rawMm <= softCapMm) return rawMm;
+        if (rawMm <= LargeOverlayVrThresholdMm) return rawMm;
 
         const decimal referenceInch = 2.01175m;
         const decimal inchToMm = 25.4m;

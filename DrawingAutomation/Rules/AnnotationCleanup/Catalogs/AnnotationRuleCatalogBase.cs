@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Conditions;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
 
@@ -16,15 +17,36 @@ public abstract class AnnotationRuleCatalogBase : IAnnotationRuleCatalog
         string pattern,
         IAnnotationCondition when,
         string reason)
-        => new()
+        => KeepWithAliases(id, view, pattern, Array.Empty<string>(), when, reason);
+
+    protected AnnotationKeepRule KeepWithAliases(
+        string id,
+        AnnotationView view,
+        string primaryPattern,
+        IEnumerable<string> aliases,
+        IAnnotationCondition when,
+        string reason)
+    {
+        if (string.IsNullOrWhiteSpace(primaryPattern))
+            throw new ArgumentException("A primary annotation pattern is required.", nameof(primaryPattern));
+
+        var aliasTemplates = (aliases ?? Array.Empty<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => new AnnotationNameTemplate(x.Trim()))
+            .ToList()
+            .AsReadOnly();
+
+        return new AnnotationKeepRule
         {
             Id = id,
             Profile = Profile,
             View = view,
-            Name = new AnnotationNameTemplate(pattern),
+            Name = new AnnotationNameTemplate(primaryPattern),
+            Aliases = aliasTemplates,
             When = when,
             Reason = reason
         };
+    }
 
     protected AnnotationKeepRule KeepOptionalOverride(
         string id,

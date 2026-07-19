@@ -1,333 +1,1042 @@
 using System;
 using System.Collections.Generic;
+
 using SolidWorks.Interop.sldworks;
+
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
-namespace WAD.Runner.DrawingAutomation.Views
+namespace WAD.Runner.DrawingAutomation.Views;
+
+/// <summary>
+/// Handles breakline geometry for one SolidWorks drawing view.
+///
+/// Important architectural rules:
+///
+/// - This class does not rebuild.
+/// - This class does not choose workflow order.
+/// - This class does not branch by wedge subclass.
+/// - Calculations use the CURRENT final/candidate view scale.
+/// - Breakline gap ownership stays here.
+/// </summary>
+public sealed class BreaklineHandler
 {
+    private const double PositionEpsilon = 1e-9;
+    private const double MinimumValidScale = 1e-6;
 
+    private readonly View _view;
+    private readonly ModelDoc2 _model;
 
-    public sealed class BreaklineHandler
+    public BreaklineHandler(
+        View swView,
+        ModelDoc2 model)
     {
-        private readonly View _view;
-        private readonly ModelDoc2 _model;
+        _view =
+            swView
+            ?? throw new ArgumentNullException(
+                nameof(swView));
 
-        public BreaklineHandler(View swView, ModelDoc2 model)
+        _model =
+            model
+            ?? throw new ArgumentNullException(
+                nameof(model));
+    }
+
+    public bool SetBreaklineGap(
+        double gapSheetMeters)
+    {
+        if (!IsReady())
+            return false;
+
+        if (!double.IsFinite(gapSheetMeters) ||
+            gapSheetMeters <= 0.0)
         {
-            _view = swView;
-            _model = model;
-        }
+            Logger.Warn(
+                $"Invalid breakline gap: {gapSheetMeters}. " +
+                "The gap must be a finite positive value.");
 
-
-        public bool SetBreaklineGap(double gapSheetMeters)
-        {
-            if (!IsReady()) return false;
-            try
-            {
-                _view.BreakLineGap = gapSheetMeters;
-                Logger.Success($"Breakline gap set to {gapSheetMeters:F3} m (sheet).");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error($"SetBreaklineGap failed: {ex.Message}");
-                return false;
-            }
-        }
-
-
-        public bool ApplyBreakline(string viewName, DrawingType drawingType, WedgeSubclass subclass, WedgeData wedge, DrawingData drawData)
-        {
-            if (!IsReady()) return false;
-
-
-            TryApplyConfiguredGap(drawData, viewName);
-
-
-            if (IsDetail(viewName) || IsSection(viewName))
-                return SetDetailOrSectionBreakline(wedge, drawData, viewName, drawingType, subclass);
-
-
-            if (IsFront(viewName) || IsSide(viewName))
-            {
-                return (drawingType, subclass) switch
-                {
-                    (DrawingType.Production, WedgeSubclass.FG) => SetFrontSide_FG(wedge, drawData),
-                    (DrawingType.Customer, WedgeSubclass.FG) => SetFrontSide_FG(wedge, drawData),
-
-                    (DrawingType.Production, WedgeSubclass.PGB) => SetFrontSide_PGB(wedge, drawData),
-
-
-                    (DrawingType.Customer, WedgeSubclass.PGB) => SetFrontSide_PGB(wedge, drawData),
-
-                    _ => false
-                };
-            }
-
-            Logger.Warn($"ApplyBreakline: unrecognized view key '{viewName}'. Expected Front/Side/Detail/Section.");
             return false;
         }
 
-
-        private bool SetDetailOrSectionBreakline(WedgeData wedge, DrawingData drawData, string viewName, DrawingType drawingType, WedgeSubclass subclass)
+        try
         {
-            var bl = GetValidatedBreakline();
-            if (bl == null) return false;
+            _view.BreakLineGap =
+                gapSheetMeters;
 
-            var tl_m = MmToMeters(GetLengthMm(wedge, "TL"));
-            if (tl_m <= 0)
-            {
-                Logger.Warn("TL is missing/invalid for Detail/Section breakline.");
-                return false;
-            }
+            Logger.Success(
+                $"Breakline gap set to " +
+                $"{gapSheetMeters:F6} m (sheet).");
 
-            var scale = SafeScale();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(
+                $"SetBreaklineGap failed: {ex.Message}");
 
+            return false;
+        }
+    }
 
-            var inset_mm = ResolveViewParam(drawData, viewName, "detail_inset_mm",
-                             ResolveModeParam(drawData, drawingType, subclass, "detail_inset_mm",
-                                 Defaults.DetailInsetMm));
+    /// <summary>
+    /// New wedge-agnostic entry point.
+    /// </summary>
+    public bool ApplyBreakline(
+        string viewName,
+        WedgeData wedge,
+        DrawingData drawData)
+    {
+        if (!IsReady())
+            return false;
 
-            var inset_sheet_m = MmToMeters(inset_mm);
+        if (string.IsNullOrWhiteSpace(viewName))
+        {
+            Logger.Warn(
+                "ApplyBreakline received an empty view name.");
 
-            var halfSpan_sheet = (tl_m * 0.5) * scale;
-            var lower = -halfSpan_sheet + inset_sheet_m;
-            var upper = +halfSpan_sheet;
-
-            var ok = TrySetBreakline(bl, lower, upper);
-            if (ok) Logger.Success($"Detail/Section breakline → lower={lower:F4}, upper={upper:F4} (sheet m)");
-            return ok;
+            return false;
         }
 
-
-        private bool SetFrontSide_FG(WedgeData wedge, DrawingData drawData)
+        if (wedge is null)
         {
-            var bl = GetValidatedBreakline();
-            if (bl == null) return false;
+            Logger.Warn(
+                $"ApplyBreakline: wedge data is null " +
+                $"for view '{viewName}'.");
 
-            var tl_mm = GetLengthMm(wedge, "TL");
-            var tl_m = MmToMeters(tl_mm);
-            if (tl_m <= 0)
-            {
-                Logger.Warn("TL is missing/invalid for FG Front/Side breakline.");
-                return false;
-            }
-
-            var scale = SafeScale();
-
-
-            var fallbackPct = ResolveGlobalParam(drawData, "fg_fallback_pct", Defaults.FG_FallbackPct);
-            var offsetPct = ResolveGlobalParam(drawData, "fg_front_offset_pct", Defaults.FG_FrontOffsetPct);
-            var upperPct = ResolveGlobalParam(drawData, "fg_front_upper_pct", Defaults.FG_FrontUpperPct);
-
-
-            double k_m;
-            if (TryGetKMeters(wedge, tl_mm, out k_m))
-            {
-                Logger.Blue($"[FG] Engraving start (K-Value) = {k_m:F6} m");
-            }
-            else
-            {
-                k_m = Math.Min((double)tl_mm * (double)fallbackPct / 1000.0, tl_m * 0.5);
-                Logger.Warn($"[FG] K-Value missing; fallback → TL * {fallbackPct:P0} = {k_m:F6} m");
-            }
-
-            var lower = (tl_m * 0.5 - k_m + tl_m * (double)offsetPct) * scale;
-            var upper = (tl_m * 0.5 - tl_m * (double)upperPct) * scale;
-
-            var ok = TrySetBreakline(bl, lower, upper);
-            if (ok) Logger.Success($"[FG] Front/Side breakline → lower={lower:F4}, upper={upper:F4} (sheet m)");
-            return ok;
+            return false;
         }
 
-
-        private bool SetFrontSide_PGB(WedgeData wedge, DrawingData drawData)
+        if (drawData is null)
         {
-            var bl = GetValidatedBreakline();
-            if (bl == null) return false;
+            Logger.Warn(
+                $"ApplyBreakline: drawing data is null " +
+                $"for view '{viewName}'.");
 
-            var tl_mm = GetLengthMm(wedge, "TL");
-            var tl_m = MmToMeters(tl_mm);
-            if (tl_m <= 0)
-            {
-                Logger.Warn("TL is missing/invalid for PGB Front/Side breakline.");
-                return false;
-            }
-
-            var scale = SafeScale();
-
-            var fallbackPct = ResolveGlobalParam(drawData, "pgb_fallback_pct", Defaults.PGB_FallbackPct);
-            var offsetPct = ResolveGlobalParam(drawData, "pgb_front_offset_pct", Defaults.PGB_FrontOffsetPct);
-            var upperPct = ResolveGlobalParam(drawData, "pgb_front_upper_pct", Defaults.PGB_FrontUpperPct);
-
-
-            var k_m = Math.Min((double)tl_mm * (double)fallbackPct / 1000.0, tl_m * 0.5);
-
-            var lower = (tl_m * 0.5 - k_m + tl_m * (double)offsetPct) * scale;
-            var upper = (tl_m * 0.5 - tl_m * (double)upperPct) * scale;
-
-            var ok = TrySetBreakline(bl, lower, upper);
-            if (ok) Logger.Success($"[PGB] Front/Side breakline → lower={lower:F4}, upper={upper:F4} (sheet m)");
-            return ok;
+            return false;
         }
 
+        /*
+         * Breakline gap belongs to this handler.
+         *
+         * Resolution:
+         * 1. view breakline_gap_mm
+         * 2. built-in logical-view default
+         */
+        TryApplyConfiguredGap(
+            drawData,
+            viewName);
 
-        private bool IsReady() => _view != null && _model != null;
-
-        private static bool IsFront(string v) => v.Equals("Front", StringComparison.OrdinalIgnoreCase);
-        private static bool IsSide(string v) => v.Equals("Side", StringComparison.OrdinalIgnoreCase);
-        private static bool IsDetail(string v) => v.Equals("Detail", StringComparison.OrdinalIgnoreCase);
-        private static bool IsSection(string v) => v.Equals("Section", StringComparison.OrdinalIgnoreCase);
-
-
-        private void TryApplyConfiguredGap(DrawingData drawData, string viewName)
+        if (IsDetail(viewName) ||
+            IsSection(viewName))
         {
-            if (drawData?.Views == null || !drawData.Views.TryGetValue(viewName, out var vc) || vc == null) return;
-
-            if (TryGetParam(vc.Params, "breakline_gap_mm", out var gap_mm) && gap_mm > 0)
-            {
-                var gap_m = MmToMeters(gap_mm);
-                if (!SetBreaklineGap(gap_m))
-                    Logger.Warn($"Failed to apply configured gap for '{viewName}' ({gap_mm} mm).");
-            }
+            return SetDetailOrSectionBreakline(
+                wedge,
+                drawData,
+                viewName);
         }
 
-
-        private BreakLine? GetValidatedBreakline()
+        if (IsFront(viewName) ||
+            IsSide(viewName))
         {
-            if (_view == null) return null;
-            try
+            return SetFrontOrSideBreakline(
+                wedge,
+                drawData,
+                viewName);
+        }
+
+        Logger.Warn(
+            $"ApplyBreakline: unrecognized view key " +
+            $"'{viewName}'. " +
+            "Expected Front, Side, Detail, or Section.");
+
+        return false;
+    }
+
+    /// <summary>
+    /// Compatibility overload for existing callers.
+    ///
+    /// Drawing type and wedge subclass no longer control breakline logic.
+    /// </summary>
+    [Obsolete(
+        "Use ApplyBreakline(string viewName, WedgeData wedge, DrawingData drawData).")]
+    public bool ApplyBreakline(
+        string viewName,
+        DrawingType drawingType,
+        WedgeSubclass subclass,
+        WedgeData wedge,
+        DrawingData drawData)
+    {
+        return ApplyBreakline(
+            viewName,
+            wedge,
+            drawData);
+    }
+
+    private bool SetDetailOrSectionBreakline(
+        WedgeData wedge,
+        DrawingData drawData,
+        string viewName)
+    {
+        var breakline =
+            GetValidatedBreakline();
+
+        if (breakline is null)
+            return false;
+
+        var tlMm =
+            GetLengthMm(
+                wedge,
+                "TL");
+
+        if (tlMm <= 0m)
+        {
+            Logger.Warn(
+                $"TL is missing or invalid for " +
+                $"'{viewName}' breakline.");
+
+            return false;
+        }
+
+        var tlMeters =
+            MmToMeters(
+                tlMm);
+
+        var scale =
+            SafeScale();
+
+        /*
+         * detail_inset_mm is sheet-space.
+         *
+         * View-level configuration wins.
+         * Generic global configuration is the fallback.
+         */
+        var insetMm =
+            ResolveViewParam(
+                drawData,
+                viewName,
+                "detail_inset_mm",
+                ResolveGlobalParam(
+                    drawData,
+                    "detail_inset_mm",
+                    Defaults.DetailInsetMm));
+
+        var insetSheetMeters =
+            MmToMeters(
+                insetMm);
+
+        /*
+         * TL is model-space.
+         * Convert to sheet-space with the CURRENT view scale.
+         */
+        var halfSpanSheetMeters =
+            (tlMeters * 0.5) *
+            scale;
+
+        var lower =
+            -halfSpanSheetMeters +
+            insetSheetMeters;
+
+        var upper =
+            halfSpanSheetMeters;
+
+        if (!ValidatePositions(
+                lower,
+                upper,
+                viewName))
+        {
+            return false;
+        }
+
+        var ok =
+            TrySetBreakline(
+                breakline,
+                lower,
+                upper,
+                viewName);
+
+        if (ok)
+        {
+            Logger.Success(
+                $"[{viewName}] breakline positioned -> " +
+                $"lower={lower:F6}, upper={upper:F6}, " +
+                $"scale={scale:F6} (sheet m).");
+        }
+
+        return ok;
+    }
+
+    private bool SetFrontOrSideBreakline(
+        WedgeData wedge,
+        DrawingData drawData,
+        string viewName)
+    {
+        var breakline =
+            GetValidatedBreakline();
+
+        if (breakline is null)
+            return false;
+
+        var tlMm =
+            GetLengthMm(
+                wedge,
+                "TL");
+
+        if (tlMm <= 0m)
+        {
+            Logger.Warn(
+                $"TL is missing or invalid for " +
+                $"'{viewName}' breakline.");
+
+            return false;
+        }
+
+        var tlMeters =
+            MmToMeters(
+                tlMm);
+
+        var scale =
+            SafeScale();
+
+        /*
+         * Generic names are preferred.
+         *
+         * Legacy names are accepted so existing drawing configuration does
+         * not have to be migrated immediately.
+         *
+         * No wedge subclass is consulted.
+         */
+        var fallbackPct =
+            ResolveGlobalParamAliases(
+                drawData,
+                Defaults.FrontFallbackPct,
+                "front_fallback_pct",
+                "fg_fallback_pct",
+                "pgb_fallback_pct");
+
+        var offsetPct =
+            ResolveGlobalParamAliases(
+                drawData,
+                Defaults.FrontOffsetPct,
+                "front_offset_pct",
+                "fg_front_offset_pct",
+                "pgb_front_offset_pct");
+
+        var upperPct =
+            ResolveGlobalParamAliases(
+                drawData,
+                Defaults.FrontUpperPct,
+                "front_upper_pct",
+                "fg_front_upper_pct",
+                "pgb_front_upper_pct");
+
+        double kMeters;
+
+        if (TryGetKMeters(
+                wedge,
+                tlMm,
+                out kMeters))
+        {
+            Logger.Blue(
+                $"[{viewName}] Engraving start " +
+                $"(K-Value) = {kMeters:F6} m.");
+        }
+        else
+        {
+            kMeters =
+                Math.Min(
+                    (double)tlMm *
+                    fallbackPct /
+                    1000.0,
+                    tlMeters * 0.5);
+
+            Logger.Info(
+                $"[{viewName}] K-Value unavailable; " +
+                $"fallback TL * {fallbackPct:P0} = " +
+                $"{kMeters:F6} m.");
+        }
+
+        var lower =
+            (
+                tlMeters * 0.5
+                - kMeters
+                + tlMeters * offsetPct
+            ) * scale;
+
+        var upper =
+            (
+                tlMeters * 0.5
+                - tlMeters * upperPct
+            ) * scale;
+
+        if (!ValidatePositions(
+                lower,
+                upper,
+                $"{viewName} Front/Side"))
+        {
+            Logger.Error(
+                $"[{viewName}] Breakline calculation details -> " +
+                $"TL={tlMeters:F6} m, " +
+                $"K={kMeters:F6} m, " +
+                $"scale={scale:F6}, " +
+                $"fallbackPct={fallbackPct:F6}, " +
+                $"offsetPct={offsetPct:F6}, " +
+                $"upperPct={upperPct:F6}.");
+
+            return false;
+        }
+
+        var ok =
+            TrySetBreakline(
+                breakline,
+                lower,
+                upper,
+                viewName);
+
+        if (ok)
+        {
+            Logger.Success(
+                $"[{viewName}] breakline -> " +
+                $"lower={lower:F6}, upper={upper:F6}, " +
+                $"scale={scale:F6} (sheet m).");
+        }
+
+        return ok;
+    }
+
+    private bool IsReady()
+    {
+        return
+            _view is not null
+            && _model is not null;
+    }
+
+    private static bool IsFront(
+        string value)
+    {
+        return string.Equals(
+            value,
+            "Front",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSide(
+        string value)
+    {
+        return string.Equals(
+            value,
+            "Side",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDetail(
+        string value)
+    {
+        return string.Equals(
+            value,
+            "Detail",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSection(
+        string value)
+    {
+        return string.Equals(
+            value,
+            "Section",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void TryApplyConfiguredGap(
+        DrawingData drawData,
+        string viewName)
+    {
+        var gapMm =
+            ResolveBreaklineGapMm(
+                drawData,
+                viewName);
+
+        if (!gapMm.HasValue)
+        {
+            Logger.Warn(
+                $"No breakline gap could be resolved " +
+                $"for view '{viewName}'.");
+
+            return;
+        }
+
+        var gapMeters =
+            MmToMeters(
+                gapMm.Value);
+
+        if (!SetBreaklineGap(
+                gapMeters))
+        {
+            Logger.Warn(
+                $"Failed to apply breakline gap for " +
+                $"'{viewName}' ({gapMm.Value:F3} mm).");
+        }
+    }
+
+    private static double? ResolveBreaklineGapMm(
+        DrawingData drawData,
+        string viewName)
+    {
+        if (TryGetViewParams(
+                drawData,
+                viewName,
+                out var parameters)
+            &&
+            TryGetParam(
+                parameters,
+                "breakline_gap_mm",
+                out var configuredGapMm))
+        {
+            if (double.IsFinite(configuredGapMm) &&
+                configuredGapMm > 0.0)
             {
-                var count = _view.GetBreakLineCount2(out _);
-                if (count <= 0)
-                {
-                    Logger.Warn("View has no breaklines to position.");
-                    return null;
-                }
-                return _view.IGetBreakLines(count - 1);
+                return configuredGapMm;
             }
-            catch (Exception ex)
+
+            Logger.Warn(
+                $"Configured breakline_gap_mm for " +
+                $"'{viewName}' is invalid: {configuredGapMm}. " +
+                "Using the default gap.");
+        }
+
+        return GetDefaultBreaklineGapMm(
+            viewName);
+    }
+
+    private static double? GetDefaultBreaklineGapMm(
+        string viewName)
+    {
+        if (IsFront(viewName) ||
+            IsSide(viewName))
+        {
+            return Defaults.FrontSideBreaklineGapMm;
+        }
+
+        if (IsDetail(viewName) ||
+            IsSection(viewName))
+        {
+            return Defaults.DetailSectionBreaklineGapMm;
+        }
+
+        return null;
+    }
+
+    private BreakLine? GetValidatedBreakline()
+    {
+        try
+        {
+            var reportedCount =
+                _view.GetBreakLineCount2(
+                    out _);
+
+            if (reportedCount <= 0)
             {
-                Logger.Warn($"GetValidatedBreakline failed: {ex.Message}");
+                Logger.Warn(
+                    "View has no breaklines to position.");
+
                 return null;
             }
-        }
 
+            var rawBreaklines =
+                _view.GetBreakLines();
 
-        private static decimal GetLengthMm(WedgeData wedge, string key)
-        {
-            try
+            if (rawBreaklines is null)
             {
-                var d = wedge.TryGet(DimensionKey.From(key));
-                if (d is null) return 0m;
-                if (d.Nominal.Unit != UnitKind.Millimeter) return 0m;
-                return d.Nominal.Value;
+                Logger.Warn(
+                    $"View reported {reportedCount} breakline(s), " +
+                    "but GetBreakLines returned null.");
+
+                return null;
             }
-            catch { return 0m; }
-        }
 
-        private static double MmToMeters(decimal mm) => (double)(mm / 1000m);
-
-
-        private double SafeScale()
-        {
-            try
+            if (rawBreaklines is not object[] breaklines)
             {
-                var s = _view?.ScaleDecimal ?? 1.0;
-                return s > 1e-6 ? s : 1.0;
+                Logger.Error(
+                    "GetBreakLines returned unexpected type: " +
+                    rawBreaklines.GetType().FullName);
+
+                return null;
             }
-            catch { return 1.0; }
-        }
 
-        private static bool TrySetBreakline(BreakLine bl, double lower, double upper)
-        {
-            try { return bl.SetPosition(lower, upper); }
-            catch { return false; }
-        }
-
-
-        private static bool TryGetKMeters(WedgeData wedge, decimal tl_mm, out double k_m)
-        {
-            k_m = 0.0;
-            try
+            if (breaklines.Length != 1)
             {
-                var k = wedge.KValue;
-                if (k == null) return false;
-                var kv_mm = k.ValueMm.Value;
-                if (kv_mm <= 0m) return false;
+                Logger.Error(
+                    "Expected exactly one breakline in the view, " +
+                    $"but found {breaklines.Length}. " +
+                    "Breakline positioning was skipped.");
 
-                var tl_half_mm = tl_mm * 0.5m;
-                var clamped_mm = kv_mm > tl_half_mm ? tl_half_mm : kv_mm;
-                k_m = MmToMeters(clamped_mm);
-                return k_m > 0;
+                return null;
             }
-            catch { return false; }
+
+            if (breaklines[0] is not BreakLine breakline)
+            {
+                Logger.Error(
+                    "The object returned by GetBreakLines could not " +
+                    "be converted to BreakLine.");
+
+                return null;
+            }
+
+            return breakline;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(
+                $"GetValidatedBreakline failed: {ex.Message}");
+
+            return null;
+        }
+    }
+
+    private static decimal GetLengthMm(
+        WedgeData wedge,
+        string key)
+    {
+        if (wedge is null ||
+            string.IsNullOrWhiteSpace(key))
+        {
+            return 0m;
         }
 
-
-        private static bool TryGetParam(IReadOnlyDictionary<string, double> src, string key, out double val)
+        try
         {
-            foreach (var kv in src)
+            var dimension =
+                wedge.TryGet(
+                    DimensionKey.From(
+                        key));
+
+            if (dimension is null)
             {
-                if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
-                {
-                    val = kv.Value;
-                    return true;
-                }
+                Logger.Warn(
+                    $"Dimension '{key}' was not found.");
+
+                return 0m;
             }
-            val = 0;
+
+            if (dimension.Nominal.Unit !=
+                UnitKind.Millimeter)
+            {
+                Logger.Warn(
+                    $"Dimension '{key}' has unexpected unit " +
+                    $"'{dimension.Nominal.Unit}'. " +
+                    "Millimeters were expected.");
+
+                return 0m;
+            }
+
+            var value =
+                dimension.Nominal.Value;
+
+            if (value <= 0m)
+            {
+                Logger.Warn(
+                    $"Dimension '{key}' has invalid value " +
+                    $"{value} mm.");
+
+                return 0m;
+            }
+
+            return value;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(
+                $"Failed to read dimension '{key}': " +
+                ex.Message);
+
+            return 0m;
+        }
+    }
+
+    private static double MmToMeters(
+        decimal millimeters)
+    {
+        return
+            (double)(millimeters / 1000m);
+    }
+
+    private static double MmToMeters(
+        double millimeters)
+    {
+        return
+            millimeters / 1000.0;
+    }
+
+    private double SafeScale()
+    {
+        try
+        {
+            var scale =
+                _view.ScaleDecimal;
+
+            if (!double.IsFinite(scale) ||
+                scale <= MinimumValidScale)
+            {
+                Logger.Warn(
+                    $"Invalid drawing view scale '{scale}'. " +
+                    "Using fallback scale 1.0.");
+
+                return 1.0;
+            }
+
+            return scale;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(
+                $"Could not read drawing view scale: " +
+                $"{ex.Message}. Using fallback scale 1.0.");
+
+            return 1.0;
+        }
+    }
+
+    private static bool TrySetBreakline(
+        BreakLine breakline,
+        double lower,
+        double upper,
+        string context)
+    {
+        if (breakline is null)
+        {
+            Logger.Error(
+                $"[{context}] Cannot set breakline: " +
+                "BreakLine object is null.");
+
             return false;
         }
 
-        private static double ResolveViewParam(DrawingData dd, string viewName, string key, double fallback)
+        if (!ValidatePositions(
+                lower,
+                upper,
+                context))
         {
-            if (dd?.Views != null && dd.Views.TryGetValue(viewName, out var vc) && vc != null)
-                if (TryGetParam(vc.Params, key, out var v) && double.IsFinite(v) && v > 0) return v;
-            return fallback;
+            return false;
         }
 
-
-        private static double ResolveModeParam(DrawingData dd, DrawingType dt, WedgeSubclass sc, string paramName, double fallback)
+        try
         {
-            var wanted = $"{dt}_{sc}_{paramName}";
-            if (dd?.Views != null)
+            var result =
+                breakline.SetPosition(
+                    lower,
+                    upper);
+
+            if (!result)
             {
-                foreach (var vc in dd.Views.Values)
-                    if (TryGetParam(vc.Params, wanted, out var v) && double.IsFinite(v) && v > 0) return v;
+                Logger.Error(
+                    $"[{context}] SolidWorks rejected " +
+                    $"breakline positions -> " +
+                    $"lower={lower:F6}, upper={upper:F6}.");
+
+                return false;
             }
-            return fallback;
+
+            /*
+             * No rebuild here.
+             *
+             * The coordinator batches mutations and owns the mandatory
+             * regeneration boundary.
+             */
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(
+                $"[{context}] SetPosition failed: " +
+                ex.Message);
+
+            return false;
+        }
+    }
+
+    private static bool ValidatePositions(
+        double lower,
+        double upper,
+        string context)
+    {
+        if (!double.IsFinite(lower) ||
+            !double.IsFinite(upper))
+        {
+            Logger.Error(
+                $"[{context}] Invalid breakline positions: " +
+                $"lower={lower}, upper={upper}. " +
+                "Both values must be finite.");
+
+            return false;
         }
 
-        private static double ResolveGlobalParam(DrawingData dd, string key, double fallback)
+        if (Math.Abs(
+                upper - lower) <=
+            PositionEpsilon)
         {
-            if (dd?.Views != null)
+            Logger.Error(
+                $"[{context}] Invalid breakline positions: " +
+                $"lower={lower:F9}, upper={upper:F9}. " +
+                "The two positions are too close.");
+
+            return false;
+        }
+
+        if (lower >= upper)
+        {
+            Logger.Error(
+                $"[{context}] Invalid breakline ordering: " +
+                $"lower={lower:F6} must be less than " +
+                $"upper={upper:F6}.");
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetKMeters(
+        WedgeData wedge,
+        decimal tlMm,
+        out double kMeters)
+    {
+        kMeters = 0.0;
+
+        if (wedge is null ||
+            tlMm <= 0m)
+        {
+            return false;
+        }
+
+        try
+        {
+            var kValue =
+                wedge.KValue;
+
+            if (kValue is null)
+                return false;
+
+            var kMm =
+                kValue.ValueMm.Value;
+
+            if (kMm <= 0m)
+                return false;
+
+            var halfTlMm =
+                tlMm * 0.5m;
+
+            var clampedMm =
+                kMm > halfTlMm
+                    ? halfTlMm
+                    : kMm;
+
+            kMeters =
+                MmToMeters(
+                    clampedMm);
+
+            return
+                double.IsFinite(kMeters)
+                && kMeters > 0.0;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(
+                $"Unable to resolve K-Value: " +
+                ex.Message);
+
+            kMeters = 0.0;
+
+            return false;
+        }
+    }
+
+    private static bool TryGetParam(
+        IReadOnlyDictionary<string, double> source,
+        string key,
+        out double value)
+    {
+        value = 0.0;
+
+        if (source is null ||
+            string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        foreach (var pair in source)
+        {
+            if (!string.Equals(
+                    pair.Key,
+                    key,
+                    StringComparison.OrdinalIgnoreCase))
             {
-                foreach (var vc in dd.Views.Values)
-                    if (TryGetParam(vc.Params, key, out var v) && double.IsFinite(v) && v >= 0) return v;
+                continue;
             }
+
+            value =
+                pair.Value;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetViewParams(
+        DrawingData drawData,
+        string viewName,
+        out IReadOnlyDictionary<string, double> parameters)
+    {
+        parameters = null!;
+
+        if (drawData?.Views is null ||
+            string.IsNullOrWhiteSpace(viewName))
+        {
+            return false;
+        }
+
+        foreach (var pair in drawData.Views)
+        {
+            if (!string.Equals(
+                    pair.Key,
+                    viewName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (pair.Value?.Params is null)
+                return false;
+
+            parameters =
+                pair.Value.Params;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static double ResolveViewParam(
+        DrawingData drawData,
+        string viewName,
+        string key,
+        double fallback)
+    {
+        if (!TryGetViewParams(
+                drawData,
+                viewName,
+                out var parameters))
+        {
             return fallback;
         }
-        private static double MmToMeters(double mm) => mm / 1000.0;
 
-
-        private static class Defaults
+        if (!TryGetParam(
+                parameters,
+                key,
+                out var value))
         {
-
-            public const double DetailInsetMm = 40;
-
-
-            public const double FG_FallbackPct = 0.40;
-            public const double FG_FrontOffsetPct = 0.020;
-            public const double FG_FrontUpperPct = 0.050;
-
-
-            public const double PGB_FallbackPct = 0.35;
-            public const double PGB_FrontOffsetPct = 0.020;
-            public const double PGB_FrontUpperPct = 0.050;
+            return fallback;
         }
+
+        if (!double.IsFinite(value) ||
+            value <= 0.0)
+        {
+            return fallback;
+        }
+
+        return value;
+    }
+
+    private static double ResolveGlobalParam(
+        DrawingData drawData,
+        string key,
+        double fallback)
+    {
+        if (drawData?.Views is null)
+            return fallback;
+
+        foreach (var viewConfig in
+                 drawData.Views.Values)
+        {
+            if (viewConfig?.Params is null)
+                continue;
+
+            if (!TryGetParam(
+                    viewConfig.Params,
+                    key,
+                    out var value))
+            {
+                continue;
+            }
+
+            if (!double.IsFinite(value) ||
+                value < 0.0)
+            {
+                continue;
+            }
+
+            return value;
+        }
+
+        return fallback;
+    }
+
+    private static double ResolveGlobalParamAliases(
+        DrawingData drawData,
+        double fallback,
+        params string[] keys)
+    {
+        if (keys is null ||
+            keys.Length == 0)
+        {
+            return fallback;
+        }
+
+        foreach (var key in keys)
+        {
+            var sentinel =
+                double.NaN;
+
+            var resolved =
+                ResolveGlobalParam(
+                    drawData,
+                    key,
+                    sentinel);
+
+            if (double.IsFinite(resolved))
+                return resolved;
+        }
+
+        return fallback;
+    }
+
+    private static class Defaults
+    {
+        public const double FrontSideBreaklineGapMm =
+            2.0;
+
+        public const double DetailSectionBreaklineGapMm =
+            50.0;
+
+        public const double DetailInsetMm =
+            40.0;
+
+        /*
+         * Generic front/side defaults shared by all wedge types.
+         *
+         * Existing fg_* and pgb_* parameter names are still accepted as
+         * aliases, but the algorithm itself is wedge-agnostic.
+         */
+        public const double FrontFallbackPct =
+            0.40;
+
+        public const double FrontOffsetPct =
+            0.020;
+
+        public const double FrontUpperPct =
+            0.050;
     }
 }

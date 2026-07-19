@@ -32,9 +32,23 @@ public sealed class Osg7FgProductionAnnotationRules : AnnotationRuleCatalogBase
 
             // DETAIL VIEW
             Keep("OSG7-FG-PROD-DETAIL-W", Detail, "W@ANNOT_RIGH_PLAN", Always(), "OSG7 FG detail W."),
+            Keep("OSG7-FG-PROD-DETAIL-GA", Detail, "GA@ANNOT_RIGH_PLAN", Always(), "OSG7 FG detail GA."),
+            Keep("OSG7-FG-PROD-DETAIL-ISA", Detail, "ISA@ANNOT_RIGH_PLAN", Always(), "OSG7 FG detail ISA."),
             Keep("OSG7-FG-PROD-DETAIL-B", Detail, "B@ANNOT_RIGH_PLAN", Always(), "Production keeps B."),
-            Keep("OSG7-FG-PROD-DETAIL-GD", Detail, "GD@ANNOT_RIGH_PLAN", Always(), "Production keeps GD."),
-            Keep("OSG7-FG-PROD-DETAIL-GR", Detail, "GR@ANNOT_RIGH_PLAN", Always(), "Production keeps GR."),
+            KeepWithAliases(
+                "OSG7-FG-PROD-DETAIL-GD",
+                Detail,
+                "GD@ANNOT_RIGH_PLAN",
+                new[] { "GD" },
+                Always(),
+                "Keep GD whether SolidWorks exposes the model-linked or drawing-only name."),
+            KeepWithAliases(
+                "OSG7-FG-PROD-DETAIL-GR",
+                Detail,
+                "GR@ANNOT_RIGH_PLAN",
+                new[] { "GR" },
+                Always(),
+                "Keep GR whether SolidWorks exposes the model-linked or drawing-only name."),
             Keep("OSG7-FG-PROD-DETAIL-VW", Detail, "VW@ANNOT_RIGH_PLAN", DimPositive("VW"), "Keep VW only when VW is positive."),
             Keep("OSG7-FG-PROD-DETAIL-VRA", Detail, "VRA@ANNOT_RIGH_PLAN", DimPositive("VRA"), "Keep VRA only when VRA is positive."),
 
@@ -42,7 +56,21 @@ public sealed class Osg7FgProductionAnnotationRules : AnnotationRuleCatalogBase
             Keep("OSG7-FG-PROD-SECTION-FR", Section, "FR@ANNOT_FRONT_PLAN", Always(), "OSG7 FG section FR."),
             Keep("OSG7-FG-PROD-SECTION-BR", Section, "BR@ANNOT_FRONT_PLAN", Always(), "OSG7 FG section BR."),
             Keep("OSG7-FG-PROD-SECTION-FL", Section, "FL@ANNOT_FRONT_PLAN", Always(), "OSG7 FG section FL."),
-            Keep("OSG7-FG-PROD-SECTION-F", Section, "F@ANNOT_FRONT_PLAN", Always(), "OSG7 FG section F.")
+            Keep("OSG7-FG-PROD-SECTION-F", Section, "F@ANNOT_FRONT_PLAN", Always(), "OSG7 FG section F."),
+            KeepWithAliases(
+                "OSG7-FG-PROD-SECTION-FRX",
+                Section,
+                "D3@ANNOT_FRONT_PLAN",
+                new[] { "FRX", "FRX@ANNOT_FRONT_PLAN" },
+                Always(),
+                "Keep FRX across legacy D3 and explicit FRX template names."),
+            KeepWithAliases(
+                "OSG7-FG-PROD-SECTION-BRX",
+                Section,
+                "D2@ANNOT_FRONT_PLAN",
+                new[] { "BRX", "BRX@ANNOT_FRONT_PLAN" },
+                Always(),
+                "Keep BRX across legacy D2 and explicit BRX template names.")
         };
     }
 }
@@ -60,28 +88,57 @@ public sealed class Osg7FgCustomerAnnotationRules : AnnotationRuleCatalogBase
             Keep("OSG7-FG-CUST-FRONT-TL", Front, "TL@ANNOT_RIGH_PLAN", Always(), "OSG7 FG customer base total length."),
 
             // SIDE VIEW
-            Keep("OSG7-FG-CUST-SIDE-FA", Side, "FA@ANNOT_FRONT_PLAN", Always(), "OSG7 side FA."),
-            Keep("OSG7-FG-CUST-SIDE-BA", Side, "BA@ANNOT_FRONT_PLAN", Always(), "OSG7 side BA."),
+            Keep("OSG7-FG-CUST-SIDE-FA", Side, "FA@ANNOT_FRONT_PLAN", Always(), "OSG7 customer side FA."),
+            Keep("OSG7-FG-CUST-SIDE-BA", Side, "BA@ANNOT_FRONT_PLAN", Always(), "OSG7 customer side BA."),
             Keep("OSG7-FG-CUST-SIDE-X", Side, "X@ANNOT_FRONT_PLAN", DimPositive("X"), "Keep X only when X is positive."),
             Keep("OSG7-FG-CUST-SIDE-FX", Side, "FX@ANNOT_FRONT_PLAN", DimPositive("FX"), "Keep FX only when FX is positive."),
             Keep("OSG7-FG-CUST-SIDE-VFL", Side, "VFL@ANNOT_FRONT_PLAN", DimPositive("VFL"), "Keep VFL only when VFL is positive."),
 
             // TOP VIEW
-            Keep("OSG7-FG-CUST-TOP-TD", Top, "TD@ANNOT_TOP_PLAN", Always(), "OSG7 top TD."),
-            Keep("OSG7-FG-CUST-TOP-TDF", Top, "TDF@ANNOT_TOP_PLAN", Always(), "OSG7 top TDF."),
+            Keep("OSG7-FG-CUST-TOP-TD", Top, "TD@ANNOT_TOP_PLAN", Always(), "OSG7 customer top TD."),
+            Keep("OSG7-FG-CUST-TOP-TDF", Top, "TDF@ANNOT_TOP_PLAN", Always(), "OSG7 customer top TDF."),
 
-            // DETAIL VIEW - customer removes GR compared to production.
+            // DETAIL VIEW
             Keep("OSG7-FG-CUST-DETAIL-W", Detail, "W@ANNOT_RIGH_PLAN", Always(), "OSG7 FG customer detail W."),
+            Keep("OSG7-FG-CUST-DETAIL-GA", Detail, "GA@ANNOT_RIGH_PLAN", Always(), "OSG7 FG customer detail GA."),
+            Keep("OSG7-FG-CUST-DETAIL-ISA", Detail, "ISA@ANNOT_RIGH_PLAN", Always(), "OSG7 FG customer detail ISA."),
             Keep("OSG7-FG-CUST-DETAIL-B", Detail, "B@ANNOT_RIGH_PLAN", Always(), "Customer keeps B."),
-            Keep("OSG7-FG-CUST-DETAIL-GD", Detail, "GD@ANNOT_RIGH_PLAN", Always(), "Customer keeps GD."),
+            KeepWithAliases(
+                "OSG7-FG-CUST-DETAIL-GD",
+                Detail,
+                "GD@ANNOT_RIGH_PLAN",
+                new[] { "GD" },
+                Always(),
+                "Keep GD whether SolidWorks exposes the model-linked or drawing-only name."),
+            KeepWithAliases(
+                "OSG7-FG-CUST-DETAIL-GR",
+                Detail,
+                "GR@ANNOT_RIGH_PLAN",
+                new[] { "GR" },
+                Always(),
+                "Keep GR whether SolidWorks exposes the model-linked or drawing-only name."),
             Keep("OSG7-FG-CUST-DETAIL-VW", Detail, "VW@ANNOT_RIGH_PLAN", DimPositive("VW"), "Keep VW only when VW is positive."),
             Keep("OSG7-FG-CUST-DETAIL-VRA", Detail, "VRA@ANNOT_RIGH_PLAN", DimPositive("VRA"), "Keep VRA only when VRA is positive."),
 
             // SECTION VIEW
-            Keep("OSG7-FG-CUST-SECTION-FR", Section, "FR@ANNOT_FRONT_PLAN", Always(), "OSG7 FG section FR."),
-            Keep("OSG7-FG-CUST-SECTION-BR", Section, "BR@ANNOT_FRONT_PLAN", Always(), "OSG7 FG section BR."),
-            Keep("OSG7-FG-CUST-SECTION-FL", Section, "FL@ANNOT_FRONT_PLAN", Always(), "OSG7 FG section FL."),
-            Keep("OSG7-FG-CUST-SECTION-F", Section, "F@ANNOT_FRONT_PLAN", Always(), "OSG7 FG section F.")
+            Keep("OSG7-FG-CUST-SECTION-FR", Section, "FR@ANNOT_FRONT_PLAN", Always(), "OSG7 FG customer section FR."),
+            Keep("OSG7-FG-CUST-SECTION-BR", Section, "BR@ANNOT_FRONT_PLAN", Always(), "OSG7 FG customer section BR."),
+            Keep("OSG7-FG-CUST-SECTION-FL", Section, "FL@ANNOT_FRONT_PLAN", Always(), "OSG7 FG customer section FL."),
+            Keep("OSG7-FG-CUST-SECTION-F", Section, "F@ANNOT_FRONT_PLAN", Always(), "OSG7 FG customer section F."),
+            KeepWithAliases(
+                "OSG7-FG-CUST-SECTION-FRX",
+                Section,
+                "D3@ANNOT_FRONT_PLAN",
+                new[] { "FRX", "FRX@ANNOT_FRONT_PLAN" },
+                Always(),
+                "Keep FRX across legacy D3 and explicit FRX template names."),
+            KeepWithAliases(
+                "OSG7-FG-CUST-SECTION-BRX",
+                Section,
+                "D2@ANNOT_FRONT_PLAN",
+                new[] { "BRX", "BRX@ANNOT_FRONT_PLAN" },
+                Always(),
+                "Keep BRX across legacy D2 and explicit BRX template names.")
         };
     }
 }
@@ -113,15 +170,15 @@ public sealed class Osg7PgbProductionAnnotationRules : AnnotationRuleCatalogBase
             Keep("OSG7-PGB-PROD-FRONT-TL", Front, "TL@ANNOT_RIGH_PLAN", Always(), "OSG7 PGB base total length."),
 
             // SIDE VIEW
-            Keep("OSG7-PGB-PROD-SIDE-FA", Side, "FA@ANNOT_FRONT_PLAN", Always(), "OSG7 side FA."),
-            Keep("OSG7-PGB-PROD-SIDE-BA", Side, "BA@ANNOT_FRONT_PLAN", Always(), "OSG7 side BA."),
+            Keep("OSG7-PGB-PROD-SIDE-FA", Side, "FA@ANNOT_FRONT_PLAN", Always(), "OSG7 PGB side FA."),
+            Keep("OSG7-PGB-PROD-SIDE-BA", Side, "BA@ANNOT_FRONT_PLAN", Always(), "OSG7 PGB side BA."),
             Keep("OSG7-PGB-PROD-SIDE-X", Side, "X@ANNOT_FRONT_PLAN", DimPositive("X"), "Keep X only when X is positive."),
             Keep("OSG7-PGB-PROD-SIDE-FX", Side, "FX@ANNOT_FRONT_PLAN", DimPositive("FX"), "Keep FX only when FX is positive."),
             Keep("OSG7-PGB-PROD-SIDE-VFL", Side, "VFL@ANNOT_FRONT_PLAN", DimPositive("VFL"), "Keep VFL only when VFL is positive."),
 
             // TOP VIEW
-            Keep("OSG7-PGB-PROD-TOP-TD", Top, "TD@ANNOT_TOP_PLAN", Always(), "OSG7 top TD."),
-            Keep("OSG7-PGB-PROD-TOP-TDF", Top, "TDF@ANNOT_TOP_PLAN", Always(), "OSG7 top TDF."),
+            Keep("OSG7-PGB-PROD-TOP-TD", Top, "TD@ANNOT_TOP_PLAN", Always(), "OSG7 PGB top TD."),
+            Keep("OSG7-PGB-PROD-TOP-TDF", Top, "TDF@ANNOT_TOP_PLAN", Always(), "OSG7 PGB top TDF."),
 
             // DETAIL VIEW
             Keep("OSG7-PGB-PROD-DETAIL-W", Detail, "W@ANNOT_RIGH_PLAN", Always(), "OSG7 PGB detail W."),

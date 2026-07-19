@@ -1,264 +1,177 @@
-
 using System;
 using System.Collections.Generic;
 
 using WAD.Runner.DataManagement.Domain.Wedge;
 
-namespace WAD.Runner.DrawingAutomation.Tables
+namespace WAD.Runner.DrawingAutomation.Tables;
+
+public static class DimensionTableKeyFilter
 {
+    private readonly record struct FilterKey(
+        WedgeType WedgeType,
+        WedgeSubclass Subclass,
+        DrawingType DrawingType);
 
+    private static readonly IReadOnlyDictionary<FilterKey, string[]> Rules = BuildRules();
 
-    public static class DimensionTableKeyFilter
+    public static HashSet<string>? GetAllowedKeys(
+        WedgeType wedgeType,
+        DrawingType drawingType,
+        WedgeSubclass subclass)
     {
+        var key = new FilterKey(wedgeType, subclass, drawingType);
+        return Rules.TryGetValue(key, out var allowed)
+            ? new HashSet<string>(allowed, StringComparer.OrdinalIgnoreCase)
+            : null;
+    }
 
+    private static IReadOnlyDictionary<FilterKey, string[]> BuildRules()
+    {
+        var rules = new Dictionary<FilterKey, string[]>();
 
-        public static HashSet<string>? GetAllowedKeys(
-            WedgeType wedgeType,
-            DrawingType drawingType,
-            WedgeSubclass subclass)
-        {
-            if (!_rules.TryGetValue(wedgeType, out var bySubclass))
-                return null;
+        RegisterCobLike(rules, WedgeType.COB);
+        RegisterCobLike(rules, WedgeType.UTUS);
+        RegisterCobLike(rules, WedgeType.FP);
+        RegisterCkvd(rules);
+        RegisterOsg7(rules);
+        return rules;
+    }
 
-            if (!bySubclass.TryGetValue(subclass, out var byDrawingType))
-                return null;
+    private static void RegisterCobLike(
+        IDictionary<FilterKey, string[]> rules,
+        WedgeType wedgeType)
+    {
+        Add(
+            rules,
+            wedgeType,
+            WedgeSubclass.FG,
+            DrawingType.Production,
+            "T", "F", "FD", "FL", "H", "VBL",
+            "RC", "CD", "GR", "GD", "B", "BF", "G", "VR",
+            "W", "VW", "FR", "BR", "ERW", "TL", "TD", "TDF",
+            "VFL", "Y");
 
-            if (!byDrawingType.TryGetValue(drawingType, out var keys))
-                return null;
+        Add(
+            rules,
+            wedgeType,
+            WedgeSubclass.FG,
+            DrawingType.Customer,
+            "T", "H", "VBL", "B", "BF", "G", "VR",
+            "W", "VW", "W2", "FR", "BR", "TD", "TDF", "TL");
 
+        Add(
+            rules,
+            wedgeType,
+            WedgeSubclass.FG,
+            DrawingType.Overlay,
+            "TL", "TD", "TDF", "W", "ISA", "K", "RA", "T", "BA");
 
-            return new HashSet<string>(keys, StringComparer.OrdinalIgnoreCase);
-        }
+        Add(
+            rules,
+            wedgeType,
+            WedgeSubclass.PGB,
+            DrawingType.Production,
+            "W", "ISA", "T", "FD");
 
+        Add(
+            rules,
+            wedgeType,
+            WedgeSubclass.PGB,
+            DrawingType.Overlay,
+            "TL", "TD", "TDF", "W", "ISA", "K", "BA");
+    }
 
-        private static readonly Dictionary<WedgeType, Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>> _rules
-            = new()
-            {
-                [WedgeType.COB] = new Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>()
-                {
+    private static void RegisterCkvd(IDictionary<FilterKey, string[]> rules)
+    {
+        Add(
+            rules,
+            WedgeType.CKVD,
+            WedgeSubclass.FG,
+            DrawingType.Production,
+            "FL", "F", "B", "GD", "GR", "VR", "W", "VW",
+            "FR", "BR", "FX", "X", "E");
 
-                    [WedgeSubclass.FG] = new Dictionary<DrawingType, string[]>()
-                    {
-                        [DrawingType.Production] = new[]
-                        {
-                            "T","F",
-                            "FD","FL",
-                            "H",
-                            "VBL",
-                            "RC","CD","GR","GD",
-                            "B","BF",
-                            "G",
-                            "VR",
-                            "W","VW","FR","BR","ERW",
-                            "TL","TD","TDF",
-                            "VFL",
-                            "Y",
-                            "ERW"
-                        },
+        Add(
+            rules,
+            WedgeType.CKVD,
+            WedgeSubclass.FG,
+            DrawingType.Customer,
+            "FL", "F", "B", "GD", "GR", "VR", "W", "VW",
+            "FR", "BR", "FX", "X", "E");
 
-                        [DrawingType.Customer] = new[]
-                        {
-                            "T",
-                            "H",
-                            "VBL",
-                            "B","BF",
-                            "G",
-                            "VR",
-                            "W","VW","W2","FR","BR","TD","TDF","TL"
-                        },
+        Add(
+            rules,
+            WedgeType.CKVD,
+            WedgeSubclass.FG,
+            DrawingType.Overlay,
+            "TL", "TD", "TDF", "W", "ISA", "K", "BA");
 
-                        [DrawingType.Overlay] = new[]
-                        {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "RA", "T",
-                            "BA"
-                        }
-                    },
+        Add(
+            rules,
+            WedgeType.CKVD,
+            WedgeSubclass.PGB,
+            DrawingType.Production,
+            "W", "ISA", "T", "FL");
 
+        Add(
+            rules,
+            WedgeType.CKVD,
+            WedgeSubclass.PGB,
+            DrawingType.Overlay,
+            "TL", "TD", "TDF", "W", "ISA", "K", "BA");
+    }
 
-                    [WedgeSubclass.PGB] = new Dictionary<DrawingType, string[]>()
-                    {
-                        [DrawingType.Production] = new[]
-                        {
-                            "W", "ISA",
-                            "T", "FD"
-                        },
+    private static void RegisterOsg7(IDictionary<FilterKey, string[]> rules)
+    {
+        Add(
+            rules,
+            WedgeType.OSG7,
+            WedgeSubclass.FG,
+            DrawingType.Production,
+            "FL", "F", "B", "GD", "GR", "VR", "W", "VW",
+            "FR", "BR", "FX", "X", "FRX","BRX","VFL","TD","TDF","TL");
 
-                        [DrawingType.Overlay] = new[]
-                        {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "BA"
-                        }
-                    }
-                },
+        Add(
+            rules,
+            WedgeType.OSG7,
+            WedgeSubclass.FG,
+            DrawingType.Customer,
+            "FL", "F", "B", "GD", "GR", "VR", "W", "VW",
+            "FR", "BR", "FX", "X", "FRX", "BRX", "VFL", "TD", "TDF", "TL");
 
-                [WedgeType.UTUS] = new Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>()
-                {
+        Add(
+            rules,
+            WedgeType.OSG7,
+            WedgeSubclass.FG,
+            DrawingType.Overlay,
+            "TL", "TD", "TDF", "W", "ISA", "K", "BA","FA","VFL", "TD", "TDF", "TL");
 
-                    [WedgeSubclass.FG] = new Dictionary<DrawingType, string[]>()
-                    {
-                        [DrawingType.Production] = new[]
-                        {
-                            "T","F",
-                            "FD","FL",
-                            "H",
-                            "VBL",
-                            "RC","CD","GR","GD",
-                            "B","BF",
-                            "G",
-                            "VR",
-                            "W","VW","FR","BR","ERW",
-                            "TL","TD","TDF",
-                            "VFL",
-                            "Y",
-                            "ERW"
-                        },
+        Add(
+            rules,
+            WedgeType.OSG7,
+            WedgeSubclass.PGB,
+            DrawingType.Production,
+            "W", "ISA", "T", "FL", "TD", "TDF", "TL");
 
-                        [DrawingType.Customer] = new[]
-                        {
-                            "T",
-                            "H",
-                            "VBL",
-                            "B","BF",
-                            "G",
-                            "VR",
-                            "W","VW","W2","FR","BR","TD","TDF","TL"
-                        },
+        Add(
+            rules,
+            WedgeType.OSG7,
+            WedgeSubclass.PGB,
+            DrawingType.Overlay,
+            "TL", "TD", "TDF", "W", "ISA", "K", "BA", "TD", "TDF", "TL");
+    }
 
-                        [DrawingType.Overlay] = new[]
-                        {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "RA", "T",
-                            "BA"
-                        }
-                    },
+    private static void Add(
+        IDictionary<FilterKey, string[]> rules,
+        WedgeType wedgeType,
+        WedgeSubclass subclass,
+        DrawingType drawingType,
+        params string[] keys)
+    {
+        var filterKey = new FilterKey(wedgeType, subclass, drawingType);
+        if (rules.ContainsKey(filterKey))
+            throw new InvalidOperationException($"Duplicate dimension-table filter: {filterKey}.");
 
-
-                    [WedgeSubclass.PGB] = new Dictionary<DrawingType, string[]>()
-                    {
-                        [DrawingType.Production] = new[]
-                        {
-                            "W", "ISA",
-                            "T", "FD"
-                        },
-
-                        [DrawingType.Overlay] = new[]
-                        {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "BA"
-                        }
-                    }
-                },
-
-                [WedgeType.FP] = new Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>()
-                {
-
-                    [WedgeSubclass.FG] = new Dictionary<DrawingType, string[]>()
-                    {
-                        [DrawingType.Production] = new[]
-                        {
-                            "T","F",
-                            "FD","FL",
-                            "H",
-                            "VBL",
-                            "RC","CD","GR","GD",
-                            "B","BF",
-                            "G",
-                            "VR",
-                            "W","VW","FR","BR","ERW",
-                            "TL","TD","TDF",
-                            "VFL",
-                            "Y",
-                            "ERW"
-                        },
-
-                        [DrawingType.Customer] = new[]
-                        {
-                            "T",
-                            "H",
-                            "VBL",
-                            "B","BF",
-                            "G",
-                            "VR",
-                            "W","VW","W2","FR","BR","TD","TDF","TL"
-                        },
-
-                        [DrawingType.Overlay] = new[]
-                        {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "RA", "T",
-                            "BA"
-                        }
-                    },
-
-
-                    [WedgeSubclass.PGB] = new Dictionary<DrawingType, string[]>()
-                    {
-                        [DrawingType.Production] = new[]
-                        {
-                            "W", "ISA",
-                            "T", "FD"
-                        },
-
-                        [DrawingType.Overlay] = new[]
-                        {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "BA"
-                        }
-                    }
-                },
-
-                [WedgeType.CKVD] = new Dictionary<WedgeSubclass, Dictionary<DrawingType, string[]>>()
-                {
-
-                    [WedgeSubclass.FG] = new Dictionary<DrawingType, string[]>()
-                    {
-                        [DrawingType.Production] = new[]
-                        {
-                            "FL","F","B","GD","GR",
-                            "VR","W","VW",
-                            "FR","BR",
-                            "FX","X","E"
-                        },
-
-                        [DrawingType.Customer] = new[]
-                        {
-                            "FL","F","B","GD","GR",
-                            "VR","W","VW",
-                            "FR","BR",
-                            "FX","X","E"
-                        },
-
-                        [DrawingType.Overlay] = new[]
-                        {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K","BA"
-                        }
-                    },
-
-
-                    [WedgeSubclass.PGB] = new Dictionary<DrawingType, string[]>()
-                    {
-                        [DrawingType.Production] = new[]
-                        {
-                            "W", "ISA",
-                            "T", "FL"
-                        },
-
-                        [DrawingType.Overlay] = new[]
-                        {
-                            "TL", "TD", "TDF", "W", "ISA",
-                            "K",
-                            "BA"
-                        }
-                    }
-                },
-            };
+        rules[filterKey] = keys;
     }
 }

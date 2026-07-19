@@ -9,6 +9,7 @@ using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;
+using WAD.Runner.DrawingAutomation.Common.Overlay;
 using WAD.Runner.DrawingAutomation.SolidWorks;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Drawing;
@@ -37,6 +38,10 @@ namespace WAD.Runner.DrawingAutomation.Metadata
 
             var props = BuildTitleBlockProps(drawing, wedge);
             ApplyCustomProperties(model, props);
+
+            ApplyDrawingTypeMetadata(
+                model,
+                drawing.DrawingType);
         }
 
 
@@ -316,61 +321,7 @@ namespace WAD.Runner.DrawingAutomation.Metadata
 
 
         private static double ComputeOverlayMagnification(WedgeData wedge, WedgeType wedgeType)
-        {
-            string dimensionKey =
-                wedgeType == WedgeType.CKVD || wedgeType == WedgeType.OSG7
-                    ? "FL"
-                    : "T";
-
-            return ComputeOverlayMagnificationFromDimension(wedge, dimensionKey, wedgeType);
-        }
-
-        private static double ComputeOverlayMagnificationFromDimension(
-            WedgeData wedge,
-            string dimensionKey,
-            WedgeType wedgeType)
-        {
-            const double defaultMag = 100.0;
-
-            if (wedge?.Dimensions is null)
-                return defaultMag;
-
-            if (!wedge.Dimensions.TryGetValue(DimensionKey.From(dimensionKey), out var dim) ||
-                dim is null)
-            {
-                Logger.Warn(
-                    $"[MetadataApplier] Overlay magnification source '{dimensionKey}' missing for wedgeType={wedgeType}. Using default {defaultMag}.");
-                return defaultMag;
-            }
-
-            double value;
-            try
-            {
-                value = (double)dim.Nominal.AsMm();
-            }
-            catch
-            {
-                Logger.Warn(
-                    $"[MetadataApplier] Overlay magnification source '{dimensionKey}' is not mm for wedgeType={wedgeType}. Using default {defaultMag}.");
-                return defaultMag;
-            }
-
-            if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0.0)
-            {
-                Logger.Warn(
-                    $"[MetadataApplier] Overlay magnification source '{dimensionKey}' invalid ({value}) for wedgeType={wedgeType}. Using default {defaultMag}.");
-                return defaultMag;
-            }
-
-            Logger.Info(
-                $"[MetadataApplier] Overlay magnification source '{dimensionKey}' = {value.ToString("0.#####", CultureInfo.InvariantCulture)}mm for wedgeType={wedgeType}");
-
-            if (value <= 0.3403) return 400;
-            if (value <= 0.4572) return 300;
-            if (value <= 0.6908) return 200;
-            if (value <= 1.3766) return 100;
-            return 100;
-        }
+            => OverlayMagnificationService.ComputeMagnification(wedge, wedgeType);
 
         private static int NormalizeOverlayMagnificationToken(double magnification)
         {
@@ -452,6 +403,53 @@ namespace WAD.Runner.DrawingAutomation.Metadata
 
             var secondLine = string.Join(" ", words.Skip(secondLineStartIndex));
             return $"{firstLine}\n{secondLine}";
+        }
+
+        private static void ApplyDrawingTypeMetadata(
+            ModelDoc2 model,
+            DrawingType drawingType)
+        {
+            var customerDrawingValue = string.Empty;
+            var productionDrawingValue = string.Empty;
+
+            switch (drawingType)
+            {
+                case DrawingType.Customer:
+                    customerDrawingValue = "**";
+                    break;
+
+                case DrawingType.Production:
+                    productionDrawingValue = "**";
+                    break;
+            }
+
+            /*
+             * Do not filter empty values here.
+             *
+             * The empty value is intentional and ensures that
+             * an old marker from a reused drawing template is
+             * removed.
+             */
+            var drawingTypeProps =
+                new Dictionary<string, string>(
+                    StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Customer_drawing"] =
+                        customerDrawingValue,
+
+                    ["Production_drawing"] =
+                        productionDrawingValue
+                };
+
+            ApplyCustomProperties(
+                model,
+                drawingTypeProps);
+
+            Logger.Info(
+                "[MetadataApplier] Drawing type metadata applied -> " +
+                $"DrawingType={drawingType}, " +
+                $"Customer_drawing='{customerDrawingValue}', " +
+                $"Production_drawing='{productionDrawingValue}'.");
         }
     }
 }

@@ -11,7 +11,7 @@ using WAD.Runner.Application;
 
 namespace WAD.Runner.DrawingAutomation.SolidWorks
 {
-    public sealed class DrawingService
+    public sealed class DrawingService : IDisposable
     {
 
 
@@ -142,6 +142,9 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException(nameof(filePath));
+
+            if (_model is not null)
+                Close();
 
             _drawingPath = Path.GetFullPath(filePath);
             _drawingTitle = Path.GetFileName(_drawingPath);
@@ -307,30 +310,62 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             _error = 0;
             _warning = 0;
 
-            _model.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent, ref _error, ref _warning);
+            var saved = _model.Save3(
+                (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                ref _error,
+                ref _warning);
 
-            if (_error != 0)
-                Logger.Warn($"Save failed. SW error={_error}, warn={_warning}");
+            if (!saved || _error != 0)
+            {
+                Logger.Warn(
+                    $"Save failed. success={saved}, SW error={_error}, warn={_warning}, path='{_drawingPath}'.");
+            }
+            else
+            {
+                Logger.Success($"Saved drawing: '{_drawingPath}' (warn={_warning}).");
+            }
         }
 
         public void Close()
         {
-            if (string.IsNullOrWhiteSpace(_drawingTitle) && !string.IsNullOrWhiteSpace(_drawingPath))
-                _drawingTitle = Path.GetFileName(_drawingPath);
+            if (_model is null && string.IsNullOrWhiteSpace(_drawingPath))
+                return;
 
-            if (!string.IsNullOrWhiteSpace(_drawingTitle))
+            try
             {
-                try { _swApp.CloseDoc(_drawingTitle); } catch { }
-            }
+                var documentTitle = _model?.GetTitle();
+                if (string.IsNullOrWhiteSpace(documentTitle))
+                {
+                    documentTitle = !string.IsNullOrWhiteSpace(_drawingTitle)
+                        ? _drawingTitle
+                        : Path.GetFileName(_drawingPath);
+                }
 
-            _model = null;
-            _drawing = null;
-            _modelExt = null;
+                if (!string.IsNullOrWhiteSpace(documentTitle))
+                    _swApp.CloseDoc(documentTitle);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"Close drawing failed: {ex.Message}");
+            }
+            finally
+            {
+                _model = null;
+                _drawing = null;
+                _modelExt = null;
+                _drawingPath = string.Empty;
+                _drawingTitle = string.Empty;
+            }
         }
 
         public void SaveAndClose()
         {
             Save();
+            Close();
+        }
+
+        public void Dispose()
+        {
             Close();
         }
 

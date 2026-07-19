@@ -17,7 +17,10 @@ public static class Exporter
         if (string.IsNullOrWhiteSpace(outputPath)) throw new ArgumentNullException(nameof(outputPath));
         if (ds.Model is null || ds.Drawing is null) throw new InvalidOperationException("No active drawing.");
 
-        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+        outputPath = Path.GetFullPath(outputPath);
+        var outputDirectory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrWhiteSpace(outputDirectory))
+            Directory.CreateDirectory(outputDirectory);
 
         var model = ds.Model;
         var drawing = ds.Drawing;
@@ -30,7 +33,9 @@ public static class Exporter
             return;
         }
 
-        var pdfData = (ExportPdfData)app.GetExportFileData((int)swExportDataFileType_e.swExportPdfData);
+        var pdfData = app.GetExportFileData((int)swExportDataFileType_e.swExportPdfData) as ExportPdfData
+            ?? throw new InvalidOperationException("SolidWorks did not provide PDF export settings.");
+
         pdfData.SetSheets((int)swExportDataSheetsToExport_e.swExportData_ExportSpecifiedSheets, wrappers);
         pdfData.ViewPdfAfterSaving = false;
 

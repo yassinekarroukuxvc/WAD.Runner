@@ -12,242 +12,248 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
 
     protected CobLikeToleranceRulesBase(string logPrefix)
     {
-        _logPrefix = string.IsNullOrWhiteSpace(logPrefix) ? "CobLikeToleranceRules" : logPrefix;
+        _logPrefix = string.IsNullOrWhiteSpace(logPrefix)
+            ? nameof(CobLikeToleranceRulesBase)
+            : logPrefix;
     }
 
     public TolerancePlan Build(WedgeData wedge, DrawingType drawingType, WedgeSubclass subclass)
     {
-        if (wedge is null)
-            throw new ArgumentNullException(nameof(wedge));
+        if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+        if (drawingType != DrawingType.Overlay) return TolerancePlan.Empty;
 
-        if (drawingType != DrawingType.Overlay)
-            return TolerancePlan.Empty;
-
-        var facts = new CobLikeRuleFacts(wedge);
+        var facts = new CobLikeFacts(wedge);
         var updates = new List<ToleranceUpdate>();
-
         var prefix = subclass == WedgeSubclass.FG ? "FG" : "PGB";
-        bool isStd = facts.ShankType == CobLikeShankType.Std;
-        string frontSketch = isStd ? "PGB_STD_FRONT_overlay_sketch" : "PGB_180_DEG_REV_FRONT_overlay_sketch";
+        var shank = facts.ShankType;
+        var baseFrontSketch = CobLikeFeatureCatalog.FrontSketch(shank);
 
-        AddHalfTolPairMm(updates, facts, dimKey: "W",
-            utolTarget: $"W_UTOL@{prefix}_LEFT_overlay_sketch",
-            ltolTarget: $"W_LTOL@{prefix}_LEFT_overlay_sketch");
+        AddHalfTolPairMm(
+            updates,
+            facts,
+            "W",
+            $"W_UTOL@{prefix}_LEFT_overlay_sketch",
+            $"W_LTOL@{prefix}_LEFT_overlay_sketch");
 
-        AddTolPairMm(updates, facts, dimKey: "FD",
-            utolTarget: $"FD_UTOL@{frontSketch}",
-            ltolTarget: $"FD_LTOL@{frontSketch}");
+        AddTolPairMm(
+            updates,
+            facts,
+            "FD",
+            $"FD_UTOL@{baseFrontSketch}",
+            $"FD_LTOL@{baseFrontSketch}");
 
-        AddTolPairMm(updates, facts, dimKey: "T",
-            utolTarget: $"T_UTOL@{frontSketch}",
-            ltolTarget: $"T_LTOL@{frontSketch}");
+        AddTolPairMm(
+            updates,
+            facts,
+            "T",
+            $"T_UTOL@{baseFrontSketch}",
+            $"T_LTOL@{baseFrontSketch}");
 
-        if (facts.HasRa2H)
-        {
-            string ra2hSketch = isStd
-                ? "RA2H_STD_FRONT_overlay_sketch"
-                : "RA2H_180_DEG_REV_FRONT_overlay_sketch";
-
-            AddTolPairMm(updates, facts, dimKey: "FL",
-                utolTarget: $"FL_UTOL@{ra2hSketch}",
-                ltolTarget: $"FL_LTOL@{ra2hSketch}");
-
-            AddTolPairMm(updates, facts, dimKey: "RA2H",
-                utolTarget: $"RA2H_UTOL@{ra2hSketch}",
-                ltolTarget: $"RA2H_LTOL@{ra2hSketch}");
-
-            AddTolPairMm(updates, facts, dimKey: "T",
-                utolTarget: $"T_UTOL@{ra2hSketch}",
-                ltolTarget: $"T_LTOL@{ra2hSketch}");
-
-            Logger.Info($"[{_logPrefix}] RA2H > 0 → planned tolerances for {ra2hSketch}.");
-        }
-
-        if (facts.HasVbl)
-        {
-            string slbSketch = isStd
-                ? "SLB_STD_overlay_sketch"
-                : "SLB_180_DEG_REV_overlay_sketch";
-
-            AddTolPairMm(updates, facts, dimKey: "FL",
-                utolTarget: $"FL_UTOL@{slbSketch}",
-                ltolTarget: $"FL_LTOL@{slbSketch}");
-
-            AddTolPairMm(updates, facts, dimKey: "T",
-                utolTarget: $"T_UTOL@{slbSketch}",
-                ltolTarget: $"T_LTOL@{slbSketch}");
-
-            Logger.Info($"[{_logPrefix}] SLB enabled (VBL > 0) → planned tolerances for {slbSketch}.");
-        }
-
-        if (facts.HasVr)
-        {
-            bool vwEqualsW = facts.AreNominalsEqual("VW", "W");
-
-            if (facts.HasLargeOverlayVrCase)
-            {
-                if (vwEqualsW)
-                {
-                    const string case4Sketch = "VW_LEFT_case_4_overlay_sketch";
-
-                    AddHalfTolPairMm(updates, facts, dimKey: "VW",
-                        utolTarget: $"VW_UTOL@{case4Sketch}",
-                        ltolTarget: $"VW_LTOL@{case4Sketch}");
-
-                    Logger.Info($"[{_logPrefix}] Large VR case 4 (VW == W) → planned VW half-tolerances for {case4Sketch}.");
-                }
-                else
-                {
-                    const string case3Sketch = "VW_LEFT_case_3_overlay_sketch";
-
-                    AddHalfTolPairMm(updates, facts, dimKey: "W",
-                        utolTarget: $"W_UTOL@{case3Sketch}",
-                        ltolTarget: $"W_LTOL@{case3Sketch}");
-
-                    Logger.Info($"[{_logPrefix}] Large VR case 3 (VW != W) → planned W half-tolerances for {case3Sketch}.");
-                }
-            }
-            else if (vwEqualsW)
-            {
-                const string case2Sketch = "VW_LEFT_case_2_overlay_sketch";
-
-                AddHalfTolPairMm(updates, facts, dimKey: "VW",
-                    utolTarget: $"VW_UTOL@{case2Sketch}",
-                    ltolTarget: $"VW_LTOL@{case2Sketch}");
-
-                AddComputedBoundsMm(updates, facts, nomKey: "VR",
-                    maxTarget: $"VR_MAX@{case2Sketch}",
-                    minTarget: $"VR_MIN@{case2Sketch}");
-
-                AddComputedBoundsMm(updates, facts, nomKey: "VRR",
-                    maxTarget: $"VRR_MAX@{case2Sketch}",
-                    minTarget: $"VRR_MIN@{case2Sketch}");
-
-                Logger.Info($"[{_logPrefix}] VW case 2 (VW == W) → planned VW half-tolerances, VR bounds, VRR bounds for {case2Sketch}.");
-            }
-            else
-            {
-                const string case1Sketch = "VW_LEFT_case_1_overlay_sketch";
-
-                AddHalfTolPairMm(updates, facts, dimKey: "W",
-                    utolTarget: $"W_UTOL@{case1Sketch}",
-                    ltolTarget: $"W_LTOL@{case1Sketch}");
-
-                AddHalfTolPairMm(updates, facts, dimKey: "VW",
-                    utolTarget: $"VW_UTOL@{case1Sketch}",
-                    ltolTarget: $"VW_LTOL@{case1Sketch}");
-
-                AddComputedBoundsMm(updates, facts, nomKey: "VR",
-                    maxTarget: $"VR_MAX@{case1Sketch}",
-                    minTarget: $"VR_MIN@{case1Sketch}");
-
-                AddComputedBoundsMm(updates, facts, nomKey: "VRR",
-                    maxTarget: $"VRR_MAX@{case1Sketch}",
-                    minTarget: $"VRR_MIN@{case1Sketch}");
-
-                Logger.Info($"[{_logPrefix}] VW case 1 (VW != W) → planned W/VW half-tolerances, VR bounds, VRR bounds for {case1Sketch}.");
-            }
-        }
-
-        // --- HOOK FOR SUBCLASS SPECIFIC RULES ---
+        AddSpecialFrontSketchTolerances(updates, facts, shank);
+        AddLeftOverlayCaseTolerances(updates, facts);
         ApplySubclassSpecificTolerances(updates, facts, subclass);
 
-        Logger.Info($"[{_logPrefix}] {subclass} Overlay → planned updates={updates.Count} (Shank={facts.ShankType})");
+        Logger.Info(
+            $"[{_logPrefix}] {subclass} overlay -> planned updates={updates.Count} " +
+            $"(Shank={facts.ShankType}, Foot={facts.FootOption})");
+
         return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
     }
 
-    /// <summary>
-    /// Resolves the foot-width overlay sketch name to use for tolerance targets,
-    /// following the same logic as the feature rules: smallest of W, VW, W2.
-    /// </summary>
-    protected string ResolveFootWidthSketch(CobLikeRuleFacts facts)
+    private void AddSpecialFrontSketchTolerances(
+        List<ToleranceUpdate> updates,
+        CobLikeFacts facts,
+        CobLikeShankType shank)
     {
-        var footOption = facts.FootOption;
-        var wVal = facts.GetNominalValue("W");
-        var vwVal = facts.GetNominalValue("VW");
-        var w2Val = facts.GetNominalValue("W2");
-        return CobLikeFeatureCatalog.FootWidthSketch(footOption, wVal, vwVal, w2Val);
+        if (!facts.HasRa2H && !facts.HasVbl)
+            return;
+
+        var activeSketch = CobLikeFeatureCatalog.ResolveFrontSketch(shank, facts.HasRa2H, facts.HasVbl);
+
+        AddTolPairMm(
+            updates,
+            facts,
+            "FL",
+            $"FL_UTOL@{activeSketch}",
+            $"FL_LTOL@{activeSketch}");
+
+        AddTolPairMm(
+            updates,
+            facts,
+            "T",
+            $"T_UTOL@{activeSketch}",
+            $"T_LTOL@{activeSketch}");
+
+        if (facts.HasRa2H)
+        {
+            AddTolPairMm(
+                updates,
+                facts,
+                "RA2H",
+                $"RA2H_UTOL@{activeSketch}",
+                $"RA2H_LTOL@{activeSketch}");
+        }
+
+        Logger.Info(
+            $"[{_logPrefix}] Special front sketch tolerances -> RA2H={facts.HasRa2H}, " +
+            $"VBL={facts.HasVbl}, sketch={activeSketch}.");
     }
 
-    /// <summary>
-    /// Override this method in derived classes (like CobToleranceRules) to add
-    /// subclass-specific tolerance updates that are not shared across all CobLike rules.
-    /// </summary>
+    private void AddLeftOverlayCaseTolerances(List<ToleranceUpdate> updates, CobLikeFacts facts)
+    {
+        // Feature selection is driven by VW presence, so tolerance selection must use the same fact.
+        if (!facts.HasVw)
+            return;
+
+        var vwEqualsW = facts.AreEqual("VW", "W");
+
+        if (facts.HasLargeOverlayVrCase)
+        {
+            if (vwEqualsW)
+            {
+                AddHalfTolPairMm(
+                    updates,
+                    facts,
+                    "VW",
+                    $"VW_UTOL@{CobLikeFeatureCatalog.VwLeftCase4}",
+                    $"VW_LTOL@{CobLikeFeatureCatalog.VwLeftCase4}");
+            }
+            else
+            {
+                AddHalfTolPairMm(
+                    updates,
+                    facts,
+                    "W",
+                    $"W_UTOL@{CobLikeFeatureCatalog.VwLeftCase3}",
+                    $"W_LTOL@{CobLikeFeatureCatalog.VwLeftCase3}");
+            }
+
+            return;
+        }
+
+        if (vwEqualsW)
+        {
+            AddHalfTolPairMm(
+                updates,
+                facts,
+                "VW",
+                $"VW_UTOL@{CobLikeFeatureCatalog.VwLeftCase2}",
+                $"VW_LTOL@{CobLikeFeatureCatalog.VwLeftCase2}");
+
+            AddComputedBoundsMm(
+                updates,
+                facts,
+                "VR",
+                $"VR_MAX@{CobLikeFeatureCatalog.VwLeftCase2}",
+                $"VR_MIN@{CobLikeFeatureCatalog.VwLeftCase2}");
+
+            AddComputedBoundsMm(
+                updates,
+                facts,
+                "VRR",
+                $"VRR_MAX@{CobLikeFeatureCatalog.VwLeftCase2}",
+                $"VRR_MIN@{CobLikeFeatureCatalog.VwLeftCase2}");
+
+            return;
+        }
+
+        AddHalfTolPairMm(
+            updates,
+            facts,
+            "W",
+            $"W_UTOL@{CobLikeFeatureCatalog.VwLeftCase1}",
+            $"W_LTOL@{CobLikeFeatureCatalog.VwLeftCase1}");
+
+        AddHalfTolPairMm(
+            updates,
+            facts,
+            "VW",
+            $"VW_UTOL@{CobLikeFeatureCatalog.VwLeftCase1}",
+            $"VW_LTOL@{CobLikeFeatureCatalog.VwLeftCase1}");
+
+        AddComputedBoundsMm(
+            updates,
+            facts,
+            "VR",
+            $"VR_MAX@{CobLikeFeatureCatalog.VwLeftCase1}",
+            $"VR_MIN@{CobLikeFeatureCatalog.VwLeftCase1}");
+
+        AddComputedBoundsMm(
+            updates,
+            facts,
+            "VRR",
+            $"VRR_MAX@{CobLikeFeatureCatalog.VwLeftCase1}",
+            $"VRR_MIN@{CobLikeFeatureCatalog.VwLeftCase1}");
+    }
+
+    protected string ResolveFootWidthSketch(CobLikeFacts facts)
+        => CobLikeFeatureCatalog.FootWidthSketch(
+            facts.FootOption,
+            facts.NominalOrZero("W"),
+            facts.NominalOrZero("VW"),
+            facts.NominalOrZero("W2"));
+
     protected virtual void ApplySubclassSpecificTolerances(
         List<ToleranceUpdate> updates,
-        CobLikeRuleFacts facts,
+        CobLikeFacts facts,
         WedgeSubclass subclass)
     {
-        // Base implementation does nothing.
     }
 
-    // Changed from private to protected so derived classes can use these helpers
     protected void AddTolPairMm(
         List<ToleranceUpdate> updates,
-        CobLikeRuleFacts facts,
+        CobLikeFacts facts,
         string dimKey,
         string utolTarget,
         string ltolTarget)
     {
-        if (!facts.TryGetLengthToleranceMm(dimKey, out var ltolMm, out var utolMm))
+        if (!facts.TryGetLengthToleranceMagnitudesMm(dimKey, out var lowerAbsMm, out var upperAbsMm))
         {
-            Logger.Warn($"[{_logPrefix}] Missing/invalid tolerance for '{dimKey}' (skipping: {ltolTarget}, {utolTarget})");
+            Logger.Warn(
+                $"[{_logPrefix}] Missing/invalid tolerance for '{dimKey}' " +
+                $"(skipping: {ltolTarget}, {utolTarget}).");
             return;
         }
 
-        updates.Add(new ToleranceUpdate(utolTarget, utolMm, ToleranceUnit.LengthMm));
-        updates.Add(new ToleranceUpdate(ltolTarget, ltolMm, ToleranceUnit.LengthMm));
-
-        Logger.Info($"[{_logPrefix}] {dimKey}: LTOL={ltolMm}mm → {ltolTarget}, UTOL={utolMm}mm → {utolTarget}");
+        updates.Add(new ToleranceUpdate(utolTarget, upperAbsMm, ToleranceUnit.LengthMm));
+        updates.Add(new ToleranceUpdate(ltolTarget, lowerAbsMm, ToleranceUnit.LengthMm));
     }
 
     protected void AddHalfTolPairMm(
         List<ToleranceUpdate> updates,
-        CobLikeRuleFacts facts,
+        CobLikeFacts facts,
         string dimKey,
         string utolTarget,
         string ltolTarget)
     {
-        if (!facts.TryGetLengthToleranceMm(dimKey, out var ltolMm, out var utolMm))
+        if (!facts.TryGetLengthToleranceMagnitudesMm(dimKey, out var lowerAbsMm, out var upperAbsMm))
         {
-            Logger.Warn($"[{_logPrefix}] Missing/invalid tolerance for '{dimKey}' (skipping: {ltolTarget}, {utolTarget})");
+            Logger.Warn(
+                $"[{_logPrefix}] Missing/invalid tolerance for '{dimKey}' " +
+                $"(skipping: {ltolTarget}, {utolTarget}).");
             return;
         }
 
-        var halfUtolMm = utolMm / 2;
-        var halfLtolMm = ltolMm / 2;
-
-        updates.Add(new ToleranceUpdate(utolTarget, halfUtolMm, ToleranceUnit.LengthMm));
-        updates.Add(new ToleranceUpdate(ltolTarget, halfLtolMm, ToleranceUnit.LengthMm));
-
-        Logger.Info($"[{_logPrefix}] {dimKey}: LTOL/2={halfLtolMm}mm → {ltolTarget}, UTOL/2={halfUtolMm}mm → {utolTarget}");
+        updates.Add(new ToleranceUpdate(utolTarget, upperAbsMm / 2m, ToleranceUnit.LengthMm));
+        updates.Add(new ToleranceUpdate(ltolTarget, lowerAbsMm / 2m, ToleranceUnit.LengthMm));
     }
 
     protected void AddComputedBoundsMm(
         List<ToleranceUpdate> updates,
-        CobLikeRuleFacts facts,
+        CobLikeFacts facts,
         string nomKey,
         string maxTarget,
         string minTarget)
     {
-        if (!facts.TryGetLengthNominalMm(nomKey, out var nomMm))
+        if (!facts.TryGetLengthBoundsMm(nomKey, out var minMm, out var maxMm))
         {
-            Logger.Warn($"[{_logPrefix}] Missing/invalid nominal for '{nomKey}' (skipping: {maxTarget}, {minTarget}).");
+            Logger.Warn(
+                $"[{_logPrefix}] Missing/invalid nominal or tolerance for '{nomKey}' " +
+                $"(skipping: {maxTarget}, {minTarget}).");
             return;
         }
 
-        if (!facts.TryGetLengthToleranceMm(nomKey, out var ltolMm, out var utolMm))
-        {
-            Logger.Warn($"[{_logPrefix}] Missing/invalid tolerance for '{nomKey}' (skipping: {maxTarget}, {minTarget}).");
-            return;
-        }
-
-        var maxVal = nomMm + utolMm;
-        var minVal = nomMm - ltolMm;
-
-        updates.Add(new ToleranceUpdate(maxTarget, maxVal, ToleranceUnit.LengthMm));
-        updates.Add(new ToleranceUpdate(minTarget, minVal, ToleranceUnit.LengthMm));
-
-        Logger.Info($"[{_logPrefix}] {nomKey}: NOM={nomMm}, UTOL={utolMm}, LTOL={ltolMm} → MAX={maxVal} → {maxTarget}, MIN={minVal} → {minTarget}");
+        updates.Add(new ToleranceUpdate(maxTarget, maxMm, ToleranceUnit.LengthMm));
+        updates.Add(new ToleranceUpdate(minTarget, minMm, ToleranceUnit.LengthMm));
     }
 }

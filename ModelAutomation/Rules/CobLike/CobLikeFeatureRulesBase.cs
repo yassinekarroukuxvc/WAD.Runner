@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Execution;
@@ -8,33 +7,20 @@ using WAD.Runner.ModelAutomation.Rules.Common;
 namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 
 /// <summary>
-/// Base class for COB-like feature rule sets.
-///
-/// Build() is the single entry point. It:
-///   1. Resolves facts (shank type, foot option, optional dimensions).
-///   2. Activates the correct feature group for the drawing subclass (PGB / FG).
-///   3. For overlays, activates the correct overlay sketches and suppresses the rest.
-///   4. Calls ApplyVariantAdjustments() so derived classes can layer on type-specific tweaks.
-///   5. Applies the overlay cut profile override if one is in the context.
+/// Shared feature rules for the COB family. Derived wedge types only need to add or suppress
+/// their small variant-specific feature set in <see cref="ApplyVariantAdjustments"/>.
 /// </summary>
 public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 {
     protected abstract string LogPrefix { get; }
 
-    /// <summary>
-    /// Override in derived classes to add type-specific feature activations
-    /// (e.g. CobFeatureRules enabling COB-only features).
-    /// </summary>
     protected virtual void ApplyVariantAdjustments(
         CobLikeFacts facts,
         CobLikeShankType shank,
         FeatureRuleContext context,
         FeaturePlanBuilder plan)
-    { }
-
-    // =========================================================================
-    // Entry point
-    // =========================================================================
+    {
+    }
 
     public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
     {
@@ -43,16 +29,18 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
 
         var facts = new CobLikeFacts(wedge);
         var shank = facts.ShankType;
-        var foot = facts.ResolveFootOption();
+        var foot = facts.FootOption;
 
-        Logger.Info($"[{LogPrefix}] Build — subclass={context.Subclass}, drawing={context.DrawingType}, shank={shank}, foot={foot}");
+        Logger.Info(
+            $"[{LogPrefix}] Build — subclass={context.Subclass}, drawing={context.DrawingType}, " +
+            $"shank={shank}, foot={foot}, ruleProfile={context.FeatureRuleProfile ?? "(none)"}");
 
         var plan = new FeaturePlanBuilder()
             .Know(CobLikeFeatureCatalog.AllManagedNames())
             .Activate(CobLikeFeatureCatalog.GlobalCore());
 
         if (context.Subclass == WedgeSubclass.PGB)
-            BuildPgbPlan(plan, facts, shank, foot, context);
+            BuildPgbPlan(plan, facts, shank, context);
         else
             BuildFgPlan(plan, facts, shank, foot, context);
 
@@ -62,250 +50,172 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         return plan.Build();
     }
 
-    // =========================================================================
-    // PGB plan
-    // =========================================================================
-
-    private void BuildPgbPlan(
+    private static void BuildPgbPlan(
         FeaturePlanBuilder plan,
         CobLikeFacts facts,
         CobLikeShankType shank,
-        CobLikeFootOption foot,
         FeatureRuleContext context)
     {
-        // Core features
         plan.Activate(CobLikeFeatureCatalog.PgbCore(shank));
 
-        // Optional features
-        if (facts.IsPositive("VW")) plan.Activate(CobLikeFeatureCatalog.FeatureNames("VW", shank));
-        if (facts.IsPositive("RA2")) plan.Activate(CobLikeFeatureCatalog.FeatureNames("RA2", shank));
+        if (facts.HasVw)
+            plan.Activate(CobLikeFeatureCatalog.FeatureNames("VW", shank));
+        if (facts.IsPositive("RA2"))
+            plan.Activate(CobLikeFeatureCatalog.FeatureNames("RA2", shank));
 
-        // ERW is never used for PGB
+        // ERW is never used by PGB, regardless of shank or configuration.
         plan.ForceSuppress(CobLikeFeatureCatalog.PgbErwSuppressions());
 
-        if (context.DrawingType == DrawingType.Overlay)
-            BuildPgbOverlay(plan, facts, shank);
-    }
+        if (context.DrawingType != DrawingType.Overlay)
+            return;
 
-    private static void BuildPgbOverlay(FeaturePlanBuilder plan, CobLikeFacts facts, CobLikeShankType shank)
-    {
         plan.Activate(CobLikeFeatureCatalog.OverlayCommon());
         plan.Activate(CobLikeFeatureCatalog.PgbFrontOverlayFeature(shank));
-
-        plan.Activate(facts.HasVr
-            ? CobLikeFeatureCatalog.OverlayCutNonStandard()
-            : CobLikeFeatureCatalog.OverlayCutStandard());
-
+        ActivateOverlayCut(plan, facts.HasVr);
         ActivateLeftSketch(plan, facts, pgb: true);
         ActivateFrontSketch(plan, facts, shank);
     }
 
-    // =========================================================================
-    // FG plan
-    // =========================================================================
-
-    private void BuildFgPlan(
+    private static void BuildFgPlan(
         FeaturePlanBuilder plan,
         CobLikeFacts facts,
         CobLikeShankType shank,
         CobLikeFootOption foot,
         FeatureRuleContext context)
     {
-        // Core features
         plan.Activate(CobLikeFeatureCatalog.FgCore(shank));
 
-        // Optional features
-        if (facts.IsPositive("FRO")) plan.Activate(CobLikeFeatureCatalog.FeatureNames("FRO", shank));
-        if (facts.IsPositive("VBL")) plan.Activate(CobLikeFeatureCatalog.FeatureNames("SLB", shank));
-        if (facts.IsPositive("VW")) plan.Activate(CobLikeFeatureCatalog.FeatureNames("VW", shank));
-        if (facts.IsPositive("W2")) plan.Activate(CobLikeFeatureCatalog.FeatureNames("W2", shank));
-        if (facts.IsPositive("RA2")) plan.Activate(CobLikeFeatureCatalog.FeatureNames("RA2", shank));
+        if (facts.IsPositive("FRO"))
+            plan.Activate(CobLikeFeatureCatalog.FeatureNames("FRO", shank));
+        if (facts.HasVbl)
+            plan.Activate(CobLikeFeatureCatalog.FeatureNames("SLB", shank));
+        if (facts.HasVw)
+            plan.Activate(CobLikeFeatureCatalog.FeatureNames("VW", shank));
+        if (facts.IsPositive("W2"))
+            plan.Activate(CobLikeFeatureCatalog.FeatureNames("W2", shank));
+        if (facts.IsPositive("RA2"))
+            plan.Activate(CobLikeFeatureCatalog.FeatureNames("RA2", shank));
 
-        // Foot option features
         plan.Activate(CobLikeFeatureCatalog.FootFeatures(foot, shank));
 
-        if (context.DrawingType == DrawingType.Overlay)
-            BuildFgOverlay(plan, facts, shank, foot);
-    }
+        if (context.DrawingType != DrawingType.Overlay)
+            return;
 
-    private static void BuildFgOverlay(
-        FeaturePlanBuilder plan,
-        CobLikeFacts facts,
-        CobLikeShankType shank,
-        CobLikeFootOption foot)
-    {
         plan.Activate(CobLikeFeatureCatalog.OverlayCommon());
-
-        plan.Activate(facts.HasVr
-            ? CobLikeFeatureCatalog.OverlayCutNonStandard()
-            : CobLikeFeatureCatalog.OverlayCutStandard());
-
-        
+        ActivateOverlayCut(plan, facts.HasVr);
         ActivateFrontSketch(plan, facts, shank);
         ActivateErwOverlaySketch(plan, shank);
         ActivateFootWidthSketch(plan, facts, foot);
         ActivateLeftSketch(plan, facts, pgb: false);
     }
 
-    // =========================================================================
-    // Overlay sketch helpers
-    // =========================================================================
-
-    /// <summary>
-    /// Activates exactly one front overlay sketch (front / RA2H / SLB / RA2H+SLB)
-    /// and deactivates the other three for the given shank.
-    /// </summary>
-    private static void ActivateFrontSketch(FeaturePlanBuilder plan, CobLikeFacts facts, CobLikeShankType shank)
+    private static void ActivateOverlayCut(FeaturePlanBuilder plan, bool useNonStandardCut)
     {
-        var front = CobLikeFeatureCatalog.FrontSketch(shank);
-        var ra2h = CobLikeFeatureCatalog.Ra2HSketch(shank);
-        var slb = CobLikeFeatureCatalog.SlbSketch(shank);
-        var ra2hSlb = CobLikeFeatureCatalog.Ra2HSlbSketch(shank);
+        // These two groups are mutually exclusive. Use normal deactivation rather than
+        // ForceSuppress so a later explicit configuration profile can safely override the choice.
+        plan.Deactivate(CobLikeFeatureCatalog.OverlayCutStandard());
+        plan.Deactivate(CobLikeFeatureCatalog.OverlayCutNonStandard());
+        plan.Activate(useNonStandardCut
+            ? CobLikeFeatureCatalog.OverlayCutNonStandard()
+            : CobLikeFeatureCatalog.OverlayCutStandard());
+    }
 
-        // Keep this consistent with BuildFgPlan(), where the SLB feature is activated
-        // from the VBL dimension.
-        var hasVbl = facts.IsPositive("VBL");
-        var hasRa2H = facts.HasRa2H;
-
-        var active = (hasRa2H, hasVbl) switch
-        {
-            (true, true) => ra2hSlb,
-            (true, false) => ra2h,
-            (false, true) => slb,
-            (false, false) => front,
-        };
+    private static void ActivateFrontSketch(
+        FeaturePlanBuilder plan,
+        CobLikeFacts facts,
+        CobLikeShankType shank)
+    {
+        var active = CobLikeFeatureCatalog.ResolveFrontSketch(shank, facts.HasRa2H, facts.HasVbl);
+        plan.ActivateOnly(active, CobLikeFeatureCatalog.AllFrontSketches(shank));
 
         Logger.Info(
-            $"[CobLikeFeatureRules] Front overlay sketch selection — " +
-            $"RA2H={hasRa2H}, VBL={hasVbl}, active={active}");
-
-        foreach (var sketch in CobLikeFeatureCatalog.AllFrontSketches(shank))
-        {
-            if (string.Equals(sketch, active, StringComparison.OrdinalIgnoreCase))
-                plan.Activate(sketch);
-            else
-                plan.Deactivate(sketch);
-        }
+            $"[CobLikeFeatureRules] Front overlay sketch — RA2H={facts.HasRa2H}, " +
+            $"VBL={facts.HasVbl}, active={active}");
     }
-    /// <summary>
-    /// Activates exactly one left overlay sketch and deactivates the other left overlay sketches.
-    /// </summary>
+
     private static void ActivateLeftSketch(FeaturePlanBuilder plan, CobLikeFacts facts, bool pgb)
     {
         var active = ResolveLeftSketch(facts, pgb);
-
-        foreach (var sketch in CobLikeFeatureCatalog.AllLeftOverlaySketches())
-        {
-            if (string.Equals(sketch, active, StringComparison.OrdinalIgnoreCase))
-                plan.Activate(sketch);
-            else
-                plan.Deactivate(sketch);
-        }
+        plan.ActivateOnly(active, CobLikeFeatureCatalog.AllLeftOverlaySketches());
+        Logger.Info($"[CobLikeFeatureRules] Left overlay sketch — active={active}");
     }
 
-    /// <summary>
-    /// Returns the correct left overlay sketch name based on VW/VR state.
-    /// </summary>
     private static string ResolveLeftSketch(CobLikeFacts facts, bool pgb)
     {
         if (!facts.HasVw)
-        {
-            Logger.Blue("Activating PGB/FG Left Overlay Sketch");
             return pgb ? CobLikeFeatureCatalog.LeftSketchPgb : CobLikeFeatureCatalog.LeftSketchFg;
-        }
 
         if (facts.HasLargeOverlayVrCase)
+        {
             return facts.AreEqual("VW", "W")
                 ? CobLikeFeatureCatalog.VwLeftCase4
                 : CobLikeFeatureCatalog.VwLeftCase3;
+        }
 
         return facts.AreEqual("VW", "W")
             ? CobLikeFeatureCatalog.VwLeftCase2
             : CobLikeFeatureCatalog.VwLeftCase1;
     }
 
-    /// <summary>
-    /// Activates the ERW overlay sketch matching the shank type; deactivates the other.
-    /// </summary>
     private static void ActivateErwOverlaySketch(FeaturePlanBuilder plan, CobLikeShankType shank)
     {
-        foreach (var sketch in CobLikeFeatureCatalog.AllErwOverlaySketches())
-        {
-            if (string.Equals(sketch, CobLikeFeatureCatalog.ErwOverlaySketch(shank), StringComparison.OrdinalIgnoreCase))
-                plan.Activate(sketch);
-            else
-                plan.Deactivate(sketch);
-        }
+        var active = CobLikeFeatureCatalog.ErwOverlaySketch(shank);
+        plan.ActivateOnly(active, CobLikeFeatureCatalog.AllErwOverlaySketches());
     }
 
-    /// <summary>
-    /// Activates exactly one of the nine foot-width overlay sketches
-    /// ({C|VG|G}_FOOT_{W|VW|W2}_overlay_sketch) based on the foot option and the
-    /// smallest positive value among W, VW, and W2. Deactivates the other eight.
-    /// </summary>
-    private static void ActivateFootWidthSketch(FeaturePlanBuilder plan, CobLikeFacts facts, CobLikeFootOption foot)
+    private static void ActivateFootWidthSketch(
+        FeaturePlanBuilder plan,
+        CobLikeFacts facts,
+        CobLikeFootOption foot)
     {
-        var w = facts.Facts.NominalOrZero("W");
-        var vw = facts.Facts.NominalOrZero("VW");
-        var w2 = facts.Facts.NominalOrZero("W2");
+        var active = CobLikeFeatureCatalog.FootWidthSketch(
+            foot,
+            facts.NominalOrZero("W"),
+            facts.NominalOrZero("VW"),
+            facts.NominalOrZero("W2"));
 
-        var active = CobLikeFeatureCatalog.FootWidthSketch(foot, w, vw, w2);
-
-        foreach (var sketch in CobLikeFeatureCatalog.AllFootWidthSketches())
-        {
-            if (string.Equals(sketch, active, StringComparison.OrdinalIgnoreCase))
-                plan.Activate(sketch);
-            else
-                plan.Deactivate(sketch);
-        }
+        plan.ActivateOnly(active, CobLikeFeatureCatalog.AllFootWidthSketches());
+        Logger.Info($"[CobLikeFeatureRules] Foot-width overlay sketch — active={active}");
     }
 
-    // =========================================================================
-    // Overlay cut profile override
-    // =========================================================================
-
-    /// <summary>
-    /// Allows the overlay cut profile (std / non-std) to be overridden via the
-    /// job context, without changing the wedge data itself.
-    /// </summary>
     private void ApplyOverlayCutProfileOverride(FeatureRuleContext context, FeaturePlanBuilder plan)
     {
-        if (context.DrawingType != DrawingType.Overlay) return;
+        if (context.DrawingType != DrawingType.Overlay)
+            return;
 
         var profile = ResolveOverlayCutProfile(context);
-        if (profile is null) return;
+        if (profile is null)
+            return;
 
-        if (profile is "default_config" or "std_cut")
+        if (profile is OverlayCutProfiles.DefaultConfiguration or OverlayCutProfiles.StandardCut)
         {
-            plan.Activate(CobLikeFeatureCatalog.OverlayCutStandard());
-            plan.ForceSuppress(CobLikeFeatureCatalog.OverlayCutNonStandard());
-            Logger.Info($"[{LogPrefix}] Overlay cut profile '{profile}' → standard cut.");
+            ActivateOverlayCut(plan, useNonStandardCut: false);
+            Logger.Info($"[{LogPrefix}] Overlay profile '{profile}' -> standard cut.");
         }
-        else if (profile == "non_std_cut")
+        else if (profile == OverlayCutProfiles.NonStandardCut)
         {
-            plan.Activate(CobLikeFeatureCatalog.OverlayCutNonStandard());
-            plan.ForceSuppress(CobLikeFeatureCatalog.OverlayCutStandard());
-            Logger.Info($"[{LogPrefix}] Overlay cut profile 'non_std_cut' → non-standard cut.");
+            ActivateOverlayCut(plan, useNonStandardCut: true);
+            Logger.Info($"[{LogPrefix}] Overlay profile '{profile}' -> non-standard cut.");
+        }
+        else
+        {
+            Logger.Warn($"[{LogPrefix}] Unknown overlay feature-rule profile '{profile}'. Wedge facts remain authoritative.");
         }
     }
 
     private static string? ResolveOverlayCutProfile(FeatureRuleContext context)
     {
         if (!string.IsNullOrWhiteSpace(context.FeatureRuleProfile))
-            return context.FeatureRuleProfile.Trim();
+            return context.FeatureRuleProfile.Trim().ToLowerInvariant();
 
         return context.TargetConfigurationName?.Trim().ToLowerInvariant() switch
         {
-            "non_std_cut" => "non_std_cut",
-            "std_cut" => "std_cut",
-            "default" => "default_config",
+            "non_std_cut" => OverlayCutProfiles.NonStandardCut,
+            "std_cut" => OverlayCutProfiles.StandardCut,
+            "default" => OverlayCutProfiles.DefaultConfiguration,
             _ => null
         };
     }
-
-    // =========================================================================
-    // Protected helpers for derived classes
-    // =========================================================================
 
     protected static void ActivateFeature(FeaturePlanBuilder plan, string baseName, CobLikeShankType shank)
         => plan.Activate(CobLikeFeatureCatalog.FeatureNames(baseName, shank));
