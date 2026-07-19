@@ -136,3 +136,5 @@ Desktop.ini
 *.orig
 *.rej
 ~$*
+# Archive / backup files
+*.zip

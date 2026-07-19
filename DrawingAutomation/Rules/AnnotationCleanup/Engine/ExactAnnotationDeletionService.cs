@@ -19,21 +19,287 @@ namespace WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Engine;
 /// Deletes only the exact DisplayDimension objects that were included in
 /// the cleanup plan.
 ///
-/// It never deletes by short-name prefix or substring. This prevents a
-/// target such as "F" from also deleting FR, FL, FRX or
-/// F@ANNOT_FRONT_PLAN.
+/// Performance strategy:
+/// 1. Traverse the drawing views once and resolve every planned target.
+/// 2. Enumerate each affected view's DisplayDimensions once before delete.
+/// 3. Select every resolved annotation across every affected view.
+/// 4. Call DeleteSelection2 exactly once for the entire cleanup batch.
+/// 5. Re-enumerate each affected view once to verify the result.
+///
+/// This avoids the old O(targets x annotations) COM pattern that re-read a
+/// view and deleted one annotation at a time.
 /// </summary>
 public sealed class ExactAnnotationDeletionService
 {
+    /// <summary>
+    /// Deletes all planned annotations across all drawing views as one
+    /// SolidWorks selection/deletion batch.
+    /// </summary>
+    public IReadOnlyList<ExactAnnotationDeletionResult> DeleteBatch(
+        SwModelDoc2 drawingModel,
+        IReadOnlyCollection<AnnotationDeletionTarget> plannedTargets,
+        string logPrefix)
+    {
+        if (drawingModel is null)
+            throw new ArgumentNullException(nameof(drawingModel));
+
+        var plannedByView = NormalizePlan(plannedTargets);
+
+        if (plannedByView.Count == 0)
+            return Array.Empty<ExactAnnotationDeletionResult>();
+
+        if (drawingModel is not SwDrawingDoc drawing)
+        {
+            return plannedByView
+                .Select(kv => new ExactAnnotationDeletionResult(
+                    kv.Key,
+                    kv.Value,
+                    Array.Empty<string>(),
+                    kv.Value,
+                    Array.Empty<string>()))
+                .ToList();
+        }
+
+        var viewMap = BuildDrawingViewMap(drawing);
+        var snapshots = new Dictionary<string, ViewSnapshot>(
+            StringComparer.OrdinalIgnoreCase);
+        var resolved = new List<ResolvedTarget>();
+        var failedByView = new Dictionary<string, HashSet<string>>(
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in plannedByView)
+        {
+            var viewName = entry.Key;
+            var planned = entry.Value;
+
+            if (!viewMap.TryGetValue(viewName, out var view))
+            {
+                Logger.Warn(
+                    $"[{logPrefix}.ExactDelete] View '{viewName}' " +
+                    "was not found; no annotations were deleted.");
+
+                AddFailures(failedByView, viewName, planned);
+                continue;
+            }
+
+            // One COM enumeration per affected view before deletion.
+            var handles = Enumerate(view);
+            snapshots[viewName] = new ViewSnapshot(view, handles);
+
+            foreach (var target in planned)
+            {
+                var candidates = handles
+                    .Where(handle => string.Equals(
+                        handle.FullName,
+                        target,
+                        StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                // Only use identity fallback when there is no exact match.
+                if (candidates.Count == 0)
+                {
+                    candidates = handles
+                        .Where(handle => AnnotationNameIdentity.AreEquivalent(
+                            handle.FullName,
+                            target))
+                        .ToList();
+                }
+
+                if (candidates.Count != 1)
+                {
+                    AddFailure(failedByView, viewName, target);
+
+                    Logger.Warn(
+                        $"[{logPrefix}.ExactDelete] Skipped '{target}' " +
+                        $"in '{viewName}': expected one matching annotation, " +
+                        $"found {candidates.Count}.");
+
+                    continue;
+                }
+
+                resolved.Add(new ResolvedTarget(
+                    viewName,
+                    target,
+                    candidates[0]));
+            }
+        }
+
+        // A defensive guard against selecting the same concrete annotation
+        // more than once through two equivalent planned identities.
+        resolved = RemoveDuplicateResolvedTargets(
+            resolved,
+            failedByView,
+            logPrefix);
+
+        var selected = SelectAll(
+            drawingModel,
+            resolved,
+            failedByView,
+            logPrefix);
+
+        if (selected.Count > 0)
+        {
+            var extension = drawingModel.Extension;
+            var deleteReturnedTrue = false;
+
+            try
+            {
+                // One deletion call for every selected annotation in every view.
+                deleteReturnedTrue =
+                    extension is not null &&
+                    extension.DeleteSelection2(0);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(
+                    $"[{logPrefix}.ExactDelete] Batch DeleteSelection2 " +
+                    $"failed: {ex.Message}");
+            }
+            finally
+            {
+                SafeClearSelection(drawingModel);
+            }
+
+            if (!deleteReturnedTrue)
+            {
+                Logger.Warn(
+                    $"[{logPrefix}.ExactDelete] Batch DeleteSelection2 " +
+                    "returned false. The post-delete audit will determine " +
+                    "which selected annotations, if any, were actually removed.");
+            }
+        }
+        else
+        {
+            SafeClearSelection(drawingModel);
+        }
+
+        var selectedNamesByView = selected
+            .GroupBy(x => x.ViewName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => new HashSet<string>(
+                    group.Select(x => x.Handle.FullName),
+                    StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
+
+        var results = new List<ExactAnnotationDeletionResult>();
+
+        foreach (var entry in plannedByView)
+        {
+            var viewName = entry.Key;
+            var planned = entry.Value;
+
+            if (!snapshots.TryGetValue(viewName, out var snapshot))
+            {
+                var missingViewFailed = GetFailures(
+                    failedByView,
+                    viewName,
+                    planned);
+
+                results.Add(new ExactAnnotationDeletionResult(
+                    viewName,
+                    planned,
+                    Array.Empty<string>(),
+                    missingViewFailed,
+                    Array.Empty<string>()));
+
+                continue;
+            }
+
+            var before = snapshot.Handles
+                .Select(handle => handle.FullName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // One COM enumeration per affected view after deletion.
+            var after = Enumerate(snapshot.View)
+                .Select(handle => handle.FullName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var removedActual = before
+                .Except(after, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            selectedNamesByView.TryGetValue(
+                viewName,
+                out var selectedNames);
+
+            selectedNames ??= new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+
+            var unexpectedRemoved = removedActual
+                .Where(removed => !selectedNames.Contains(removed))
+                .ToList();
+
+            if (unexpectedRemoved.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Unexpected annotation deletion detected in view " +
+                    $"'{viewName}': {string.Join(", ", unexpectedRemoved)}");
+            }
+
+            var failed = GetFailures(
+                failedByView,
+                viewName,
+                Array.Empty<string>())
+                .ToList();
+
+            // A target may have been represented by an equivalent full name.
+            // Anything still present after the batch is considered failed.
+            foreach (var target in planned)
+            {
+                var stillPresent = after.Any(actual =>
+                    string.Equals(
+                        actual,
+                        target,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    AnnotationNameIdentity.AreEquivalent(actual, target));
+
+                if (stillPresent &&
+                    !failed.Contains(target, StringComparer.OrdinalIgnoreCase))
+                {
+                    failed.Add(target);
+                }
+            }
+
+            foreach (var removed in removedActual)
+            {
+                Logger.Info(
+                    $"[{logPrefix}.ExactDelete] Batch deleted exact " +
+                    $"dimension FullName='{removed}' in view '{viewName}'.");
+            }
+
+            results.Add(new ExactAnnotationDeletionResult(
+                viewName,
+                planned,
+                removedActual,
+                failed
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                unexpectedRemoved));
+        }
+
+        Logger.Info(
+            $"[{logPrefix}.ExactDelete] Batch complete: " +
+            $"planned={plannedByView.Sum(x => x.Value.Count)}, " +
+            $"resolved={resolved.Count}, selected={selected.Count}, " +
+            $"deleted={results.Sum(x => x.DeletedCount)}, " +
+            $"DeleteSelection2 calls={(selected.Count > 0 ? 1 : 0)}.");
+
+        return results;
+    }
+
+    /// <summary>
+    /// Compatibility wrapper for callers that still delete a single view.
+    /// The implementation still uses the optimized batch path internally.
+    /// </summary>
     public ExactAnnotationDeletionResult DeleteInView(
         SwModelDoc2 drawingModel,
         string viewName,
         IReadOnlyCollection<string> plannedFullNames,
         string logPrefix)
     {
-        if (drawingModel is null)
-            throw new ArgumentNullException(nameof(drawingModel));
-
         if (string.IsNullOrWhiteSpace(viewName))
         {
             throw new ArgumentException(
@@ -41,246 +307,64 @@ public sealed class ExactAnnotationDeletionService
                 nameof(viewName));
         }
 
-        var planned = (plannedFullNames ?? Array.Empty<string>())
+        var targets = (plannedFullNames ?? Array.Empty<string>())
             .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(x => new AnnotationDeletionTarget(
+                viewName.Trim(),
+                x.Trim()))
             .ToList();
 
-        if (planned.Count == 0)
+        if (targets.Count == 0)
             return ExactAnnotationDeletionResult.Empty(viewName);
 
-        var view = TryGetDrawingViewByName(
-            drawingModel,
-            viewName);
-
-        if (view is null)
-        {
-            Logger.Warn(
-                $"[{logPrefix}.ExactDelete] View '{viewName}' " +
-                "was not found; no annotations were deleted.");
-
-            return new ExactAnnotationDeletionResult(
-                viewName,
-                planned,
-                Array.Empty<string>(),
-                planned,
-                Array.Empty<string>());
-        }
-
-        var before = Enumerate(view)
-            .Select(handle => handle.FullName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var deleted = new List<string>();
-        var failed = new List<string>();
-
-        foreach (var target in planned)
-        {
-            /*
-             * Re-enumerate after each deletion because SolidWorks COM
-             * objects may become invalid after the annotation collection
-             * changes.
-             */
-            var currentAnnotations = Enumerate(view);
-
-            var candidates = currentAnnotations
-                .Where(handle =>
-                    string.Equals(
-                        handle.FullName,
-                        target,
-                        StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            /*
-             * The deletion plan comes from a previous scan. If the exact
-             * full name changed slightly, allow equivalent identity
-             * matching only when exactly one candidate is found.
-             */
-            if (candidates.Count == 0)
-            {
-                candidates = currentAnnotations
-                    .Where(handle =>
-                        AnnotationNameIdentity.AreEquivalent(
-                            handle.FullName,
-                            target))
-                    .ToList();
-            }
-
-            if (candidates.Count != 1)
-            {
-                failed.Add(target);
-
-                Logger.Warn(
-                    $"[{logPrefix}.ExactDelete] Skipped '{target}' " +
-                    $"in '{viewName}': expected one matching annotation, " +
-                    $"found {candidates.Count}.");
-
-                continue;
-            }
-
-            var candidate = candidates[0];
-
-            try
-            {
-                drawingModel.ClearSelection2(true);
-
-                var selected = candidate.Annotation.Select3(
-                    false,
-                    null);
-
-                if (!selected)
-                {
-                    failed.Add(target);
-
-                    Logger.Warn(
-                        $"[{logPrefix}.ExactDelete] Could not select " +
-                        $"'{candidate.FullName}' in '{viewName}'.");
-
-                    continue;
-                }
-
-                /*
-                 * DeleteSelection2 acts only on the selected annotation.
-                 *
-                 * Option 0 avoids deleting absorbed or child features.
-                 */
-                var extension = drawingModel.Extension;
-
-                var removed =
-                    extension is not null &&
-                    extension.DeleteSelection2(0);
-
-                if (!removed)
-                {
-                    failed.Add(target);
-
-                    Logger.Warn(
-                        $"[{logPrefix}.ExactDelete] DeleteSelection2 " +
-                        $"returned false for '{candidate.FullName}' " +
-                        $"in '{viewName}'.");
-
-                    continue;
-                }
-
-                deleted.Add(candidate.FullName);
-
-                Logger.Info(
-                    $"[{logPrefix}.ExactDelete] Deleted exact dimension " +
-                    $"Name='{candidate.DimensionName}' " +
-                    $"FullName='{candidate.FullName}' " +
-                    $"in view '{viewName}'.");
-            }
-            catch (Exception ex)
-            {
-                failed.Add(target);
-
-                Logger.Warn(
-                    $"[{logPrefix}.ExactDelete] Failed deleting " +
-                    $"'{target}' in '{viewName}': {ex.Message}");
-            }
-            finally
-            {
-                try
-                {
-                    drawingModel.ClearSelection2(true);
-                }
-                catch
-                {
-                    // Selection cleanup must not hide the original result.
-                }
-            }
-        }
-
-        var after = Enumerate(view)
-            .Select(handle => handle.FullName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var removedActual = before
-            .Except(
-                after,
-                StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        /*
-         * Every annotation removed from the view must correspond to an
-         * annotation that this service successfully selected and deleted.
-         */
-        var unexpectedRemoved = removedActual
-            .Except(
-                deleted,
-                StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (unexpectedRemoved.Count > 0)
-        {
-            throw new InvalidOperationException(
-                $"Unexpected annotation deletion detected in view " +
-                $"'{viewName}': {string.Join(", ", unexpectedRemoved)}");
-        }
-
-        /*
-         * A target may have been represented by an equivalent full name,
-         * so use identity matching when checking whether it remains.
-         */
-        var stillPresent = planned
-            .Where(target =>
-                after.Any(actual =>
-                    string.Equals(
-                        actual,
-                        target,
-                        StringComparison.OrdinalIgnoreCase) ||
-                    AnnotationNameIdentity.AreEquivalent(
-                        actual,
-                        target)))
-            .ToList();
-
-        foreach (var target in stillPresent)
-        {
-            if (!failed.Contains(
-                    target,
-                    StringComparer.OrdinalIgnoreCase))
-            {
-                failed.Add(target);
-            }
-        }
-
-        return new ExactAnnotationDeletionResult(
-            viewName,
-            planned,
-            removedActual,
-            failed
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList(),
-            unexpectedRemoved);
+        return DeleteBatch(
+                drawingModel,
+                targets,
+                logPrefix)
+            .FirstOrDefault() ??
+            ExactAnnotationDeletionResult.Empty(viewName);
     }
 
-    private static SwView? TryGetDrawingViewByName(
-        SwModelDoc2 drawingModel,
-        string viewName)
+    private static Dictionary<string, IReadOnlyCollection<string>> NormalizePlan(
+        IReadOnlyCollection<AnnotationDeletionTarget> plannedTargets)
     {
-        if (drawingModel is not SwDrawingDoc drawing)
-            return null;
+        return (plannedTargets ?? Array.Empty<AnnotationDeletionTarget>())
+            .Where(target =>
+                target is not null &&
+                !string.IsNullOrWhiteSpace(target.ViewName) &&
+                !string.IsNullOrWhiteSpace(target.AnnotationFullName))
+            .GroupBy(
+                target => target.ViewName.Trim(),
+                StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyCollection<string>)group
+                    .Select(target => target.AnnotationFullName.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Dictionary<string, SwView> BuildDrawingViewMap(
+        SwDrawingDoc drawing)
+    {
+        var result = new Dictionary<string, SwView>(
+            StringComparer.OrdinalIgnoreCase);
 
         try
         {
-            /*
-             * The first SolidWorks drawing view is normally the sheet.
-             * Start at GetNextView() to inspect actual drawing views.
-             */
+            // The first view is the sheet. Actual drawing views follow it.
             var sheetView = drawing.GetFirstView() as SwView;
             var view = sheetView?.GetNextView() as SwView;
 
             while (view is not null)
             {
-                if (string.Equals(
-                        SafeViewName(view),
-                        viewName,
-                        StringComparison.OrdinalIgnoreCase))
+                var name = SafeViewName(view);
+
+                if (!string.IsNullOrWhiteSpace(name) &&
+                    !result.ContainsKey(name))
                 {
-                    return view;
+                    result.Add(name, view);
                 }
 
                 view = view.GetNextView() as SwView;
@@ -289,11 +373,134 @@ public sealed class ExactAnnotationDeletionService
         catch (Exception ex)
         {
             Logger.Warn(
-                $"[ExactAnnotationDeletionService] Failed finding view " +
-                $"'{viewName}': {ex.Message}");
+                $"[ExactAnnotationDeletionService] Failed enumerating " +
+                $"drawing views: {ex.Message}");
         }
 
-        return null;
+        return result;
+    }
+
+    private static List<ResolvedTarget> RemoveDuplicateResolvedTargets(
+        IReadOnlyCollection<ResolvedTarget> resolved,
+        IDictionary<string, HashSet<string>> failedByView,
+        string logPrefix)
+    {
+        var unique = new List<ResolvedTarget>();
+
+        foreach (var group in resolved.GroupBy(
+                     x => x.ViewName + "||" + x.Handle.FullName,
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            var entries = group.ToList();
+
+            if (entries.Count == 1)
+            {
+                unique.Add(entries[0]);
+                continue;
+            }
+
+            foreach (var entry in entries)
+                AddFailure(failedByView, entry.ViewName, entry.PlannedFullName);
+
+            Logger.Warn(
+                $"[{logPrefix}.ExactDelete] Multiple planned targets resolved " +
+                $"to the same concrete annotation '{entries[0].Handle.FullName}' " +
+                $"in view '{entries[0].ViewName}'. The duplicate mapping was " +
+                "skipped for safety.");
+        }
+
+        return unique;
+    }
+
+    private static List<ResolvedTarget> SelectAll(
+        SwModelDoc2 drawingModel,
+        IReadOnlyCollection<ResolvedTarget> resolved,
+        IDictionary<string, HashSet<string>> failedByView,
+        string logPrefix)
+    {
+        var candidates = resolved.ToList();
+
+        if (candidates.Count == 0)
+            return new List<ResolvedTarget>();
+
+        SafeClearSelection(drawingModel);
+
+        var extension = drawingModel.Extension;
+
+        // Fast path: one COM call selects the entire annotation array.
+        if (extension is not null)
+        {
+            try
+            {
+                var objects = candidates
+                    .Select(x => (object)x.Handle.Annotation)
+                    .ToArray();
+
+                var selectedCount = extension.MultiSelect2(
+                    objects,
+                    false,
+                    null);
+
+                if (selectedCount == candidates.Count)
+                {
+                    Logger.Info(
+                        $"[{logPrefix}.ExactDelete] MultiSelect2 selected " +
+                        $"all {selectedCount} annotations in one call.");
+
+                    return candidates;
+                }
+
+                Logger.Warn(
+                    $"[{logPrefix}.ExactDelete] MultiSelect2 selected " +
+                    $"{selectedCount}/{candidates.Count} annotations. " +
+                    "Retrying selection with Annotation.Select3 while " +
+                    "preserving a single batch delete operation.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(
+                    $"[{logPrefix}.ExactDelete] MultiSelect2 was not usable: " +
+                    $"{ex.Message}. Falling back to Annotation.Select3.");
+            }
+        }
+
+        // Compatibility fallback. This is still far cheaper than the old
+        // implementation because there is no re-enumeration or deletion
+        // between selections; DeleteSelection2 is still called only once.
+        SafeClearSelection(drawingModel);
+
+        var selected = new List<ResolvedTarget>();
+
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                var append = selected.Count > 0;
+                var wasSelected = candidate.Handle.Annotation.Select3(
+                    append,
+                    null);
+
+                if (wasSelected)
+                {
+                    selected.Add(candidate);
+                    continue;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(
+                    $"[{logPrefix}.ExactDelete] Could not select " +
+                    $"'{candidate.Handle.FullName}' in " +
+                    $"'{candidate.ViewName}': {ex.Message}");
+            }
+
+            AddFailure(
+                failedByView,
+                candidate.ViewName,
+                candidate.PlannedFullName);
+        }
+
+        return selected;
     }
 
     private static string SafeViewName(SwView view)
@@ -328,7 +535,8 @@ public sealed class ExactAnnotationDeletionService
             return Array.Empty<DisplayDimensionHandle>();
         }
 
-        var results = new List<DisplayDimensionHandle>();
+        var results = new List<DisplayDimensionHandle>(
+            displayDimensions.Length);
 
         foreach (var item in displayDimensions)
         {
@@ -340,8 +548,7 @@ public sealed class ExactAnnotationDeletionService
 
             try
             {
-                dimension =
-                    displayDimension.GetDimension() as SwDimension;
+                dimension = displayDimension.GetDimension() as SwDimension;
             }
             catch
             {
@@ -350,8 +557,7 @@ public sealed class ExactAnnotationDeletionService
 
             try
             {
-                annotation =
-                    displayDimension.GetAnnotation() as SwAnnotation;
+                annotation = displayDimension.GetAnnotation() as SwAnnotation;
             }
             catch
             {
@@ -366,9 +572,7 @@ public sealed class ExactAnnotationDeletionService
 
             try
             {
-                fullName =
-                    dimension.FullName?.Trim() ??
-                    string.Empty;
+                fullName = dimension.FullName?.Trim() ?? string.Empty;
             }
             catch
             {
@@ -377,9 +581,7 @@ public sealed class ExactAnnotationDeletionService
 
             try
             {
-                dimensionName =
-                    dimension.Name?.Trim() ??
-                    string.Empty;
+                dimensionName = dimension.Name?.Trim() ?? string.Empty;
             }
             catch
             {
@@ -390,20 +592,77 @@ public sealed class ExactAnnotationDeletionService
             if (string.IsNullOrWhiteSpace(fullName))
                 continue;
 
-            results.Add(
-                new DisplayDimensionHandle(
-                    fullName,
-                    dimensionName,
-                    annotation));
+            results.Add(new DisplayDimensionHandle(
+                fullName,
+                dimensionName,
+                annotation));
         }
 
         return results;
+    }
+
+    private static void SafeClearSelection(SwModelDoc2 drawingModel)
+    {
+        try
+        {
+            drawingModel.ClearSelection2(true);
+        }
+        catch
+        {
+            // Selection cleanup is best-effort and must not mask the result.
+        }
+    }
+
+    private static void AddFailure(
+        IDictionary<string, HashSet<string>> failedByView,
+        string viewName,
+        string target)
+    {
+        if (!failedByView.TryGetValue(viewName, out var failures))
+        {
+            failures = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+            failedByView[viewName] = failures;
+        }
+
+        failures.Add(target);
+    }
+
+    private static void AddFailures(
+        IDictionary<string, HashSet<string>> failedByView,
+        string viewName,
+        IEnumerable<string> targets)
+    {
+        foreach (var target in targets)
+            AddFailure(failedByView, viewName, target);
+    }
+
+    private static IReadOnlyCollection<string> GetFailures(
+        IReadOnlyDictionary<string, HashSet<string>> failedByView,
+        string viewName,
+        IEnumerable<string> fallback)
+    {
+        if (failedByView.TryGetValue(viewName, out var failures))
+            return failures.ToList();
+
+        return fallback
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private sealed record DisplayDimensionHandle(
         string FullName,
         string DimensionName,
         SwAnnotation Annotation);
+
+    private sealed record ViewSnapshot(
+        SwView View,
+        IReadOnlyList<DisplayDimensionHandle> Handles);
+
+    private sealed record ResolvedTarget(
+        string ViewName,
+        string PlannedFullName,
+        DisplayDimensionHandle Handle);
 }
 
 public sealed record ExactAnnotationDeletionResult(

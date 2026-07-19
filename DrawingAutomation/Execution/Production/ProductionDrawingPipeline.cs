@@ -66,9 +66,10 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
             //
             // The pipeline no longer knows the internal sequencing.
             // ---------------------------------------------------------
-            ApplyViewLayout(
-                state,
-                context);
+            var viewLayout =
+                ApplyViewLayout(
+                    state,
+                    context);
 
             // ---------------------------------------------------------
             // 4. Plan dimensions only after geometry, scale, breaklines,
@@ -77,7 +78,8 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
             var planned =
                 DrawingDimensionPlanner.Plan(
                     context.Run,
-                    context.DrawingData);
+                    context.DrawingData,
+                    viewLayout.FinalScales);
 
             DrawingAnnotationCleanupStep.Run(
                 state.DrawingService,
@@ -200,7 +202,7 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
         }
     }
 
-    private static void ApplyViewLayout(
+    private static ViewLayoutResult ApplyViewLayout(
         DrawingPipelineState state,
         DrawingAutomationContext context)
     {
@@ -212,7 +214,7 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
                 state.DrawingService,
                 state.ViewNames);
 
-        coordinator.Apply(
+        return coordinator.Apply(
             context.Run,
             context.DrawingData,
             context.Profile);

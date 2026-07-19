@@ -18,8 +18,10 @@ namespace WAD.Runner.DrawingAutomation.Views;
 /// - resolves logical view names
 /// - checks profile enablement
 /// - creates a per-view BreaklineHandler
+/// - passes the wedge type required by breakline rules
 ///
-/// It does not rebuild. The layout coordinator owns rebuild boundaries.
+/// It does not rebuild.
+/// The layout coordinator owns rebuild boundaries.
 /// </summary>
 public sealed class BreaklineService
 {
@@ -63,6 +65,7 @@ public sealed class BreaklineService
 
     public bool Apply(
         string logicalView,
+        WedgeType wedgeType,
         WedgeData wedge,
         DrawingData drawingData)
     {
@@ -103,6 +106,7 @@ public sealed class BreaklineService
             var ok =
                 handler.ApplyBreakline(
                     logicalView,
+                    wedgeType,
                     wedge,
                     drawingData);
 
@@ -126,6 +130,7 @@ public sealed class BreaklineService
     }
 
     public void ApplyEnabled(
+        WedgeType wedgeType,
         WedgeData wedge,
         DrawingData drawingData,
         DrawingProfile profile)
@@ -149,6 +154,7 @@ public sealed class BreaklineService
 
             Apply(
                 logicalView,
+                wedgeType,
                 wedge,
                 drawingData);
         }

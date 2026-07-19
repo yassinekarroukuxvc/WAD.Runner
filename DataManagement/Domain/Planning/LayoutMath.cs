@@ -1,4 +1,4 @@
-﻿using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -12,7 +12,7 @@ internal static class LayoutMath
         => ctx.Drawing.Views.TryGetValue(view, out var v) ? v.PositionMm : new double[] { 0.0, 0.0 };
 
     internal static double Scale(LayoutContext ctx, string view)
-        => ctx.Drawing.Views.TryGetValue(view, out var v) ? v.Scale : 1.0;
+        => ctx.GetViewScale(view);
 
     internal static double Dmm(LayoutContext ctx, string key)
         => ctx.TryGetDim(key, out var d) && d.Nominal.Unit == UnitKind.Millimeter ? (double)d.Nominal.Value : 0.0;

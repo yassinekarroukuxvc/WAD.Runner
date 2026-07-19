@@ -69,36 +69,31 @@ public sealed class AnnotationCleanupExecutor
 
         _diffService.DumpDeletionPlan($"{logPrefix} Cleanup Runner", deletions, logPrefix);
 
-        var totalDeleted = 0;
-        foreach (var group in deletions.GroupBy(d => d.ViewName, StringComparer.OrdinalIgnoreCase))
+        // Resolve/select every target across every view first, then perform
+        // one SolidWorks DeleteSelection2 call for the entire cleanup plan.
+        var batchResults = _deletionService.DeleteBatch(
+            model,
+            deletions,
+            logPrefix);
+
+        var totalDeleted = batchResults.Sum(result => result.DeletedCount);
+
+        foreach (var result in batchResults)
         {
-            var fullNames = group
-                .Select(x => x.AnnotationFullName)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var result = _deletionService.DeleteInView(
-                model,
-                group.Key,
-                fullNames,
-                logPrefix);
-
-            totalDeleted += result.DeletedCount;
-
             Logger.Info(
-                $"[{logPrefix}.Cleanup] Deleted in view '{group.Key}': " +
-                $"{result.DeletedCount}/{fullNames.Count} planned.");
+                $"[{logPrefix}.Cleanup] Deleted in view '{result.ViewName}': " +
+                $"{result.DeletedCount}/{result.Planned.Count} planned.");
 
-            if (result.DeletedCount > fullNames.Count)
+            if (result.DeletedCount > result.Planned.Count)
             {
                 throw new InvalidOperationException(
-                    $"Cleanup deleted more annotations than planned in view '{group.Key}'.");
+                    $"Cleanup deleted more annotations than planned in view '{result.ViewName}'.");
             }
 
             if (result.Failed.Count > 0)
             {
                 Logger.Warn(
-                    $"[{logPrefix}.Cleanup] Exact deletions not completed in view '{group.Key}': " +
+                    $"[{logPrefix}.Cleanup] Exact deletions not completed in view '{result.ViewName}': " +
                     string.Join(", ", result.Failed));
             }
         }

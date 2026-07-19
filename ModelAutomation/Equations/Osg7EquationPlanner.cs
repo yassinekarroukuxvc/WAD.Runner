@@ -16,6 +16,13 @@ public sealed class Osg7EquationPlanner : StandardEquationPlanner
     private const decimal ProvidedValueEpsilon = 0.000000001m;
     private const double MinimumCosineMagnitude = 1e-12;
 
+    /*
+     * OSG7 uses a fixed TL value.
+     *
+     * The database TL value is intentionally overridden.
+     */
+    private const double Osg7TlMillimeters = 63.5;
+
     public override EquationPlan Build(
         ModelAutomationContext context)
     {
@@ -35,6 +42,27 @@ public sealed class Osg7EquationPlanner : StandardEquationPlanner
                 dimensions,
                 EquationCatalog.DbToModelAliases)
             .SkipProvidedZeroDimensions();
+
+        /*
+         * OSG7 TL override:
+         *
+         * Always force:
+         *
+         *     TL = 63.5 mm
+         *
+         * This intentionally replaces the value supplied by
+         * the database for OSG7 models.
+         */
+        builder.AddManaged(
+            "TL",
+            EquationFormatting.Line(
+                "TL",
+                Osg7TlMillimeters,
+                "mm"));
+
+        Logger.Info(
+            "[Osg7EquationPlanner] OSG7 TL override applied. " +
+            $"Using TL = {Osg7TlMillimeters} mm.");
 
         /*
          * FRA and BRA are not available in the database yet.

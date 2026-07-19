@@ -100,7 +100,8 @@ public sealed class DrawingViewLayoutCoordinator
         /*
          * 1. Prepare movement exactly once.
          *
-         * We do not repeatedly break alignment every time a position is set.
+         * We do not repeatedly break alignment every time
+         * a position is set.
          */
         _positions.PrepareForMovement(
             FinalPositionOrder);
@@ -108,8 +109,8 @@ public sealed class DrawingViewLayoutCoordinator
         /*
          * 2. Detail and Section use their normal configured scales.
          *
-         * This fixes the previous hidden dependency on whatever scale happened
-         * to exist in the template.
+         * This fixes the previous hidden dependency on whatever scale
+         * happened to exist in the template.
          */
         _scales.ApplyConfiguredScales(
             drawingData,
@@ -145,8 +146,13 @@ public sealed class DrawingViewLayoutCoordinator
          *
          * Front / Side / Top = final autoscale
          * Detail / Section   = configured normal scale
+         *
+         * WedgeType is passed through so BreaklineHandler can apply
+         * wedge-type-specific calculation rules, such as the OSG7
+         * effective TL of 63.5 mm.
          */
         _breaklines.ApplyEnabled(
+            run.WedgeType,
             run.Wedge,
             drawingData,
             profile);
@@ -165,12 +171,58 @@ public sealed class DrawingViewLayoutCoordinator
 
         _drawingService.Rebuild();
 
+        var finalScales =
+            CaptureFinalScales(
+                drawingData);
+
         Logger.Success(
             $"[ViewLayout] Layout stabilized. " +
             $"Primary unified scale = {primaryScale:0.###}.");
 
         return new ViewLayoutResult(
-            primaryScale);
+            primaryScale,
+            finalScales);
+    }
+
+    private IReadOnlyDictionary<string, double> CaptureFinalScales(
+        DrawingData drawingData)
+    {
+        var result =
+            new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
+
+        foreach (var logicalView in FinalPositionOrder)
+        {
+            if (_scales.TryGetCurrentScale(
+                    logicalView,
+                    out var currentScale))
+            {
+                result[logicalView] = currentScale;
+
+                Logger.Info(
+                    $"[ViewLayout] Final runtime scale " +
+                    $"'{logicalView}' = {currentScale:0.###}.");
+
+                continue;
+            }
+
+            if (drawingData.Views.TryGetValue(
+                    logicalView,
+                    out var configuredView)
+                && configuredView is not null
+                && double.IsFinite(configuredView.Scale)
+                && configuredView.Scale > 0.0)
+            {
+                result[logicalView] = configuredView.Scale;
+
+                Logger.Warn(
+                    $"[ViewLayout] Could not read runtime scale for " +
+                    $"'{logicalView}'. Falling back to configured scale " +
+                    $"{configuredView.Scale:0.###}.");
+            }
+        }
+
+        return result;
     }
 
     private double FindPrimaryScale(
@@ -199,7 +251,8 @@ public sealed class DrawingViewLayoutCoordinator
              * Only Front needs to change during candidate evaluation because
              * Front is the view used to measure fit.
              *
-             * Side and Top receive the chosen scale once, after the search.
+             * Side and Top receive the chosen scale once,
+             * after the search.
              */
             _scales.ApplyScale(
                 "Front",
@@ -208,8 +261,16 @@ public sealed class DrawingViewLayoutCoordinator
             if (profile.UseBreaklinesForView(
                     "Front"))
             {
+                /*
+                 * WedgeType must also be supplied here because this
+                 * breakline is recalculated for every candidate scale.
+                 *
+                 * This is especially important for OSG7 because its
+                 * breakline calculation uses the effective TL = 63.5 mm.
+                 */
                 _breaklines.Apply(
                     "Front",
+                    run.WedgeType,
                     run.Wedge,
                     drawingData);
             }
@@ -291,4 +352,5 @@ public sealed class DrawingViewLayoutCoordinator
 }
 
 public sealed record ViewLayoutResult(
-    double PrimaryScale);
+    double PrimaryScale,
+    IReadOnlyDictionary<string, double> FinalScales);

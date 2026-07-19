@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 using SolidWorks.Interop.sldworks;
 
@@ -14,18 +13,29 @@ namespace WAD.Runner.DrawingAutomation.Views;
 /// <summary>
 /// Handles breakline geometry for one SolidWorks drawing view.
 ///
-/// Important architectural rules:
+/// Responsibilities:
 ///
-/// - This class does not rebuild.
-/// - This class does not choose workflow order.
-/// - This class does not branch by wedge subclass.
-/// - Calculations use the CURRENT final/candidate view scale.
-/// - Breakline gap ownership stays here.
+/// - Resolve and apply the breakline gap.
+/// - Calculate breakline positions using the current view scale.
+/// - Apply breakline positions.
+/// - Use an effective TL of 63.5 mm for OSG7 breakline calculations.
+///
+/// This class does not rebuild the drawing and does not control
+/// workflow ordering.
 /// </summary>
 public sealed class BreaklineHandler
 {
     private const double PositionEpsilon = 1e-9;
     private const double MinimumValidScale = 1e-6;
+
+    /*
+     * OSG7-specific effective TL.
+     *
+     * This value is used ONLY for breakline calculations.
+     * It does not modify the database, WedgeData, equation file,
+     * or SolidWorks model TL.
+     */
+    private const decimal Osg7BreaklineTlMm = 63.5m;
 
     private readonly View _view;
     private readonly ModelDoc2 _model;
@@ -66,10 +76,6 @@ public sealed class BreaklineHandler
             _view.BreakLineGap =
                 gapSheetMeters;
 
-            Logger.Success(
-                $"Breakline gap set to " +
-                $"{gapSheetMeters:F6} m (sheet).");
-
             return true;
         }
         catch (Exception ex)
@@ -82,10 +88,11 @@ public sealed class BreaklineHandler
     }
 
     /// <summary>
-    /// New wedge-agnostic entry point.
+    /// Applies the configured breakline geometry for a logical view.
     /// </summary>
     public bool ApplyBreakline(
         string viewName,
+        WedgeType wedgeType,
         WedgeData wedge,
         DrawingData drawData)
     {
@@ -103,8 +110,7 @@ public sealed class BreaklineHandler
         if (wedge is null)
         {
             Logger.Warn(
-                $"ApplyBreakline: wedge data is null " +
-                $"for view '{viewName}'.");
+                $"Wedge data is null for view '{viewName}'.");
 
             return false;
         }
@@ -112,19 +118,11 @@ public sealed class BreaklineHandler
         if (drawData is null)
         {
             Logger.Warn(
-                $"ApplyBreakline: drawing data is null " +
-                $"for view '{viewName}'.");
+                $"Drawing data is null for view '{viewName}'.");
 
             return false;
         }
 
-        /*
-         * Breakline gap belongs to this handler.
-         *
-         * Resolution:
-         * 1. view breakline_gap_mm
-         * 2. built-in logical-view default
-         */
         TryApplyConfiguredGap(
             drawData,
             viewName);
@@ -133,6 +131,7 @@ public sealed class BreaklineHandler
             IsSection(viewName))
         {
             return SetDetailOrSectionBreakline(
+                wedgeType,
                 wedge,
                 drawData,
                 viewName);
@@ -142,54 +141,35 @@ public sealed class BreaklineHandler
             IsSide(viewName))
         {
             return SetFrontOrSideBreakline(
+                wedgeType,
                 wedge,
                 drawData,
                 viewName);
         }
 
         Logger.Warn(
-            $"ApplyBreakline: unrecognized view key " +
-            $"'{viewName}'. " +
-            "Expected Front, Side, Detail, or Section.");
+            $"Unrecognized breakline view '{viewName}'.");
 
         return false;
     }
 
-    /// <summary>
-    /// Compatibility overload for existing callers.
-    ///
-    /// Drawing type and wedge subclass no longer control breakline logic.
-    /// </summary>
-    [Obsolete(
-        "Use ApplyBreakline(string viewName, WedgeData wedge, DrawingData drawData).")]
-    public bool ApplyBreakline(
-        string viewName,
-        DrawingType drawingType,
-        WedgeSubclass subclass,
-        WedgeData wedge,
-        DrawingData drawData)
-    {
-        return ApplyBreakline(
-            viewName,
-            wedge,
-            drawData);
-    }
-
     private bool SetDetailOrSectionBreakline(
+        WedgeType wedgeType,
         WedgeData wedge,
         DrawingData drawData,
         string viewName)
     {
         var breakline =
-            GetValidatedBreakline();
+            GetValidatedBreakline(
+                viewName);
 
         if (breakline is null)
             return false;
 
         var tlMm =
-            GetLengthMm(
-                wedge,
-                "TL");
+            ResolveBreaklineTlMm(
+                wedgeType,
+                wedge);
 
         if (tlMm <= 0m)
         {
@@ -211,7 +191,7 @@ public sealed class BreaklineHandler
          * detail_inset_mm is sheet-space.
          *
          * View-level configuration wins.
-         * Generic global configuration is the fallback.
+         * Global configuration is the fallback.
          */
         var insetMm =
             ResolveViewParam(
@@ -229,7 +209,7 @@ public sealed class BreaklineHandler
 
         /*
          * TL is model-space.
-         * Convert to sheet-space with the CURRENT view scale.
+         * Convert it to sheet-space using the current view scale.
          */
         var halfSpanSheetMeters =
             (tlMeters * 0.5) *
@@ -262,27 +242,29 @@ public sealed class BreaklineHandler
             Logger.Success(
                 $"[{viewName}] breakline positioned -> " +
                 $"lower={lower:F6}, upper={upper:F6}, " +
-                $"scale={scale:F6} (sheet m).");
+                $"scale={scale:F6}.");
         }
 
         return ok;
     }
 
     private bool SetFrontOrSideBreakline(
+        WedgeType wedgeType,
         WedgeData wedge,
         DrawingData drawData,
         string viewName)
     {
         var breakline =
-            GetValidatedBreakline();
+            GetValidatedBreakline(
+                viewName);
 
         if (breakline is null)
             return false;
 
         var tlMm =
-            GetLengthMm(
-                wedge,
-                "TL");
+            ResolveBreaklineTlMm(
+                wedgeType,
+                wedge);
 
         if (tlMm <= 0m)
         {
@@ -301,12 +283,9 @@ public sealed class BreaklineHandler
             SafeScale();
 
         /*
-         * Generic names are preferred.
+         * Generic parameter names are preferred.
          *
-         * Legacy names are accepted so existing drawing configuration does
-         * not have to be migrated immediately.
-         *
-         * No wedge subclass is consulted.
+         * Legacy FG/PGB parameter names remain supported as aliases.
          */
         var fallbackPct =
             ResolveGlobalParamAliases(
@@ -334,16 +313,10 @@ public sealed class BreaklineHandler
 
         double kMeters;
 
-        if (TryGetKMeters(
+        if (!TryGetKMeters(
                 wedge,
                 tlMm,
                 out kMeters))
-        {
-            Logger.Blue(
-                $"[{viewName}] Engraving start " +
-                $"(K-Value) = {kMeters:F6} m.");
-        }
-        else
         {
             kMeters =
                 Math.Min(
@@ -351,11 +324,6 @@ public sealed class BreaklineHandler
                     fallbackPct /
                     1000.0,
                     tlMeters * 0.5);
-
-            Logger.Info(
-                $"[{viewName}] K-Value unavailable; " +
-                $"fallback TL * {fallbackPct:P0} = " +
-                $"{kMeters:F6} m.");
         }
 
         var lower =
@@ -374,17 +342,8 @@ public sealed class BreaklineHandler
         if (!ValidatePositions(
                 lower,
                 upper,
-                $"{viewName} Front/Side"))
+                viewName))
         {
-            Logger.Error(
-                $"[{viewName}] Breakline calculation details -> " +
-                $"TL={tlMeters:F6} m, " +
-                $"K={kMeters:F6} m, " +
-                $"scale={scale:F6}, " +
-                $"fallbackPct={fallbackPct:F6}, " +
-                $"offsetPct={offsetPct:F6}, " +
-                $"upperPct={upperPct:F6}.");
-
             return false;
         }
 
@@ -400,10 +359,31 @@ public sealed class BreaklineHandler
             Logger.Success(
                 $"[{viewName}] breakline -> " +
                 $"lower={lower:F6}, upper={upper:F6}, " +
-                $"scale={scale:F6} (sheet m).");
+                $"scale={scale:F6}.");
         }
 
         return ok;
+    }
+
+    /// <summary>
+    /// Resolves the TL used specifically for breakline calculations.
+    ///
+    /// OSG7:
+    ///     TL = 63.5 mm
+    ///
+    /// All other wedge types:
+    ///     Actual TL from WedgeData.
+    /// </summary>
+    private static decimal ResolveBreaklineTlMm(
+        WedgeType wedgeType,
+        WedgeData wedge)
+    {
+        if (wedgeType == WedgeType.OSG7)
+            return Osg7BreaklineTlMm;
+
+        return GetLengthMm(
+            wedge,
+            "TL");
     }
 
     private bool IsReady()
@@ -459,13 +439,7 @@ public sealed class BreaklineHandler
                 viewName);
 
         if (!gapMm.HasValue)
-        {
-            Logger.Warn(
-                $"No breakline gap could be resolved " +
-                $"for view '{viewName}'.");
-
             return;
-        }
 
         var gapMeters =
             MmToMeters(
@@ -475,8 +449,8 @@ public sealed class BreaklineHandler
                 gapMeters))
         {
             Logger.Warn(
-                $"Failed to apply breakline gap for " +
-                $"'{viewName}' ({gapMm.Value:F3} mm).");
+                $"[{viewName}] Failed to apply breakline gap " +
+                $"({gapMm.Value:F3} mm).");
         }
     }
 
@@ -501,9 +475,8 @@ public sealed class BreaklineHandler
             }
 
             Logger.Warn(
-                $"Configured breakline_gap_mm for " +
-                $"'{viewName}' is invalid: {configuredGapMm}. " +
-                "Using the default gap.");
+                $"Invalid breakline_gap_mm for '{viewName}': " +
+                $"{configuredGapMm}. Using default.");
         }
 
         return GetDefaultBreaklineGapMm(
@@ -528,7 +501,8 @@ public sealed class BreaklineHandler
         return null;
     }
 
-    private BreakLine? GetValidatedBreakline()
+    private BreakLine? GetValidatedBreakline(
+        string context)
     {
         try
         {
@@ -539,7 +513,7 @@ public sealed class BreaklineHandler
             if (reportedCount <= 0)
             {
                 Logger.Warn(
-                    "View has no breaklines to position.");
+                    $"[{context}] View has no breakline.");
 
                 return null;
             }
@@ -550,8 +524,7 @@ public sealed class BreaklineHandler
             if (rawBreaklines is null)
             {
                 Logger.Warn(
-                    $"View reported {reportedCount} breakline(s), " +
-                    "but GetBreakLines returned null.");
+                    $"[{context}] GetBreakLines returned null.");
 
                 return null;
             }
@@ -559,8 +532,8 @@ public sealed class BreaklineHandler
             if (rawBreaklines is not object[] breaklines)
             {
                 Logger.Error(
-                    "GetBreakLines returned unexpected type: " +
-                    rawBreaklines.GetType().FullName);
+                    $"[{context}] GetBreakLines returned an " +
+                    "unexpected object type.");
 
                 return null;
             }
@@ -568,9 +541,8 @@ public sealed class BreaklineHandler
             if (breaklines.Length != 1)
             {
                 Logger.Error(
-                    "Expected exactly one breakline in the view, " +
-                    $"but found {breaklines.Length}. " +
-                    "Breakline positioning was skipped.");
+                    $"[{context}] Expected exactly one breakline, " +
+                    $"but found {breaklines.Length}.");
 
                 return null;
             }
@@ -578,8 +550,7 @@ public sealed class BreaklineHandler
             if (breaklines[0] is not BreakLine breakline)
             {
                 Logger.Error(
-                    "The object returned by GetBreakLines could not " +
-                    "be converted to BreakLine.");
+                    $"[{context}] Could not resolve BreakLine object.");
 
                 return null;
             }
@@ -589,7 +560,8 @@ public sealed class BreaklineHandler
         catch (Exception ex)
         {
             Logger.Error(
-                $"GetValidatedBreakline failed: {ex.Message}");
+                $"[{context}] Failed to get breakline: " +
+                ex.Message);
 
             return null;
         }
@@ -624,9 +596,7 @@ public sealed class BreaklineHandler
                 UnitKind.Millimeter)
             {
                 Logger.Warn(
-                    $"Dimension '{key}' has unexpected unit " +
-                    $"'{dimension.Nominal.Unit}'. " +
-                    "Millimeters were expected.");
+                    $"Dimension '{key}' must be in millimeters.");
 
                 return 0m;
             }
@@ -705,13 +675,7 @@ public sealed class BreaklineHandler
         string context)
     {
         if (breakline is null)
-        {
-            Logger.Error(
-                $"[{context}] Cannot set breakline: " +
-                "BreakLine object is null.");
-
             return false;
-        }
 
         if (!ValidatePositions(
                 lower,
@@ -732,18 +696,11 @@ public sealed class BreaklineHandler
             {
                 Logger.Error(
                     $"[{context}] SolidWorks rejected " +
-                    $"breakline positions -> " +
-                    $"lower={lower:F6}, upper={upper:F6}.");
+                    "the breakline positions.");
 
                 return false;
             }
 
-            /*
-             * No rebuild here.
-             *
-             * The coordinator batches mutations and owns the mandatory
-             * regeneration boundary.
-             */
             return true;
         }
         catch (Exception ex)
@@ -765,9 +722,7 @@ public sealed class BreaklineHandler
             !double.IsFinite(upper))
         {
             Logger.Error(
-                $"[{context}] Invalid breakline positions: " +
-                $"lower={lower}, upper={upper}. " +
-                "Both values must be finite.");
+                $"[{context}] Breakline positions are not finite.");
 
             return false;
         }
@@ -777,9 +732,7 @@ public sealed class BreaklineHandler
             PositionEpsilon)
         {
             Logger.Error(
-                $"[{context}] Invalid breakline positions: " +
-                $"lower={lower:F9}, upper={upper:F9}. " +
-                "The two positions are too close.");
+                $"[{context}] Breakline positions are too close.");
 
             return false;
         }
@@ -788,8 +741,7 @@ public sealed class BreaklineHandler
         {
             Logger.Error(
                 $"[{context}] Invalid breakline ordering: " +
-                $"lower={lower:F6} must be less than " +
-                $"upper={upper:F6}.");
+                $"lower={lower:F6}, upper={upper:F6}.");
 
             return false;
         }
@@ -828,9 +780,9 @@ public sealed class BreaklineHandler
                 tlMm * 0.5m;
 
             var clampedMm =
-                kMm > halfTlMm
-                    ? halfTlMm
-                    : kMm;
+                Math.Min(
+                    kMm,
+                    halfTlMm);
 
             kMeters =
                 MmToMeters(
@@ -845,8 +797,6 @@ public sealed class BreaklineHandler
             Logger.Warn(
                 $"Unable to resolve K-Value: " +
                 ex.Message);
-
-            kMeters = 0.0;
 
             return false;
         }
@@ -997,14 +947,11 @@ public sealed class BreaklineHandler
 
         foreach (var key in keys)
         {
-            var sentinel =
-                double.NaN;
-
             var resolved =
                 ResolveGlobalParam(
                     drawData,
                     key,
-                    sentinel);
+                    double.NaN);
 
             if (double.IsFinite(resolved))
                 return resolved;
@@ -1024,12 +971,6 @@ public sealed class BreaklineHandler
         public const double DetailInsetMm =
             40.0;
 
-        /*
-         * Generic front/side defaults shared by all wedge types.
-         *
-         * Existing fg_* and pgb_* parameter names are still accepted as
-         * aliases, but the algorithm itself is wedge-agnostic.
-         */
         public const double FrontFallbackPct =
             0.40;
 
@@ -1040,3 +981,4 @@ public sealed class BreaklineHandler
             0.050;
     }
 }
+

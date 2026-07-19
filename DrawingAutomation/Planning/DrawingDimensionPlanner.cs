@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 using WAD.Runner.Application;
@@ -11,12 +12,18 @@ namespace WAD.Runner.DrawingAutomation.Planning;
 
 public static class DrawingDimensionPlanner
 {
-    public static PlannedDrawingDimensions Plan(DrawingRun run, WAD.Runner.DataManagement.Domain.Drawing.DrawingData drawingData)
+    public static PlannedDrawingDimensions Plan(
+        DrawingRun run,
+        WAD.Runner.DataManagement.Domain.Drawing.DrawingData drawingData,
+        IReadOnlyDictionary<string, double>? runtimeViewScales = null)
     {
         if (run is null) throw new ArgumentNullException(nameof(run));
         if (drawingData is null) throw new ArgumentNullException(nameof(drawingData));
 
-        var context = new LayoutContext(run.Wedge, drawingData);
+        var context = new LayoutContext(
+            run.Wedge,
+            drawingData,
+            runtimeViewScales);
         var diagnostics = new PlannerDiagnostics();
         var dimensions = DimensionRules.Build(context, diagnostics, run.WedgeType).ToList();
 
