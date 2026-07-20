@@ -61,16 +61,16 @@ secrets.json
 !.env.example
 
 # Local databases and generated database files
-*.db
-*.db-shm
-*.db-wal
-*.sqlite
-*.sqlite3
-*.bak
-Resources/Database/*.db
-Resources/Database/*.sqlite
-Resources/Database/*.sqlite3
-!Resources/Database/scheme.sql
+#*.db
+#*.db-shm
+#*.db-wal
+#*.sqlite
+#*.sqlite3
+#*.bak
+#Resources/Database/*.db
+#Resources/Database/*.sqlite
+#Resources/Database/*.sqlite3
+#!Resources/Database/scheme.sql
 
 # Generated automation output
 Resources/Out/
