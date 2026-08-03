@@ -13,6 +13,8 @@ using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Infrastructure.Mapping;
 using WAD.Runner.DrawingAutomation.Overlay;
 
+using WAD.Runner.DrawingAutomation.Wedges;
+
 namespace WAD.Runner.DrawingAutomation.Tables
 {
     public sealed class TableService
@@ -442,7 +444,9 @@ namespace WAD.Runner.DrawingAutomation.Tables
         {
             var rows = new List<string>();
             var drawingType = draw.DrawingType;
-            var allowed = DimensionTableKeyFilter.GetAllowedKeys(wedgeType, drawingType, wedge.Subclass);
+            var allowed = DrawingWedgeModuleRegistry
+                .Get(wedgeType)
+                .GetAllowedDimensionTableKeys(wedge.Subclass, drawingType);
 
             foreach (var kv in wedge.Dimensions)
             {

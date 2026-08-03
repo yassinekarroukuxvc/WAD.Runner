@@ -174,42 +174,6 @@ public sealed class AnnotationDiffService
         }
     }
 
-    public void DumpExisting(
-        IReadOnlyDictionary<string, IReadOnlyCollection<string>> existingByView,
-        string tagPrefix,
-        int maxPerView = 250)
-    {
-        var safeExistingByView =
-            existingByView ??
-            new Dictionary<string, IReadOnlyCollection<string>>();
-
-        foreach (var kv in safeExistingByView)
-        {
-            var list = kv.Value?.ToList() ?? new List<string>();
-
-            Logger.Info(
-                $"[{tagPrefix}.ExistingDump] View '{kv.Key}' " +
-                $"existing DIM full-names = {list.Count}");
-
-            var count = 0;
-
-            foreach (var fullName in list)
-            {
-                if (count++ >= maxPerView)
-                {
-                    Logger.Info(
-                        $"[{tagPrefix}.ExistingDump]   ... truncated " +
-                        $"(maxPerView={maxPerView})");
-
-                    break;
-                }
-
-                Logger.Info(
-                    $"[{tagPrefix}.ExistingDump]   - {fullName}");
-            }
-        }
-    }
-
     private sealed class SmartAnnotationMatcher
     {
         private readonly IReadOnlyDictionary<

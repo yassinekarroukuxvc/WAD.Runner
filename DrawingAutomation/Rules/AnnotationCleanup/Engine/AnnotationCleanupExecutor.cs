@@ -27,21 +27,6 @@ public sealed class AnnotationCleanupExecutor
         _deletionService = deletionService ?? new ExactAnnotationDeletionService();
     }
 
-    public IReadOnlyList<AnnotationDeletionTarget> PlanDeletions(
-        ModelDoc2 drawingModel,
-        AnnotationCleanupContext ctx,
-        bool activateEachView)
-    {
-        var existingByView = _stateReader.CollectExistingDisplayDimensionNames(
-            drawingModel,
-            ctx.ViewNames,
-            activateEachView);
-
-        var keepExpectedByView = _planner.BuildExpectedFullNamesByView(ctx);
-
-        return _diffService.GetExistingMinusKeep(existingByView, keepExpectedByView);
-    }
-
     public int Apply(
         DrawingService drawingService,
         IDictionary<string, string> nameMap,

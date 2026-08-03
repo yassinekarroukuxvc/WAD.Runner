@@ -100,7 +100,7 @@ public sealed class EquationFileWriter
             foreach (var key in missingToZero)
             {
                 if (!existingKeys.Add(key)) continue;
-                output.Add($"\"{key}\" = 0{(angleKeys.Contains(key) ? "deg" : "mm")}");
+                output.Add($"\"{key}\" = 0{(angleKeys.Contains(key) ? "deg" : "in")}");
                 appended++;
             }
         }
@@ -113,15 +113,13 @@ public sealed class EquationFileWriter
 
     private static string MakeZeroLine(string key, string existingLine, HashSet<string> angleKeys)
     {
-        var unit = existingLine.Contains("deg", StringComparison.OrdinalIgnoreCase)
-            ? "deg"
-            : existingLine.Contains("mm", StringComparison.OrdinalIgnoreCase)
-                ? "mm"
-                : existingLine.Contains("in", StringComparison.OrdinalIgnoreCase)
-                    ? "in"
-                    : angleKeys.Contains(key) ? "deg" : "mm";
+        var isAngle =
+            angleKeys.Contains(key) ||
+            existingLine.Contains(
+                "deg",
+                StringComparison.OrdinalIgnoreCase);
 
-        return $"\"{key}\" = 0{unit}";
+        return $"\"{key}\" = 0{(isAngle ? "deg" : "in")}";
     }
 
     private static Encoding DetectEncoding(string path)

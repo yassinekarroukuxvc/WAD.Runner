@@ -9,6 +9,13 @@ public sealed class AnnotationCleanupContext
     public required SketchNameSet Sketches { get; init; }
     public required DimensionFacts Dimensions { get; init; }
 
+    /// <summary>
+    /// Normalized value of the database/model property named Wed-Type.
+    /// CKVD uses this to distinguish LW_STYLE_A_CKVD from
+    /// LW_STYLE_B_CKVD without inferring the style from dimensions.
+    /// </summary>
+    public string WedTypeToken { get; init; } = string.Empty;
+
     public string? KAnnotationFullName { get; init; }
     public string? ErdAnnotationFullName { get; init; }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.SolidWorks;
 
@@ -22,28 +23,6 @@ namespace WAD.Runner.DrawingAutomation.Views;
 /// </summary>
 public sealed class DrawingViewLayoutCoordinator
 {
-    private static readonly string[] PrimaryViews =
-    {
-        "Front",
-        "Side",
-        "Top"
-    };
-
-    private static readonly string[] FixedScaleViews =
-    {
-        "Detail",
-        "Section"
-    };
-
-    private static readonly string[] FinalPositionOrder =
-    {
-        "Front",
-        "Side",
-        "Top",
-        "Detail",
-        "Section"
-    };
-
     private readonly DrawingService _drawingService;
     private readonly ViewPositionService _positions;
     private readonly ViewScaleService _scales;
@@ -104,7 +83,7 @@ public sealed class DrawingViewLayoutCoordinator
          * a position is set.
          */
         _positions.PrepareForMovement(
-            FinalPositionOrder);
+            DrawingViewNames.LayoutOrder);
 
         /*
          * 2. Detail and Section use their normal configured scales.
@@ -114,7 +93,7 @@ public sealed class DrawingViewLayoutCoordinator
          */
         _scales.ApplyConfiguredScales(
             drawingData,
-            FixedScaleViews);
+            DrawingViewNames.FixedScale);
 
         _drawingService.Rebuild();
 
@@ -125,6 +104,9 @@ public sealed class DrawingViewLayoutCoordinator
          *
          * If Front uses a breakline, that breakline is refreshed at each
          * candidate scale before measuring the final visible outline.
+         *
+         * CKVD Production/Customer profiles do not include Front or Side
+         * in BreaklineViews, so those breaklines are not managed here.
          */
         var primaryScale =
             FindPrimaryScale(
@@ -136,7 +118,7 @@ public sealed class DrawingViewLayoutCoordinator
          * 4. Establish the final unified primary scale.
          */
         _scales.ApplyUnifiedScale(
-            PrimaryViews,
+            DrawingViewNames.Primary,
             primaryScale);
 
         /*
@@ -147,9 +129,9 @@ public sealed class DrawingViewLayoutCoordinator
          * Front / Side / Top = final autoscale
          * Detail / Section   = configured normal scale
          *
-         * WedgeType is passed through so BreaklineHandler can apply
-         * wedge-type-specific calculation rules, such as the OSG7
-         * effective TL of 63.5 mm.
+         * The active profile decides which views use breaklines.
+         * For CKVD Production/Customer, only Detail and Section are
+         * managed because the CKVD profile uses SecondaryBreaklineViews.
          */
         _breaklines.ApplyEnabled(
             run.WedgeType,
@@ -160,16 +142,43 @@ public sealed class DrawingViewLayoutCoordinator
         _drawingService.Rebuild();
 
         /*
-         * 6. Apply final positions only after scale and breakline geometry
-         * are stable.
+         * 6. Apply configured positions after final scale and breakline
+         * geometry are stable.
          *
-         * No scale changes and no breakline changes happen after this.
+         * PositionMm normally represents the SolidWorks view origin.
          */
         _positions.ApplyConfiguredPositions(
             drawingData,
-            FinalPositionOrder);
+            DrawingViewNames.LayoutOrder);
 
         _drawingService.Rebuild();
+
+        /*
+         * 7. CKVD Front and Side are intentionally unbroken in
+         * Production/Customer drawings.
+         *
+         * Their full visible geometry is vertically offset from the
+         * SolidWorks view origin. For these two views only, interpret the
+         * configured PositionMm Y as the desired visible-outline center Y.
+         *
+         * X remains origin-based and is not changed.
+         * Detail and Section are not touched and continue using their
+         * normal configured origin positions and managed breaklines.
+         */
+        if (RequiresCkvdPrimaryVisibleCenterCorrection(
+                run,
+                profile))
+        {
+            _positions.AlignVisibleCenterYToConfiguredPosition(
+                DrawingViewNames.Front,
+                drawingData);
+
+            _positions.AlignVisibleCenterYToConfiguredPosition(
+                DrawingViewNames.Side,
+                drawingData);
+
+            _drawingService.Rebuild();
+        }
 
         var finalScales =
             CaptureFinalScales(
@@ -191,7 +200,7 @@ public sealed class DrawingViewLayoutCoordinator
             new Dictionary<string, double>(
                 StringComparer.OrdinalIgnoreCase);
 
-        foreach (var logicalView in FinalPositionOrder)
+        foreach (var logicalView in DrawingViewNames.LayoutOrder)
         {
             if (_scales.TryGetCurrentScale(
                     logicalView,
@@ -255,21 +264,18 @@ public sealed class DrawingViewLayoutCoordinator
              * after the search.
              */
             _scales.ApplyScale(
-                "Front",
+                DrawingViewNames.Front,
                 normalized);
 
-            if (profile.UseBreaklinesForView(
-                    "Front"))
+            if (profile.UsesBreakline(
+                    DrawingViewNames.Front))
             {
                 /*
-                 * WedgeType must also be supplied here because this
+                 * The active wedge module is consulted because this
                  * breakline is recalculated for every candidate scale.
-                 *
-                 * This is especially important for OSG7 because its
-                 * breakline calculation uses the effective TL = 63.5 mm.
                  */
                 _breaklines.Apply(
-                    "Front",
+                    DrawingViewNames.Front,
                     run.WedgeType,
                     run.Wedge,
                     drawingData);
@@ -282,7 +288,7 @@ public sealed class DrawingViewLayoutCoordinator
             _drawingService.Rebuild();
 
             if (_geometry.FitsHeight(
-                    "Front",
+                    DrawingViewNames.Front,
                     policy))
             {
                 Logger.Info(
@@ -303,6 +309,30 @@ public sealed class DrawingViewLayoutCoordinator
             $"Using MinScale={policy.MinScale:0.###}.");
 
         return policy.MinScale;
+    }
+
+    private static bool RequiresCkvdPrimaryVisibleCenterCorrection(
+        DrawingRun run,
+        DrawingProfile profile)
+    {
+        if (run.WedgeType != WedgeType.CKVD)
+            return false;
+
+        if (profile.Key.DrawingType is not (
+                DrawingType.Production or
+                DrawingType.Customer))
+        {
+            return false;
+        }
+
+        /*
+         * Do not compensate a view that the active profile deliberately
+         * manages as a breakline view. This also keeps the rule safe if the
+         * CKVD profile is changed again later.
+         */
+        return
+            !profile.UsesBreakline(DrawingViewNames.Front)
+            && !profile.UsesBreakline(DrawingViewNames.Side);
     }
 
     private static void ValidatePolicy(

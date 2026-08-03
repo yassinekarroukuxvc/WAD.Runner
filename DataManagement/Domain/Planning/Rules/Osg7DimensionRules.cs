@@ -313,6 +313,7 @@ internal static class Osg7DimensionRules
         var FAdeg = LayoutMath.TryDdeg(ctx, "FA");
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
         var X = LayoutMath.Dmm(ctx, "X");
+        var TDF = LayoutMath.Dmm(ctx, "TDF");
         var FX = LayoutMath.Dmm(ctx, "FX");
 
         PlaceDim(
@@ -322,11 +323,8 @@ internal static class Osg7DimensionRules
             "FA",
             Side,
             DimAxis.Horizontal,
-            S[0] - ssv * TD / 2.0 - 4.0,
-            S[1] +
-            (FAdeg < 6.0 && !double.IsNaN(FAdeg)
-                ? 70.0
-                : 20.0));
+            S[0] - ssv * TDF / 2.0 - 4.0,
+            S[1]);
 
         PlaceDim(
             ctx,
@@ -335,11 +333,8 @@ internal static class Osg7DimensionRules
             "BA",
             Side,
             DimAxis.Horizontal,
-            S[0] + ssv * TD / 2.0 + 4.0,
-            S[1] +
-            (BAdeg < 6.0 && !double.IsNaN(BAdeg)
-                ? 55.0
-                : 15.0));
+            S[0] + ssv * TDF / 2.0 + 4.0,
+            S[1]);
 
         PlaceDim(
             ctx,

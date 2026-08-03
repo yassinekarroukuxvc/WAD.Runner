@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
@@ -27,45 +25,11 @@ public static class AnnotationCleanupService
         public string Prefix { get; init; } = string.Empty;
 
 
-        public string NormalizedFullName { get; init; } = string.Empty;
     }
 
 
     private static readonly string[] AlwaysIncludedKeys = { "FX", "VR", "VRR" };
 
-
-    public static void DumpDisplayDimensionNames(
-        DrawingService ds,
-        IDictionary<string, string> nameMap,
-        string logicalViewName,
-        int max = 250)
-    {
-        if (ds?.Drawing is not DrawingDoc) return;
-
-        var view = FindView(ds, logicalViewName, nameMap);
-        if (view == null)
-        {
-            Logger.Warn($"[DumpDims] View '{logicalViewName}' not found.");
-            return;
-        }
-
-
-        var infos = ReadDisplayDimensions(view, computeNormalized: false);
-        if (infos.Count == 0)
-        {
-            Logger.Info($"[DumpDims] View '{logicalViewName}' has 0 display dimensions.");
-            return;
-        }
-
-        Logger.Info($"[DumpDims] View '{logicalViewName}' display dimensions = {infos.Count}");
-
-        int count = Math.Min(max, infos.Count);
-        for (int i = 0; i < count; i++)
-        {
-            var info = infos[i];
-            Logger.Info($"[DumpDims]  - Name='{info.Name}' FullName='{info.FullName}'");
-        }
-    }
 
 
     public static void RemoveZeroDimensionsFromDrawing(
@@ -155,7 +119,7 @@ public static class AnnotationCleanupService
             }
 
 
-            var infos = ReadDisplayDimensions(view, computeNormalized: false);
+            var infos = ReadDisplayDimensions(view);
             if (infos.Count == 0)
                 continue;
 
@@ -187,117 +151,6 @@ public static class AnnotationCleanupService
     }
 
 
-    public static int RemoveDimensionsByKeysInView(
-        DrawingService ds,
-        IDictionary<string, string> nameMap,
-        string logicalViewName,
-        IEnumerable<string> keys)
-    {
-        if (ds?.Model is not ModelDoc2 model) return 0;
-        if (ds.Drawing is not DrawingDoc) return 0;
-        if (string.IsNullOrWhiteSpace(logicalViewName)) return 0;
-        if (keys is null) return 0;
-
-        var keySet = new HashSet<string>(
-            keys.Where(k => !string.IsNullOrWhiteSpace(k))
-                .Select(k => k.Trim()),
-            StringComparer.OrdinalIgnoreCase);
-
-        if (keySet.Count == 0)
-        {
-            Logger.Info($"[KeyCleanup] No keys provided – nothing to delete in view '{logicalViewName}'.");
-            return 0;
-        }
-
-        Logger.Info($"[KeyCleanup] Deleting keys in view '{logicalViewName}': {string.Join(", ", keySet)}");
-
-        var view = FindView(ds, logicalViewName, nameMap);
-        if (view == null)
-        {
-            Logger.Warn($"[KeyCleanup] View '{logicalViewName}' not found.");
-            return 0;
-        }
-
-
-        var infos = ReadDisplayDimensions(view, computeNormalized: false);
-        if (infos.Count == 0)
-            return 0;
-
-        int deleted = DeleteDimensionsByPredicate(
-            model,
-            infos,
-            info => keySet.Contains(info.Prefix),
-            (info) => $"[KeyCleanup] Deleted dim '{info.FullName}' in view '{logicalViewName}' for key '{info.Prefix}'.",
-            (info, ex) => $"[KeyCleanup] Failed to delete dim '{info.FullName}' in view '{logicalViewName}' for key '{info.Prefix}': {ex.Message}");
-
-        Logger.Info($"[KeyCleanup] Deleted dimension annotations in view '{logicalViewName}': {deleted}");
-        return deleted;
-    }
-
-
-    public static int RemoveDimensionsByFullNamesInView(
-        DrawingService ds,
-        IDictionary<string, string> nameMap,
-        string logicalViewName,
-        IEnumerable<string> fullNames)
-    {
-        if (ds?.Model is not ModelDoc2 model) return 0;
-        if (ds.Drawing is not DrawingDoc) return 0;
-        if (string.IsNullOrWhiteSpace(logicalViewName)) return 0;
-        if (fullNames is null) return 0;
-
-        var rawTargets = fullNames
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Select(n => n.Trim())
-            .ToList();
-
-        var targets = new HashSet<string>(rawTargets, StringComparer.OrdinalIgnoreCase);
-        var normalizedTargets = new HashSet<string>(
-            rawTargets.Select(NormalizeDimName).Where(s => !string.IsNullOrWhiteSpace(s)),
-            StringComparer.OrdinalIgnoreCase);
-
-        if (targets.Count == 0)
-        {
-            Logger.Info($"[FullNameCleanup] No full-names provided – nothing to delete in view '{logicalViewName}'.");
-            return 0;
-        }
-
-        Logger.Info($"[FullNameCleanup] Deleting full-names in view '{logicalViewName}': {string.Join(", ", targets)}");
-
-        var view = FindView(ds, logicalViewName, nameMap);
-        if (view == null)
-        {
-            Logger.Warn($"[FullNameCleanup] View '{logicalViewName}' not found.");
-            return 0;
-        }
-
-
-        var infos = ReadDisplayDimensions(view, computeNormalized: true);
-        if (infos.Count == 0)
-            return 0;
-
-        int deleted = DeleteDimensionsByPredicate(
-            model,
-            infos,
-            info => MatchesFullName(info.FullName, info.NormalizedFullName, targets, normalizedTargets),
-            (info) => $"[FullNameCleanup] Deleted dim Name='{info.Name}' FullName='{info.FullName}' in view '{logicalViewName}'.",
-            (info, ex) => $"[FullNameCleanup] Failed to delete dim '{info.FullName}' in view '{logicalViewName}': {ex.Message}");
-
-        if (deleted == 0)
-        {
-            Logger.Warn($"[FullNameCleanup] No matches in view '{logicalViewName}'. Dumping existing display dimension names (first 120) to help fix rule names:");
-
-            int count = Math.Min(120, infos.Count);
-            for (int i = 0; i < count; i++)
-            {
-                var info = infos[i];
-                Logger.Warn($"[FullNameCleanup]   existing: Name='{info.Name}' FullName='{info.FullName}'");
-            }
-        }
-
-        Logger.Info($"[FullNameCleanup] Deleted dimension annotations in view '{logicalViewName}': {deleted}");
-        return deleted;
-    }
 
 
     private static int DeleteDimensionsByPredicate(
@@ -380,7 +233,7 @@ public static class AnnotationCleanupService
     }
 
 
-    private static List<DisplayDimInfo> ReadDisplayDimensions(View view, bool computeNormalized)
+    private static List<DisplayDimInfo> ReadDisplayDimensions(View view)
     {
         var result = new List<DisplayDimInfo>();
 
@@ -423,9 +276,7 @@ public static class AnnotationCleanupService
                     Annotation = annotation,
                     Name = name,
                     FullName = fullName,
-                    Prefix = prefix,
-
-                    NormalizedFullName = computeNormalized ? NormalizeDimName(fullName) : string.Empty
+                    Prefix = prefix
                 });
             }
             catch
@@ -437,59 +288,6 @@ public static class AnnotationCleanupService
         return result;
     }
 
-    private static bool MatchesFullName(
-        string dimFullName,
-        string dimNormalized,
-        HashSet<string> rawTargets,
-        HashSet<string> normalizedTargets)
-    {
-        if (rawTargets.Contains(dimFullName))
-            return true;
-
-        if (string.IsNullOrWhiteSpace(dimNormalized))
-            return false;
-
-        if (normalizedTargets.Contains(dimNormalized))
-            return true;
-
-        foreach (var target in normalizedTargets)
-        {
-            if (dimNormalized.StartsWith(target, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
-    }
-
-
-    private static string NormalizeDimName(string s)
-    {
-        if (string.IsNullOrWhiteSpace(s))
-            return string.Empty;
-
-        var span = s.AsSpan().Trim();
-
-
-        if (span.Length >= 2 && span[0] == '"' && span[span.Length - 1] == '"')
-            span = span[1..^1];
-
-
-        var ltIdx = span.IndexOf('<');
-        if (ltIdx >= 0)
-            span = span[..ltIdx];
-
-
-        var atIdx = span.IndexOf('@');
-        if (atIdx >= 0)
-        {
-            var afterAt = span[(atIdx + 1)..];
-            var secondAt = afterAt.IndexOf('@');
-            if (secondAt >= 0)
-                span = span[..(atIdx + 1 + secondAt)];
-        }
-
-        return span.ToString();
-    }
 
     private static string ExtractPrefix(string fullName)
     {

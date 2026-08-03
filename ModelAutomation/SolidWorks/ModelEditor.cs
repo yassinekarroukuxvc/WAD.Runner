@@ -7,6 +7,7 @@ using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;
+using WAD.Runner.ModelAutomation.Common;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 using DomDimKey =
@@ -367,14 +368,16 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     }
 
                     var upperAbsoluteMeters =
-                        (double)decimal.Abs(
-                            dimensionData.Tol.Upper.AsMm())
-                        / 1000.0;
+                        ModelLengthUnits
+                            .MillimetersToSystemMeters(
+                                decimal.Abs(
+                                    dimensionData.Tol.Upper.AsMm()));
 
                     var lowerAbsoluteMeters =
-                        (double)decimal.Abs(
-                            dimensionData.Tol.Lower.AsMm())
-                        / 1000.0;
+                        ModelLengthUnits
+                            .MillimetersToSystemMeters(
+                                decimal.Abs(
+                                    dimensionData.Tol.Lower.AsMm()));
 
                     if (!TryGetDimensionByShortName(
                             Model,

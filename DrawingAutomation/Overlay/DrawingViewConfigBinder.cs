@@ -1,275 +1,130 @@
-using SolidWorks.Interop.sldworks;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
+
+using SolidWorks.Interop.sldworks;
+
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using WAD.Runner.DrawingAutomation.Core;
+using WAD.Runner.DrawingAutomation.Views;
+using WAD.Runner.DrawingAutomation.Wedges;
 
 namespace WAD.Runner.DrawingAutomation.Overlay;
 
 public static class DrawingViewConfigBinder
 {
-
-
-    public static bool SetReferencedConfigurationForView(
-        ModelDoc2 model,
-        string viewName,
-        WedgeSubclass subclass,
-        DrawingType drawingType)
-    {
-        return SetReferencedConfigurationForView(
-            model,
-            viewName,
-            subclass,
-            drawingType,
-            wedgeType: null,
-            hasVw: false,
-            hasVr: false);
-    }
-
-
-    public static bool SetReferencedConfigurationForView(
-        ModelDoc2 model,
-        string viewName,
-        WedgeSubclass subclass,
-        DrawingType drawingType,
-        WedgeType? wedgeType,
-        bool hasVw,
-        bool hasVr)
-    {
-        return SetReferencedConfigurationForLogicalView(
-            model,
-            logicalViewName: viewName,
-            actualViewName: viewName,
-            subclass,
-            drawingType,
-            wedgeType,
-            hasVw,
-            hasVr);
-    }
-
-
-    public static bool SetReferencedConfigurationForLogicalView(
+    public static bool Bind(
         ModelDoc2 model,
         string logicalViewName,
         string actualViewName,
         WedgeSubclass subclass,
         DrawingType drawingType,
-        WedgeType? wedgeType,
+        WedgeType wedgeType,
         bool hasVw,
         bool hasVr)
     {
-        if (model is null || string.IsNullOrWhiteSpace(actualViewName))
-            return false;
-
-        if (model is not DrawingDoc dd)
+        if (model is null ||
+            string.IsNullOrWhiteSpace(logicalViewName) ||
+            string.IsNullOrWhiteSpace(actualViewName))
         {
-            Logger.Warn($"[ConfigBind] Not a DrawingDoc: cannot bind config for '{actualViewName}'.");
             return false;
         }
 
-        var v = FindViewByName(dd, actualViewName);
-        if (v is null)
-        {
-            Logger.Warn($"[ConfigBind] View '{actualViewName}' not found in drawing.");
-            return false;
-        }
-
-        var target = GetConfigNameForLogicalView(
-            logicalViewName,
-            subclass,
-            drawingType,
-            wedgeType,
-            hasVw,
-            hasVr);
-
-        if (string.IsNullOrWhiteSpace(target))
+        if (model is not DrawingDoc drawing)
         {
             Logger.Warn(
-                $"[ConfigBind] No config resolved for LogicalView='{logicalViewName}', ActualView='{actualViewName}', Subclass='{subclass}', DrawingType='{drawingType}', WedgeType='{wedgeType}'.");
+                "[ConfigBind] The active model is not a DrawingDoc; " +
+                $"cannot bind '{actualViewName}'.");
+            return false;
+        }
+
+        var view = ViewFinder.FindByName(drawing, actualViewName);
+        if (view is null)
+        {
+            Logger.Warn($"[ConfigBind] View '{actualViewName}' was not found.");
+            return false;
+        }
+
+        var targetConfiguration = DrawingWedgeModuleRegistry
+            .Get(wedgeType)
+            .ResolveReferencedConfiguration(
+                logicalViewName,
+                subclass,
+                drawingType,
+                hasVw,
+                hasVr);
+
+        if (string.IsNullOrWhiteSpace(targetConfiguration))
+        {
+            Logger.Warn(
+                "[ConfigBind] No configuration was resolved for " +
+                $"{wedgeType}/{subclass}/{drawingType}/{logicalViewName}.");
             return false;
         }
 
         Logger.Info(
-            $"[ConfigBind] LogicalView='{logicalViewName}', ActualView='{actualViewName}' → target configuration '{target}'.");
+            "[ConfigBind] " +
+            $"LogicalView='{logicalViewName}', ActualView='{actualViewName}', " +
+            $"WedgeType='{wedgeType}', Subclass='{subclass}', DrawingType='{drawingType}', " +
+            $"HasVW={hasVw}, HasVRFamily={hasVr} -> '{targetConfiguration}'.");
 
-
-        TrySetConfig(v, target, $"view('{SafeName(v)}')");
-
-        TryRebuild(model);
-
-        var actual = SafeGetRefConfig(v);
-
-        Logger.Info(
-            $"[ConfigBind] '{SafeName(v)}' → '{actual}' (requested '{target}')");
-
-        return actual.Equals(target, StringComparison.OrdinalIgnoreCase);
-    }
-
-
-    public static bool SetReferencedConfigurationForViews(
-        ModelDoc2 model,
-        WedgeSubclass subclass,
-        DrawingType drawingType,
-        params string[] viewNames)
-    {
-        return SetReferencedConfigurationForViews(
-            model,
-            subclass,
-            drawingType,
-            wedgeType: null,
-            hasVw: false,
-            hasVr: false,
-            viewNames);
-    }
-
-
-    public static bool SetReferencedConfigurationForViews(
-        ModelDoc2 model,
-        WedgeSubclass subclass,
-        DrawingType drawingType,
-        WedgeType? wedgeType,
-        bool hasVw,
-        bool hasVr,
-        params string[] viewNames)
-    {
-        var any = false;
-
-        foreach (var n in viewNames.Where(s => !string.IsNullOrWhiteSpace(s)))
-        {
-            any |= SetReferencedConfigurationForLogicalView(
-                model,
-                logicalViewName: n!,
-                actualViewName: n!,
-                subclass,
-                drawingType,
-                wedgeType,
-                hasVw,
-                hasVr);
-        }
-
-        return any;
-    }
-
-
-    private static View? FindViewByName(DrawingDoc dd, string name)
-    {
-        string target = Normalize(name);
-        foreach (var v in EnumerateUserViews(dd))
-        {
-            if (Normalize(SafeName(v)) == target)
-                return v;
-        }
-        return null;
-    }
-
-
-    private static IEnumerable<View> EnumerateUserViews(DrawingDoc dd)
-    {
-        for (var v = dd.GetFirstView() as View; v != null; v = v.GetNextView() as View)
-        {
-            if (v.ReferencedDocument is ModelDoc2)
-                yield return v;
-        }
-    }
-
-    private static void TrySetConfig(View v, string cfg, string label)
-    {
         try
         {
-            v.ReferencedConfiguration = cfg;
-            Logger.Info($"[ConfigBind] Set {label} to '{cfg}'.");
+            view.ReferencedConfiguration = targetConfiguration;
+            TryRebuild(model);
+
+            var actualConfiguration = SafeGetReferencedConfiguration(view);
+            var succeeded = string.Equals(
+                actualConfiguration,
+                targetConfiguration,
+                StringComparison.OrdinalIgnoreCase);
+
+            if (!succeeded)
+            {
+                Logger.Warn(
+                    $"[ConfigBind] '{actualViewName}' reports '{actualConfiguration}' " +
+                    $"after requesting '{targetConfiguration}'.");
+            }
+
+            return succeeded;
         }
         catch (Exception ex)
         {
-            Logger.Warn($"[ConfigBind] Failed set {label}: {ex.Message}");
+            Logger.Warn(
+                $"[ConfigBind] Failed to set '{actualViewName}' to " +
+                $"'{targetConfiguration}': {ex.Message}");
+            return false;
         }
     }
 
     private static void TryRebuild(ModelDoc2 model)
     {
-        try { model.ForceRebuild3(false); } catch { }
-        try { model.EditRebuild3(); } catch { }
-    }
-
-    private static string SafeGetRefConfig(View v)
-    {
-        try { return v.ReferencedConfiguration ?? string.Empty; }
-        catch { return string.Empty; }
-    }
-
-    private static string SafeName(View v)
-    {
-        try { return v.Name ?? string.Empty; }
-        catch { return string.Empty; }
-    }
-
-    private static string Normalize(string? s)
-        => Regex.Replace(s ?? string.Empty, @"\s+", " ").Trim().ToLowerInvariant();
-
-    private static bool IsOverlayCutWedgeType(WedgeType? wedgeType)
-        => wedgeType is not null &&
-           DrawingWedgeBehaviorCatalog.Get(wedgeType.Value).Family == DrawingWedgeFamily.CobLike;
-
-
-    private static string GetConfigNameForLogicalView(
-        string logicalViewName,
-        WedgeSubclass subclass,
-        DrawingType drawingType,
-        WedgeType? wedgeType,
-        bool hasVw,
-        bool hasVr)
-    {
-        var logical = Normalize(logicalViewName);
-
-
-        if (drawingType != DrawingType.Overlay)
+        try
         {
-            return (subclass, drawingType) switch
-            {
-                (WedgeSubclass.PGB, DrawingType.Customer) => "PGB_CUSTOMER_DRAWING",
-                (WedgeSubclass.PGB, DrawingType.Production) => "PGB_DRAWING",
-
-                (WedgeSubclass.FG, DrawingType.Customer) => "FG_CUSTOMER_DRAWING",
-                (WedgeSubclass.FG, DrawingType.Production) => "FG_PRODUCTION_DRAWING",
-
-                _ => string.Empty
-            };
+            model.ForceRebuild3(false);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"[ConfigBind] ForceRebuild3 failed: {ex.Message}");
         }
 
-
-        if (subclass == WedgeSubclass.PGB)
+        try
         {
-
-            return "PGB_OVERLAY";
+            model.EditRebuild3();
         }
-
-        if (subclass == WedgeSubclass.FG)
+        catch (Exception ex)
         {
-
-            if (IsOverlayCutWedgeType(wedgeType))
-            {
-                bool isDetail = logical == "detail";
-                bool isSection = logical == "section";
-
-
-                if (!hasVw && !hasVr && (isDetail || isSection))
-                    return "std_cut";
-
-
-                if (hasVw && hasVr && isDetail)
-                    return "non_std_cut";
-
-                if (hasVw && hasVr && isSection)
-                    return "std_cut";
-            }
-
-
-            return "FG_OVERLAY";
+            Logger.Warn($"[ConfigBind] EditRebuild3 failed: {ex.Message}");
         }
+    }
 
-        return string.Empty;
+    private static string SafeGetReferencedConfiguration(View view)
+    {
+        try
+        {
+            return view.ReferencedConfiguration ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 }

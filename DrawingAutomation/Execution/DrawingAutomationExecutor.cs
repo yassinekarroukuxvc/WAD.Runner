@@ -9,6 +9,7 @@ using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Core;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.Views;
+using WAD.Runner.DrawingAutomation.Wedges;
 
 namespace WAD.Runner.DrawingAutomation.Execution;
 
@@ -30,7 +31,7 @@ public static class DrawingAutomationExecutor
         if (runPartAutomation is null) throw new ArgumentNullException(nameof(runPartAutomation));
 
         DrawingRunValidator.Validate(run);
-        _ = DrawingWedgeBehaviorCatalog.Get(run.WedgeType);
+        _ = DrawingWedgeModuleRegistry.Get(run.WedgeType);
 
         var profile = DrawingProfileResolver.Resolve(run, drawingData);
         Logger.Info($"[DrawingAutomation] Profile = {profile.ProfileName} ({run.WedgeType}/{run.Wedge.Subclass}/{drawingData.DrawingType})");

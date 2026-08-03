@@ -5,6 +5,7 @@ using System.Linq;
 using SolidWorks.Interop.sldworks;
 
 using WAD.Runner.Application;
+using WAD.Runner.ModelAutomation.Common;
 using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.SolidWorks
@@ -68,8 +69,11 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         {
             return unit switch
             {
-                ToleranceUnit.LengthMm => (double)(value / 1000m),
-                ToleranceUnit.AngleDeg => (double)(value * (decimal)Math.PI / 180m),
+                ToleranceUnit.LengthMm =>
+                    ModelLengthUnits.MillimetersToSystemMeters(value),
+
+                ToleranceUnit.AngleDeg =>
+                    ModelLengthUnits.DegreesToSystemRadians(value),
                 _ => (double)value
             };
         }

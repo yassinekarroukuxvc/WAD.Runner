@@ -35,6 +35,68 @@ public sealed class ViewGeometryService
             ?? new Dictionary<string, string>(
                 StringComparer.OrdinalIgnoreCase);
     }
+    public void LogOriginAndOutline(string logicalViewName)
+    {
+        var view = FindView(logicalViewName);
+
+        if (view == null)
+        {
+            Logger.Warn(
+                $"[ViewDiagnostic] View '{logicalViewName}' was not found.");
+
+            return;
+        }
+
+        try
+        {
+            var positionObject = view.Position;
+
+            double originX = 0.0;
+            double originY = 0.0;
+
+            if (positionObject is double[] position &&
+                position.Length >= 2)
+            {
+                originX = position[0];
+                originY = position[1];
+            }
+
+            if (!InteropCompat.TryGetViewOutline(
+                    view,
+                    out var minX,
+                    out var minY,
+                    out var maxX,
+                    out var maxY))
+            {
+                Logger.Warn(
+                    $"[ViewDiagnostic] Could not read outline for " +
+                    $"'{logicalViewName}'.");
+
+                return;
+            }
+
+            var outlineCenterX =
+                (minX + maxX) * 0.5;
+
+            var outlineCenterY =
+                (minY + maxY) * 0.5;
+
+            Logger.Info(
+                $"[ViewDiagnostic:{logicalViewName}] " +
+                $"Origin=({originX:F6}, {originY:F6}), " +
+                $"Outline=({minX:F6}, {minY:F6})-" +
+                $"({maxX:F6}, {maxY:F6}), " +
+                $"OutlineCenter=({outlineCenterX:F6}, {outlineCenterY:F6}), " +
+                $"Offset=({outlineCenterX - originX:F6}, " +
+                $"{outlineCenterY - originY:F6}).");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(
+                $"[ViewDiagnostic] Failed for view " +
+                $"'{logicalViewName}': {ex.Message}");
+        }
+    }
 
     public bool FitsHeight(
         string logicalView,

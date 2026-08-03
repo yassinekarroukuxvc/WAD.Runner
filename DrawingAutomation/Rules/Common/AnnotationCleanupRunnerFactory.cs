@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 using WAD.Runner.DataManagement.Domain.Wedge;
-using WAD.Runner.DrawingAutomation.Core;
+using WAD.Runner.DrawingAutomation.Wedges;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Engine;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Integration;
@@ -20,7 +20,7 @@ public static class AnnotationCleanupRunnerFactory
         new AnnotationDiffService());
 
     private static readonly IReadOnlyDictionary<WedgeType, IDrawingCleanupRunner> Registry =
-        DrawingWedgeBehaviorCatalog.SupportedWedgeTypes
+        DrawingWedgeModuleRegistry.SupportedWedgeTypes
             .ToDictionary(
                 wedgeType => wedgeType,
                 wedgeType => (IDrawingCleanupRunner)new AnnotationCleanupRunner(
@@ -33,6 +33,4 @@ public static class AnnotationCleanupRunnerFactory
             ? runner
             : null;
 
-    public static bool HasRunner(WedgeType wedgeType)
-        => Registry.ContainsKey(wedgeType);
 }

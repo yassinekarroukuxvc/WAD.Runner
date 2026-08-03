@@ -38,10 +38,9 @@ public class StandardEquationPlanner : IEquationPlanner
 
         builder.AddManaged(
             EquationCatalog.Names.EngravingStart,
-            EquationFormatting.Line(
+            EquationFormatting.LengthLineFromMillimeters(
                 EquationCatalog.Names.EngravingStart,
-                (double)engravingMm,
-                "mm"));
+                engravingMm));
     }
 
     private protected static void AddOverlayScale(
@@ -53,17 +52,19 @@ public class StandardEquationPlanner : IEquationPlanner
 
         var mag = EquationGeometry.OverlayMagnification(context.Facts, context.WedgeType);
         var scale = EquationGeometry.OverlayScaleDecimal(mag);
-
+        /*
         builder.AddManaged(
             EquationCatalog.Names.OverlayCalibration1,
             EquationFormatting.Line(EquationCatalog.Names.OverlayCalibration1, mag));
-
+        */
         builder.AddManaged(
             EquationCatalog.Names.Scale,
             EquationFormatting.Line(EquationCatalog.Names.Scale, scale));
 
         builder.AddManaged(
             "TL",
-            EquationFormatting.Line("TL", 30.0, "mm"));
+            EquationFormatting.LengthLineFromMillimeters(
+                "TL",
+                30.0));
     }
 }

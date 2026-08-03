@@ -1,131 +1,145 @@
-
 using System;
 using System.Globalization;
+
 using SolidWorks.Interop.sldworks;
+
+using WAD.Runner.Application;
 
 namespace WAD.Runner.DrawingAutomation.Interop;
 
-
 internal static class InteropCompat
 {
-
-
-    public static void TryBreakAlignment(View v)
+    public static bool TryBreakAlignment(View view)
     {
-        if (v is null) return;
+        if (view is null)
+            return false;
 
-        try { dynamic dv = v; dv.BreakAlignment(); return; } catch {  }
-        TryInvokeNoArgs(v, "BreakAlignment");
-        TryInvokeNoArgs(v, "BreakParentAlignment");
+        try
+        {
+            view.RemoveAlignment();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(
+                $"Could not remove alignment from view '{view.GetName2()}': " +
+                ex.Message);
+            return false;
+        }
     }
 
-    public static void TryUnlock(View v)
+    public static void TryUnlock(View view)
     {
-        if (v is null) return;
-        try { v.PositionLocked = false; } catch {  }
-    }
+        if (view is null)
+            return;
 
-
-    public static double GetScaleDecimalOr(View v, double fallback = 1.0)
-    {
-        if (v is null) return fallback;
-        try { return v.ScaleDecimal; } catch { return fallback; }
-    }
-
-    public static void TrySetScale(View v, double value)
-    {
-        if (v is null) return;
-        try { v.ScaleDecimal = value; }
+        try
+        {
+            view.PositionLocked = false;
+        }
         catch
         {
-            try { v.GetType().GetMethod("SetScale")?.Invoke(v, new object[] { value }); } catch { }
+            // Some SolidWorks view types do not expose PositionLocked.
         }
     }
 
+    public static double GetScaleDecimalOr(View view, double fallback = 1.0)
+    {
+        if (view is null)
+            return fallback;
 
-    public static bool TryGetViewOutline(View v, out double x1, out double y1, out double x2, out double y2)
+        try
+        {
+            return view.ScaleDecimal;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    public static void TrySetScale(View view, double value)
+    {
+        if (view is null)
+            return;
+
+        try
+        {
+            view.ScaleDecimal = value;
+            return;
+        }
+        catch
+        {
+            // Fall through to older interop variants.
+        }
+
+        try
+        {
+            view.GetType()
+                .GetMethod("SetScale")?
+                .Invoke(view, new object[] { value });
+        }
+        catch
+        {
+            // The caller validates the resulting scale where required.
+        }
+    }
+
+    public static bool TryGetViewOutline(
+        View view,
+        out double x1,
+        out double y1,
+        out double x2,
+        out double y2)
     {
         x1 = y1 = x2 = y2 = 0.0;
-        if (v is null) return false;
-
+        if (view is null)
+            return false;
 
         try
         {
-            var arrObj = v.GetOutline();
-            if (arrObj is double[] d && d.Length >= 4)
+            var outline = view.GetOutline();
+            if (outline is double[] doubles && doubles.Length >= 4)
             {
-                x1 = d[0]; y1 = d[1]; x2 = d[2]; y2 = d[3];
+                x1 = doubles[0];
+                y1 = doubles[1];
+                x2 = doubles[2];
+                y2 = doubles[3];
                 return true;
             }
-            if (arrObj is object[] o && o.Length >= 4)
+
+            if (outline is object[] objects && objects.Length >= 4)
             {
-                x1 = Convert.ToDouble(o[0], CultureInfo.InvariantCulture);
-                y1 = Convert.ToDouble(o[1], CultureInfo.InvariantCulture);
-                x2 = Convert.ToDouble(o[2], CultureInfo.InvariantCulture);
-                y2 = Convert.ToDouble(o[3], CultureInfo.InvariantCulture);
+                x1 = Convert.ToDouble(objects[0], CultureInfo.InvariantCulture);
+                y1 = Convert.ToDouble(objects[1], CultureInfo.InvariantCulture);
+                x2 = Convert.ToDouble(objects[2], CultureInfo.InvariantCulture);
+                y2 = Convert.ToDouble(objects[3], CultureInfo.InvariantCulture);
                 return true;
             }
         }
-        catch {  }
-
+        catch
+        {
+            // Fall through to the ref-parameter interop variant.
+        }
 
         try
         {
-            double rx1 = 0, ry1 = 0, rx2 = 0, ry2 = 0;
-            dynamic dv = v;
-            dv.GetOutline(ref rx1, ref ry1, ref rx2, ref ry2);
-            x1 = rx1; y1 = ry1; x2 = rx2; y2 = ry2;
+            double refX1 = 0.0;
+            double refY1 = 0.0;
+            double refX2 = 0.0;
+            double refY2 = 0.0;
+            dynamic dynamicView = view;
+            dynamicView.GetOutline(ref refX1, ref refY1, ref refX2, ref refY2);
+
+            x1 = refX1;
+            y1 = refY1;
+            x2 = refX2;
+            y2 = refY2;
             return true;
         }
-        catch {  }
-
-        return false;
-    }
-
-
-    public static string? TryGetReferencedModelPath(View v)
-    {
-        if (v is null) return null;
-
-
-        try
+        catch
         {
-            var p = (v.ReferencedDocument as ModelDoc2)?.GetPathName();
-            if (!string.IsNullOrWhiteSpace(p)) return p;
+            return false;
         }
-        catch { }
-
-
-        try
-        {
-            dynamic dv = v;
-            var p2 = dv.GetReferencedModelName2();
-            if (p2 is string s2 && !string.IsNullOrWhiteSpace(s2)) return s2;
-        }
-        catch { }
-
-
-        try
-        {
-            dynamic dv = v;
-            var p3 = dv.GetReferencedModelName();
-            if (p3 is string s3 && !string.IsNullOrWhiteSpace(s3)) return s3;
-        }
-        catch { }
-
-        return null;
-    }
-
-
-    private static bool TryInvokeNoArgs(object target, string methodName)
-    {
-        try
-        {
-            var mi = target.GetType().GetMethod(methodName);
-            if (mi is null) return false;
-            mi.Invoke(target, null);
-            return true;
-        }
-        catch { return false; }
     }
 }

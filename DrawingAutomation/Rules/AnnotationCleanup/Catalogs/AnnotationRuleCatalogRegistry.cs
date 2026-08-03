@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
+using WAD.Runner.DrawingAutomation.Wedges;
+
 
 namespace WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
 
@@ -28,26 +30,7 @@ public sealed class AnnotationRuleCatalogRegistry
     }
 
     public static AnnotationRuleCatalogRegistry CreateDefault()
-        => new(new IAnnotationRuleCatalog[]
-        {
-            new CobLikeProductionAnnotationRules(),
-            new CobLikeCustomerAnnotationRules(),
-            new CobLikeOverlayAnnotationRules(),
-            new PgbProductionAnnotationRules(),
-            new PgbOverlayAnnotationRules(),
-
-            new CkvdFgProductionAnnotationRules(),
-            new CkvdFgCustomerAnnotationRules(),
-            new CkvdFgOverlayAnnotationRules(),
-            new CkvdPgbProductionAnnotationRules(),
-            new CkvdPgbOverlayAnnotationRules(),
-
-            new Osg7FgProductionAnnotationRules(),
-            new Osg7FgCustomerAnnotationRules(),
-            new Osg7FgOverlayAnnotationRules(),
-            new Osg7PgbProductionAnnotationRules(),
-            new Osg7PgbOverlayAnnotationRules()
-        });
+        => new(DrawingWedgeModuleRegistry.GetAnnotationCatalogs());
 
     private static void Validate(IReadOnlyCollection<IAnnotationRuleCatalog> catalogs)
     {

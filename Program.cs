@@ -425,15 +425,15 @@ switch (cmd)
 
                 case WedgeType.CKVD:
                 default:
-                    templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "Working Version", "CKVD_2023.SLDPRT");
+                    templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
-                            Path.Combine("Resources", "Templates", "CKVD", "Working Version", "OVERLAY_TEMPLATE.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_overlay_rev2.SLDDRW"),
                         DrawingType.Production or DrawingType.Customer or _ =>
-                            Path.Combine("Resources", "Templates", "CKVD", "Working Version", "CKVD_2023.SLDDRW"),
+                            Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_drawing_rev2.SLDPRT.SLDDRW"),
                     };
-                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "Working Version", "CK.txt");
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "equations.txt");
                     break;
             }
 
@@ -636,8 +636,8 @@ switch (cmd)
 
                 case WedgeType.CKVD:
                 default:
-                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CKVD_2023.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVDv4", "CK.txt");
+                    partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "equations.txt");
                     break;
             }
 

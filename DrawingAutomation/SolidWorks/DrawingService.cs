@@ -369,11 +369,6 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             Close();
         }
 
-        public void Unlock()
-        {
-            try { _model?.UnLock(); } catch { }
-        }
-
         public void RunInFastMode(Action action)
         {
             if (action is null) throw new ArgumentNullException(nameof(action));
@@ -545,27 +540,6 @@ namespace WAD.Runner.DrawingAutomation.SolidWorks
             }
         }
 
-
-        public void SetSummaryInformation(WAD.Runner.DataManagement.Domain.Drawing.DrawingData dd)
-        {
-            try { Logger.Info("Summary information hook called."); } catch { }
-        }
-
-        public void SetCustomProperties(WAD.Runner.DataManagement.Domain.Drawing.DrawingData dd)
-        {
-            try
-            {
-                if (_modelExt is null) return;
-                var mgr = _modelExt.CustomPropertyManager[""];
-                if (mgr is null) return;
-
-                Logger.Info("Custom properties hook called.");
-            }
-            catch (Exception ex)
-            {
-                Logger.Warn($"SetCustomProperties failed: {ex.Message}");
-            }
-        }
 
 
         public void DrawCalibrationBoxOnSheetFormat(double overlayScaling)

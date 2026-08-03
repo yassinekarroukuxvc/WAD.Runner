@@ -26,7 +26,7 @@ internal static class EquationCatalog
             "TL","TD","TDF",
             "B","E","ER","F","FL","FX","W","X","GD","GR",
             "FR","BR","FRX","BRX",
-            "VR","VW","VRA",
+            "VR","VW","VRR","VRA",
             "TIP",
             "k",
             "SymmetryTolerance",

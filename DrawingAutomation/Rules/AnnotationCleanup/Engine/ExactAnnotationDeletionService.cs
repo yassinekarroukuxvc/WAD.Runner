@@ -290,41 +290,6 @@ public sealed class ExactAnnotationDeletionService
         return results;
     }
 
-    /// <summary>
-    /// Compatibility wrapper for callers that still delete a single view.
-    /// The implementation still uses the optimized batch path internally.
-    /// </summary>
-    public ExactAnnotationDeletionResult DeleteInView(
-        SwModelDoc2 drawingModel,
-        string viewName,
-        IReadOnlyCollection<string> plannedFullNames,
-        string logPrefix)
-    {
-        if (string.IsNullOrWhiteSpace(viewName))
-        {
-            throw new ArgumentException(
-                "View name is required.",
-                nameof(viewName));
-        }
-
-        var targets = (plannedFullNames ?? Array.Empty<string>())
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => new AnnotationDeletionTarget(
-                viewName.Trim(),
-                x.Trim()))
-            .ToList();
-
-        if (targets.Count == 0)
-            return ExactAnnotationDeletionResult.Empty(viewName);
-
-        return DeleteBatch(
-                drawingModel,
-                targets,
-                logPrefix)
-            .FirstOrDefault() ??
-            ExactAnnotationDeletionResult.Empty(viewName);
-    }
-
     private static Dictionary<string, IReadOnlyCollection<string>> NormalizePlan(
         IReadOnlyCollection<AnnotationDeletionTarget> plannedTargets)
     {
@@ -674,17 +639,4 @@ public sealed record ExactAnnotationDeletionResult(
 {
     public int DeletedCount => Deleted.Count;
 
-    public bool IsSafe =>
-        UnexpectedDeleted.Count == 0;
-
-    public static ExactAnnotationDeletionResult Empty(
-        string viewName)
-    {
-        return new ExactAnnotationDeletionResult(
-            viewName,
-            Array.Empty<string>(),
-            Array.Empty<string>(),
-            Array.Empty<string>(),
-            Array.Empty<string>());
-    }
 }

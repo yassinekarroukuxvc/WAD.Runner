@@ -6,61 +6,32 @@ using SolidWorks.Interop.sldworks;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DrawingAutomation.Interop;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.SolidWorks;
+using WAD.Runner.DrawingAutomation.Views.Breaklines;
+using WAD.Runner.DrawingAutomation.Wedges;
 
 namespace WAD.Runner.DrawingAutomation.Views;
 
-/// <summary>
-/// Drawing-level breakline orchestration.
-///
-/// This service:
-/// - resolves logical view names
-/// - checks profile enablement
-/// - creates a per-view BreaklineHandler
-/// - passes the wedge type required by breakline rules
-///
-/// It does not rebuild.
-/// The layout coordinator owns rebuild boundaries.
-/// </summary>
 public sealed class BreaklineService
 {
-    private static readonly string[] SupportedLogicalViews =
-    {
-        "Front",
-        "Side",
-        "Detail",
-        "Section"
-    };
-
-    private readonly DrawingService _drawingService;
     private readonly DrawingDoc _drawing;
-    private readonly ModelDoc2 _model;
     private readonly IDictionary<string, string> _logicalToActual;
+    private readonly BreaklineLayoutCalculator _calculator = new();
 
     public BreaklineService(
         DrawingService drawingService,
         IDictionary<string, string>? logicalToActual = null)
     {
-        _drawingService =
-            drawingService
-            ?? throw new ArgumentNullException(
-                nameof(drawingService));
+        if (drawingService is null)
+            throw new ArgumentNullException(nameof(drawingService));
 
-        _drawing =
-            drawingService.Drawing
-            ?? throw new InvalidOperationException(
-                "No active drawing.");
+        _drawing = drawingService.Drawing
+            ?? throw new InvalidOperationException("No active drawing.");
 
-        _model =
-            drawingService.Model
-            ?? throw new InvalidOperationException(
-                "No active drawing model.");
-
-        _logicalToActual =
-            logicalToActual
-            ?? new Dictionary<string, string>(
-                StringComparer.OrdinalIgnoreCase);
+        _logicalToActual = logicalToActual
+            ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
     public bool Apply(
@@ -69,62 +40,60 @@ public sealed class BreaklineService
         WedgeData wedge,
         DrawingData drawingData)
     {
-        if (string.IsNullOrWhiteSpace(logicalView))
-            return false;
-
-        if (wedge is null)
-            throw new ArgumentNullException(nameof(wedge));
-
-        if (drawingData is null)
-            throw new ArgumentNullException(nameof(drawingData));
-
-        var actualName =
-            ResolveActualName(
-                logicalView);
-
-        var view =
-            ViewFinder.FindByName(
-                _drawing,
-                actualName);
+        var actualViewName = ResolveActualName(logicalView);
+        var view = ViewFinder.FindByName(_drawing, actualViewName);
 
         if (view is null)
         {
             Logger.Warn(
-                $"[Breaklines] View '{logicalView}' " +
-                $"('{actualName}') was not found.");
-
+                $"[Breaklines] View '{logicalView}' ('{actualViewName}') was not found.");
             return false;
         }
 
+        var scale = InteropCompat.GetScaleDecimalOr(view, 0.0);
+        var behavior = DrawingWedgeModuleRegistry.Get(wedgeType).Behavior;
+
+        if (!_calculator.TryCalculate(
+                logicalView,
+                wedge,
+                drawingData,
+                scale,
+                behavior,
+                out var layout,
+                out var error))
+        {
+            Logger.Warn($"[Breaklines] '{logicalView}' was not changed: {error}");
+            return false;
+        }
+
+        var breakline = GetSingleBreakline(view, logicalView);
+        if (breakline is null)
+            return false;
+
         try
         {
-            var handler =
-                new BreaklineHandler(
-                    view,
-                    _model);
+            view.BreakLineGap = layout.GapSheetMeters;
 
-            var ok =
-                handler.ApplyBreakline(
-                    logicalView,
-                    wedgeType,
-                    wedge,
-                    drawingData);
-
-            if (!ok)
+            if (!breakline.SetPosition(
+                    layout.LowerPosition,
+                    layout.UpperPosition))
             {
-                Logger.Warn(
-                    $"[Breaklines] Apply failed for " +
-                    $"'{logicalView}'.");
+                Logger.Warn($"[Breaklines] SolidWorks rejected positions for '{logicalView}'.");
+                return false;
             }
 
-            return ok;
+            Logger.Success(
+                $"[Breaklines] '{logicalView}' -> " +
+                $"lower={layout.LowerPosition:F6}, " +
+                $"upper={layout.UpperPosition:F6}, " +
+                $"gap={layout.GapSheetMeters:F6}, " +
+                $"scale={layout.ViewScale:F6}.");
+
+            return true;
         }
         catch (Exception ex)
         {
-            Logger.Warn(
-                $"[Breaklines] '{logicalView}' failed: " +
-                ex.Message);
-
+            Logger.Warn($"[Breaklines] '{logicalView}' failed: {ex.Message}");
             return false;
         }
     }
@@ -135,40 +104,52 @@ public sealed class BreaklineService
         DrawingData drawingData,
         DrawingProfile profile)
     {
-        if (wedge is null)
-            throw new ArgumentNullException(nameof(wedge));
+        if (wedge is null) throw new ArgumentNullException(nameof(wedge));
+        if (drawingData is null) throw new ArgumentNullException(nameof(drawingData));
+        if (profile is null) throw new ArgumentNullException(nameof(profile));
 
-        if (drawingData is null)
-            throw new ArgumentNullException(nameof(drawingData));
-
-        if (profile is null)
-            throw new ArgumentNullException(nameof(profile));
-
-        foreach (var logicalView in SupportedLogicalViews)
+        foreach (var logicalView in DrawingViewNames.LayoutOrder)
         {
-            if (!profile.UseBreaklinesForView(
-                    logicalView))
-            {
+            if (!profile.UsesBreakline(logicalView))
                 continue;
-            }
 
-            Apply(
-                logicalView,
-                wedgeType,
-                wedge,
-                drawingData);
+            Apply(logicalView, wedgeType, wedge, drawingData);
         }
     }
 
-    private string ResolveActualName(
+    private static BreakLine? GetSingleBreakline(
+        View view,
         string logicalView)
     {
-        return
-            _logicalToActual.TryGetValue(
-                logicalView,
-                out var mapped)
-            && !string.IsNullOrWhiteSpace(mapped)
-                ? mapped
-                : logicalView;
+        try
+        {
+            if (view.GetBreakLineCount2(out _) <= 0)
+            {
+                Logger.Warn($"[Breaklines] '{logicalView}' contains no breakline.");
+                return null;
+            }
+
+            if (view.GetBreakLines() is not object[] breaklines ||
+                breaklines.Length != 1 ||
+                breaklines[0] is not BreakLine breakline)
+            {
+                Logger.Warn(
+                    $"[Breaklines] '{logicalView}' must contain exactly one breakline.");
+                return null;
+            }
+
+            return breakline;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"[Breaklines] Could not read '{logicalView}': {ex.Message}");
+            return null;
+        }
     }
+
+    private string ResolveActualName(string logicalView)
+        => _logicalToActual.TryGetValue(logicalView, out var mapped) &&
+           !string.IsNullOrWhiteSpace(mapped)
+            ? mapped
+            : logicalView;
 }

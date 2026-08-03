@@ -439,51 +439,116 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
 
             for (int i = 0; i < span.Length; i += batchSize)
             {
-                var batch = span.Slice(i, Math.Min(batchSize, span.Length - i));
+                var batch = span.Slice(
+                    i,
+                    Math.Min(batchSize, span.Length - i));
 
                 if (options.ClearSelectionPerBatch)
                     _model.ClearSelection2(true);
 
                 var selected = new List<string>(batch.Length);
+                var perFeatureFallback = new List<string>();
 
                 foreach (var name in batch)
                 {
-                    if (!options.BlindApply && _index.TryGetValue(name, out var entry))
+                    if (!options.BlindApply &&
+                        _index.TryGetValue(name, out var entry))
                     {
-                        if (TryGetIsSuppressed(entry, scope, out var cur) && cur == suppress)
+                        if (TryGetIsSuppressed(
+                                entry,
+                                scope,
+                                out var current) &&
+                            current == suppress)
                         {
                             res.SkippedAlreadyCorrect.Add(name);
                             continue;
                         }
                     }
 
-                    if (TrySelectByNameHeuristics(name, append: true))
+                    if (TrySelectByNameHeuristics(
+                            name,
+                            append: true))
+                    {
                         selected.Add(name);
-                    else
-                        res.Missing.Add(name);
+                        continue;
+                    }
+
+                    /*
+                     * SelectByID2 can fail for suppressed, absorbed,
+                     * nested, or parent-dependent features even when
+                     * the feature exists in the indexed feature tree.
+                     */
+                    if (_index.ContainsKey(name))
+                    {
+                        if (options.FallbackToPerFeature)
+                        {
+                            perFeatureFallback.Add(name);
+                        }
+                        else
+                        {
+                            res.Failed[name] =
+                                "Feature exists in the index, but " +
+                                "SelectByID2 could not select it.";
+                        }
+
+                        continue;
+                    }
+
+                    /*
+                     * Only classify the name as missing when it does
+                     * not exist in the recursively-built feature index.
+                     */
+                    res.Missing.Add(name);
                 }
 
-                if (selected.Count == 0)
-                    continue;
-
-                if (!TrySetSelectionSuppression(suppress, out var err))
+                if (selected.Count > 0)
                 {
-                    if (options.FallbackToPerFeature)
+                    if (!TrySetSelectionSuppression(
+                            suppress,
+                            out var error))
                     {
-                        foreach (var nm in selected)
-                            ToggleOnePerFeature(nm, suppress, scope, blindApply: true, res, forceFallbackOnly: true);
+                        if (options.FallbackToPerFeature)
+                        {
+                            foreach (var name in selected)
+                            {
+                                ToggleOnePerFeature(
+                                    name,
+                                    targetSuppress: suppress,
+                                    scope,
+                                    blindApply: true,
+                                    res,
+                                    forceFallbackOnly: true);
+                            }
+                        }
+                        else
+                        {
+                            foreach (var name in selected)
+                                res.Failed[name] = error;
+                        }
                     }
                     else
                     {
-                        foreach (var nm in selected)
-                            res.Failed[nm] = err;
+                        if (suppress)
+                            res.Suppressed.AddRange(selected);
+                        else
+                            res.Unsuppressed.AddRange(selected);
                     }
-
-                    continue;
                 }
 
-                if (suppress) res.Suppressed.AddRange(selected);
-                else res.Unsuppressed.AddRange(selected);
+                /*
+                 * Features that exist but cannot be selected are
+                 * controlled directly through Feature.SetSuppression2.
+                 */
+                foreach (var name in perFeatureFallback)
+                {
+                    ToggleOnePerFeature(
+                        name,
+                        targetSuppress: suppress,
+                        scope,
+                        blindApply: true,
+                        res,
+                        forceFallbackOnly: true);
+                }
             }
         }
 

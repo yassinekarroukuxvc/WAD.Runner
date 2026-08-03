@@ -66,9 +66,10 @@ internal static class CkvdDimensionRules
         var TL = LayoutMath.Dmm(ctx, "TL");
         var TD = LayoutMath.Dmm(ctx, "TD");
 
-        var L_front = LayoutMath.WedgeLength(ctx, TL, fsv);
-        var L_side = LayoutMath.WedgeLength(ctx, TL, ssv);
-
+        //var L_front = LayoutMath.WedgeLength(ctx, TL, fsv);
+        //var L_side = LayoutMath.WedgeLength(ctx, TL, ssv);
+        var L_front = TL * fsv;
+        var L_side = TL * scv;
         const double detailLower = 40.0;
         var detailBreak = GetBreakline(ctx, Detail, defaultMm: 50.0);
         var bandMidY = D[1] - (detailBreak + detailLower) / 2.0;
@@ -191,17 +192,18 @@ internal static class CkvdDimensionRules
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
 
         var E = LayoutMath.Dmm(ctx, "E");
+        var TDF = LayoutMath.Dmm(ctx, "TDF");
         var X = LayoutMath.Dmm(ctx, "X");
         var FX = LayoutMath.Dmm(ctx, "FX");
         var TIP = LayoutMath.Dmm(ctx, "TIP");
 
         PlaceDim(ctx, diag, outList, "FA", Side, DimAxis.Horizontal,
-            S[0] - ssv * TD / 2.0 - 4.0,
-            S[1] + (FAdeg < 6.0 && !double.IsNaN(FAdeg) ? 70.0 : 20.0));
+            S[0] - ssv * (TDF / 2.0) - 4.0,
+            S[1]);
 
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
-            S[0] + ssv * TD / 2.0 + 4.0,
-            S[1] + (BAdeg < 6.0 && !double.IsNaN(BAdeg) ? 55.0 : 15.0));
+            S[0] + ssv * (TDF / 2.0) + 4.0,
+            S[1]);
 
         PlaceDim(ctx, diag, outList, "E", Side, DimAxis.Horizontal,
             S[0] + ssv * TD / 2.0,

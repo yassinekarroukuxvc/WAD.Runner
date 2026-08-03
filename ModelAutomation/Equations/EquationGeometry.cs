@@ -1,3 +1,4 @@
+using SQLitePCL;
 using System;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -58,6 +59,7 @@ internal static class EquationGeometry
     {
         var vr = facts.TryGetMaxLikeMm("VR_MAX", "VR", out var vrMax) ? vrMax : 0m;
         var vrr = facts.TryGetMaxLikeMm("VRR_MAX", "VRR", out var vrrMax) ? vrrMax : 0m;
+        Logger.Success($"[EquationGeometry] VR = {vr}mm VRR={vrr}mm VR+VRR={vr+vrr}mm.");
         return vr + vrr;
     }
 
@@ -95,7 +97,7 @@ internal static class EquationGeometry
         const decimal inchToMm = 25.4m;
         var resolvedScale = scaleDecimal > 0.0 ? (decimal)scaleDecimal : 60.8m;
         var finalMm = referenceInch * inchToMm / resolvedScale;
-        Logger.Warn($"[EquationGeometry] {wedgeType} overlay non_std_cut override: raw={rawMm}mm -> {finalMm}mm.");
+        Logger.Warn($"[EquationGeometry] {wedgeType} overlay non_std_cut override: raw={rawMm}mm -> {finalMm}mm scale={resolvedScale}");
         return finalMm;
     }
 

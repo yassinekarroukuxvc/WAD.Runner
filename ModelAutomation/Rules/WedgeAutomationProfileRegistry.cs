@@ -67,7 +67,7 @@ public static class WedgeAutomationProfileRegistry
             "CKVD",
             new CkvdConfigurationRules(),
             new CkvdFeatureRules(),
-            new CkvdEquationPlanner(),
+            new CkvdEquationPlanner(WedgeType.CKVD),
             new CkvdToleranceRules(),
             Array.Empty<string>()));
 

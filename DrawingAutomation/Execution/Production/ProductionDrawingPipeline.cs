@@ -36,7 +36,7 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
             $"{context.DrawingData.DrawingType} | " +
             $"{context.Run.WedgeType} ===");
 
-        DrawingPipelineState? state = null;
+        PreparedProductionDrawing? state = null;
 
         try
         {
@@ -128,7 +128,7 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
             context.Run);
     }
 
-    private static DrawingPipelineState OpenRelinkAndPrepare(
+    private static PreparedProductionDrawing OpenRelinkAndPrepare(
         DrawingAutomationContext context)
     {
         Logger.Info(
@@ -165,35 +165,11 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
             drawingService.ZoomToSheet();
 
             var viewNames =
-                DrawingViewNameMap.FromProfile(
-                    context.Profile);
+                context.Profile.Views.ToLogicalMap();
 
-            /*
-             * Keep ViewPlacement initialized for DrawingPipelineState
-             * compatibility with other pipelines.
-             *
-             * The new Production pipeline itself uses
-             * DrawingViewLayoutCoordinator.
-             */
-            var placementCompatibility =
-                new ViewPlacementService(
-                    drawingService,
-                    viewNames);
-
-            return new DrawingPipelineState
-            {
-                DrawingService =
-                    drawingService,
-
-                ViewNames =
-                    viewNames,
-
-                ViewPlacement =
-                    placementCompatibility,
-
-                ActiveSheetName =
-                    targetSheet
-            };
+            return new PreparedProductionDrawing(
+                drawingService,
+                viewNames);
         }
         catch
         {
@@ -203,7 +179,7 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
     }
 
     private static ViewLayoutResult ApplyViewLayout(
-        DrawingPipelineState state,
+        PreparedProductionDrawing state,
         DrawingAutomationContext context)
     {
         Logger.Info(
@@ -221,7 +197,7 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
     }
 
     private static void ApplyAnnotationPositions(
-        DrawingPipelineState state,
+        PreparedProductionDrawing state,
         DrawingRun run,
         DrawingData drawingData,
         IEnumerable<AnnotationPositioner.Plan> plans)

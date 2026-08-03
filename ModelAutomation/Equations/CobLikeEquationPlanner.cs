@@ -36,7 +36,11 @@ public sealed class CobLikeEquationPlanner : StandardEquationPlanner
 
         AddEngravingStart(builder, context);
         AddOverlayScale(builder, context);
-        builder.AddManaged(EquationCatalog.Names.FunnelGap, EquationFormatting.Line(EquationCatalog.Names.FunnelGap, (double)funnelGap, "mm"));
+        builder.AddManaged(
+            EquationCatalog.Names.FunnelGap,
+            EquationFormatting.LengthLineFromMillimeters(
+                EquationCatalog.Names.FunnelGap,
+                funnelGap));
 
         var rawCut = EquationGeometry.NonStdCutRawMm(facts);
         var finalCut = rawCut;
@@ -47,7 +51,11 @@ public sealed class CobLikeEquationPlanner : StandardEquationPlanner
             finalCut = EquationGeometry.OverlaySafeNonStdCutMm(rawCut, scale, _wedgeType);
         }
 
-        builder.AddManaged(EquationCatalog.Names.NonStdCut, EquationFormatting.Line(EquationCatalog.Names.NonStdCut, (double)finalCut, "mm"));
+        builder.AddManaged(
+            EquationCatalog.Names.NonStdCut,
+            EquationFormatting.LengthLineFromMillimeters(
+                EquationCatalog.Names.NonStdCut,
+                finalCut));
         Logger.Info($"[CobLikeEquationPlanner] {_wedgeType}: funnel_gap={funnelGap}mm, non_std_cut={finalCut}mm");
 
         return builder.Build();

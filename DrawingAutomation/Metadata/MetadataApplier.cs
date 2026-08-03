@@ -9,7 +9,7 @@ using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;
-using WAD.Runner.DrawingAutomation.Common.Overlay;
+using WAD.Runner.DrawingAutomation.Overlay;
 using WAD.Runner.DrawingAutomation.SolidWorks;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Drawing;

@@ -55,10 +55,9 @@ public sealed class Osg7EquationPlanner : StandardEquationPlanner
          */
         builder.AddManaged(
             "TL",
-            EquationFormatting.Line(
+            EquationFormatting.LengthLineFromMillimeters(
                 "TL",
-                Osg7TlMillimeters,
-                "mm"));
+                Osg7TlMillimeters));
 
         Logger.Info(
             "[Osg7EquationPlanner] OSG7 TL override applied. " +
@@ -93,8 +92,8 @@ public sealed class Osg7EquationPlanner : StandardEquationPlanner
          * 1. Use the database value when it exists and is non-zero.
          * 2. Otherwise calculate:
          *
-         *    FRX = FR × (sec(FA) - tan(FA))
-         *    BRX = BR × (sec(BA) - tan(BA))
+         *    FRX = FR Ã— (sec(FA) - tan(FA))
+         *    BRX = BR Ã— (sec(BA) - tan(BA))
          */
         AddCalculatedTaperPositionIfMissing(
             builder,
@@ -237,14 +236,13 @@ public sealed class Osg7EquationPlanner : StandardEquationPlanner
 
         builder.AddManaged(
             targetKey,
-            EquationFormatting.Line(
+            EquationFormatting.LengthLineFromMillimeters(
                 targetKey,
-                calculatedMillimeters,
-                "mm"));
+                calculatedMillimeters));
 
         Logger.Info(
             $"[Osg7EquationPlanner] {targetKey} is missing or zero. " +
-            $"Calculated {targetKey} = {radiusKey} × " +
+            $"Calculated {targetKey} = {radiusKey} Ã— " +
             $"(sec({angleKey}) - tan({angleKey})) = " +
             $"{calculatedMillimeters} mm.");
     }
@@ -309,10 +307,9 @@ public sealed class Osg7EquationPlanner : StandardEquationPlanner
 
         builder.AddManaged(
             targetKey,
-            EquationFormatting.Line(
+            EquationFormatting.LengthLineFromMillimeters(
                 targetKey,
-                calculatedMillimeters,
-                "mm"));
+                calculatedMillimeters));
 
         Logger.Info(
             "[Osg7EquationPlanner] X is missing or zero. " +

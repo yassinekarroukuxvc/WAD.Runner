@@ -60,6 +60,85 @@ public sealed class WedgeFacts
     }
 
     /// <summary>
+    /// Returns the signed lower/upper angular tolerance values exactly as stored
+    /// in the domain model.
+    /// </summary>
+    public bool TryGetAngleToleranceDeg(string key, out decimal lowerDeg, out decimal upperDeg)
+    {
+        lowerDeg = 0m;
+        upperDeg = 0m;
+
+        if (!TryGetDimension(key, out var dim) ||
+            dim.Nominal.Unit != UnitKind.Degree)
+        {
+            return false;
+        }
+
+        /*
+         * A tolerance delta belongs to its parent dimension semantically.
+         *
+         * Some DataManagement inputs currently create angular tolerance
+         * quantities with a non-degree unit tag even though their numeric
+         * values are degree deltas. Calling AsDeg() on those quantities
+         * throws "Quantity is not in degrees".
+         *
+         * Preserve the normal unit-aware path when the tolerance is tagged
+         * correctly. Otherwise, because the parent nominal is confirmed to
+         * be an angle, safely interpret the stored raw tolerance value as a
+         * degree delta.
+         */
+        lowerDeg = ReadAngleToleranceDegrees(dim.Tol.Lower);
+        upperDeg = ReadAngleToleranceDegrees(dim.Tol.Upper);
+        return true;
+    }
+
+    private static decimal ReadAngleToleranceDegrees(Quantity tolerance)
+    {
+        if (tolerance.Unit == UnitKind.Degree)
+            return tolerance.AsDeg();
+
+        return tolerance.Value;
+    }
+
+    /// <summary>
+    /// Returns positive lower/upper angular tolerance magnitudes.
+    /// </summary>
+    public bool TryGetAngleToleranceMagnitudesDeg(
+        string key,
+        out decimal lowerAbsDeg,
+        out decimal upperAbsDeg)
+    {
+        lowerAbsDeg = 0m;
+        upperAbsDeg = 0m;
+
+        if (!TryGetAngleToleranceDeg(key, out var lowerDeg, out var upperDeg))
+            return false;
+
+        lowerAbsDeg = decimal.Abs(lowerDeg);
+        upperAbsDeg = decimal.Abs(upperDeg);
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the mathematical minimum and maximum angular values.
+    /// </summary>
+    public bool TryGetAngleBoundsDeg(string key, out decimal minDeg, out decimal maxDeg)
+    {
+        minDeg = 0m;
+        maxDeg = 0m;
+
+        if (!TryGetAngleDeg(key, out var nominalDeg))
+            return false;
+
+        if (!TryGetAngleToleranceMagnitudesDeg(key, out var lowerAbsDeg, out var upperAbsDeg))
+            return false;
+
+        minDeg = nominalDeg - lowerAbsDeg;
+        maxDeg = nominalDeg + upperAbsDeg;
+        return true;
+    }
+
+    /// <summary>
     /// Returns the signed lower/upper tolerance values exactly as stored in the domain model.
     /// </summary>
     public bool TryGetLengthToleranceMm(string key, out decimal lowerMm, out decimal upperMm)
