@@ -1,16 +1,65 @@
 # Annotation Cleanup
 
-This folder contains the data-driven annotation cleanup subsystem.
+This folder contains the shared, data-driven annotation cleanup engine.
+Wedge-specific annotation interpretation belongs under each wedge module's
+`Annotations` folder.
 
 ## Runtime flow
 
 1. `DrawingAnnotationCleanupStep` obtains the runner for the current wedge type.
-2. `AnnotationCleanupContextFactory` resolves the drawing profile, shank, foot option, dimensions, view names, and sketch names.
-3. `AnnotationCleanupPlanner` evaluates the declarative keep rules from `AnnotationRuleCatalogRegistry`.
-4. `DrawingAnnotationStateReader` reads the display dimensions currently present in the SolidWorks views.
-5. `AnnotationDiffService` calculates `existing - keep` using exact annotation identities and safe aliases.
-6. `ExactAnnotationDeletionService` resolves exact `DisplayDimension` objects, selects the complete cleanup batch, and performs one deletion call.
-7. `AnnotationCleanupExecutor` performs a final safety audit to confirm that annotations protected by active keep rules still exist.
+2. `AnnotationCleanupContextFactory` gets the active `IDrawingWedgeModule`.
+3. The module's `IAnnotationWedgeContextResolver` converts wedge properties into normalized annotation traits and sketch names.
+4. `DimensionFactResolver` and `ViewNameResolver` add the shared dimension and view facts.
+5. `AnnotationCleanupPlanner` evaluates the declarative keep rules from `AnnotationRuleCatalogRegistry`.
+6. `DrawingAnnotationStateReader` reads the display dimensions currently present in the SolidWorks views.
+7. `AnnotationDiffService` calculates `existing - keep` using exact annotation identities and safe aliases.
+8. `ExactAnnotationDeletionService` deletes the planned annotations.
+9. `AnnotationCleanupExecutor` verifies that protected annotations remain.
+
+## Extensible wedge traits
+
+The shared cleanup engine no longer contains central foot-option or shank-type enums.
+It uses `AnnotationTraitSet` with normalized string traits instead:
+
+- `AnnotationTraitNames.FootOption`
+- `AnnotationTraitNames.ShankType`
+- `AnnotationTraitNames.WedType`
+- `AnnotationTraitNames.FeedHoleType`
+
+A wedge may add any additional trait name without changing the shared engine.
+Conditions may use `TraitIs(...)`, while common wrappers remain available:
+
+- `FootIs(...)`
+- `FootIn(...)`
+- `ShankIs(...)`
+- `WedTypeIs(...)`
+- `FeedHoleIs(...)`
+
+## Adding a new wedge type
+
+Create the following under `Wedges/<Wedge>/Annotations`:
+
+1. A token/constants file owned by the wedge.
+2. An `IAnnotationWedgeContextResolver` that maps database properties to normalized traits.
+3. One or more annotation rule catalogs.
+
+Then expose the resolver and catalogs from the wedge's `IDrawingWedgeModule` and register the module once in `DrawingWedgeModuleRegistry`.
+
+The shared `AnnotationCleanupContextFactory` must not contain wedge-name checks such as `IsCkvdProfile`.
+Wedge-specific validation belongs in the wedge-specific resolver.
+
+## Current ownership
+
+- COB, FP, and UTUS reuse `Wedges/CobLike/Annotations`.
+- CKVD owns style validation and annotation traits under `Wedges/Ckvd/Annotations`.
+- OSG7 currently needs no special annotation traits and uses `EmptyAnnotationWedgeContextResolver`.
+- 4516 owns its foot, shank, and feed-hole normalization under `Wedges/4516/Annotations`.
+
+## Empty catalogs
+
+A catalog with zero configured keep rules is treated as disabled. Cleanup is skipped
+for that profile to prevent an empty catalog from deleting every annotation. This is
+currently used by the 4516 overlay profiles until their overlay rules are added.
 
 ## Safety rules
 
@@ -27,56 +76,12 @@ This folder contains the data-driven annotation cleanup subsystem.
 
 `AnnotationKeepRule.Aliases` represents additional accepted SolidWorks names for the same logical annotation. Use `KeepWithAliases(...)` when templates expose a dimension under multiple names.
 
-Example:
-
-```csharp
-KeepWithAliases(
-    "OSG7-FG-CUST-DETAIL-GD",
-    Detail,
-    "GD@ANNOT_RIGH_PLAN",
-    new[] { "GD" },
-    Always(),
-    "Keep GD under linked and drawing-only names.")
-```
-
-Aliases are treated as protected alternatives. This is intentionally conservative: when more than one accepted representation exists in a view, cleanup preserves them rather than risking deletion of the correct annotation.
-
-## Wedge-module behavior
-
-Annotation catalogs are supplied by the active `IDrawingWedgeModule`:
-
-- CKVD owns its CKVD catalogs under `Wedges/Ckvd/Annotations`.
-- OSG7 owns its OSG7 catalogs under `Wedges/Osg7/Annotations`.
-- COB, FP, and UTUS explicitly reuse the shared catalogs under `Wedges/CobLike/Annotations`.
-
-Register a future wedge once in `DrawingWedgeModuleRegistry`. Its module must expose every annotation catalog required by its drawing profiles; registry validation fails immediately when a profile resolves to a missing catalog.
-
 ## Preserved compatibility rules
 
 - Cleanup remains keep-list based.
 - A dimension is positive when its nominal value is greater than `1e-12`.
 - `SLB` falls back to `VBL` when no real `SLB` dimension exists.
-- `FL_*` annotations are controlled by `F`, not `FL`.
+- COB-like `FL_*` annotations remain controlled by the existing rules.
 - `FR` and `BR` remain independent.
-- `VRA` follows the VW/VR condition.
-- The legacy 180-degree annotation sketch spelling is preserved where required by existing templates.
-
-## CKVD Production/Customer annotation mapping
-
-The CKVD catalogs use the corrected logical view mapping supplied by the model designer:
-
-- The screenshot named **Right view** maps to the logical `Front` drawing view.
-- The screenshot named **Front view** maps to the logical `Side` drawing view.
-- Annotation cleanup does not position views.
-
-CKVD style selection is read from `Wed-Type`:
-
-- `LW_STYLE_A_CKVD`
-- `LW_STYLE_B_CKVD`
-
-CKVD rules distinguish between two optional-data checks:
-
-- `DimPositive("VR")`, `DimPositive("VW")`, and `DimPositive("VRA")` keep optional dimensions only when their nominal value is positive.
-- `DimPresent("X")`, `DimPresent("FX")`, `DimPresent("BRX")`, and `DimPresent("FRX")` keep dimensions only when the key was supplied in the source wedge data. This prevents a planner-calculated fallback value from being treated as a database-provided drawing annotation.
-
-The overlay annotation catalogs were intentionally left on their previous rules because this update covers Production and Customer drawings only.
+- The legacy 180-degree annotation sketch spelling is preserved where required.
+- CKVD style selection still requires `LW_STYLE_A_CKVD` or `LW_STYLE_B_CKVD`, but validation now lives in `CkvdAnnotationContextResolver`.

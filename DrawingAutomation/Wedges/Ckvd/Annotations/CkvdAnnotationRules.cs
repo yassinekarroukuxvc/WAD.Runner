@@ -11,9 +11,6 @@ namespace WAD.Runner.DrawingAutomation.Wedges.Ckvd.Annotations;
 public abstract class CkvdAnnotationRuleCatalogBase :
     AnnotationRuleCatalogBase
 {
-    private const string StyleA = "LW_STYLE_A_CKVD";
-    private const string StyleB = "LW_STYLE_B_CKVD";
-
     private const string AnnotationTopPlan =
         "annotation_top_plan";
 
@@ -38,8 +35,8 @@ public abstract class CkvdAnnotationRuleCatalogBase :
     protected IReadOnlyList<AnnotationKeepRule>
         BuildFgProductionCustomerRules(string idPrefix)
     {
-        var isStyleA = WedTypeIs(StyleA);
-        var isStyleB = WedTypeIs(StyleB);
+        var isStyleA = WedTypeIs(CkvdAnnotationStyles.StyleA);
+        var isStyleB = WedTypeIs(CkvdAnnotationStyles.StyleB);
 
         return new List<AnnotationKeepRule>
         {
@@ -272,8 +269,8 @@ public abstract class CkvdAnnotationRuleCatalogBase :
     protected IReadOnlyList<AnnotationKeepRule>
         BuildPgbProductionCustomerRules(string idPrefix)
     {
-        var isStyleA = WedTypeIs(StyleA);
-        var isStyleB = WedTypeIs(StyleB);
+        var isStyleA = WedTypeIs(CkvdAnnotationStyles.StyleA);
+        var isStyleB = WedTypeIs(CkvdAnnotationStyles.StyleB);
 
         return new List<AnnotationKeepRule>
         {

@@ -6,6 +6,7 @@ using WAD.Runner.DrawingAutomation.Overlay.Positioning;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
+using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Resolution;
 using WAD.Runner.DrawingAutomation.Wedges.Osg7.Annotations;
 
 namespace WAD.Runner.DrawingAutomation.Wedges.Osg7;
@@ -133,6 +134,9 @@ public sealed class Osg7DrawingModule : IDrawingWedgeModule
             new Osg7PgbProductionAnnotationRules(),
             new Osg7PgbOverlayAnnotationRules()
         });
+
+    public IAnnotationWedgeContextResolver AnnotationContextResolver { get; } =
+        EmptyAnnotationWedgeContextResolver.Instance;
 
     public AnnotationCleanupProfile ResolveAnnotationProfile(
         WedgeSubclass subclass,

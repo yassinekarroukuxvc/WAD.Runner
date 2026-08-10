@@ -2,7 +2,6 @@
 
 public enum WedgeType
 {
-
     Unknown = 0,
 
     CKVD = 1,
@@ -18,6 +17,8 @@ public enum WedgeType
     UTUS = 6,
 
     FP = 7,
+
+    _4516 = 8,
 
     Other = 99
 }

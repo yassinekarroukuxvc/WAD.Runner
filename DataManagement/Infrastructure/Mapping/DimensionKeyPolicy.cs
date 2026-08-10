@@ -9,23 +9,30 @@ public static class DimensionKeyPolicy
     private static readonly ConcurrentDictionary<string, byte> AngleKeys = new(
         new[]
         {
-            "BA",
-            "FA",
-            "ISA",
-            "GA",
-            "VRA",
-            "FNA",
-            "HA",
-            "CA",
-            "CBRA",
+            "BA",    // Back Angle
+            "CA",    // Cavity Angle
+            "CBRA",  // CBR Angle
+            "FA",    // Front Angle
+            "FA2",   // 2nd Front Angle
+            "FNA",   // Funnel Angle
+            "FTA",   // Foot Angle
+            "GA",    // Groove Angle
+            "HA",    // Hole Angle
+            "IDFA",  // Inner Hole Funnel Angle
+            "ISA",   // Inclusive Side Angle
+            "ISA2",
+            "MTA",   // MTA
+            "NA",    // Notch Angle
+            "RA",    // Relief Angle
+            "RA2",   // 2nd Relief Angle
+            "SA",    // Slot Angle
+            "VRA",   // Vertical Relief Angle
+            "W2A",   // Chamfered Tip Width Angle
             "WA2",
-            "RA2",
-            "RA",
-            "W2A",
-            "MTA",
-            "FA2",
-
-        }.ToDictionary(k => k, _ => (byte)1, StringComparer.OrdinalIgnoreCase)
+        }.ToDictionary(
+            key => key,
+            _ => (byte)1,
+            StringComparer.OrdinalIgnoreCase)
     );
 
     public static string NormalizeKey(string transportKey)

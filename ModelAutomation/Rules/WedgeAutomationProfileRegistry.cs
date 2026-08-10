@@ -5,6 +5,7 @@ using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Equations;
 using WAD.Runner.ModelAutomation.Execution;
+using WAD.Runner.ModelAutomation.Rules._4516;
 using WAD.Runner.ModelAutomation.Rules.CKVD;
 using WAD.Runner.ModelAutomation.Rules.COB;
 using WAD.Runner.ModelAutomation.Rules.CobLike;
@@ -70,6 +71,15 @@ public static class WedgeAutomationProfileRegistry
             new CkvdEquationPlanner(WedgeType.CKVD),
             new CkvdToleranceRules(),
             Array.Empty<string>()));
+
+        Add(profiles, new WedgeAutomationProfile(
+           WedgeType._4516,
+           "_4516",
+           new _4516ConfigurationRules(),
+           new _4516FeatureRules(),
+           new _4516EquationPlanner(WedgeType._4516),
+           new _4516ToleranceRules(),
+           Array.Empty<string>()));
 
         Add(profiles, CreateCobLikeProfile(
             WedgeType.COB,

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
 
 namespace WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Conditions;
@@ -17,7 +18,7 @@ public static class AnnotationConditions
         => new DimensionPositiveCondition(key);
 
     public static IAnnotationCondition DimsPositive(params string[] keys)
-            => new AllDimensionsPositiveCondition(keys);
+        => new AllDimensionsPositiveCondition(keys);
 
     public static IAnnotationCondition All(
         params IAnnotationCondition[] conditions)
@@ -31,19 +32,40 @@ public static class AnnotationConditions
         IAnnotationCondition condition)
         => new NotCondition(condition);
 
-    public static IAnnotationCondition FootIs(FootOption foot)
-        => new FootCondition(new[] { foot });
+    public static IAnnotationCondition TraitIs(
+        string traitName,
+        params string[] acceptedValues)
+        => new TraitCondition(
+            traitName,
+            acceptedValues);
+
+    public static IAnnotationCondition FootIs(string foot)
+        => TraitIs(
+            AnnotationTraitNames.FootOption,
+            foot);
 
     public static IAnnotationCondition FootIn(
-        params FootOption[] feet)
-        => new FootCondition(feet);
+        params string[] feet)
+        => TraitIs(
+            AnnotationTraitNames.FootOption,
+            feet);
 
-    public static IAnnotationCondition ShankIs(ShankType shank)
-        => new ShankCondition(shank);
+    public static IAnnotationCondition ShankIs(string shank)
+        => TraitIs(
+            AnnotationTraitNames.ShankType,
+            shank);
 
     public static IAnnotationCondition WedTypeIs(
         params string[] acceptedTokens)
-        => new WedTypeCondition(acceptedTokens);
+        => TraitIs(
+            AnnotationTraitNames.WedType,
+            acceptedTokens);
+
+    public static IAnnotationCondition FeedHoleIs(
+        params string[] acceptedTokens)
+        => TraitIs(
+            AnnotationTraitNames.FeedHoleType,
+            acceptedTokens);
 
     private sealed class AlwaysCondition : IAnnotationCondition
     {
@@ -82,28 +104,15 @@ public static class AnnotationConditions
             => $"{_key} > 0";
     }
 
-    private sealed class AllDimensionsPresentCondition : IAnnotationCondition
+    private sealed class AllDimensionsPositiveCondition :
+        IAnnotationCondition
     {
         private readonly string[] _keys;
 
-        public AllDimensionsPresentCondition(IEnumerable<string> keys)
-            => _keys = (keys ?? Array.Empty<string>()).ToArray();
-
-        public bool IsMatch(AnnotationCleanupContext ctx)
-            => ctx.Dimensions.ArePresent(_keys);
-
-        public string Describe()
-            => string.Join(
-                " and ",
-                _keys.Select(k => $"{k} is present"));
-    }
-
-    private sealed class AllDimensionsPositiveCondition : IAnnotationCondition
-    {
-        private readonly string[] _keys;
-
-        public AllDimensionsPositiveCondition(IEnumerable<string> keys)
-            => _keys = (keys ?? Array.Empty<string>()).ToArray();
+        public AllDimensionsPositiveCondition(
+            IEnumerable<string> keys)
+            => _keys = (keys ?? Array.Empty<string>())
+                .ToArray();
 
         public bool IsMatch(AnnotationCleanupContext ctx)
             => ctx.Dimensions.ArePositive(_keys);
@@ -111,41 +120,49 @@ public static class AnnotationConditions
         public string Describe()
             => string.Join(
                 " and ",
-                _keys.Select(k => $"{k} > 0"));
+                _keys.Select(key => $"{key} > 0"));
     }
 
     private sealed class AllCondition : IAnnotationCondition
     {
         private readonly IAnnotationCondition[] _conditions;
 
-        public AllCondition(IEnumerable<IAnnotationCondition> conditions)
+        public AllCondition(
+            IEnumerable<IAnnotationCondition> conditions)
             => _conditions = (conditions ??
-                Array.Empty<IAnnotationCondition>()).ToArray();
+                Array.Empty<IAnnotationCondition>())
+                .ToArray();
 
         public bool IsMatch(AnnotationCleanupContext ctx)
-            => _conditions.All(c => c.IsMatch(ctx));
+            => _conditions.All(condition =>
+                condition.IsMatch(ctx));
 
         public string Describe()
             => string.Join(
                 " and ",
-                _conditions.Select(c => $"({c.Describe()})"));
+                _conditions.Select(condition =>
+                    $"({condition.Describe()})"));
     }
 
     private sealed class AnyCondition : IAnnotationCondition
     {
         private readonly IAnnotationCondition[] _conditions;
 
-        public AnyCondition(IEnumerable<IAnnotationCondition> conditions)
+        public AnyCondition(
+            IEnumerable<IAnnotationCondition> conditions)
             => _conditions = (conditions ??
-                Array.Empty<IAnnotationCondition>()).ToArray();
+                Array.Empty<IAnnotationCondition>())
+                .ToArray();
 
         public bool IsMatch(AnnotationCleanupContext ctx)
-            => _conditions.Any(c => c.IsMatch(ctx));
+            => _conditions.Any(condition =>
+                condition.IsMatch(ctx));
 
         public string Describe()
             => string.Join(
                 " or ",
-                _conditions.Select(c => $"({c.Describe()})"));
+                _conditions.Select(condition =>
+                    $"({condition.Describe()})"));
     }
 
     private sealed class NotCondition : IAnnotationCondition
@@ -163,75 +180,38 @@ public static class AnnotationConditions
             => $"not ({_condition.Describe()})";
     }
 
-    private sealed class FootCondition : IAnnotationCondition
+    private sealed class TraitCondition : IAnnotationCondition
     {
-        private readonly HashSet<FootOption> _feet;
+        private readonly string _traitName;
+        private readonly string[] _acceptedValues;
 
-        public FootCondition(IEnumerable<FootOption> feet)
-            => _feet = new HashSet<FootOption>(
-                feet ?? Array.Empty<FootOption>());
-
-        public bool IsMatch(AnnotationCleanupContext ctx)
-            => _feet.Contains(ctx.Foot);
-
-        public string Describe()
-            => $"foot in [{string.Join(", ", _feet)}]";
-    }
-
-    private sealed class ShankCondition : IAnnotationCondition
-    {
-        private readonly ShankType _shank;
-
-        public ShankCondition(ShankType shank)
-            => _shank = shank;
-
-        public bool IsMatch(AnnotationCleanupContext ctx)
-            => ctx.Shank == _shank;
-
-        public string Describe()
-            => $"shank is {_shank}";
-    }
-
-    private sealed class WedTypeCondition : IAnnotationCondition
-    {
-        private readonly HashSet<string> _acceptedTokens;
-
-        public WedTypeCondition(IEnumerable<string> acceptedTokens)
+        public TraitCondition(
+            string traitName,
+            IEnumerable<string> acceptedValues)
         {
-            _acceptedTokens = new HashSet<string>(
-                (acceptedTokens ?? Array.Empty<string>())
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Select(NormalizeToken),
-                StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(traitName))
+            {
+                throw new ArgumentException(
+                    "Trait name is required.",
+                    nameof(traitName));
+            }
+
+            _traitName = traitName.Trim();
+            _acceptedValues = (acceptedValues ??
+                Array.Empty<string>())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(AnnotationTokenNormalizer.Normalize)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         }
 
         public bool IsMatch(AnnotationCleanupContext ctx)
-            => _acceptedTokens.Contains(
-                NormalizeToken(ctx.WedTypeToken));
+            => ctx.Traits.IsAny(
+                _traitName,
+                _acceptedValues);
 
         public string Describe()
-            => $"Wed-Type in [{string.Join(", ", _acceptedTokens)}]";
-    }
-
-    private static string NormalizeToken(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return string.Empty;
-
-        var token = value
-            .Trim()
-            .Trim('\0');
-
-        // Database fields can be returned as packed values, for example:
-        // LW_STYLE_B_CKVD;;;;;;;;;;
-        // Only the first semicolon-delimited field is the Wed-Type token.
-        var separatorIndex = token.IndexOf(';');
-        if (separatorIndex >= 0)
-            token = token[..separatorIndex];
-
-        return token
-            .Trim()
-            .Trim('\0')
-            .ToUpperInvariant();
+            => $"{_traitName} in " +
+               $"[{string.Join(", ", _acceptedValues)}]";
     }
 }

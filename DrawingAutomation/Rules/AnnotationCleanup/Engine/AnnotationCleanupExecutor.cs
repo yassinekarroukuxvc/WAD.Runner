@@ -42,6 +42,14 @@ public sealed class AnnotationCleanupExecutor
             return 0;
         }
 
+        if (!_planner.HasConfiguredRules(ctx.Profile))
+        {
+            Logger.Info(
+                $"[{logPrefix}.Cleanup] Profile '{ctx.Profile}' has no configured " +
+                "annotation keep rules; cleanup was skipped to avoid a blanket deletion.");
+            return 0;
+        }
+
         var existingByView = _stateReader.CollectExistingDisplayDimensionNames(model, ctx.ViewNames, activateEachView);
         var keepExpectedByView = _planner.BuildExpectedFullNamesByView(ctx);
         var deletions = _diffService.GetExistingMinusKeep(existingByView, keepExpectedByView);

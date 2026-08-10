@@ -15,6 +15,9 @@ public sealed class AnnotationCleanupPlanner
         _catalogs = catalogs ?? throw new ArgumentNullException(nameof(catalogs));
     }
 
+    public bool HasConfiguredRules(AnnotationCleanupProfile profile)
+        => _catalogs.GetRules(profile).Count > 0;
+
     public IReadOnlyCollection<ExpectedAnnotation> BuildKeepSet(AnnotationCleanupContext ctx)
     {
         if (ctx is null) throw new ArgumentNullException(nameof(ctx));

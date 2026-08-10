@@ -19,5 +19,11 @@ public enum AnnotationCleanupProfile
     Osg7FgCustomer,
     Osg7FgOverlay,
     Osg7PgbProduction,
-    Osg7PgbOverlay
+    Osg7PgbOverlay,
+
+    _4516PgbOverlay,
+    _4516PgbProduction,
+    _4516FgOverlay,
+    _4516FgCustomer,
+    _4516FgProduction,
 }

@@ -3,7 +3,7 @@ using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
 using static WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Conditions.AnnotationConditions;
 using static WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain.AnnotationView;
-using static WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain.FootOption;
+using static WAD.Runner.DrawingAutomation.Wedges.CobLike.Annotations.CobLikeAnnotationFootOptions;
 
 namespace WAD.Runner.DrawingAutomation.Wedges.CobLike.Annotations;
 

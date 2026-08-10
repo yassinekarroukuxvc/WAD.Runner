@@ -25,6 +25,7 @@ internal static class UtusDimensionRules
 
         var TL = LayoutMath.Dmm(ctx, "TL");
         var TD = LayoutMath.Dmm(ctx, "TD");
+
         if (TL <= 0) diag.Suspicious("PLN003", "TL <= 0 detected.");
         if (TD <= 0) diag.Suspicious("PLN003", "TD <= 0 detected.");
 
@@ -60,6 +61,7 @@ internal static class UtusDimensionRules
         var ssv = LayoutMath.Scale(ctx, Side);
         var dsv = LayoutMath.Scale(ctx, Detail);
         var scv = LayoutMath.Scale(ctx, Section);
+
         var TL = LayoutMath.Dmm(ctx, "TL");
         var TD = LayoutMath.Dmm(ctx, "TD");
         var L_front = LayoutMath.WedgeLength(ctx, TL, fsv);
@@ -90,10 +92,12 @@ internal static class UtusDimensionRules
             F[0] - fsv * TD / 2.0 - 13.5, F[1]);
 
         var bias = (0.05 * TL * fsv + GetBreakline(ctx, Front, 2.0) * fsv + 0.02 * TL) / 2.0;
+
         PlaceDim(ctx, diag, outList, "K", Front, DimAxis.Horizontal,
             F[0] + fsv * TD / 2.0 + 12.0, F[1] + L_front / 2.0 - bias);
 
         var VR = LayoutMath.Dmm(ctx, "VR");
+
         PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
             F[0] - fsv * TD / 2.0 - 5, F[1] - L_front / 2.0 + VR / 2 * fsv);
     }
@@ -108,11 +112,8 @@ internal static class UtusDimensionRules
     {
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
-        PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical,
-            55, 172);
-
-        PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal,
-            45, 197);
+        PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical, 55, 172);
+        PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal, 45, 197);
     }
 
     private static void AddDetail(
@@ -133,8 +134,7 @@ internal static class UtusDimensionRules
         var CR = LayoutMath.Dmm(ctx, "CR");
         var VRR = LayoutMath.Dmm(ctx, "VRR");
 
-        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
-            D[0], D[1]);
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0], D[1]);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
             D[0], bandMidY + (VR + VRR) * dsv);
@@ -166,8 +166,7 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "CD", Detail, DimAxis.Horizontal,
             D[0] + (W / 2.0 * dsv) + 5, bandMidY + dsv * CD / 2.0);
 
-        PlaceDim(ctx, diag, outList, "CR", Detail, DimAxis.Horizontal,
-            119, 132);
+        PlaceDim(ctx, diag, outList, "CR", Detail, DimAxis.Horizontal, 119, 132);
     }
 
     private static void AddSide(
@@ -183,9 +182,7 @@ internal static class UtusDimensionRules
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
         var VBL = LayoutMath.Dmm(ctx, "VBL");
 
-        PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
-            52,
-            114);
+        PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal, 52, 114);
 
         PlaceDim(ctx, diag, outList, "TL", Side, DimAxis.Horizontal,
             S[0] - ssv * TD / 2.0 - 7.5, S[1]);
@@ -272,25 +269,27 @@ internal static class UtusDimensionRules
             Sec[0] - (TDF / 2) * scv + T * scv + 10, bandMidY + ERD * scv / 2);
 
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + ((T - FD) * scv) * (Math.Tan(HA * (Math.PI / 180.0))));
+            Sec[0] - (TDF / 2) * scv + T * scv,
+            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
 
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + (((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2);
+            Sec[0] - (TDF / 2) * scv + T * scv,
+            bandMidY + (((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2);
 
         PlaceDim(ctx, diag, outList, "CA", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY + ERD / 2 * scv);
+            Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv,
+            bandMidY + ERD / 2 * scv);
 
         PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv + 25, bandMidY + ((T - FD) * scv) * (Math.Tan(HA * (Math.PI / 180.0))) + 10);
+            Sec[0] - (TDF / 2) * scv + T * scv + 25,
+            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)) + 10);
 
         PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv + 20, bandMidY + 10);
 
-        PlaceDim(ctx, diag, outList, "CBRA", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv + 23, bandMidY + 10);
-
         PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv + 20, bandMidY + (((T - FD) * scv) * Math.Tan((RA + RA2) * (Math.PI / 180.0))) / 2);
+            Sec[0] - (TDF / 2) * scv + T * scv + 20,
+            bandMidY + (((T - FD) * scv) * Math.Tan((RA + RA2) * (Math.PI / 180.0))) / 2);
 
         PlaceDim(ctx, diag, outList, "F_C", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 9);
@@ -301,14 +300,16 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "F_VG", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 9);
 
-        PlaceDim(ctx, diag, outList, "CBRL", Section, DimAxis.Horizontal,
-            180, bandMidY - 6);
+        PlaceDim(ctx, diag, outList, "CBRL", Section, DimAxis.Horizontal, 180, bandMidY - 6);
 
         PlaceDim(ctx, diag, outList, "CGD", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv - 10, bandMidY + CGD / 2 * scv);
 
         PlaceDim(ctx, diag, outList, "CGR", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv, bandMidY + 10);
+
+        PlaceDim(ctx, diag, outList, "CBRA", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + T * scv + 23, bandMidY + 10);
     }
 
     private static void AddOverlayBaseline(LayoutContext ctx, PlannerDiagnostics diag, List<DimensionSpec> outList)
@@ -332,10 +333,12 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "FX", Side, DimAxis.Horizontal, 76.2, 14.732);
 
         var FAdeg = LayoutMath.TryDdeg(ctx, "FA");
+
         PlaceDim(ctx, diag, outList, "FA", Side, DimAxis.Horizontal,
             132.08 + 5, 8.3566 + FSTscale * TD / 2.0 + 4.0);
 
         var BAdeg = LayoutMath.TryDdeg(ctx, "BA");
+
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal,
             132.08 + 5, 8.3566 - FSTscale * TD / 2.0 - 4.0);
     }
@@ -380,6 +383,7 @@ internal static class UtusDimensionRules
         if (!ctx.TryGetDim(key, out var d))
         {
             diag.MissingDimension(key);
+
             outList.Add(new DimensionSpec
             {
                 Id = $"{view}:{key}",
@@ -392,6 +396,7 @@ internal static class UtusDimensionRules
                 Comment = null,
                 Style = DimStyle.None
             });
+
             return;
         }
 

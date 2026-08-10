@@ -18,7 +18,7 @@ public static class DimensionRules
             WedgeType.UTUS => Rules.UtusDimensionRules.Build(ctx, diag),
             WedgeType.FP => Rules.FpDimensionRules.Build(ctx, diag),
             WedgeType.OSG7 => Rules.Osg7DimensionRules.Build(ctx, diag),
-
+            WedgeType._4516 => Rules._4516DimensionRules.Build(ctx,diag),
             _ => Rules.CkvdDimensionRules.Build(ctx, diag)
         };
     }

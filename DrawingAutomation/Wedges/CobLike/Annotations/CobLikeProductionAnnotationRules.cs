@@ -3,7 +3,7 @@ using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
 using static WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Conditions.AnnotationConditions;
 using static WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain.AnnotationView;
-using static WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain.FootOption;
+using static WAD.Runner.DrawingAutomation.Wedges.CobLike.Annotations.CobLikeAnnotationFootOptions;
 
 namespace WAD.Runner.DrawingAutomation.Wedges.CobLike.Annotations;
 
@@ -69,9 +69,9 @@ public sealed class CobLikeProductionAnnotationRules : AnnotationRuleCatalogBase
             Keep("COB-PROD-SECTION-G", Section, "G@{FrontSketch}", All(DimPositive("G"), FootIn(CG, CC)), "Keep G for CG/CC when G is positive."),
             Keep("COB-PROD-SECTION-CGR", Section, "CGR@{FrontSketch}", All(DimPositive("CGR"), FootIn(CG, CC)), "Keep CGR for CG/CC when CGR is positive."),
             Keep("COB-PROD-SECTION-CGD", Section, "CGD@{FrontSketch}", All(DimPositive("CGD"), FootIn(CG, CC)), "Keep CGD for CG/CC when CGD is positive."),
-            Keep("COB-PROD-SECTION-G-180-TYPO", Section, "G@{CgDeg180TypoSketch}", All(ShankIs(ShankType.Deg180Rev), DimPositive("G"), FootIn(CG, CC)), "Preserve legacy 180-degree typo sketch name for G."),
-            Keep("COB-PROD-SECTION-CGR-180-TYPO", Section, "CGR@{CgDeg180TypoSketch}", All(ShankIs(ShankType.Deg180Rev), DimPositive("CGR"), FootIn(CG, CC)), "Preserve legacy 180-degree typo sketch name for CGR."),
-            Keep("COB-PROD-SECTION-CGD-180-TYPO", Section, "CGD@{CgDeg180TypoSketch}", All(ShankIs(ShankType.Deg180Rev), DimPositive("CGD"), FootIn(CG, CC)), "Preserve legacy 180-degree typo sketch name for CGD."),
+            Keep("COB-PROD-SECTION-G-180-TYPO", Section, "G@{CgDeg180TypoSketch}", All(ShankIs(CobLikeAnnotationShankTypes.Reverse180), DimPositive("G"), FootIn(CG, CC)), "Preserve legacy 180-degree typo sketch name for G."),
+            Keep("COB-PROD-SECTION-CGR-180-TYPO", Section, "CGR@{CgDeg180TypoSketch}", All(ShankIs(CobLikeAnnotationShankTypes.Reverse180), DimPositive("CGR"), FootIn(CG, CC)), "Preserve legacy 180-degree typo sketch name for CGR."),
+            Keep("COB-PROD-SECTION-CGD-180-TYPO", Section, "CGD@{CgDeg180TypoSketch}", All(ShankIs(CobLikeAnnotationShankTypes.Reverse180), DimPositive("CGD"), FootIn(CG, CC)), "Preserve legacy 180-degree typo sketch name for CGD."),
 
             // SECTION VIEW - C_WITH_CBR dimensions
             Keep("COB-PROD-SECTION-CBRA", Section, "CBRA@{FrontSketch}", All(FootIs(C_WITH_CBR), DimPositive("CBRA")), "Keep CBRA only for C_WITH_CBR when CBRA is positive."),

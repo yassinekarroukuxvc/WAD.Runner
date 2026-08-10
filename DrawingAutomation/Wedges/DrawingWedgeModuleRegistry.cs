@@ -5,6 +5,7 @@ using System.Linq;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
+using WAD.Runner.DrawingAutomation.Wedges._4516;
 using WAD.Runner.DrawingAutomation.Wedges.Ckvd;
 using WAD.Runner.DrawingAutomation.Wedges.Cob;
 using WAD.Runner.DrawingAutomation.Wedges.Fp;
@@ -44,6 +45,7 @@ public static class DrawingWedgeModuleRegistry
     {
         IDrawingWedgeModule[] modules =
         {
+            new _4516DrawingModule(),
             new CkvdDrawingModule(),
             new CobDrawingModule(),
             new FpDrawingModule(),
@@ -83,6 +85,9 @@ public static class DrawingWedgeModuleRegistry
 
         if (module.AnnotationCatalogs is null || module.AnnotationCatalogs.Count == 0)
             throw new InvalidOperationException($"{module.WedgeType} has no annotation catalogs.");
+
+        if (module.AnnotationContextResolver is null)
+            throw new InvalidOperationException($"{module.WedgeType} has no annotation context resolver.");
 
         var duplicateProfileKeys = module.Profiles
             .GroupBy(profile => profile.Key)

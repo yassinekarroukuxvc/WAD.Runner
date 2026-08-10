@@ -210,28 +210,32 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                 "equations.txt");
                             break;
 
-                        case WedgeType.CKVD:
-                        default:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "CKVD", "Working Version",
-                                "CKVD_2023.SLDPRT");
+                        case WedgeType._4516:
+                            templatePartPath = Path.Combine("Resources", "Templates", "4516", "4516_part_rev2.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "CKVD", "Working Version",
-                                        "OVERLAY_TEMPLATE.SLDDRW"),
+                                    Path.Combine("Resources", "Templates", "4516", "4516_overlay_rev2.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "CKVD", "Working Version",
-                                        "CKVD_2023.SLDDRW"),
+                                    Path.Combine("Resources", "Templates", "4516", "4516_drawing_rev2.SLDPRT.SLDDRW"),
                             };
 
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "CKVD", "Working Version",
-                                "CK.txt");
+                            equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "4516", "equations.txt");
+                            break;
+
+                        case WedgeType.CKVD:
+                        default:
+                            templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
+                            templateDrawingPath = dtype switch
+                            {
+                                DrawingType.Overlay =>
+                                    Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_overlay_rev2.SLDDRW"),
+                                DrawingType.Production or DrawingType.Customer or _ =>
+                                    Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_drawing_rev2.SLDPRT.SLDDRW"),
+                            };
+                            equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "equations.txt");
                             break;
                     }
 

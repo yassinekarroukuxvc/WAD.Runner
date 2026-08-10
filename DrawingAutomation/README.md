@@ -12,9 +12,10 @@ flow easy to follow.
 3. The selected pipeline orchestrates shared services; it does not contain
    wedge-specific decision trees.
 4. `Wedges/DrawingWedgeModuleRegistry` resolves the module for the active wedge.
-5. The module supplies the drawing profiles, annotation catalogs, table-key
-   policy, referenced-configuration policy, overlay positioning rule, and
-   small behavior flags for that wedge.
+5. The module supplies the drawing profiles, annotation catalogs,
+   wedge-specific annotation context resolver, table-key policy,
+   referenced-configuration policy, overlay positioning rule, and small
+   behavior flags for that wedge.
 
 ## Folder responsibilities
 
@@ -42,6 +43,8 @@ connect that wedge's:
 
 - production, customer, and overlay profiles;
 - annotation cleanup catalogs;
+- an annotation context resolver that owns that wedge's foot, shank, style,
+  feed-hole, and future annotation traits;
 - referenced model-configuration selection;
 - dimension-table key policy;
 - overlay view-positioning rule;
@@ -49,6 +52,8 @@ connect that wedge's:
 
 Shared behavior should be extracted only when two or more wedge modules truly
 use the same rules. Avoid adding a central switch for a wedge-specific choice.
+Do not add wedge-specific profile checks to `AnnotationCleanupContextFactory`;
+put property parsing and validation in the module's annotation resolver.
 
 ## View layout ownership
 

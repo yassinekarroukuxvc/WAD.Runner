@@ -48,6 +48,8 @@ public static class WedgeStyleParser
             "OSG7" => WedgeType.OSG7,
             "OSG" => WedgeType.OSG7,
 
+            "4516" => WedgeType._4516,
+
             _ => WedgeType.Unknown
         };
 

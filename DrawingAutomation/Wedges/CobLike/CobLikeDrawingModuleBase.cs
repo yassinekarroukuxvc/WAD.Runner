@@ -6,6 +6,7 @@ using WAD.Runner.DrawingAutomation.Overlay.Positioning;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
+using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Resolution;
 using WAD.Runner.DrawingAutomation.Wedges.CobLike.Annotations;
 
 namespace WAD.Runner.DrawingAutomation.Wedges.CobLike;
@@ -105,6 +106,9 @@ public abstract class CobLikeDrawingModuleBase : IDrawingWedgeModule
             new PgbProductionAnnotationRules(),
             new PgbOverlayAnnotationRules()
         });
+
+    public IAnnotationWedgeContextResolver AnnotationContextResolver { get; } =
+        new CobLikeAnnotationContextResolver();
 
     public AnnotationCleanupProfile ResolveAnnotationProfile(
         WedgeSubclass subclass,

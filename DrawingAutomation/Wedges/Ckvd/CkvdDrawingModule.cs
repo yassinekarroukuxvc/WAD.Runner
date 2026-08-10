@@ -6,6 +6,7 @@ using WAD.Runner.DrawingAutomation.Overlay.Positioning;
 using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
+using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Resolution;
 using WAD.Runner.DrawingAutomation.Wedges.Ckvd.Annotations;
 
 namespace WAD.Runner.DrawingAutomation.Wedges.Ckvd;
@@ -120,6 +121,9 @@ public sealed class CkvdDrawingModule : IDrawingWedgeModule
             new CkvdPgbProductionAnnotationRules(),
             new CkvdPgbOverlayAnnotationRules()
         });
+
+    public IAnnotationWedgeContextResolver AnnotationContextResolver { get; } =
+        new CkvdAnnotationContextResolver();
 
     public AnnotationCleanupProfile ResolveAnnotationProfile(
         WedgeSubclass subclass,
