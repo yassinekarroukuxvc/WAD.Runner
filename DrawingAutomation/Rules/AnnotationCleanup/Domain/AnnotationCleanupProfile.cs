@@ -26,4 +26,10 @@ public enum AnnotationCleanupProfile
     _4516FgOverlay,
     _4516FgCustomer,
     _4516FgProduction,
+
+    AbtPgbOverlay,
+    AbtPgbProduction,
+    AbtFgOverlay,
+    AbtFgCustomer,
+    AbtFgProduction,
 }

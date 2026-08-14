@@ -438,6 +438,21 @@ switch (cmd)
                     equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "4516", "equations.txt");
                     break;
 
+                case WedgeType.ABT:
+                    templatePartPath = Path.Combine("Resources", "Templates", "ABT", "ABT_rev1", "ABT_part_rev1.SLDPRT");
+
+                    templateDrawingPath = dtype switch
+                    {
+                        DrawingType.Overlay =>
+                            Path.Combine("Resources", "Templates", "ABT", "ABT_rev1", "ABT_overlay_rev1.SLDDRW"),
+
+                        DrawingType.Production or DrawingType.Customer or _ =>
+                            Path.Combine("Resources", "Templates", "ABT", "ABT_rev1", "ABT_drawing_rev1.SLDPRT.SLDDRW"),
+                    };
+
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "ABT", "ABT_rev1", "equations.txt");
+                    break;
+
                 case WedgeType.CKVD:
                 default:
                     templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
@@ -654,6 +669,11 @@ switch (cmd)
                     equationTemplatePath = Path.Combine("Resources", "Templates", "4516","equations.txt");
                     break;
 
+                case WedgeType.ABT:
+                    partTemplatePath = Path.Combine("Resources", "Templates", "ABT", "ABT_rev1" ,"ABT_part_rev1.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "ABT", "ABT_rev1", "equations.txt");
+                    break;
+
                 case WedgeType.CKVD:
                 default:
                     partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
@@ -801,6 +821,7 @@ static WedgeType ParseWedgeTypeEnum(string[] a)
         "OSG7" => WedgeType.OSG7,
         "FP" => WedgeType.FP,
         "4516" => WedgeType._4516,
+        "ABT" => WedgeType.ABT,
         _ => WedgeType.CKVD
     };
 }

@@ -4,6 +4,7 @@ using System.Linq;
 
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Domain.Validation.Rules._4516;
+using WAD.Runner.DataManagement.Domain.Validation.Rules.ABT;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.OSG7;
 
 namespace WAD.Runner.DataManagement.Domain.Validation;
@@ -69,6 +70,14 @@ public static class WedgeDimensionValidator
         if (wedgeType == WedgeType._4516)
         {
             Wedge4516ConditionalDimensionValidator.Validate(
+                wedge,
+                wedgeType,
+                issues);
+        }
+
+        if (wedgeType == WedgeType.ABT)
+        {
+            AbtConditionalDimensionValidator.Validate(
                 wedge,
                 wedgeType,
                 issues);

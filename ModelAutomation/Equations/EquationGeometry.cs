@@ -1,5 +1,6 @@
 using SQLitePCL;
 using System;
+
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Core;
@@ -9,7 +10,10 @@ namespace WAD.Runner.ModelAutomation.Equations;
 internal static class EquationGeometry
 {
     private const decimal DefaultFunnelGapInch = 0.0003m;
+    private const decimal OverlayReferenceCutInch = 1.5m;
     private const decimal InchToMm = 25.4m;
+    private const decimal DefaultOverlayScaleDecimal = 60.8m;
+
     public const decimal DefaultFunnelGapMm = DefaultFunnelGapInch * InchToMm;
     public const decimal LargeOverlayVrThresholdMm = 0.5m;
 
@@ -59,7 +63,7 @@ internal static class EquationGeometry
     {
         var vr = facts.TryGetMaxLikeMm("VR_MAX", "VR", out var vrMax) ? vrMax : 0m;
         var vrr = facts.TryGetMaxLikeMm("VRR_MAX", "VRR", out var vrrMax) ? vrrMax : 0m;
-        Logger.Success($"[EquationGeometry] VR = {vr}mm VRR={vrr}mm VR+VRR={vr+vrr}mm.");
+        Logger.Success($"[EquationGeometry] VR = {vr}mm VRR={vrr}mm VR+VRR={vr + vrr}mm.");
         return vr + vrr;
     }
 
@@ -88,16 +92,53 @@ internal static class EquationGeometry
             _ => 60.8
         };
 
+    public static decimal OverlayReferenceCutMm(double scaleDecimal, WedgeType wedgeType)
+    {
+        var resolvedScale = scaleDecimal > 0.0 ? (decimal)scaleDecimal : DefaultOverlayScaleDecimal;
+        var finalMm = OverlayReferenceCutInch * InchToMm / resolvedScale;
+
+        Logger.Info(
+            $"[EquationGeometry] {wedgeType} overlay reference cut: " +
+            $"{OverlayReferenceCutInch}in / scale={resolvedScale} -> {finalMm}mm.");
+
+        return finalMm;
+    }
+
+    public static decimal AbtOverlayCutMm(WedgeFacts facts, double scaleDecimal, WedgeType wedgeType)
+    {
+        if (!facts.HasPositive("VR"))
+        {
+            var standardCut = OverlayReferenceCutMm(scaleDecimal, wedgeType);
+
+            Logger.Info(
+                $"[EquationGeometry] {wedgeType} overlay cut -> " +
+                $"VR not present, standard cut={standardCut}mm.");
+
+            return standardCut;
+        }
+
+        var rawCut = NonStdCutRawMm(facts);
+        var finalCut = OverlaySafeNonStdCutMm(rawCut, scaleDecimal, wedgeType);
+
+        Logger.Info(
+            $"[EquationGeometry] {wedgeType} overlay cut -> " +
+            $"VR present, raw={rawCut}mm, final={finalCut}mm.");
+
+        return finalCut;
+    }
+
     public static decimal OverlaySafeNonStdCutMm(decimal rawMm, double scaleDecimal, WedgeType wedgeType)
     {
         if (rawMm <= 0m) return 0m;
         if (rawMm <= LargeOverlayVrThresholdMm) return rawMm;
 
-        const decimal referenceInch = 2.01175m;
-        const decimal inchToMm = 25.4m;
-        var resolvedScale = scaleDecimal > 0.0 ? (decimal)scaleDecimal : 60.8m;
-        var finalMm = referenceInch * inchToMm / resolvedScale;
-        Logger.Warn($"[EquationGeometry] {wedgeType} overlay non_std_cut override: raw={rawMm}mm -> {finalMm}mm scale={resolvedScale}");
+        var resolvedScale = scaleDecimal > 0.0 ? (decimal)scaleDecimal : DefaultOverlayScaleDecimal;
+        var finalMm = OverlayReferenceCutInch * InchToMm / resolvedScale;
+
+        Logger.Warn(
+            $"[EquationGeometry] {wedgeType} overlay non_std_cut override: " +
+            $"raw={rawMm}mm -> {finalMm}mm scale={resolvedScale}");
+
         return finalMm;
     }
 
