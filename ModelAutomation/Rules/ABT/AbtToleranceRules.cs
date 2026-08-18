@@ -161,7 +161,7 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
                 magnification);
 
         var cutMm =
-            EquationGeometry.AbtOverlayCutMm(
+            EquationGeometry.RefPointOverlayCutMm(
                 facts,
                 scale,
                 WedgeType.ABT);

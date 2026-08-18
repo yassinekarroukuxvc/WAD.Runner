@@ -20,8 +20,31 @@ internal static class WedgeDimensionValidationRuleCatalog
 
             WedgeType._4516 => Build4516Rules(),
             WedgeType.ABT => BuildAbtRules(),
+            WedgeType.AB16 => BuildAb16Rules(),
 
             _ => WedgeDimensionValidationRuleSet.Empty
+        };
+    }
+
+
+    private static WedgeDimensionValidationRuleSet
+        BuildAb16Rules()
+    {
+        return new WedgeDimensionValidationRuleSet
+        {
+            RequiredStandalone = Slots("TL", "TD", "TDF", "W", "ISA", "FD", "T", "RA", "BA", "FRO", "ERL", "ERD", "ERW", "CA", "FL"),
+
+            ConditionalAndGroups =
+                new[]
+                {
+                    Group("VR, VRA, VW, VRR", Slot("VR"), Slot("VRA"), Slot("VW"), Slot("VRR")),
+                    Group("VBL, VBLR", Slot("VBL"), Slot("VBLR")),
+                    Group("RA2, RA2H", Slot("RA2"), Slot("RA2H")),
+                    Group("B, GA, GD", Slot("B"), Slot("GA"), Slot("GD")),
+                    Group("CGO, CGR, G", Slot("CGO"), Slot("CGR"), Slot("G")),
+                    Group("HW, HH", Slot("HW"), Slot("HH")),
+                    Group("ST, SW", Slot("ST"), Slot("SW"))
+                }
         };
     }
 

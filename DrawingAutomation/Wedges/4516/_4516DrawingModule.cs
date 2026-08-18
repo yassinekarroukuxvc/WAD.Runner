@@ -111,7 +111,7 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         global::WAD.Runner.DataManagement.Domain.Wedge.WedgeType._4516;
 
     public DrawingWedgeBehavior Behavior { get; } = new(
-        OverlayMagnificationSourceKey: "FL",
+        OverlayMagnificationSourceKey: "T",
         OverlayDimensionKeys: OverlayDimensionKeyList,
         OverlayReferencePointSketch: "ref_point_1",
         RepositionPrimaryOverlayViews: false,

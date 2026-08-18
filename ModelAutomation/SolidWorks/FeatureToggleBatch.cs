@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -15,26 +14,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         private readonly ModelDoc2 _model;
         private readonly IModelDocExtension _ext;
         private readonly Dictionary<string, FeatureEntry> _index;
-
-        private static readonly string[] CriticalUnsuppressOrder =
-        {
-            "cut_plan_feature",
-            "cut_feature",
-            "non_std_cut_plan_feature",
-            "non_std_cut_feature"
-        };
-
-        private static readonly string[] CriticalSuppressOrder =
-        {
-            "cut_feature",
-            "cut_plan_feature",
-            "non_std_cut_feature",
-            "non_std_cut_plan_feature",
-            "ERW_STD_sketch",
-            "ERW_STD_feature",
-            "ERW_180_DEG_REV_sketch",
-            "ERW_180_DEG_REV_feature"
-        };
 
         private static readonly Dictionary<string, string> SwTypeToSelectionType =
             new(StringComparer.OrdinalIgnoreCase)
@@ -65,364 +44,470 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             "SKETCH",
             "BODYFEATURE",
             "REFERENCECURVES",
+            "DATUMPOINT",
+            "AXIS",
+            "PLANE",
+            "COORDSYS"
         };
 
-        private FeatureToggleBatch(ModelDoc2 model, Dictionary<string, FeatureEntry> index)
+        private FeatureToggleBatch(
+            ModelDoc2 model,
+            Dictionary<string, FeatureEntry> index)
         {
-            _model = model ?? throw new ArgumentNullException(nameof(model));
-            _ext = (IModelDocExtension)model.Extension;
+            _model =
+                model ??
+                throw new ArgumentNullException(nameof(model));
+
+            _ext =
+                (IModelDocExtension)model.Extension;
+
             _index = index;
         }
 
+        // ================================================================
+        // FEATURE ENTRY
+        // ================================================================
 
         private sealed class FeatureEntry
         {
             public Feature Feature { get; }
 
+            public int Depth { get; }
+
             public string? SelectionType { get; set; }
 
-            public bool? IsSuppressedCached { get; set; }
-
-            public FeatureEntry(Feature feature) => Feature = feature;
+            public FeatureEntry(
+                Feature feature,
+                int depth)
+            {
+                Feature = feature;
+                Depth = depth;
+            }
         }
+
+        // ================================================================
+        // OPTIONS
+        // ================================================================
 
         public sealed class ToggleOptions
         {
+            /// <summary>
+            /// When true, do not read the current feature state before
+            /// attempting the requested toggle.
+            ///
+            /// Final verification is still performed afterward.
+            /// </summary>
             public bool BlindApply { get; init; } = true;
 
+            /// <summary>
+            /// Uses EditSuppress2/EditUnsuppress2 for fast batches when
+            /// operating on the active configuration.
+            ///
+            /// Every requested feature is still verified afterward.
+            /// </summary>
             public bool UseSelectionBatch { get; init; } = true;
 
             public int BatchSize { get; init; } = 250;
 
             public bool ClearSelectionPerBatch { get; init; } = true;
 
+            /// <summary>
+            /// When a feature cannot be selected, use
+            /// Feature.SetSuppression2 directly.
+            /// </summary>
             public bool FallbackToPerFeature { get; init; } = true;
 
             public bool InputIsNormalized { get; init; } = false;
+
+            /// <summary>
+            /// Verify every requested feature after the fast application
+            /// pass.
+            ///
+            /// This should normally remain enabled.
+            /// </summary>
+            public bool VerifyFinalState { get; init; } = true;
+
+            /// <summary>
+            /// If verification finds the wrong state, retry the feature
+            /// directly using Feature.SetSuppression2.
+            /// </summary>
+            public bool RepairMismatches { get; init; } = true;
         }
 
+        // ================================================================
+        // BUILD INDEX
+        // ================================================================
 
-        public static FeatureToggleBatch Build(ModelDoc2 model)
+        public static FeatureToggleBatch Build(
+            ModelDoc2 model)
         {
             if (model is null)
                 throw new ArgumentNullException(nameof(model));
 
             if (model is not PartDoc part)
-                throw new InvalidOperationException("FeatureToggleBatch.Build expects an opened PartDoc (SLDPRT).");
-
-            var map = new Dictionary<string, FeatureEntry>(StringComparer.OrdinalIgnoreCase);
-
-            var feature = (Feature)part.FirstFeature();
-            while (feature != null)
             {
-                AddFeatureTree(map, feature);
-                feature = (Feature)feature.GetNextFeature();
+                throw new InvalidOperationException(
+                    "FeatureToggleBatch.Build expects an opened PartDoc (SLDPRT).");
             }
 
-            Logger.Info($"[FeatureToggleBatch] Index built → {map.Count} features (incl. sub-features).");
-            return new FeatureToggleBatch(model, map);
+            var map =
+                new Dictionary<string, FeatureEntry>(
+                    StringComparer.OrdinalIgnoreCase);
+
+            var feature =
+                part.FirstFeature() as Feature;
+
+            while (feature is not null)
+            {
+                AddFeatureTree(
+                    map,
+                    feature,
+                    depth: 0);
+
+                feature =
+                    feature.GetNextFeature() as Feature;
+            }
+
+            Logger.Info(
+                "[FeatureToggleBatch] Index built -> " +
+                $"{map.Count} features (incl. sub-features).");
+
+            return new FeatureToggleBatch(
+                model,
+                map);
         }
 
+        // ================================================================
+        // APPLY
+        // ================================================================
 
         public ToggleResult Apply(
             IEnumerable<string>? suppressNames,
             IEnumerable<string>? unsuppressNames,
-            swInConfigurationOpts_e scope = swInConfigurationOpts_e.swThisConfiguration,
+            swInConfigurationOpts_e scope =
+                swInConfigurationOpts_e.swThisConfiguration,
             ToggleOptions? options = null)
         {
-            options ??= new ToggleOptions();
+            options ??=
+                new ToggleOptions();
 
-            var res = new ToggleResult();
+            var res =
+                new ToggleResult();
 
-            foreach (var e in _index.Values)
-                e.IsSuppressedCached = null;
+            var unsup =
+                unsuppressNames is null
+                    ? Array.Empty<string>()
+                    : NormalizeInput(
+                            unsuppressNames,
+                            options.InputIsNormalized)
+                        .ToArray();
 
-            var unsup = unsuppressNames is null
-                ? Array.Empty<string>()
-                : NormalizeInput(unsuppressNames, options.InputIsNormalized).ToArray();
+            var sup =
+                suppressNames is null
+                    ? Array.Empty<string>()
+                    : NormalizeInput(
+                            suppressNames,
+                            options.InputIsNormalized)
+                        .ToArray();
 
-            var sup = suppressNames is null
-                ? Array.Empty<string>()
-                : NormalizeInput(suppressNames, options.InputIsNormalized).ToArray();
+            // ============================================================
+            // CONFLICT RESOLUTION
+            // ============================================================
+            //
+            // An explicit unsuppress request wins if the same feature
+            // accidentally appears in both collections.
+            //
 
-            if (unsup.Length > 0 && sup.Length > 0)
-                sup = sup.Where(s => !unsup.Contains(s, StringComparer.OrdinalIgnoreCase)).ToArray();
+            if (unsup.Length > 0 &&
+                sup.Length > 0)
+            {
+                var unsupSet =
+                    new HashSet<string>(
+                        unsup,
+                        StringComparer.OrdinalIgnoreCase);
 
-            var criticalUnsup = ExtractOrdered(unsup, CriticalUnsuppressOrder);
-            var criticalSup = ExtractOrdered(sup, CriticalSuppressOrder);
+                var conflicts =
+                    sup
+                        .Where(unsupSet.Contains)
+                        .Distinct(
+                            StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
 
-            if (criticalUnsup.Length > 0)
-                unsup = RemoveNames(unsup, criticalUnsup);
+                if (conflicts.Length > 0)
+                {
+                    Logger.Warn(
+                        "[FeatureToggleBatch] Features requested both ON and OFF. " +
+                        "ON wins -> " +
+                        string.Join(", ", conflicts));
+                }
 
-            if (criticalSup.Length > 0)
-                sup = RemoveNames(sup, criticalSup);
+                sup =
+                    sup
+                        .Where(x => !unsupSet.Contains(x))
+                        .ToArray();
+            }
+
+            // ============================================================
+            // GENERIC FEATURE DEPENDENCY ORDER
+            // ============================================================
+            //
+            // UNSUPPRESS:
+            //     parent -> child
+            //
+            // SUPPRESS:
+            //     child -> parent
+            //
+            // This removes the need for wedge-specific critical-name lists.
+            //
+
+            unsup =
+                OrderForTarget(
+                    unsup,
+                    targetSuppress: false);
+
+            sup =
+                OrderForTarget(
+                    sup,
+                    targetSuppress: true);
+
+            var activeConfiguration =
+                GetActiveConfigurationName();
 
             Logger.Info(
-                $"[FeatureToggleBatch] Apply(scope={scope}) " +
-                $"unsup={unsup.Length}+critical({criticalUnsup.Length}), " +
-                $"sup={sup.Length}+critical({criticalSup.Length}), " +
-                $"batch={options.UseSelectionBatch}, blind={options.BlindApply}");
+                "[FeatureToggleBatch] Apply -> " +
+                $"config={activeConfiguration}, " +
+                $"scope={scope}, " +
+                $"unsup={unsup.Length}, " +
+                $"sup={sup.Length}, " +
+                $"batch={options.UseSelectionBatch}, " +
+                $"blind={options.BlindApply}, " +
+                $"verify={options.VerifyFinalState}, " +
+                $"repair={options.RepairMismatches}.");
 
-            if (scope == swInConfigurationOpts_e.swAllConfiguration)
+            // ============================================================
+            // FAST APPLICATION PASS
+            // ============================================================
+
+            if (scope ==
+                swInConfigurationOpts_e.swThisConfiguration &&
+                options.UseSelectionBatch)
             {
-                Logger.Info("[FeatureToggleBatch] scope=AllConfiguration → per-feature path (SetSuppression2).");
+                ApplyBySelectionBatches(
+                    unsup,
+                    suppress: false,
+                    scope,
+                    options,
+                    res);
 
-                if (!options.BlindApply)
-                    PreReadSuppressionCache(unsup.Concat(sup).Concat(criticalUnsup).Concat(criticalSup), scope);
-
-                ApplyCriticalInOrder(criticalUnsup, suppress: false, scope, res);
-
-                foreach (var name in unsup)
-                    ToggleOnePerFeature(name, targetSuppress: false, scope, blindApply: options.BlindApply, res);
-
-                foreach (var name in sup)
-                    ToggleOnePerFeature(name, targetSuppress: true, scope, blindApply: options.BlindApply, res);
-
-                ApplyCriticalInOrder(criticalSup, suppress: true, scope, res);
-            }
-            else if (options.UseSelectionBatch)
-            {
-                ApplyCriticalInOrder(criticalUnsup, suppress: false, scope, res);
-
-                ApplyBySelectionBatches(unsup, suppress: false, scope, options, res);
-                ApplyBySelectionBatches(sup, suppress: true, scope, options, res);
-
-                ApplyCriticalInOrder(criticalSup, suppress: true, scope, res);
+                ApplyBySelectionBatches(
+                    sup,
+                    suppress: true,
+                    scope,
+                    options,
+                    res);
             }
             else
             {
-                ApplyCriticalInOrder(criticalUnsup, suppress: false, scope, res);
+                //
+                // SetSuppression2 is used directly when we are not simply
+                // editing the currently-active configuration.
+                //
 
                 foreach (var name in unsup)
-                    ToggleOnePerFeature(name, targetSuppress: false, scope, options.BlindApply, res);
+                {
+                    ToggleOnePerFeature(
+                        name,
+                        targetSuppress: false,
+                        scope,
+                        blindApply: options.BlindApply,
+                        res);
+                }
 
                 foreach (var name in sup)
-                    ToggleOnePerFeature(name, targetSuppress: true, scope, options.BlindApply, res);
-
-                ApplyCriticalInOrder(criticalSup, suppress: true, scope, res);
+                {
+                    ToggleOnePerFeature(
+                        name,
+                        targetSuppress: true,
+                        scope,
+                        blindApply: options.BlindApply,
+                        res);
+                }
             }
 
-            VerifyCriticalUnsuppressed(criticalUnsup, scope, res);
-            VerifyCriticalSuppressed(criticalSup, scope, res);
+            // ============================================================
+            // FINAL VERIFICATION + REPAIR
+            // ============================================================
+            //
+            // EditSuppress2/EditUnsuppress2 returning true does NOT prove
+            // every selected feature actually reached the requested state.
+            //
+            // This pass makes the requested feature plan the source of truth.
+            //
+
+            if (options.VerifyFinalState)
+            {
+                VerifyAndRepairRequestedState(
+                    unsup,
+                    targetSuppress: false,
+                    scope,
+                    options,
+                    res);
+
+                VerifyAndRepairRequestedState(
+                    sup,
+                    targetSuppress: true,
+                    scope,
+                    options,
+                    res);
+            }
 
             Logger.Info(
-                "[FeatureToggleBatch] Apply done → " +
-                $"unsuppressed={res.Unsuppressed.Count}, suppressed={res.Suppressed.Count}, " +
-                $"skipped={res.SkippedAlreadyCorrect.Count}, missing={res.Missing.Count}, failed={res.Failed.Count}");
+                "[FeatureToggleBatch] Apply done -> " +
+                $"config={activeConfiguration}, " +
+                $"unsuppressed={res.Unsuppressed.Count}, " +
+                $"suppressed={res.Suppressed.Count}, " +
+                $"skipped={res.SkippedAlreadyCorrect.Count}, " +
+                $"missing={res.Missing.Count}, " +
+                $"failed={res.Failed.Count}");
 
             if (res.Missing.Count > 0)
-                Logger.Warn("[FeatureToggleBatch] Missing: " + string.Join(", ", res.Missing.Take(50)));
+            {
+                Logger.Warn(
+                    "[FeatureToggleBatch] Missing -> " +
+                    string.Join(
+                        ", ",
+                        res.Missing.Take(50)));
+            }
 
             if (res.Failed.Count > 0)
             {
                 Logger.Warn(
-                    "[FeatureToggleBatch] Failed: " +
-                    string.Join(", ", res.Failed.Take(20).Select(kv => $"{kv.Key} => {kv.Value}")));
+                    "[FeatureToggleBatch] Failed -> " +
+                    string.Join(
+                        ", ",
+                        res.Failed
+                            .Take(50)
+                            .Select(
+                                kv =>
+                                    $"{kv.Key} => {kv.Value}")));
             }
 
             return res;
         }
 
+        // ================================================================
+        // SINGLE TOGGLE
+        // ================================================================
+
         public bool TryToggle(
             string featureName,
             bool suppress,
-            swInConfigurationOpts_e scope = swInConfigurationOpts_e.swThisConfiguration)
+            swInConfigurationOpts_e scope =
+                swInConfigurationOpts_e.swThisConfiguration)
         {
             if (string.IsNullOrWhiteSpace(featureName))
                 return false;
 
-            var name = featureName.Trim();
+            var name =
+                featureName.Trim();
 
-            if (!_index.TryGetValue(name, out var entry))
+            if (!_index.TryGetValue(
+                    name,
+                    out var entry))
+            {
                 return false;
+            }
 
-            if (TryGetIsSuppressed(entry, scope, out var isSuppressed) && isSuppressed == suppress)
+            if (TryReadMatchesTarget(
+                    entry,
+                    scope,
+                    suppress,
+                    out var alreadyCorrect,
+                    out _) &&
+                alreadyCorrect)
+            {
                 return true;
+            }
 
-            if (!TrySet(entry, suppress, scope, out _))
+            if (!TrySet(
+                    entry,
+                    suppress,
+                    scope,
+                    out _))
+            {
                 return false;
+            }
 
-            entry.IsSuppressedCached = suppress;
-            return true;
+            if (!TryReadMatchesTarget(
+                    entry,
+                    scope,
+                    suppress,
+                    out var finalCorrect,
+                    out _))
+            {
+                return false;
+            }
+
+            return finalCorrect;
         }
 
+        // ================================================================
+        // GENERIC ORDERING
+        // ================================================================
 
-        private void ApplyCriticalInOrder(
+        private string[] OrderForTarget(
             string[] names,
-            bool suppress,
-            swInConfigurationOpts_e scope,
-            ToggleResult res)
+            bool targetSuppress)
         {
             if (names.Length == 0)
-                return;
+                return names;
 
-            Logger.Info(
-                $"[FeatureToggleBatch] Critical ordered {(suppress ? "suppress" : "unsuppress")} → " +
-                string.Join(", ", names));
+            var entries =
+                names
+                    .Select(
+                        (name, originalIndex) =>
+                        {
+                            var known =
+                                _index.TryGetValue(
+                                    name,
+                                    out var entry);
 
-            foreach (var name in names)
-                ToggleOneCritical(name, suppress, scope, res);
+                            return new
+                            {
+                                Name = name,
+                                OriginalIndex = originalIndex,
+                                Known = known,
+                                Depth = known
+                                    ? entry!.Depth
+                                    : 0
+                            };
+                        });
+
+            //
+            // Known features first.
+            //
+            // Suppress:
+            //     deeper descendants first.
+            //
+            // Unsuppress:
+            //     shallow parents first.
+            //
+
+            return entries
+                .OrderBy(x => x.Known ? 0 : 1)
+                .ThenBy(
+                    x =>
+                        targetSuppress
+                            ? -x.Depth
+                            : x.Depth)
+                .ThenBy(x => x.OriginalIndex)
+                .Select(x => x.Name)
+                .ToArray();
         }
 
-        private void ToggleOneCritical(
-            string name,
-            bool suppress,
-            swInConfigurationOpts_e scope,
-            ToggleResult res)
-        {
-            if (scope == swInConfigurationOpts_e.swAllConfiguration)
-            {
-                ToggleOnePerFeature(name, targetSuppress: suppress, scope, blindApply: true, res);
-                return;
-            }
-
-            ToggleOneByActiveSelection(name, suppress, scope, res);
-        }
-
-        private void ToggleOneByActiveSelection(
-            string name,
-            bool suppress,
-            swInConfigurationOpts_e scope,
-            ToggleResult res)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                return;
-
-            _model.ClearSelection2(true);
-
-            if (!TrySelectByNameHeuristics(name, append: false))
-            {
-                _model.ClearSelection2(true);
-
-                if (!_index.TryGetValue(name, out var entry))
-                {
-                    res.Missing.Add(name);
-                    return;
-                }
-
-                if (TrySet(
-                        entry,
-                        suppress,
-                        scope,
-                        out var fallbackError))
-                {
-                    entry.IsSuppressedCached = suppress;
-                    if (suppress) res.Suppressed.Add(name);
-                    else res.Unsuppressed.Add(name);
-                    return;
-                }
-
-                res.Failed[name] = fallbackError;
-                return;
-            }
-
-            if (TrySetSelectionSuppression(suppress, out var err))
-            {
-                if (suppress) res.Suppressed.Add(name);
-                else res.Unsuppressed.Add(name);
-            }
-            else
-            {
-                res.Failed[name] = err;
-            }
-
-            _model.ClearSelection2(true);
-        }
-
-        private void VerifyCriticalUnsuppressed(
-            string[] names,
-            swInConfigurationOpts_e scope,
-            ToggleResult res)
-        {
-            if (names.Length == 0)
-                return;
-
-            foreach (var name in names.Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                if (!_index.TryGetValue(name, out var entry))
-                    continue;
-
-                entry.IsSuppressedCached = null;
-
-                if (!TryGetIsSuppressed(entry, scope, out var isSuppressed))
-                    continue;
-
-                if (!isSuppressed)
-                    continue;
-
-                Logger.Warn($"[FeatureToggleBatch] Critical feature '{name}' still suppressed after first pass; retrying.");
-
-                entry.IsSuppressedCached = null;
-                ToggleOneCritical(name, suppress: false, scope, res);
-
-                entry.IsSuppressedCached = null;
-
-                if (TryGetIsSuppressed(entry, scope, out var stillSuppressed) && stillSuppressed)
-                {
-                    Logger.Error($"[FeatureToggleBatch] Critical feature '{name}' could not be unsuppressed after retry.");
-                    res.Failed.TryAdd(name, "Still suppressed after retry.");
-                }
-            }
-        }
-
-        private void VerifyCriticalSuppressed(
-            string[] names,
-            swInConfigurationOpts_e scope,
-            ToggleResult res)
-        {
-            if (names.Length == 0)
-                return;
-
-            foreach (var name in names.Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                if (!_index.TryGetValue(name, out var entry))
-                    continue;
-
-                entry.IsSuppressedCached = null;
-
-                if (!TryGetIsSuppressed(entry, scope, out var isSuppressed))
-                    continue;
-
-                if (isSuppressed)
-                    continue;
-
-                Logger.Warn(
-                    $"[FeatureToggleBatch] Critical feature '{name}' still unsuppressed after first pass " +
-                    $"(likely driven by a parent feature); retrying suppress.");
-
-                entry.IsSuppressedCached = null;
-                ToggleOneCritical(name, suppress: true, scope, res);
-
-                entry.IsSuppressedCached = null;
-
-                if (TryGetIsSuppressed(entry, scope, out var stillUnsuppressed) && !stillUnsuppressed)
-                    continue;
-
-                Logger.Error(
-                    $"[FeatureToggleBatch] Critical feature '{name}' could not be suppressed after retry. " +
-                    $"Check whether its driving parent feature is still unsuppressed.");
-                res.Failed.TryAdd(name, "Still unsuppressed after retry (parent-driven?).");
-            }
-        }
-
-
-        private static string[] ExtractOrdered(string[] source, string[] preferredOrder)
-        {
-            if (source.Length == 0)
-                return Array.Empty<string>();
-
-            var sourceSet = new HashSet<string>(source, StringComparer.OrdinalIgnoreCase);
-            return preferredOrder.Where(sourceSet.Contains).ToArray();
-        }
-
-        private static string[] RemoveNames(string[] source, string[] namesToRemove)
-        {
-            if (source.Length == 0 || namesToRemove.Length == 0)
-                return source;
-
-            var removeSet = new HashSet<string>(namesToRemove, StringComparer.OrdinalIgnoreCase);
-            return source.Where(x => !removeSet.Contains(x)).ToArray();
-        }
+        // ================================================================
+        // BATCH SELECTION APPLICATION
+        // ================================================================
 
         private void ApplyBySelectionBatches(
             string[] names,
@@ -434,33 +519,54 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             if (names.Length == 0)
                 return;
 
-            int batchSize = Math.Max(1, options.BatchSize);
-            var span = names.AsSpan();
+            var batchSize =
+                Math.Max(
+                    1,
+                    options.BatchSize);
 
-            for (int i = 0; i < span.Length; i += batchSize)
+            for (var i = 0;
+                 i < names.Length;
+                 i += batchSize)
             {
-                var batch = span.Slice(
-                    i,
-                    Math.Min(batchSize, span.Length - i));
+                var count =
+                    Math.Min(
+                        batchSize,
+                        names.Length - i);
 
                 if (options.ClearSelectionPerBatch)
                     _model.ClearSelection2(true);
 
-                var selected = new List<string>(batch.Length);
-                var perFeatureFallback = new List<string>();
+                var selected =
+                    new List<string>(
+                        count);
 
-                foreach (var name in batch)
+                var perFeatureFallback =
+                    new List<string>();
+
+                for (var j = 0;
+                     j < count;
+                     j++)
                 {
+                    var name =
+                        names[i + j];
+
                     if (!options.BlindApply &&
-                        _index.TryGetValue(name, out var entry))
+                        _index.TryGetValue(
+                            name,
+                            out var currentEntry))
                     {
-                        if (TryGetIsSuppressed(
-                                entry,
+                        if (TryReadMatchesTarget(
+                                currentEntry,
                                 scope,
-                                out var current) &&
-                            current == suppress)
+                                suppress,
+                                out var alreadyCorrect,
+                                out _) &&
+                            alreadyCorrect)
                         {
-                            res.SkippedAlreadyCorrect.Add(name);
+                            MarkSkipped(
+                                res,
+                                name);
+
                             continue;
                         }
                     }
@@ -473,32 +579,34 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                         continue;
                     }
 
-                    /*
-                     * SelectByID2 can fail for suppressed, absorbed,
-                     * nested, or parent-dependent features even when
-                     * the feature exists in the indexed feature tree.
-                     */
+                    //
+                    // Feature exists but could not be selected.
+                    //
+                    // This commonly happens for suppressed, absorbed,
+                    // nested, or parent-dependent features.
+                    //
+
                     if (_index.ContainsKey(name))
                     {
                         if (options.FallbackToPerFeature)
                         {
-                            perFeatureFallback.Add(name);
+                            perFeatureFallback.Add(
+                                name);
                         }
                         else
                         {
-                            res.Failed[name] =
-                                "Feature exists in the index, but " +
-                                "SelectByID2 could not select it.";
+                            MarkFailure(
+                                res,
+                                name,
+                                "Feature exists in the index, but SelectByID2 could not select it.");
                         }
 
                         continue;
                     }
 
-                    /*
-                     * Only classify the name as missing when it does
-                     * not exist in the recursively-built feature index.
-                     */
-                    res.Missing.Add(name);
+                    MarkMissing(
+                        res,
+                        name);
                 }
 
                 if (selected.Count > 0)
@@ -517,28 +625,39 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                                     scope,
                                     blindApply: true,
                                     res,
-                                    forceFallbackOnly: true);
+                                    forceApply: true);
                             }
                         }
                         else
                         {
                             foreach (var name in selected)
-                                res.Failed[name] = error;
+                            {
+                                MarkFailure(
+                                    res,
+                                    name,
+                                    error);
+                            }
                         }
                     }
                     else
                     {
-                        if (suppress)
-                            res.Suppressed.AddRange(selected);
-                        else
-                            res.Unsuppressed.AddRange(selected);
+                        //
+                        // This is only the command result.
+                        //
+                        // Final verification below will prove whether each
+                        // feature actually reached this state.
+                        //
+
+                        foreach (var name in selected)
+                        {
+                            MarkCommandSuccess(
+                                res,
+                                name,
+                                suppress);
+                        }
                     }
                 }
 
-                /*
-                 * Features that exist but cannot be selected are
-                 * controlled directly through Feature.SetSuppression2.
-                 */
                 foreach (var name in perFeatureFallback)
                 {
                     ToggleOnePerFeature(
@@ -547,27 +666,191 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                         scope,
                         blindApply: true,
                         res,
-                        forceFallbackOnly: true);
+                        forceApply: true);
                 }
+
+                //
+                // Never let one batch's selections leak into the next
+                // suppression operation.
+                //
+
+                _model.ClearSelection2(true);
             }
         }
 
+        // ================================================================
+        // VERIFY + REPAIR EVERY REQUESTED FEATURE
+        // ================================================================
 
-        private bool TrySetSelectionSuppression(bool suppress, out string error)
+        private void VerifyAndRepairRequestedState(
+            IEnumerable<string> names,
+            bool targetSuppress,
+            swInConfigurationOpts_e scope,
+            ToggleOptions options,
+            ToggleResult res)
         {
-            error = string.Empty;
+            var activeConfiguration =
+                GetActiveConfigurationName();
+
+            foreach (var name in
+                     names.Distinct(
+                         StringComparer.OrdinalIgnoreCase))
+            {
+                if (!_index.TryGetValue(
+                        name,
+                        out var entry))
+                {
+                    MarkMissing(
+                        res,
+                        name);
+
+                    continue;
+                }
+
+                if (TryReadMatchesTarget(
+                        entry,
+                        scope,
+                        targetSuppress,
+                        out var correct,
+                        out var actualDescription) &&
+                    correct)
+                {
+                    MarkVerifiedCorrect(
+                        res,
+                        name,
+                        targetSuppress);
+
+                    Logger.Info(
+                        "[FeatureToggleBatch] Verified -> " +
+                        $"config={activeConfiguration}, " +
+                        $"feature='{name}', " +
+                        $"state={TargetStateName(targetSuppress)}.");
+
+                    continue;
+                }
+
+                Logger.Warn(
+                    "[FeatureToggleBatch] Verification mismatch -> " +
+                    $"config={activeConfiguration}, " +
+                    $"feature='{name}', " +
+                    $"wanted={TargetStateName(targetSuppress)}, " +
+                    $"actual={actualDescription}.");
+
+                if (!options.RepairMismatches)
+                {
+                    MarkFailure(
+                        res,
+                        name,
+                        $"Verification mismatch. Wanted {TargetStateName(targetSuppress)}, actual={actualDescription}.");
+
+                    continue;
+                }
+
+                // ========================================================
+                // DIRECT REPAIR
+                // ========================================================
+
+                if (!TrySet(
+                        entry,
+                        targetSuppress,
+                        scope,
+                        out var repairError))
+                {
+                    MarkFailure(
+                        res,
+                        name,
+                        "Direct SetSuppression2 repair failed: " +
+                        repairError);
+
+                    Logger.Error(
+                        "[FeatureToggleBatch] Repair failed -> " +
+                        $"config={activeConfiguration}, " +
+                        $"feature='{name}', " +
+                        $"wanted={TargetStateName(targetSuppress)}, " +
+                        $"error={repairError}");
+
+                    continue;
+                }
+
+                // ========================================================
+                // VERIFY REPAIR
+                // ========================================================
+
+                if (!TryReadMatchesTarget(
+                        entry,
+                        scope,
+                        targetSuppress,
+                        out var repairedCorrect,
+                        out var repairedDescription))
+                {
+                    MarkFailure(
+                        res,
+                        name,
+                        "Unable to verify feature state after SetSuppression2 repair.");
+
+                    Logger.Error(
+                        "[FeatureToggleBatch] Repair verification failed -> " +
+                        $"config={activeConfiguration}, " +
+                        $"feature='{name}'.");
+
+                    continue;
+                }
+
+                if (!repairedCorrect)
+                {
+                    MarkFailure(
+                        res,
+                        name,
+                        "Feature remained in the wrong state after SetSuppression2 repair. " +
+                        $"Wanted {TargetStateName(targetSuppress)}, actual={repairedDescription}.");
+
+                    Logger.Error(
+                        "[FeatureToggleBatch] Repair did not stick -> " +
+                        $"config={activeConfiguration}, " +
+                        $"feature='{name}', " +
+                        $"wanted={TargetStateName(targetSuppress)}, " +
+                        $"actual={repairedDescription}.");
+
+                    continue;
+                }
+
+                MarkSuccess(
+                    res,
+                    name,
+                    targetSuppress);
+
+                Logger.Info(
+                    "[FeatureToggleBatch] Repair succeeded -> " +
+                    $"config={activeConfiguration}, " +
+                    $"feature='{name}', " +
+                    $"state={TargetStateName(targetSuppress)}.");
+            }
+        }
+
+        // ================================================================
+        // SELECTION SUPPRESSION
+        // ================================================================
+
+        private bool TrySetSelectionSuppression(
+            bool suppress,
+            out string error)
+        {
+            error =
+                string.Empty;
 
             try
             {
-                bool ok = suppress
-                    ? _model.EditSuppress2()
-                    : _model.EditUnsuppress2();
+                var ok =
+                    suppress
+                        ? _model.EditSuppress2()
+                        : _model.EditUnsuppress2();
 
                 if (!ok)
                 {
-                    error = suppress
-                        ? "EditSuppress2 returned false."
-                        : "EditUnsuppress2 returned false.";
+                    error =
+                        suppress
+                            ? "EditSuppress2 returned false."
+                            : "EditUnsuppress2 returned false.";
 
                     return false;
                 }
@@ -576,34 +859,75 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
             catch (Exception ex)
             {
-                error = $"{ex.GetType().Name}: {ex.Message}";
+                error =
+                    $"{ex.GetType().Name}: {ex.Message}";
+
                 return false;
             }
         }
 
-        private bool TrySelectByNameHeuristics(string name, bool append)
+        // ================================================================
+        // SELECT FEATURE
+        // ================================================================
+
+        private bool TrySelectByNameHeuristics(
+            string name,
+            bool append)
         {
             const int mark = 0;
-            const double x = 0, y = 0, z = 0;
+            const double x = 0;
+            const double y = 0;
+            const double z = 0;
 
             try
             {
-                if (_index.TryGetValue(name, out var entry) && entry.SelectionType is { } knownType)
+                if (_index.TryGetValue(
+                        name,
+                        out var entry) &&
+                    !string.IsNullOrWhiteSpace(
+                        entry.SelectionType))
                 {
-                    if (_ext.SelectByID2(name, knownType, x, y, z, append, mark, null, 0))
-                        return true;
-
-                }
-
-                foreach (var type in SelectionProbeOrder)
-                {
-                    if (_ext.SelectByID2(name, type, x, y, z, append, mark, null, 0))
+                    if (_ext.SelectByID2(
+                            name,
+                            entry.SelectionType,
+                            x,
+                            y,
+                            z,
+                            append,
+                            mark,
+                            null,
+                            0))
                     {
-                        if (_index.TryGetValue(name, out var e))
-                            e.SelectionType = type;
-
                         return true;
                     }
+                }
+
+                foreach (var type in
+                         SelectionProbeOrder)
+                {
+                    if (!_ext.SelectByID2(
+                            name,
+                            type,
+                            x,
+                            y,
+                            z,
+                            append,
+                            mark,
+                            null,
+                            0))
+                    {
+                        continue;
+                    }
+
+                    if (_index.TryGetValue(
+                            name,
+                            out var resolvedEntry))
+                    {
+                        resolvedEntry.SelectionType =
+                            type;
+                    }
+
+                    return true;
                 }
 
                 return false;
@@ -613,6 +937,10 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 return false;
             }
         }
+
+        // ================================================================
+        // PER-FEATURE TOGGLE
+        // ================================================================
 
         private void ToggleOnePerFeature(
             string name,
@@ -620,35 +948,61 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             swInConfigurationOpts_e scope,
             bool blindApply,
             ToggleResult res,
-            bool forceFallbackOnly = false)
+            bool forceApply = false)
         {
-            if (!_index.TryGetValue(name, out var entry))
+            if (!_index.TryGetValue(
+                    name,
+                    out var entry))
             {
-                res.Missing.Add(name);
+                MarkMissing(
+                    res,
+                    name);
+
                 return;
             }
 
-            if (!forceFallbackOnly && !blindApply)
+            if (!forceApply &&
+                !blindApply)
             {
-                if (TryGetIsSuppressed(entry, scope, out var current) && current == targetSuppress)
+                if (TryReadMatchesTarget(
+                        entry,
+                        scope,
+                        targetSuppress,
+                        out var alreadyCorrect,
+                        out _) &&
+                    alreadyCorrect)
                 {
-                    res.SkippedAlreadyCorrect.Add(name);
+                    MarkSkipped(
+                        res,
+                        name);
+
                     return;
                 }
             }
 
-            if (TrySet(entry, targetSuppress, scope, out var err))
+            if (TrySet(
+                    entry,
+                    targetSuppress,
+                    scope,
+                    out var error))
             {
-                entry.IsSuppressedCached = targetSuppress;
+                MarkCommandSuccess(
+                    res,
+                    name,
+                    targetSuppress);
 
-                if (targetSuppress) res.Suppressed.Add(name);
-                else res.Unsuppressed.Add(name);
+                return;
             }
-            else
-            {
-                res.Failed[name] = err;
-            }
+
+            MarkFailure(
+                res,
+                name,
+                error);
         }
+
+        // ================================================================
+        // SETSUPPRESSION2
+        // ================================================================
 
         private static bool TrySet(
             FeatureEntry entry,
@@ -656,22 +1010,25 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             swInConfigurationOpts_e scope,
             out string error)
         {
-            error = string.Empty;
+            error =
+                string.Empty;
 
             try
             {
-                bool ok = entry.Feature.SetSuppression2(
-                    suppress
-                        ? (int)swFeatureSuppressionAction_e.swSuppressFeature
-                        : (int)swFeatureSuppressionAction_e.swUnSuppressFeature,
-                    (int)scope,
-                    null);
+                var ok =
+                    entry.Feature.SetSuppression2(
+                        suppress
+                            ? (int)swFeatureSuppressionAction_e.swSuppressFeature
+                            : (int)swFeatureSuppressionAction_e.swUnSuppressFeature,
+                        (int)scope,
+                        null);
 
                 if (!ok)
                 {
-                    error = suppress
-                        ? "SetSuppression2 returned false (suppress)."
-                        : "SetSuppression2 returned false (unsuppress).";
+                    error =
+                        suppress
+                            ? "SetSuppression2 returned false (suppress)."
+                            : "SetSuppression2 returned false (unsuppress).";
 
                     return false;
                 }
@@ -680,34 +1037,68 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
             catch (Exception ex)
             {
-                error = $"{ex.GetType().Name}: {ex.Message}";
+                error =
+                    $"{ex.GetType().Name}: {ex.Message}";
+
                 return false;
             }
         }
 
-        private static bool TryGetIsSuppressed(
+        // ================================================================
+        // READ / VERIFY SUPPRESSION STATE
+        // ================================================================
+
+        private static bool TryReadMatchesTarget(
             FeatureEntry entry,
             swInConfigurationOpts_e scope,
-            out bool isSuppressed)
+            bool targetSuppress,
+            out bool matches,
+            out string actualDescription)
         {
-            isSuppressed = false;
+            matches =
+                false;
 
-            if (entry.IsSuppressedCached.HasValue)
+            actualDescription =
+                "<unable-to-read>";
+
+            if (!TryReadSuppressionStates(
+                    entry,
+                    scope,
+                    out var states))
             {
-                isSuppressed = entry.IsSuppressedCached.Value;
-                return true;
+                return false;
             }
+
+            matches =
+                states.All(
+                    value =>
+                        value == targetSuppress);
+
+            actualDescription =
+                DescribeSuppressionStates(
+                    states);
+
+            return true;
+        }
+
+        private static bool TryReadSuppressionStates(
+            FeatureEntry entry,
+            swInConfigurationOpts_e scope,
+            out bool[] states)
+        {
+            states =
+                Array.Empty<bool>();
 
             try
             {
-                object? raw = entry.Feature.IsSuppressed2((int)scope, null);
+                var raw =
+                    entry.Feature.IsSuppressed2(
+                        (int)scope,
+                        null);
 
-                if (!TryDecodeSuppressionVariant(raw, out var sup))
-                    return false;
-
-                isSuppressed = sup;
-                entry.IsSuppressedCached = sup;
-                return true;
+                return TryDecodeSuppressionVariant(
+                    raw,
+                    out states);
             }
             catch
             {
@@ -715,138 +1106,476 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             }
         }
 
-        private static bool TryDecodeSuppressionVariant(object? raw, out bool suppressed)
+        private static bool TryDecodeSuppressionVariant(
+            object? raw,
+            out bool[] states)
         {
-            suppressed = false;
+            var values =
+                new List<bool>();
 
+            AppendSuppressionValues(
+                raw,
+                values);
+
+            states =
+                values.ToArray();
+
+            return states.Length > 0;
+        }
+
+        private static void AppendSuppressionValues(
+            object? raw,
+            List<bool> values)
+        {
             if (raw is null)
-                return false;
+                return;
 
             switch (raw)
             {
-                case bool b:
-                    suppressed = b;
-                    return true;
+                case bool value:
+                    values.Add(value);
+                    return;
 
-                case int i:
-                    suppressed = i != 0;
-                    return true;
+                case int value:
+                    values.Add(value != 0);
+                    return;
 
-                case short s:
-                    suppressed = s != 0;
-                    return true;
+                case short value:
+                    values.Add(value != 0);
+                    return;
 
-                case long l:
-                    suppressed = l != 0;
-                    return true;
+                case long value:
+                    values.Add(value != 0);
+                    return;
+
+                case byte value:
+                    values.Add(value != 0);
+                    return;
+
+                case sbyte value:
+                    values.Add(value != 0);
+                    return;
+
+                case Array array:
+                    foreach (var item in array)
+                    {
+                        AppendSuppressionValues(
+                            item,
+                            values);
+                    }
+
+                    return;
             }
-
-            if (raw is Array arr && arr.Length > 0)
-            {
-                var first = arr.GetValue(0);
-
-                if (first is Array nested && nested.Length > 0)
-                    first = nested.GetValue(0);
-
-                switch (first)
-                {
-                    case bool bb:
-                        suppressed = bb;
-                        return true;
-
-                    case int ii:
-                        suppressed = ii != 0;
-                        return true;
-
-                    case short ss:
-                        suppressed = ss != 0;
-                        return true;
-
-                    case long ll:
-                        suppressed = ll != 0;
-                        return true;
-                }
-            }
-
-            return false;
         }
 
-
-        private static void AddFeatureTree(Dictionary<string, FeatureEntry> map, Feature feature)
+        private static string DescribeSuppressionStates(
+            IReadOnlyCollection<bool> states)
         {
-            TryAdd(map, feature);
+            if (states.Count == 0)
+                return "<empty>";
 
-            var subFeature = (Feature)feature.GetFirstSubFeature();
-            while (subFeature != null)
+            if (states.All(x => x))
+                return "SUPPRESSED";
+
+            if (states.All(x => !x))
+                return "UNSUPPRESSED";
+
+            var suppressed =
+                states.Count(x => x);
+
+            var unsuppressed =
+                states.Count - suppressed;
+
+            return
+                $"MIXED(suppressed={suppressed}, unsuppressed={unsuppressed})";
+        }
+
+        // ================================================================
+        // FEATURE TREE INDEX
+        // ================================================================
+
+        private static void AddFeatureTree(
+            Dictionary<string, FeatureEntry> map,
+            Feature feature,
+            int depth)
+        {
+            TryAdd(
+                map,
+                feature,
+                depth);
+
+            var subFeature =
+                feature.GetFirstSubFeature()
+                    as Feature;
+
+            while (subFeature is not null)
             {
-                AddFeatureTree(map, subFeature);
-                subFeature = (Feature)subFeature.GetNextSubFeature();
+                AddFeatureTree(
+                    map,
+                    subFeature,
+                    depth + 1);
+
+                subFeature =
+                    subFeature.GetNextSubFeature()
+                        as Feature;
             }
         }
 
-        private static void TryAdd(Dictionary<string, FeatureEntry> map, Feature f)
+        private static void TryAdd(
+            Dictionary<string, FeatureEntry> map,
+            Feature feature,
+            int depth)
         {
             try
             {
-                var name = f?.Name;
+                var name =
+                    feature.Name;
 
-                if (string.IsNullOrWhiteSpace(name) || map.ContainsKey(name))
+                if (string.IsNullOrWhiteSpace(name))
                     return;
 
-                var entry = new FeatureEntry(f);
+                if (map.ContainsKey(name))
+                    return;
 
-                var swType = f.GetTypeName2() as string ?? string.Empty;
-                entry.SelectionType = SwTypeToSelectionType.TryGetValue(swType, out var selType)
-                    ? selType
-                    : "FEATURE";
+                var entry =
+                    new FeatureEntry(
+                        feature,
+                        depth);
 
-                map.Add(name, entry);
+                var swType =
+                    feature.GetTypeName2()
+                        as string ??
+                    string.Empty;
+
+                entry.SelectionType =
+                    SwTypeToSelectionType.TryGetValue(
+                        swType,
+                        out var selectionType)
+                        ? selectionType
+                        : "FEATURE";
+
+                map.Add(
+                    name,
+                    entry);
             }
             catch
             {
             }
         }
 
-        private void PreReadSuppressionCache(IEnumerable<string> names, swInConfigurationOpts_e scope)
+        // ================================================================
+        // INPUT NORMALIZATION
+        // ================================================================
+
+        private static IEnumerable<string> NormalizeInput(
+            IEnumerable<string> names,
+            bool alreadyNormalized)
         {
-            foreach (var name in names)
+            var normalized =
+                alreadyNormalized
+                    ? NormalizeFast(names)
+                    : Normalize(names);
+
+            //
+            // Always deduplicate.
+            //
+            // Duplicate feature requests provide no benefit and make
+            // verification/results harder to reason about.
+            //
+
+            return normalized
+                .Distinct(
+                    StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static IEnumerable<string> NormalizeFast(
+            IEnumerable<string> names)
+        {
+            return names
+                .Where(
+                    value =>
+                        !string.IsNullOrWhiteSpace(value))
+                .Select(
+                    value =>
+                        value.Trim());
+        }
+
+        private static IEnumerable<string> Normalize(
+            IEnumerable<string> names)
+        {
+            return names
+                .Where(
+                    value =>
+                        !string.IsNullOrWhiteSpace(value))
+                .Select(
+                    value =>
+                        value.Trim());
+        }
+
+        // ================================================================
+        // RESULT MANAGEMENT
+        // ================================================================
+
+        private static void MarkCommandSuccess(
+            ToggleResult res,
+            string name,
+            bool suppressed)
+        {
+            res.Failed.Remove(name);
+
+            RemoveName(
+                res.Missing,
+                name);
+
+            if (suppressed)
             {
-                if (_index.TryGetValue(name, out var entry) && entry.IsSuppressedCached is null)
-                    TryGetIsSuppressed(entry, scope, out _);
+                RemoveName(
+                    res.Unsuppressed,
+                    name);
+
+                AddUnique(
+                    res.Suppressed,
+                    name);
+            }
+            else
+            {
+                RemoveName(
+                    res.Suppressed,
+                    name);
+
+                AddUnique(
+                    res.Unsuppressed,
+                    name);
             }
         }
 
-
-        private static IEnumerable<string> NormalizeInput(IEnumerable<string> names, bool alreadyNormalized)
+        private static void MarkVerifiedCorrect(
+            ToggleResult res,
+            string name,
+            bool suppressed)
         {
-            return alreadyNormalized ? NormalizeFast(names) : Normalize(names);
+            res.Failed.Remove(name);
+
+            RemoveName(
+                res.Missing,
+                name);
+
+            //
+            // Preserve the "already correct" classification when the
+            // operation was skipped because the feature started in the
+            // requested state.
+            //
+
+            if (ContainsName(
+                    res.SkippedAlreadyCorrect,
+                    name))
+            {
+                return;
+            }
+
+            MarkSuccess(
+                res,
+                name,
+                suppressed);
         }
 
-        private static IEnumerable<string> NormalizeFast(IEnumerable<string> names)
+        private static void MarkSuccess(
+            ToggleResult res,
+            string name,
+            bool suppressed)
         {
-            return names
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s.Trim());
+            res.Failed.Remove(name);
+
+            RemoveName(
+                res.Missing,
+                name);
+
+            RemoveName(
+                res.SkippedAlreadyCorrect,
+                name);
+
+            if (suppressed)
+            {
+                RemoveName(
+                    res.Unsuppressed,
+                    name);
+
+                AddUnique(
+                    res.Suppressed,
+                    name);
+            }
+            else
+            {
+                RemoveName(
+                    res.Suppressed,
+                    name);
+
+                AddUnique(
+                    res.Unsuppressed,
+                    name);
+            }
         }
 
-        private static IEnumerable<string> Normalize(IEnumerable<string> names)
+        private static void MarkSkipped(
+            ToggleResult res,
+            string name)
         {
-            return names
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase);
+            res.Failed.Remove(name);
+
+            RemoveName(
+                res.Missing,
+                name);
+
+            RemoveName(
+                res.Suppressed,
+                name);
+
+            RemoveName(
+                res.Unsuppressed,
+                name);
+
+            AddUnique(
+                res.SkippedAlreadyCorrect,
+                name);
         }
 
+        private static void MarkMissing(
+            ToggleResult res,
+            string name)
+        {
+            res.Failed.Remove(name);
+
+            RemoveName(
+                res.Suppressed,
+                name);
+
+            RemoveName(
+                res.Unsuppressed,
+                name);
+
+            RemoveName(
+                res.SkippedAlreadyCorrect,
+                name);
+
+            AddUnique(
+                res.Missing,
+                name);
+        }
+
+        private static void MarkFailure(
+            ToggleResult res,
+            string name,
+            string error)
+        {
+            RemoveName(
+                res.Suppressed,
+                name);
+
+            RemoveName(
+                res.Unsuppressed,
+                name);
+
+            RemoveName(
+                res.SkippedAlreadyCorrect,
+                name);
+
+            RemoveName(
+                res.Missing,
+                name);
+
+            res.Failed[name] =
+                error;
+        }
+
+        private static void AddUnique(
+            List<string> values,
+            string name)
+        {
+            if (!ContainsName(
+                    values,
+                    name))
+            {
+                values.Add(name);
+            }
+        }
+
+        private static bool ContainsName(
+            IEnumerable<string> values,
+            string name)
+        {
+            return values.Contains(
+                name,
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static void RemoveName(
+            List<string> values,
+            string name)
+        {
+            values.RemoveAll(
+                value =>
+                    string.Equals(
+                        value,
+                        name,
+                        StringComparison.OrdinalIgnoreCase));
+        }
+
+        // ================================================================
+        // LOGGING HELPERS
+        // ================================================================
+
+        private string GetActiveConfigurationName()
+        {
+            try
+            {
+                var configurationManager =
+                    _model.ConfigurationManager;
+
+                var configuration =
+                    configurationManager.ActiveConfiguration;
+
+                return configuration?.Name ??
+                       "<unknown>";
+            }
+            catch
+            {
+                return "<unknown>";
+            }
+        }
+
+        private static string TargetStateName(
+            bool suppress)
+        {
+            return suppress
+                ? "SUPPRESSED"
+                : "UNSUPPRESSED";
+        }
+
+        // ================================================================
+        // RESULT
+        // ================================================================
 
         public sealed class ToggleResult
         {
-            public List<string> Suppressed { get; } = new();
-            public List<string> Unsuppressed { get; } = new();
-            public List<string> SkippedAlreadyCorrect { get; } = new();
-            public List<string> Missing { get; } = new();
-            public Dictionary<string, string> Failed { get; } = new(StringComparer.OrdinalIgnoreCase);
+            public List<string> Suppressed { get; } =
+                new();
 
-            public bool IsSuccess => Missing.Count == 0 && Failed.Count == 0;
+            public List<string> Unsuppressed { get; } =
+                new();
+
+            public List<string> SkippedAlreadyCorrect { get; } =
+                new();
+
+            public List<string> Missing { get; } =
+                new();
+
+            public Dictionary<string, string> Failed { get; } =
+                new(
+                    StringComparer.OrdinalIgnoreCase);
+
+            public bool IsSuccess =>
+                Missing.Count == 0 &&
+                Failed.Count == 0;
         }
     }
 }

@@ -604,6 +604,84 @@
               "SpecialNote": "ABT production override"
             }
           }
+        },
+        "AB16": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [
+                  100,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Section": {
+                "PositionMm": [
+                  220,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Top": {
+                "PositionMm": [
+                  45,
+                  185
+                ],
+                "Scale": 7.0
+              },
+              "Front": {
+                "PositionMm": [
+                  20,
+                  100
+                ],
+                "Scale": 7.0,
+                "Params": {
+                  "breakline_gap_mm": 2
+                }
+              },
+              "Side": {
+                "PositionMm": [
+                  45,
+                  100
+                ],
+                "Scale": 7.0,
+                "Params": {
+                  "breakline_gap_mm": 2
+                }
+              }
+            },
+            "Tables": {
+              "TitleBlock": {
+                "PositionMm": [
+                  15,
+                  15
+                ]
+              },
+              "DimTable": {
+                "PositionMm": [
+                  60,
+                  0
+                ]
+              },
+              "HowToOrder": {
+                "PositionMm": [
+                  196,
+                  210
+                ]
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "AB16 production override"
+            }
+          }
         }
       }
     },
@@ -1033,6 +1111,76 @@
               "SpecialNote": "ABT customer override"
             }
           }
+        },
+        "AB16": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [
+                  100,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Section": {
+                "PositionMm": [
+                  220,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Top": {
+                "PositionMm": [
+                  45,
+                  185
+                ],
+                "Scale": 7.0
+              },
+              "Front": {
+                "PositionMm": [
+                  20,
+                  100
+                ],
+                "Scale": 7.0
+              },
+              "Side": {
+                "PositionMm": [
+                  45,
+                  100
+                ],
+                "Scale": 7.0
+              }
+            },
+            "Tables": {
+              "TitleBlock": {
+                "PositionMm": [
+                  15,
+                  15
+                ]
+              },
+              "DimTable": {
+                "PositionMm": [
+                  60,
+                  0
+                ]
+              },
+              "HowToOrder": {
+                "PositionMm": [
+                  196,
+                  210
+                ]
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "AB16 customer override"
+            }
+          }
         }
       }
     },
@@ -1138,6 +1286,20 @@
             },
             "Metadata": {
               "SpecialNote": "ABT overlay tuning"
+            }
+          }
+        },
+        "AB16": {
+          "Common": {
+            "Views": {
+              "Side": {
+                "Params": {
+                  "breakline_gap_mm": 8.0
+                }
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "AB16 overlay tuning"
             }
           }
         }

@@ -453,6 +453,21 @@ switch (cmd)
                     equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "ABT", "ABT_rev1", "equations.txt");
                     break;
 
+                case WedgeType.AB16:
+                    templatePartPath = Path.Combine("Resources", "Templates", "AB16", "AB16_rev1", "AB16_part_rev1.SLDPRT");
+
+                    templateDrawingPath = dtype switch
+                    {
+                        DrawingType.Overlay =>
+                            Path.Combine("Resources", "Templates", "AB16", "AB16_rev1", "AB16_overlay_rev2.SLDDRW"),
+
+                        DrawingType.Production or DrawingType.Customer or _ =>
+                            Path.Combine("Resources", "Templates", "AB16", "AB16_rev1", "AB16_drawing_rev2.SLDPRT.SLDDRW"),
+                    };
+
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "AB16", "AB16_rev1", "equations.txt");
+                    break;
+
                 case WedgeType.CKVD:
                 default:
                     templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
@@ -674,6 +689,11 @@ switch (cmd)
                     equationTemplatePath = Path.Combine("Resources", "Templates", "ABT", "ABT_rev1", "equations.txt");
                     break;
 
+                case WedgeType.AB16:
+                    partTemplatePath = Path.Combine("Resources", "Templates", "AB16", "AB16_rev1", "AB16_part_rev1.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "AB16", "AB16_rev1", "equations.txt");
+                    break;
+
                 case WedgeType.CKVD:
                 default:
                     partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
@@ -822,6 +842,7 @@ static WedgeType ParseWedgeTypeEnum(string[] a)
         "FP" => WedgeType.FP,
         "4516" => WedgeType._4516,
         "ABT" => WedgeType.ABT,
+        "AB16" => WedgeType.AB16,
         _ => WedgeType.CKVD
     };
 }

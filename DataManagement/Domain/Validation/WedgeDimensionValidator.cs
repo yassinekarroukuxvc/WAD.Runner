@@ -5,6 +5,7 @@ using System.Linq;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Domain.Validation.Rules._4516;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.ABT;
+using WAD.Runner.DataManagement.Domain.Validation.Rules.AB16;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.OSG7;
 
 namespace WAD.Runner.DataManagement.Domain.Validation;
@@ -37,23 +38,26 @@ public static class WedgeDimensionValidator
             WedgeDimensionValidationRuleCatalog.For(
                 wedgeType);
 
-        ValidateRequiredStandalone(
-            wedge,
-            wedgeType,
-            ruleSet.RequiredStandalone,
-            issues);
+        if (wedge.Subclass == WedgeSubclass.FG)
+        {
+            ValidateRequiredStandalone(
+                wedge,
+                wedgeType,
+                ruleSet.RequiredStandalone,
+                issues);
 
-        ValidateRequiredAndGroups(
-            wedge,
-            wedgeType,
-            ruleSet.RequiredAndGroups,
-            issues);
+            ValidateRequiredAndGroups(
+                wedge,
+                wedgeType,
+                ruleSet.RequiredAndGroups,
+                issues);
 
-        ValidateRequiredOrGroups(
-            wedge,
-            wedgeType,
-            ruleSet.RequiredOrGroups,
-            issues);
+            ValidateRequiredOrGroups(
+                wedge,
+                wedgeType,
+                ruleSet.RequiredOrGroups,
+                issues);
+        }
 
         ValidateConditionalAndGroups(
             wedge,
@@ -78,6 +82,14 @@ public static class WedgeDimensionValidator
         if (wedgeType == WedgeType.ABT)
         {
             AbtConditionalDimensionValidator.Validate(
+                wedge,
+                wedgeType,
+                issues);
+        }
+
+        if (wedgeType == WedgeType.AB16)
+        {
+            Ab16ConditionalDimensionValidator.Validate(
                 wedge,
                 wedgeType,
                 issues);

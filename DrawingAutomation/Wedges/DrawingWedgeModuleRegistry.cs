@@ -7,6 +7,7 @@ using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
 using WAD.Runner.DrawingAutomation.Wedges._4516;
 using WAD.Runner.DrawingAutomation.Wedges.ABT;
+using WAD.Runner.DrawingAutomation.Wedges.AB16;
 using WAD.Runner.DrawingAutomation.Wedges.Ckvd;
 using WAD.Runner.DrawingAutomation.Wedges.Cob;
 using WAD.Runner.DrawingAutomation.Wedges.Fp;
@@ -48,6 +49,7 @@ public static class DrawingWedgeModuleRegistry
         {
             new _4516DrawingModule(),
             new AbtDrawingModule(),
+            new Ab16DrawingModule(),
             new CkvdDrawingModule(),
             new CobDrawingModule(),
             new FpDrawingModule(),

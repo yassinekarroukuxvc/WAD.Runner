@@ -104,7 +104,7 @@ internal static class EquationGeometry
         return finalMm;
     }
 
-    public static decimal AbtOverlayCutMm(WedgeFacts facts, double scaleDecimal, WedgeType wedgeType)
+    public static decimal RefPointOverlayCutMm(WedgeFacts facts, double scaleDecimal, WedgeType wedgeType)
     {
         if (!facts.HasPositive("VR"))
         {

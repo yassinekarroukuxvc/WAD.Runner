@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -7,17 +7,19 @@ using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Catalogs;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Resolution;
-using WAD.Runner.DrawingAutomation.Wedges.ABT.Annotations;
+using WAD.Runner.DrawingAutomation.Wedges.AB16.Annotations;
 
-namespace WAD.Runner.DrawingAutomation.Wedges.ABT;
+namespace WAD.Runner.DrawingAutomation.Wedges.AB16;
 
-public sealed class AbtDrawingModule : IDrawingWedgeModule
+public sealed class Ab16DrawingModule : IDrawingWedgeModule
 {
     private static readonly IReadOnlyList<string> OverlayDimensionKeyList =
         Array.AsReadOnly(new[]
         {
-            "TD", "TDF", "W", "ISA", "VW", "VR", "VRR", "VRA", "TL", "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C",
-            "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y", "G", "CGR", "CGD", "VBL", "VBLR", "RA", "RA2"
+            "TD", "TDF", "W", "ISA", "VW", "VR", "VRR", "VRA", "TL",
+            "B", "GA", "GD", "GO", "BA", "T", "FL", "C",
+            "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
+            "G", "CGR", "CGD", "VBL", "VBLR", "RA", "RA2", "W2", "ST"
         });
 
     private static readonly ViewNames ProductionCustomerViews = new(
@@ -35,31 +37,39 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
         Section: "Drawing View2");
 
     private static readonly IReadOnlySet<string> FgDrawingTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C", "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y", "G", "CGR", "CGD", "VBL", "RA", "RA2");
+        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL",
+        "B", "GA", "GD", "GO", "BA", "T", "FL", "C",
+        "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
+        "G", "CGR", "CGD", "VBL", "RA", "RA2", "W2", "ST");
 
     private static readonly IReadOnlySet<string> FgOverlayTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C", "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y", "G", "CGR", "CGD", "VBL", "RA", "RA2");
+        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL",
+        "B", "GA", "GD", "GO", "BA", "T", "FL", "C",
+        "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
+        "G", "CGR", "CGD", "VBL", "RA", "RA2", "W2", "ST");
 
     private static readonly IReadOnlySet<string> PgbProductionTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "BA", "T", "FL", "VBL");
+        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
+        "TL", "BA", "T", "FL", "VBL", "W2");
 
     private static readonly IReadOnlySet<string> PgbOverlayTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "BA", "T", "FL", "VBL");
+        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
+        "TL", "BA", "T", "FL", "VBL", "W2");
 
-    public AbtDrawingModule()
+    public Ab16DrawingModule()
     {
         Profiles = Array.AsReadOnly(new[]
         {
-            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.FG, DrawingType.Production, "ABT FG Production", ProductionCustomerViews, new[] { "SHEET1" }, DrawingViewNames.SecondaryBreaklineViews),
-            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.FG, DrawingType.Customer, "ABT FG Customer", ProductionCustomerViews, new[] { "SHEET1" }, DrawingViewNames.SecondaryBreaklineViews),
-            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.FG, DrawingType.Overlay, "ABT FG Overlay", OverlayViews, new[] { "OVERLAY" }, DrawingViewNames.NoBreaklineViews),
-            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.PGB, DrawingType.Production, "ABT PGB Production", ProductionCustomerViews, new[] { "SHEET1" }, DrawingViewNames.SecondaryBreaklineViews),
-            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.PGB, DrawingType.Customer, "ABT PGB Customer", ProductionCustomerViews, new[] { "SHEET1" }, DrawingViewNames.SecondaryBreaklineViews),
-            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.PGB, DrawingType.Overlay, "ABT PGB Overlay", OverlayViews, new[] { "OVERLAY" }, DrawingViewNames.NoBreaklineViews)
+            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.FG, DrawingType.Production, "AB16 FG Production", ProductionCustomerViews, new[] { "SHEET1" }, DrawingViewNames.SecondaryBreaklineViews),
+            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.FG, DrawingType.Customer, "AB16 FG Customer", ProductionCustomerViews, new[] { "SHEET1" }, DrawingViewNames.SecondaryBreaklineViews),
+            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.FG, DrawingType.Overlay, "AB16 FG Overlay", OverlayViews, new[] { "OVERLAY" }, DrawingViewNames.NoBreaklineViews),
+            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.PGB, DrawingType.Production, "AB16 PGB Production", ProductionCustomerViews, new[] { "SHEET1" }, DrawingViewNames.SecondaryBreaklineViews),
+            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.PGB, DrawingType.Customer, "AB16 PGB Customer", ProductionCustomerViews, new[] { "SHEET1" }, DrawingViewNames.SecondaryBreaklineViews),
+            DrawingProfileFactory.Create(WedgeType, WedgeSubclass.PGB, DrawingType.Overlay, "AB16 PGB Overlay", OverlayViews, new[] { "OVERLAY" }, DrawingViewNames.NoBreaklineViews)
         });
     }
 
-    public WedgeType WedgeType => global::WAD.Runner.DataManagement.Domain.Wedge.WedgeType.ABT;
+    public WedgeType WedgeType => global::WAD.Runner.DataManagement.Domain.Wedge.WedgeType.AB16;
 
     public DrawingWedgeBehavior Behavior { get; } = new(
         OverlayMagnificationSourceKey: "T",
@@ -71,34 +81,34 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
 
     public IReadOnlyList<DrawingProfile> Profiles { get; }
 
-    public IOverlayViewPositioningRule OverlayPositioningRule { get; } = new AbtOverlayViewPositioningRule();
+    public IOverlayViewPositioningRule OverlayPositioningRule { get; } = new Ab16OverlayViewPositioningRule();
 
     public IReadOnlyList<IAnnotationRuleCatalog> AnnotationCatalogs { get; } =
         Array.AsReadOnly<IAnnotationRuleCatalog>(new IAnnotationRuleCatalog[]
         {
-            new AbtFgProductionAnnotationRules(),
-            new AbtFgCustomerAnnotationRules(),
-            new AbtFgOverlayAnnotationRules(),
-            new AbtPgbProductionAnnotationRules(),
-            new AbtPgbOverlayAnnotationRules()
+            new Ab16FgProductionAnnotationRules(),
+            new Ab16FgCustomerAnnotationRules(),
+            new Ab16FgOverlayAnnotationRules(),
+            new Ab16PgbProductionAnnotationRules(),
+            new Ab16PgbOverlayAnnotationRules()
         });
 
-    public IAnnotationWedgeContextResolver AnnotationContextResolver { get; } = new AbtAnnotationContextResolver();
+    public IAnnotationWedgeContextResolver AnnotationContextResolver { get; } = new Ab16AnnotationContextResolver();
 
     public AnnotationCleanupProfile ResolveAnnotationProfile(WedgeSubclass subclass, DrawingType drawingType)
     {
         if (subclass == WedgeSubclass.PGB)
         {
             return drawingType == DrawingType.Overlay
-                ? AnnotationCleanupProfile.AbtPgbOverlay
-                : AnnotationCleanupProfile.AbtPgbProduction;
+                ? AnnotationCleanupProfile.Ab16PgbOverlay
+                : AnnotationCleanupProfile.Ab16PgbProduction;
         }
 
         return drawingType switch
         {
-            DrawingType.Overlay => AnnotationCleanupProfile.AbtFgOverlay,
-            DrawingType.Customer => AnnotationCleanupProfile.AbtFgCustomer,
-            _ => AnnotationCleanupProfile.AbtFgProduction
+            DrawingType.Overlay => AnnotationCleanupProfile.Ab16FgOverlay,
+            DrawingType.Customer => AnnotationCleanupProfile.Ab16FgCustomer,
+            _ => AnnotationCleanupProfile.Ab16FgProduction
         };
     }
 

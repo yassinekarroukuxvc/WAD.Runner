@@ -14,8 +14,13 @@ namespace WAD.Runner.ModelAutomation.Equations;
 /// <summary>
 /// Builds the equations used by the ABT model.
 ///
-/// ABT overlay overrides for both PGB and FG:
+/// ABT PGB overlay:
 ///     W     = W_MAX
+///
+/// ABT FG overlay:
+///     W     = nominal value
+///
+/// Both PGB and FG overlay:
 ///     T     = T_MAX
 ///     FD    = FD_MAX
 ///     RA2H  = RA2H_MAX when RA2H > 0
@@ -35,7 +40,7 @@ namespace WAD.Runner.ModelAutomation.Equations;
 /// Foot depth:
 ///     LW_VG / SW_VG -> foot_depth = GD
 ///     LW_G / SW_G   -> foot_depth = GD
-///     LW_C / SW_C   -> foot_depth = C
+///     LW_C / SW_C   -> foot_depth = CD
 ///     Other         -> foot_depth = 0
 ///
 /// C with CBR is not a separate foot-option token.
@@ -122,11 +127,21 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         WedgeFacts facts,
         WedgeSubclass subclass)
     {
-        AddLengthBoundEquation(
-            builder,
-            facts,
-            dimensionKey: "W",
-            useMaximum: true);
+        // PGB only:
+        // W = W_MAX.
+        //
+        // FG:
+        // Do not override W.
+        // The nominal W value loaded through WithDimensions()
+        // remains active.
+        if (subclass == WedgeSubclass.PGB)
+        {
+            AddLengthBoundEquation(
+                builder,
+                facts,
+                dimensionKey: "W",
+                useMaximum: true);
+        }
 
         AddLengthBoundEquation(
             builder,
@@ -186,6 +201,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         Logger.Info(
             "[AbtEquationPlanner] Overlay dimension overrides -> " +
             $"subclass={subclass}, " +
+            $"W override={(subclass == WedgeSubclass.PGB ? "MAX" : "NOMINAL")}, " +
             $"VR/VW present={hasVrVw}, " +
             $"VW case={overlayVwCase}, " +
             $"RA2H present={facts.HasPositive("RA2H")}, " +
@@ -383,7 +399,8 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         if (!facts.TryGetLengthMm(
                 "VW",
                 out var vwMillimeters) ||
-            vwMillimeters <= WedgeFacts.DefaultPositiveEpsilon)
+            vwMillimeters <=
+            WedgeFacts.DefaultPositiveEpsilon)
         {
             return OverlayVwCase.None;
         }
@@ -627,9 +644,10 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         if (string.IsNullOrWhiteSpace(raw))
             return string.Empty;
 
-        var token = raw
-            .Trim()
-            .Trim('\0');
+        var token =
+            raw
+                .Trim()
+                .Trim('\0');
 
         var separatorIndex =
             token.IndexOf(';');
@@ -640,21 +658,23 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 token[..separatorIndex];
         }
 
-        token = token
-            .Trim()
-            .Replace('-', '_')
-            .Replace(' ', '_')
-            .Trim('_')
-            .ToUpperInvariant();
+        token =
+            token
+                .Trim()
+                .Replace('-', '_')
+                .Replace(' ', '_')
+                .Trim('_')
+                .ToUpperInvariant();
 
         while (token.Contains(
                    "__",
                    StringComparison.Ordinal))
         {
-            token = token.Replace(
-                "__",
-                "_",
-                StringComparison.Ordinal);
+            token =
+                token.Replace(
+                    "__",
+                    "_",
+                    StringComparison.Ordinal);
         }
 
         return token;
