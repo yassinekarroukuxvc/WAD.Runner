@@ -6,6 +6,7 @@ using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Equations;
 using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.Rules._4516;
+using WAD.Runner.ModelAutomation.Rules._45CK;
 using WAD.Runner.ModelAutomation.Rules.AB16;
 using WAD.Runner.ModelAutomation.Rules.ABT;
 using WAD.Runner.ModelAutomation.Rules.CKVD;
@@ -129,6 +130,15 @@ public static class WedgeAutomationProfileRegistry
             new Ab16FeatureRules(),
             new Ab16EquationPlanner(),
             new Ab16ToleranceRules(),
+            Array.Empty<string>()));
+
+        Add(profiles, new WedgeAutomationProfile(
+            WedgeType._45CK,
+            "_45CK",
+            new _45CKConfigurationRules(),
+            new _45CKFeatureRules(),
+            new _45CKEquationPlanner(),
+            new _45CKToleranceRules(),
             Array.Empty<string>()));
 
         return profiles;

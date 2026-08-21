@@ -23,6 +23,8 @@ public enum WedgeType
     ABT = 9,
 
     AB16 = 10,
+    
+    _45CK = 11,
 
     Other = 99
 }

@@ -6,6 +6,7 @@ using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Domain.Validation.Rules._4516;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.ABT;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.AB16;
+using WAD.Runner.DataManagement.Domain.Validation.Rules._45CK;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.OSG7;
 
 namespace WAD.Runner.DataManagement.Domain.Validation;
@@ -95,6 +96,14 @@ public static class WedgeDimensionValidator
                 issues);
         }
 
+        if (wedgeType == WedgeType._45CK)
+        {
+            _45CKConditionalDimensionValidator.Validate(
+                wedge,
+                wedgeType,
+                issues);
+        }
+
         if (wedgeType == WedgeType.OSG7)
         {
             Osg7CrossDimensionValidator.Validate(
@@ -113,7 +122,10 @@ public static class WedgeDimensionValidator
         WedgeData wedge,
         WedgeType wedgeType)
     {
-        var result = Validate(wedge, wedgeType);
+        var result =
+            Validate(
+                wedge,
+                wedgeType);
 
         if (!result.IsValid)
         {
@@ -222,9 +234,11 @@ public static class WedgeDimensionValidator
     {
         foreach (var group in groups)
         {
-            var positiveSlots = group.Slots
-                .Where(slot => slot.IsPositive(wedge))
-                .ToList();
+            var positiveSlots =
+                group.Slots
+                    .Where(
+                        slot => slot.IsPositive(wedge))
+                    .ToList();
 
             if (positiveSlots.Count == 0)
                 continue;
@@ -261,9 +275,11 @@ public static class WedgeDimensionValidator
     {
         foreach (var group in groups)
         {
-            var positiveSlots = group.Slots
-                .Where(slot => slot.IsPositive(wedge))
-                .ToList();
+            var positiveSlots =
+                group.Slots
+                    .Where(
+                        slot => slot.IsPositive(wedge))
+                    .ToList();
 
             if (positiveSlots.Count <= 1)
                 continue;
@@ -292,26 +308,30 @@ public static class WedgeDimensionValidator
         DimensionSlot slot,
         string suffix)
     {
-        var presentAliases = slot.Aliases
-            .Where(
-                alias => WedgeDimensionAccess.TryGetDimension(
-                    wedge,
-                    alias,
-                    out _))
-            .ToList();
+        var presentAliases =
+            slot.Aliases
+                .Where(
+                    alias =>
+                        WedgeDimensionAccess.TryGetDimension(
+                            wedge,
+                            alias,
+                            out _))
+                .ToList();
 
         if (presentAliases.Count == 0)
             return $"missing; {suffix}";
 
-        var values = presentAliases
-            .Select(
-                alias => WedgeDimensionAccess.TryGetDimension(
-                    wedge,
-                    alias,
-                    out var dimension)
-                    ? $"{alias}={dimension!.Nominal.Value}"
-                    : alias)
-            .ToList();
+        var values =
+            presentAliases
+                .Select(
+                    alias =>
+                        WedgeDimensionAccess.TryGetDimension(
+                            wedge,
+                            alias,
+                            out var dimension)
+                            ? $"{alias}={dimension!.Nominal.Value}"
+                            : alias)
+                .ToList();
 
         return
             $"invalid ({string.Join(", ", values)}); {suffix}";

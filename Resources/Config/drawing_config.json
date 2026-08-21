@@ -682,6 +682,84 @@
               "SpecialNote": "AB16 production override"
             }
           }
+        },
+        "_45CK": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [
+                  100,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Section": {
+                "PositionMm": [
+                  220,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Top": {
+                "PositionMm": [
+                  45,
+                  185
+                ],
+                "Scale": 7.0
+              },
+              "Front": {
+                "PositionMm": [
+                  20,
+                  100
+                ],
+                "Scale": 7.0,
+                "Params": {
+                  "breakline_gap_mm": 2
+                }
+              },
+              "Side": {
+                "PositionMm": [
+                  45,
+                  100
+                ],
+                "Scale": 7.0,
+                "Params": {
+                  "breakline_gap_mm": 2
+                }
+              }
+            },
+            "Tables": {
+              "TitleBlock": {
+                "PositionMm": [
+                  15,
+                  15
+                ]
+              },
+              "DimTable": {
+                "PositionMm": [
+                  60,
+                  0
+                ]
+              },
+              "HowToOrder": {
+                "PositionMm": [
+                  196,
+                  210
+                ]
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "45CK production override"
+            }
+          }
         }
       }
     },
@@ -1181,6 +1259,76 @@
               "SpecialNote": "AB16 customer override"
             }
           }
+        },
+        "_45CK": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [
+                  100,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Section": {
+                "PositionMm": [
+                  220,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Top": {
+                "PositionMm": [
+                  45,
+                  185
+                ],
+                "Scale": 7.0
+              },
+              "Front": {
+                "PositionMm": [
+                  20,
+                  100
+                ],
+                "Scale": 7.0
+              },
+              "Side": {
+                "PositionMm": [
+                  45,
+                  100
+                ],
+                "Scale": 7.0
+              }
+            },
+            "Tables": {
+              "TitleBlock": {
+                "PositionMm": [
+                  15,
+                  15
+                ]
+              },
+              "DimTable": {
+                "PositionMm": [
+                  60,
+                  0
+                ]
+              },
+              "HowToOrder": {
+                "PositionMm": [
+                  196,
+                  210
+                ]
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "45CK customer override"
+            }
+          }
         }
       }
     },
@@ -1300,6 +1448,20 @@
             },
             "Metadata": {
               "SpecialNote": "AB16 overlay tuning"
+            }
+          }
+        },
+        "_45CK": {
+          "Common": {
+            "Views": {
+              "Side": {
+                "Params": {
+                  "breakline_gap_mm": 8.0
+                }
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "45CK overlay tuning"
             }
           }
         }

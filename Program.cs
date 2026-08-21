@@ -694,6 +694,11 @@ switch (cmd)
                     equationTemplatePath = Path.Combine("Resources", "Templates", "AB16", "AB16_rev1", "equations.txt");
                     break;
 
+                case WedgeType._45CK:
+                    partTemplatePath = Path.Combine("Resources", "Templates", "45CK", "45CK_rev1", "CK45_part_rev1.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "45CK", "45CK_rev1", "equations.txt");
+                    break;
+
                 case WedgeType.CKVD:
                 default:
                     partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
@@ -843,6 +848,7 @@ static WedgeType ParseWedgeTypeEnum(string[] a)
         "4516" => WedgeType._4516,
         "ABT" => WedgeType.ABT,
         "AB16" => WedgeType.AB16,
+        "45CK" => WedgeType._45CK,
         _ => WedgeType.CKVD
     };
 }

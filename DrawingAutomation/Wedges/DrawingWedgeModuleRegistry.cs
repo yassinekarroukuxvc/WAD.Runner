@@ -13,6 +13,7 @@ using WAD.Runner.DrawingAutomation.Wedges.Cob;
 using WAD.Runner.DrawingAutomation.Wedges.Fp;
 using WAD.Runner.DrawingAutomation.Wedges.Osg7;
 using WAD.Runner.DrawingAutomation.Wedges.Utus;
+using WAD.Runner.DrawingAutomation.Wedges._45CK;
 
 namespace WAD.Runner.DrawingAutomation.Wedges;
 
@@ -54,7 +55,8 @@ public static class DrawingWedgeModuleRegistry
             new CobDrawingModule(),
             new FpDrawingModule(),
             new UtusDrawingModule(),
-            new Osg7DrawingModule()
+            new Osg7DrawingModule(),
+            new _45CKDrawingModule(),
         };
 
         var duplicateTypes = modules
