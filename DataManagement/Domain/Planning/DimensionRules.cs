@@ -22,6 +22,7 @@ public static class DimensionRules
             WedgeType.ABT => Rules.AbtDimensionRules.Build(ctx,diag),
             WedgeType.AB16 => Rules.Ab16DimensionRules.Build(ctx,diag),
             WedgeType._45CK => Rules._45CKDimensionRules.Build(ctx,diag),
+            WedgeType.M => Rules.MDimensionRules.Build(ctx,diag),
             _ => Rules.CkvdDimensionRules.Build(ctx, diag)
         };
     }

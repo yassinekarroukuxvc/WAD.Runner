@@ -8,6 +8,7 @@ using WAD.Runner.DataManagement.Domain.Validation.Rules.ABT;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.AB16;
 using WAD.Runner.DataManagement.Domain.Validation.Rules._45CK;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.OSG7;
+using WAD.Runner.DataManagement.Domain.Validation.Rules.M;
 
 namespace WAD.Runner.DataManagement.Domain.Validation;
 
@@ -107,6 +108,14 @@ public static class WedgeDimensionValidator
         if (wedgeType == WedgeType.OSG7)
         {
             Osg7CrossDimensionValidator.Validate(
+                wedge,
+                wedgeType,
+                issues);
+        }
+
+        if (wedgeType == WedgeType.M)
+        {
+            MConditionalDimensionValidator.Validate(
                 wedge,
                 wedgeType,
                 issues);

@@ -26,5 +26,7 @@ public enum WedgeType
     
     _45CK = 11,
 
+    M = 12,
+
     Other = 99
 }

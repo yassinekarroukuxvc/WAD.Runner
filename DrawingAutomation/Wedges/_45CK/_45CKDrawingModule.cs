@@ -29,7 +29,7 @@ public sealed class _45CKDrawingModule : IDrawingWedgeModule
         Side: "Drawing View1",
         Top: "Drawing View3",
         Detail: "Drawing View4",
-        Section: "Section View AB-AB");
+        Section: "Section View AC-AC");
 
     private static readonly ViewNames OverlayViews = new(
         Front: "Drawing View5",

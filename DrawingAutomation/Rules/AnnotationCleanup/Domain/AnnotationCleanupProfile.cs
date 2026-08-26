@@ -44,4 +44,10 @@ public enum AnnotationCleanupProfile
     _45CKFgOverlay,
     _45CKFgCustomer,
     _45CKFgProduction,
+
+    MPgbOverlay,
+    MPgbProduction,
+    MFgOverlay,
+    MFgCustomer,
+    MFgProduction,
 }

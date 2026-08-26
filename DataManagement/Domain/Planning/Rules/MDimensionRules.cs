@@ -9,7 +9,7 @@ using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.DataManagement.Domain.Planning.Rules;
 
-internal static class _45CKDimensionRules
+internal static class MDimensionRules
 {
     private const string Front = "Front";
     private const string Top = "Top";
@@ -139,13 +139,22 @@ internal static class _45CKDimensionRules
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal, D[0], bandMidY + 5.0);
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal, D[0], bandMidY - 15.0);
         PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
-        PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal, D[0], bandMidY - 6.0);
+        PlaceDim(ctx, diag, outList, "GO", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
+        PlaceDim(ctx, diag, outList, "CL", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
+        PlaceDim(ctx, diag, outList, "W_NOM", Detail, DimAxis.Horizontal, D[0], bandMidY - 6.0);
         PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal, D[0], bandMidY - 9.0);
-        PlaceDim(ctx, diag, outList, "W2", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
 
         PlaceDim(ctx, diag, outList, "GD", Detail, DimAxis.Vertical,
             D[0] + W / 2.0 * dsv + 10.0,
             bandMidY + dsv * GD / 2.0);
+
+        PlaceDim(ctx, diag, outList, "GD_G", Detail, DimAxis.Vertical,
+            D[0] + W / 2.0 * dsv + 10.0,
+            bandMidY + dsv * GD / 2.0);
+
+        PlaceDim(ctx, diag, outList, "CD_NOM", Detail, DimAxis.Horizontal,
+            D[0] + W / 2.0 * dsv + 5.0,
+            bandMidY + dsv * CD / 2.0);
     }
 
     private static void AddSide(
@@ -223,18 +232,6 @@ internal static class _45CKDimensionRules
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv,
             bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
-
-        PlaceDim(ctx, diag, outList, "HH", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv,
-            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
-
-        PlaceDim(ctx, diag, outList, "ST", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv,
-            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
-
-        PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv,
-            bandMidY - 10 + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
 
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv,
