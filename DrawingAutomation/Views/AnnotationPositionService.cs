@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -84,9 +83,11 @@ namespace WAD.Runner.DrawingAutomation.Views
                     continue;
                 }
 
+                var usedFullNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                 foreach (var p in grp)
                 {
-                    var target = FindDisplayDimensionSmart(dimsInView, p, wedge);
+                    var target = FindDisplayDimensionSmart(dimsInView, p, wedge, usedFullNames);
                     if (target == null)
                     {
                         Logger.Warn($"[DimPos] No match in view '{grp.Key}' for key='{p.Key.Value}' (id='{p.Id}').");
@@ -128,6 +129,10 @@ namespace WAD.Runner.DrawingAutomation.Views
                         }
 
                         applied++;
+                        var usedIdentity = NormalizeFullNameForCompare(target.FullName);
+                        if (!string.IsNullOrWhiteSpace(usedIdentity))
+                            usedFullNames.Add(usedIdentity);
+
                         Logger.Info($"[DimPos] Moved '{p.Key.Value}' in '{grp.Key}' full='{target.FullName}' → ({p.PositionMm[0]:F2},{p.PositionMm[1]:F2}) mm. TextPoint={movedTextPoint}");
                     }
                     catch (Exception ex)
@@ -352,11 +357,22 @@ namespace WAD.Runner.DrawingAutomation.Views
         }
 
 
-        private static DisplayDimensionInfo? FindDisplayDimensionSmart(IReadOnlyList<DisplayDimensionInfo> inView, Plan p, WedgeData wedge)
+        private static DisplayDimensionInfo? FindDisplayDimensionSmart(
+            IReadOnlyList<DisplayDimensionInfo> inView,
+            Plan p,
+            WedgeData wedge,
+            IReadOnlySet<string> usedFullNames)
         {
             if (inView == null || inView.Count == 0)
                 return null;
 
+            bool Available(DisplayDimensionInfo info)
+            {
+                var identity = NormalizeFullNameForCompare(info.FullName);
+                return string.IsNullOrWhiteSpace(identity) ||
+                       usedFullNames == null ||
+                       !usedFullNames.Contains(identity);
+            }
 
             var expectedMatches = new List<DisplayDimensionInfo>();
             foreach (var expectedFullName in BuildExpectedFullNames(wedge, p))
@@ -364,6 +380,9 @@ namespace WAD.Runner.DrawingAutomation.Views
                 for (int i = 0; i < inView.Count; i++)
                 {
                     var info = inView[i];
+                    if (!Available(info))
+                        continue;
+
                     if (FullNameMatchesExpected(info.FullName, expectedFullName) &&
                         !expectedMatches.Any(x => string.Equals(x.FullName, info.FullName, StringComparison.OrdinalIgnoreCase)))
                     {
@@ -378,13 +397,15 @@ namespace WAD.Runner.DrawingAutomation.Views
                     return PickNearest(expectedMatches, p.PositionMm);
             }
 
-
             var exactMatches = new List<DisplayDimensionInfo>();
             for (int i = 0; i < inView.Count; i++)
             {
                 var info = inView[i];
+                if (!Available(info))
+                    continue;
+
                 if (!string.IsNullOrWhiteSpace(info.Token) &&
-                    info.Token.Equals(p.Key.Value, StringComparison.OrdinalIgnoreCase))
+                    TokenMatchesPlanKey(info.Token, p.Key.Value, wedge))
                 {
                     exactMatches.Add(info);
                 }
@@ -393,20 +414,22 @@ namespace WAD.Runner.DrawingAutomation.Views
             if (exactMatches.Count == 1) return exactMatches[0];
             if (exactMatches.Count > 1) return PickNearest(exactMatches, p.PositionMm);
 
-
             var strictFullNameMatches = new List<DisplayDimensionInfo>();
             for (int i = 0; i < inView.Count; i++)
             {
-                var full = inView[i].FullName;
+                var info = inView[i];
+                if (!Available(info))
+                    continue;
+
+                var full = info.FullName;
                 if (string.IsNullOrWhiteSpace(full)) continue;
 
                 if (FullNameStartsWithExactDimensionToken(full, p.Key.Value))
-                    strictFullNameMatches.Add(inView[i]);
+                    strictFullNameMatches.Add(info);
             }
 
             if (strictFullNameMatches.Count == 1) return strictFullNameMatches[0];
             if (strictFullNameMatches.Count > 1) return PickNearest(strictFullNameMatches, p.PositionMm);
-
 
             if (TryGetTargetNumeric(p, out var targetVal, out var targetUnit))
             {
@@ -417,7 +440,17 @@ namespace WAD.Runner.DrawingAutomation.Views
                 for (int i = 0; i < inView.Count; i++)
                 {
                     var info = inView[i];
-                    if (!info.HasNumericValue) continue;
+                    if (!Available(info) || !info.HasNumericValue)
+                        continue;
+
+                    // Numeric fallback must never steal another named dimension.
+                    // This is what allowed ERD (0.075 mm) to reuse FD (0.075 mm)
+                    // and move the FD annotation a second time.
+                    if (!string.IsNullOrWhiteSpace(info.Token) &&
+                        !TokenMatchesPlanKey(info.Token, p.Key.Value, wedge))
+                    {
+                        continue;
+                    }
 
                     if (targetUnit == UnitKind.Millimeter &&
                         info.Unit == UnitKind.Millimeter &&
@@ -471,8 +504,70 @@ namespace WAD.Runner.DrawingAutomation.Views
 
             var key = p.Key.Value.Trim();
             var view = p.View?.Trim() ?? string.Empty;
-
             bool is180 = Is180DegRev(wedge);
+
+            // First try the annotation-owner names used by the current wedge
+            // templates.  These exact names prevent STD/REV dimensions with the
+            // same short token (for example HA) from being confused.
+            if (view.Equals("Section", StringComparison.OrdinalIgnoreCase))
+            {
+                var shankOwner = is180
+                    ? "annotation_rev_front_plan"
+                    : "annotation_std_front_plan";
+
+                if (is180 && key.Equals("FD", StringComparison.OrdinalIgnoreCase))
+                    yield return $"D1@{shankOwner}";
+                else
+                    yield return $"{key}@{shankOwner}";
+
+                if (is180 && key.Equals("FR", StringComparison.OrdinalIgnoreCase))
+                    yield return $"fr@{shankOwner}";
+
+                // Production-only annotation owners used by the templates.
+                if (is180)
+                    yield return $"{key}@annotation_rev_plan";
+                else
+                    yield return $"{key}@annotation_front_plan";
+            }
+            else if (view.Equals("Top", StringComparison.OrdinalIgnoreCase))
+            {
+                if (key.Equals("TDF", StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return $"TDF_{(is180 ? "REV" : "STD")}@annotation_top_plan";
+                    yield return $"TDF_{(is180 ? "REV" : "STD")}@annoation_top_plan";
+                }
+                else
+                {
+                    yield return $"{key}@annotation_top_plan";
+                    yield return $"{key}@annoation_top_plan";
+                }
+            }
+            else if (view.Equals("Side", StringComparison.OrdinalIgnoreCase))
+            {
+                var shankOwner = is180
+                    ? "annotation_rev_front_plan"
+                    : "annotation_std_front_plan";
+                yield return $"{key}@{shankOwner}";
+            }
+            else if (view.Equals("Front", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!key.Equals("K", StringComparison.OrdinalIgnoreCase))
+                    yield return $"{key}@annotation_right_plan";
+            }
+            else if (view.Equals("Detail", StringComparison.OrdinalIgnoreCase))
+            {
+                if (key.Equals("W", StringComparison.OrdinalIgnoreCase))
+                    yield return "W_NOM@annotation_right_plan";
+                else if (key.Equals("B", StringComparison.OrdinalIgnoreCase))
+                    yield return "B_NOM@annotation_right_plan";
+                else if (key.Equals("CD", StringComparison.OrdinalIgnoreCase))
+                    yield return "CD_NOM@annotation_right_plan";
+                else
+                    yield return $"{key}@annotation_right_plan";
+            }
+
+            // Legacy annotation-owner names remain as a compatibility fallback
+            // for the older wedge templates.
             string frontSketch = is180 ? "ANNOT_180_DEG_REV_FRONT_sketch" : "ANNOT_STD_FRONT_sketch";
             string topSketch = is180 ? "ANNOT_180_DEG_REV_TOP_sketch" : "ANNOT_STD_TOP_sketch";
             string frBrSketch = is180 ? "ANNOT_FR_BR_180_DEG_REV_FRONT_sketch" : "ANNOT_FR_BR_STD_FRONT_sketch";
@@ -486,9 +581,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                     yield break;
                 }
 
-
                 yield return $"{key}@{frontSketch}";
-
 
                 if (is180 && (key.Equals("G", StringComparison.OrdinalIgnoreCase) ||
                               key.Equals("CGR", StringComparison.OrdinalIgnoreCase) ||
@@ -537,6 +630,39 @@ namespace WAD.Runner.DrawingAutomation.Views
                     yield return $"{key}@ANNOT_FOOT_OPTIONS_LEFT_sketch";
                 }
             }
+        }
+
+        private static bool TokenMatchesPlanKey(string token, string key, WedgeData wedge)
+        {
+            if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(key))
+                return false;
+
+            if (token.Equals(key, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            bool is180 = Is180DegRev(wedge);
+
+            if (key.Equals("W", StringComparison.OrdinalIgnoreCase) &&
+                token.Equals("W_NOM", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (key.Equals("B", StringComparison.OrdinalIgnoreCase) &&
+                token.Equals("B_NOM", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (key.Equals("CD", StringComparison.OrdinalIgnoreCase) &&
+                token.Equals("CD_NOM", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (key.Equals("TDF", StringComparison.OrdinalIgnoreCase) &&
+                token.Equals(is180 ? "TDF_REV" : "TDF_STD", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (is180 && key.Equals("FD", StringComparison.OrdinalIgnoreCase) &&
+                token.Equals("D1", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return false;
         }
 
         private static bool FullNameMatchesExpected(string actualFullName, string expectedFullName)

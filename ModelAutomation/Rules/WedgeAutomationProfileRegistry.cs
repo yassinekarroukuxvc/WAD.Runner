@@ -113,12 +113,14 @@ public static class WedgeAutomationProfileRegistry
 
         Add(
             profiles,
-            CreateCobLikeProfile(
+            new WedgeAutomationProfile(
                 WedgeType.COB,
                 "COB",
                 new CobConfigurationRules(),
                 new CobFeatureRules(),
-                new CobToleranceRules()));
+                new CobEquationPlanner(),
+                new CobToleranceRules(),
+                Array.Empty<string>()));
 
         Add(
             profiles,

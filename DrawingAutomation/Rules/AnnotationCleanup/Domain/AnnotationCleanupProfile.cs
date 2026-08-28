@@ -1,4 +1,3 @@
-namespace WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
 
 public enum AnnotationCleanupProfile
 {
@@ -8,6 +7,12 @@ public enum AnnotationCleanupProfile
 
     PgbProduction,
     PgbOverlay,
+
+    CobPgbOverlay,
+    CobPgbProduction,
+    CobFgOverlay,
+    CobFgCustomer,
+    CobFgProduction,
 
     CkvdFgProduction,
     CkvdFgCustomer,

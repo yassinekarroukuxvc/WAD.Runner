@@ -40,7 +40,14 @@ namespace WAD.Runner.ModelAutomation.Rules.M;
 ///
 /// Overlay:
 ///     left_view  -> left cut/reference family
-///     right_view -> right cut/reference family
+///     right_view -> right cut/reference family.
+///
+///     When the VR/VW family is present:
+///         W overlay sketch -> OFF
+///         VW case sketch   -> ON
+///
+///     When the VR/VW family is absent:
+///         subclass-specific W overlay sketch -> ON
 /// </summary>
 public sealed class MFeatureRules : IFeatureRuleSet
 {
@@ -300,36 +307,87 @@ public sealed class MFeatureRules : IFeatureRuleSet
         if (context is null)
             throw new ArgumentNullException(nameof(context));
 
-        var facts = new WedgeFacts(wedge);
-        var shank = ResolveShankType(facts);
-        var active = shank == MShankType.Std ? Std : Rev;
+        var facts =
+            new WedgeFacts(wedge);
 
-        var hasVr = HasAllPositive(facts, "VR", "VRR", "VW", "VRA");
-        var hasSlb = HasAllPositive(facts, "VBL", "VBLR");
-        var hasW2 = facts.HasPositive("W2");
-        var hasRa2 = HasAllPositive(facts, "RA2", "RA2H");
-        var hasOverlayVbl = facts.HasPositive("VBL");
-        var hasOverlayRa2 = facts.HasPositive("RA2");
-        var vwCase = ResolveOverlayVwCase(facts);
+        var shank =
+            ResolveShankType(
+                facts);
 
-        var feedHole = context.Subclass == WedgeSubclass.FG
-            ? ResolveFeedHoleType(facts)
-            : FeedHoleType.NotApplicable;
+        var active =
+            shank == MShankType.Std
+                ? Std
+                : Rev;
 
-        var footOption = context.Subclass == WedgeSubclass.FG
-            ? ResolveFootOption(facts)
-            : FootOptionType.NotApplicable;
+        var hasVr =
+            HasAllPositive(
+                facts,
+                "VR",
+                "VRR",
+                "VW",
+                "VRA");
 
-        var plan = new FeaturePlanBuilder()
-            .Know(StdManaged)
-            .Know(RevManaged)
-            .ForceSuppress(
-                SwNames.EngravingFeature,
-                SwNames.EngravingSketch)
-            .ForceSuppress(
-                shank == MShankType.Std
-                    ? RevManaged
-                    : StdManaged);
+        /*
+         * Overlay W suppression uses the presence of the
+         * VR/VW family independently from the full model VR feature.
+         */
+        var hasOverlayVrFamily =
+            HasAnyPositive(
+                facts,
+                "VR",
+                "VRR",
+                "VW");
+
+        var hasSlb =
+            HasAllPositive(
+                facts,
+                "VBL",
+                "VBLR");
+
+        var hasW2 =
+            facts.HasPositive(
+                "W2");
+
+        var hasRa2 =
+            HasAllPositive(
+                facts,
+                "RA2",
+                "RA2H");
+
+        var hasOverlayVbl =
+            facts.HasPositive(
+                "VBL");
+
+        var hasOverlayRa2 =
+            facts.HasPositive(
+                "RA2");
+
+        var vwCase =
+            ResolveOverlayVwCase(
+                facts,
+                hasOverlayVrFamily);
+
+        var feedHole =
+            context.Subclass == WedgeSubclass.FG
+                ? ResolveFeedHoleType(facts)
+                : FeedHoleType.NotApplicable;
+
+        var footOption =
+            context.Subclass == WedgeSubclass.FG
+                ? ResolveFootOption(facts)
+                : FootOptionType.NotApplicable;
+
+        var plan =
+            new FeaturePlanBuilder()
+                .Know(StdManaged)
+                .Know(RevManaged)
+                .ForceSuppress(
+                    SwNames.EngravingFeature,
+                    SwNames.EngravingSketch)
+                .ForceSuppress(
+                    shank == MShankType.Std
+                        ? RevManaged
+                        : StdManaged);
 
         ApplyBaseRules(
             plan,
@@ -356,6 +414,7 @@ public sealed class MFeatureRules : IFeatureRuleSet
                 footOption,
                 hasOverlayVbl,
                 hasOverlayRa2,
+                hasOverlayVrFamily,
                 vwCase);
         }
         else
@@ -372,8 +431,11 @@ public sealed class MFeatureRules : IFeatureRuleSet
             $"targetConfig={context.TargetConfigurationName}, " +
             $"feedHole={feedHole}, " +
             $"footOption={footOption}, " +
-            $"VR={hasVr}, SLB={hasSlb}, " +
-            $"W2={hasW2}, RA2={hasRa2}, " +
+            $"VR={hasVr}, " +
+            $"overlay VR family={hasOverlayVrFamily}, " +
+            $"SLB={hasSlb}, " +
+            $"W2={hasW2}, " +
+            $"RA2={hasRa2}, " +
             $"VW case={vwCase}.");
 
         return plan.Build();
@@ -391,16 +453,28 @@ public sealed class MFeatureRules : IFeatureRuleSet
             family.AlwaysOn);
 
         if (hasVr)
-            plan.Activate(family.Vr);
+        {
+            plan.Activate(
+                family.Vr);
+        }
 
         if (hasSlb)
-            plan.Activate(family.Slb);
+        {
+            plan.Activate(
+                family.Slb);
+        }
 
         if (hasW2)
-            plan.Activate(family.W2);
+        {
+            plan.Activate(
+                family.W2);
+        }
 
         if (hasRa2)
-            plan.Activate(family.Ra2);
+        {
+            plan.Activate(
+                family.Ra2);
+        }
     }
 
     private static void ApplySubclassRules(
@@ -412,10 +486,12 @@ public sealed class MFeatureRules : IFeatureRuleSet
         FootOptionType footOption)
     {
         var feedManaged =
-            FeedHoleManaged(family);
+            FeedHoleManaged(
+                family);
 
         var footManaged =
-            FootManaged(family);
+            FootManaged(
+                family);
 
         plan.Deactivate(
             feedManaged);
@@ -540,6 +616,9 @@ public sealed class MFeatureRules : IFeatureRuleSet
 
         if (hasCbr)
         {
+            plan.ForceSuppress(
+                family.CBr);
+
             plan.Activate(
                 family.CCbr);
 
@@ -552,6 +631,9 @@ public sealed class MFeatureRules : IFeatureRuleSet
             return;
         }
 
+        plan.ForceSuppress(
+            family.CCbr);
+
         plan.Activate(
             family.CBr);
 
@@ -562,6 +644,10 @@ public sealed class MFeatureRules : IFeatureRuleSet
         }
     }
 
+    // ================================================================
+    // OVERLAY RULES
+    // ================================================================
+
     private static void ApplyOverlayRules(
         FeaturePlanBuilder plan,
         FeatureRuleContext context,
@@ -569,6 +655,7 @@ public sealed class MFeatureRules : IFeatureRuleSet
         FootOptionType footOption,
         bool hasVbl,
         bool hasRa2,
+        bool hasOverlayVrFamily,
         OverlayVwCase vwCase)
     {
         plan.Deactivate(
@@ -579,24 +666,16 @@ public sealed class MFeatureRules : IFeatureRuleSet
             context,
             family);
 
-        plan.ActivateOnly(
-            context.Subclass == WedgeSubclass.PGB
-                ? family.WPgbOverlay
-                : family.WFgOverlay,
-            new[]
-            {
-                family.WPgbOverlay,
-                family.WFgOverlay
-            });
+        ApplyOverlayWRule(
+            plan,
+            context.Subclass,
+            family,
+            hasOverlayVrFamily);
 
-        if (vwCase != OverlayVwCase.None)
-        {
-            plan.ActivateOnly(
-                vwCase == OverlayVwCase.Case1
-                    ? family.VwCases[0]
-                    : family.VwCases[1],
-                family.VwCases);
-        }
+        ActivateOverlayVwCase(
+            plan,
+            family,
+            vwCase);
 
         var tSketch =
             hasVbl
@@ -638,12 +717,81 @@ public sealed class MFeatureRules : IFeatureRuleSet
                     null
             };
 
-        if (footSketch is not null)
+        if (footSketch is null)
         {
-            plan.ActivateOnly(
-                footSketch,
+            plan.ForceSuppress(
                 family.FootOverlays);
+
+            return;
         }
+
+        plan.ActivateOnly(
+            footSketch,
+            family.FootOverlays);
+    }
+
+    private static void ApplyOverlayWRule(
+        FeaturePlanBuilder plan,
+        WedgeSubclass subclass,
+        FeatureFamily family,
+        bool hasOverlayVrFamily)
+    {
+        var wOverlaySketches =
+            new[]
+            {
+                family.WPgbOverlay,
+                family.WFgOverlay
+            };
+
+        plan.Deactivate(
+            wOverlaySketches);
+
+        /*
+         * VR/VW family replaces the standalone W overlay sketch.
+         *
+         * Therefore both possible W overlay sketches are
+         * explicitly suppressed whenever VR/VW is present.
+         */
+        if (hasOverlayVrFamily)
+        {
+            plan.ForceSuppress(
+                wOverlaySketches);
+
+            Logger.Info(
+                "[MFeatureRules] Overlay W -> " +
+                "VR/VW family present; W overlay sketches suppressed.");
+
+            return;
+        }
+
+        plan.ActivateOnly(
+            subclass == WedgeSubclass.PGB
+                ? family.WPgbOverlay
+                : family.WFgOverlay,
+            wOverlaySketches);
+    }
+
+    private static void ActivateOverlayVwCase(
+        FeaturePlanBuilder plan,
+        FeatureFamily family,
+        OverlayVwCase vwCase)
+    {
+        plan.Deactivate(
+            family.VwCases);
+
+        if (vwCase == OverlayVwCase.None)
+        {
+            plan.ForceSuppress(
+                family.VwCases);
+
+            return;
+        }
+
+        plan.ActivateOnly(
+            vwCase == OverlayVwCase.Case1
+                ? family.VwCases[0]
+                : family.VwCases[1],
+            family.VwCases);
     }
 
     private static void ApplyOverlayCutRule(
@@ -698,7 +846,8 @@ public sealed class MFeatureRules : IFeatureRuleSet
 
         return token switch
         {
-            "SW_STD" or "STD" =>
+            "SW_STD" or
+            "STD" =>
                 MShankType.Std,
 
             "SW_180REV" or
@@ -796,8 +945,12 @@ public sealed class MFeatureRules : IFeatureRuleSet
     }
 
     private static OverlayVwCase ResolveOverlayVwCase(
-        WedgeFacts facts)
+        WedgeFacts facts,
+        bool hasOverlayVrFamily)
     {
+        if (!hasOverlayVrFamily)
+            return OverlayVwCase.None;
+
         if (!facts.TryGetLengthMm(
                 "VW",
                 out var vw) ||
@@ -811,13 +964,15 @@ public sealed class MFeatureRules : IFeatureRuleSet
                 out var w))
         {
             Logger.Warn(
-                "[MFeatureRules] VW is present but W is missing/not a length. " +
+                "[MFeatureRules] VR/VW is present but W is missing/not a length. " +
                 "No VW overlay case selected.");
 
             return OverlayVwCase.None;
         }
 
-        return decimal.Abs(vw - w) <=
+        return decimal.Abs(
+                   vw -
+                   w) <=
                WedgeFacts.DefaultPositiveEpsilon
             ? OverlayVwCase.Case1
             : OverlayVwCase.Case2;
@@ -842,7 +997,9 @@ public sealed class MFeatureRules : IFeatureRuleSet
                 "Cannot apply M C-foot rules because FR is missing/not a length.");
         }
 
-        return decimal.Abs(fro - fr) <=
+        return decimal.Abs(
+                   fro -
+                   fr) <=
                WedgeFacts.DefaultPositiveEpsilon;
     }
 
@@ -850,6 +1007,12 @@ public sealed class MFeatureRules : IFeatureRuleSet
         WedgeFacts facts,
         params string[] keys)
         => keys.All(
+            key => facts.HasPositive(key));
+
+    private static bool HasAnyPositive(
+        WedgeFacts facts,
+        params string[] keys)
+        => keys.Any(
             key => facts.HasPositive(key));
 
     private static string NormalizeFeedHoleToken(

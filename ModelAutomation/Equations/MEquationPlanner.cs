@@ -68,10 +68,13 @@ public sealed class MEquationPlanner : StandardEquationPlanner
             builder,
             context);
 
+        // No need for this now as we change the ref point values inside the tolerances rules file
+        /*
         AddNonStandardCutEquation(
             builder,
             facts,
             context.DrawingType);
+        */
 
         return builder.Build();
     }
@@ -210,7 +213,7 @@ public sealed class MEquationPlanner : StandardEquationPlanner
             $"VW case={vwCase}, " +
             $"VBL={hasVbl}, " +
             $"RA2={hasRa2}, " +
-            $"foot={ResolveFootKind(ResolveNormalizedFootOption(facts))}.");
+            $"foot={ResolveFootKind(facts, ResolveNormalizedFootOption(facts))}.");
     }
 
     private static void AddFgFootOverlayOverrides(
@@ -223,11 +226,13 @@ public sealed class MEquationPlanner : StandardEquationPlanner
 
         var footKind =
             ResolveFootKind(
+                facts,
                 footOption);
 
         switch (footKind)
         {
             case FootKind.C:
+            case FootKind.CWithCbr:
                 AddLengthBoundEquation(
                     builder,
                     facts,
@@ -295,6 +300,7 @@ public sealed class MEquationPlanner : StandardEquationPlanner
 
         var footKind =
             ResolveFootKind(
+                facts,
                 footOption);
 
         decimal footDepthMm;
@@ -316,6 +322,7 @@ public sealed class MEquationPlanner : StandardEquationPlanner
                 break;
 
             case FootKind.C:
+            case FootKind.CWithCbr:
                 footDepthMm =
                     RequireLength(
                         facts,
@@ -529,6 +536,7 @@ public sealed class MEquationPlanner : StandardEquationPlanner
     }
 
     private static FootKind ResolveFootKind(
+        WedgeFacts facts,
         string footOption)
     {
         return footOption switch
@@ -536,7 +544,10 @@ public sealed class MEquationPlanner : StandardEquationPlanner
             "LW_C" or
             "SW_C" or
             "C" =>
-                FootKind.C,
+                facts.HasPositive("CBRL") &&
+                facts.HasPositive("CBRD")
+                    ? FootKind.CWithCbr
+                    : FootKind.C,
 
             "LW_VG" or
             "SW_VG" or
@@ -553,7 +564,10 @@ public sealed class MEquationPlanner : StandardEquationPlanner
             "CC" =>
                 FootKind.Cc,
 
-            "LW_F" or "SW_F " or "F" => FootKind.F,
+            "LW_F" or
+            "SW_F" or
+            "F" =>
+                FootKind.F,
 
             _ =>
                 FootKind.Unknown
@@ -649,6 +663,7 @@ public sealed class MEquationPlanner : StandardEquationPlanner
     {
         Unknown,
         C,
+        CWithCbr,
         Vg,
         G,
         Cc,

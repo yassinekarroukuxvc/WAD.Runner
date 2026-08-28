@@ -160,33 +160,36 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
             EquationGeometry.OverlayScaleDecimal(
                 magnification);
 
-        var cutMm =
+        var rightCutMm =
             EquationGeometry.RefPointOverlayCutMm(
                 facts,
                 scale,
                 WedgeType.ABT);
 
-        var targets =
-            shank == AbtShankType.Std
-                ? new[]
-                {
-                    "std_ref_point_right@std_ref_point_right",
-                    "std_ref_point_left@std_ref_point_left"
-                }
-                : new[]
-                {
-                    "rev_ref_point_right@rev_ref_point_right",
-                    "rev_ref_point_left@rev_ref_point_left"
-                };
+        var leftCutMm =
+            38.1m / (decimal)scale;
 
-        foreach (var target in targets)
-        {
-            updates.Add(
-                new ToleranceUpdate(
-                    target,
-                    cutMm,
-                    ToleranceUnit.LengthMm));
-        }
+        var rightTarget =
+            shank == AbtShankType.Std
+                ? "std_ref_point_right@std_ref_point_right"
+                : "rev_ref_point_right@rev_ref_point_right";
+
+        var leftTarget =
+            shank == AbtShankType.Std
+                ? "std_ref_point_left@std_ref_point_left"
+                : "rev_ref_point_left@rev_ref_point_left";
+
+        updates.Add(
+            new ToleranceUpdate(
+                rightTarget,
+                rightCutMm,
+                ToleranceUnit.LengthMm));
+
+        updates.Add(
+            new ToleranceUpdate(
+                leftTarget,
+                leftCutMm,
+                ToleranceUnit.LengthMm));
 
         Logger.Info(
             "[AbtToleranceRules] Overlay cut reference points -> " +
@@ -194,8 +197,8 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
             $"VR present={facts.HasPositive("VR")}, " +
             $"magnification={magnification}, " +
             $"scale={scale}, " +
-            $"cut={cutMm} mm, " +
-            $"targets={string.Join(", ", targets)}.");
+            $"rightCut={rightCutMm} mm -> {rightTarget}, " +
+            $"leftCut={leftCutMm} mm -> {leftTarget}.");
     }
 
     // ================================================================
@@ -592,8 +595,9 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
             "LW_VG" or "SW_VG" =>
                 FootOptionType.Vg,
 
-            "LW_C" or "SW_C" =>
-                facts.HasPositive("CBR")
+            "LW_C" or "SW_C" or "C" =>
+                facts.HasPositive("CBRL") &&
+                facts.HasPositive("CBRD")
                     ? FootOptionType.CWithCbr
                     : FootOptionType.C,
 

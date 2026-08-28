@@ -68,10 +68,13 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
             builder,
             context);
 
+        // We dont need it for the 1001 wedge type as we change the values inside the tolerances
+        /*
         AddNonStandardCutEquation(
             builder,
             facts,
             context.DrawingType);
+        */
 
         return builder.Build();
     }
@@ -210,7 +213,7 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
             $"VW case={vwCase}, " +
             $"VBL={hasVbl}, " +
             $"RA2={hasRa2}, " +
-            $"foot={ResolveFootKind(ResolveNormalizedFootOption(facts))}.");
+            $"foot={ResolveFootKind(facts, ResolveNormalizedFootOption(facts))}.");
     }
 
     private static void AddFgFootOverlayOverrides(
@@ -223,11 +226,13 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
 
         var footKind =
             ResolveFootKind(
+                facts,
                 footOption);
 
         switch (footKind)
         {
             case FootKind.C:
+            case FootKind.CWithCbr:
                 AddLengthBoundEquation(
                     builder,
                     facts,
@@ -295,6 +300,7 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
 
         var footKind =
             ResolveFootKind(
+                facts,
                 footOption);
 
         decimal footDepthMm;
@@ -316,6 +322,7 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
                 break;
 
             case FootKind.C:
+            case FootKind.CWithCbr:
                 footDepthMm =
                     RequireLength(
                         facts,
@@ -529,35 +536,44 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
     }
 
     private static FootKind ResolveFootKind(
+        WedgeFacts facts,
         string footOption)
     {
-        return footOption switch
+        switch (footOption)
         {
-            "LW_C" or
-            "SW_C" or
-            "C" =>
-                FootKind.C,
+            case "LW_C":
+            case "SW_C":
+            case "C":
+                return HasAllPositive(
+                    facts,
+                    "CBRL",
+                    "CBRD")
+                        ? FootKind.CWithCbr
+                        : FootKind.C;
 
-            "LW_VG" or
-            "SW_VG" or
-            "VG" =>
-                FootKind.Vg,
+            case "LW_VG":
+            case "SW_VG":
+            case "VG":
+                return FootKind.Vg;
 
-            "LW_G" or
-            "SW_G" or
-            "G" =>
-                FootKind.G,
+            case "LW_G":
+            case "SW_G":
+            case "G":
+                return FootKind.G;
 
-            "LW_CC" or
-            "SW_CC" or
-            "CC" =>
-                FootKind.Cc,
+            case "LW_CC":
+            case "SW_CC":
+            case "CC":
+                return FootKind.Cc;
 
-            "LW_F" or "SW_F" or "F" => FootKind.F,
+            case "LW_F":
+            case "SW_F":
+            case "F":
+                return FootKind.F;
 
-            _ =>
-                FootKind.Unknown
-        };
+            default:
+                return FootKind.Unknown;
+        }
     }
 
     private static void AddNonStandardCutEquation(
@@ -649,6 +665,7 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
     {
         Unknown,
         C,
+        CWithCbr,
         Vg,
         G,
         Cc,

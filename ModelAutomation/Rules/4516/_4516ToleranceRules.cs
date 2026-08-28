@@ -346,6 +346,7 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
 
         var footOption =
             ResolveFootOption(
+                facts,
                 normalizedFootOption);
 
         switch (footOption)
@@ -427,40 +428,42 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
     }
 
     private static FootOptionType ResolveFootOption(
+        WedgeFacts facts,
         string normalizedFootOption)
     {
-        return normalizedFootOption switch
+        switch (normalizedFootOption)
         {
-            "LW_VG" or
-            "SW_VG" =>
-                FootOptionType.Vg,
+            case "LW_VG":
+            case "SW_VG":
+                return FootOptionType.Vg;
 
-            "LW_C" or
-            "SW_C" =>
-                FootOptionType.C,
+            case "LW_C":
+            case "SW_C":
+                return HasAllPositiveNominal(
+                    facts,
+                    "CBRL",
+                    "CBRD")
+                        ? FootOptionType.CWithCbr
+                        : FootOptionType.C;
 
-            "LW_C_CBR" or
-            "SW_C_CBR" =>
-                FootOptionType.CWithCbr,
+            case "LW_G":
+            case "SW_G":
+                return FootOptionType.G;
 
-            "LW_G" or
-            "SW_G" =>
-                FootOptionType.G,
+            case "LW_CC":
+            case "SW_CC":
+                return FootOptionType.Cc;
 
-            "LW_CC" or
-            "SW_CC" =>
-                FootOptionType.Cc,
-
-            "LW_FLAT" or
-            "SW_FLAT" =>
-                FootOptionType.Flat,
+            case "LW_FLAT":
+            case "SW_FLAT":
+                return FootOptionType.Flat;
 
             /*
              * Empty and unknown values are treated as flat.
              */
-            _ =>
-                FootOptionType.Flat
-        };
+            default:
+                return FootOptionType.Flat;
+        }
     }
 
     private static string NormalizeFootOptionToken(

@@ -36,10 +36,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     private const string NotchFeature =
         "notch_feature";
 
-    /*
-     * Exact SolidWorks tree name supplied:
-     * "noth_sketch"
-     */
     private const string NothSketch =
         "noth_sketch";
 
@@ -63,8 +59,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     // FEED-HOLE FEATURES
     // ================================================================
 
-    // STD
-
     private const string RoundHoleFeature =
         "round_hole_feature";
 
@@ -79,8 +73,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
     private const string RoundHole =
         "round_hole";
-
-    // Oval
 
     private const string OvalHolePlan =
         "oval_hole_plan";
@@ -99,8 +91,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
     private const string OvalHole =
         "oval_hole";
-
-    // Slot
 
     private const string SlotHolePlan =
         "slot_hole_plan";
@@ -124,8 +114,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     // FOOT-OPTION FEATURES
     // ================================================================
 
-    // VG groove
-
     private const string VgFeature =
         "vg_feature";
 
@@ -137,8 +125,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
     private const string VgBrFeature =
         "vg_br_feature";
-
-    // C groove
 
     private const string CFeature =
         "c_feature";
@@ -155,8 +141,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     private const string CCbrFeature =
         "c_cbr_feature";
 
-    // G groove
-
     private const string GFeature =
         "g_feature";
 
@@ -169,15 +153,11 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     private const string GBrFeature =
         "g_br_feature";
 
-    // CC groove
-
     private const string CcFeature =
         "cc_feature";
 
     private const string CcSketch =
         "cc_sketch";
-
-    // Flat groove
 
     private const string FlatBrFeature =
         "flat_br_feature";
@@ -457,13 +437,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         GFgOverlaySketch
     };
 
-    /*
-     * Every overlay-related name is always known by the plan.
-     *
-     * This is important because Production and Customer drawings must
-     * actively suppress these names instead of leaving their previous
-     * SolidWorks suppression state unchanged.
-     */
     private static readonly string[] OverlayManagedNames =
     {
         RefPoint1,
@@ -565,22 +538,23 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
             ResolveFootOption(
                 facts);
 
+        /*
+         * IMPORTANT:
+         *
+         * There is no LW_C_CBR / SW_C_CBR foot option.
+         *
+         * C with CBR is identified only when:
+         *
+         *     foot option = C
+         *     CBRL > 0
+         *     CBRD > 0
+         */
         var hasCbr =
             HasAllPositiveNominal(
                 facts,
                 "CBRL",
                 "CBRD");
 
-        /*
-         * All names are known for every drawing type.
-         *
-         * This allows the plan to suppress:
-         *
-         * - overlay cut features in Production/Customer;
-         * - all PGB overlay sketches during an FG run;
-         * - all FG overlay sketches during a PGB run;
-         * - unselected feed-hole and foot-option features.
-         */
         var plan =
             new FeaturePlanBuilder()
                 .Know(AlwaysOnNames)
@@ -620,14 +594,11 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 context,
                 footOption,
                 hasSlb,
+                hasOverlayVrFamily,
                 overlayVwCase);
         }
         else
         {
-            /*
-             * Production and Customer must never retain any overlay
-             * references, cut features or subclass overlay sketches.
-             */
             plan.ForceSuppress(
                 OverlayManagedNames);
 
@@ -662,13 +633,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         FootOptionType footOption,
         bool hasCbr)
     {
-        /*
-         * Explicitly deactivate every feed-hole and foot-option name
-         * before selecting the correct FG groups.
-         *
-         * This prevents an unselected cut feature or sketch from
-         * remaining active from the original template configuration.
-         */
         plan.Deactivate(
             FeedHoleManagedNames);
 
@@ -677,9 +641,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
         if (subclass == WedgeSubclass.PGB)
         {
-            /*
-             * PGB has no feed holes and no foot options.
-             */
             plan.ForceSuppress(
                 FeedHoleManagedNames);
 
@@ -830,22 +791,23 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 break;
 
             case FootOptionType.C:
-            case FootOptionType.CWithCbr:
                 plan.Activate(
                     CFootNames);
 
                 /*
-                 * c_cbr_feature is active only when:
+                 * C with CBR is not a separate foot option.
                  *
-                 * - the selected foot belongs to the C family;
-                 * - CBRL > 0;
-                 * - CBRD > 0.
+                 * If the selected foot is C and both CBRL and CBRD
+                 * are positive, activate the CBR feature instead of
+                 * the normal C back-radius feature.
                  */
                 if (hasCbr)
                 {
                     plan.Activate(
                         CCbrFeature);
-                    plan.Deactivate(CBrFeature);
+
+                    plan.Deactivate(
+                        CBrFeature);
                 }
 
                 break;
@@ -891,32 +853,30 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         return token switch
         {
             "LW_VG" or
-            "SW_VG" =>
+            "SW_VG" or
+            "VG" =>
                 FootOptionType.Vg,
 
             "LW_C" or
-            "SW_C" =>
+            "SW_C" or
+            "C" =>
                 FootOptionType.C,
 
-            "LW_C_CBR" or
-            "SW_C_CBR" =>
-                FootOptionType.CWithCbr,
-
             "LW_G" or
-            "SW_G" =>
+            "SW_G" or
+            "G" =>
                 FootOptionType.G,
 
             "LW_CC" or
-            "SW_CC" =>
+            "SW_CC" or
+            "CC" =>
                 FootOptionType.Cc,
 
             "LW_FLAT" or
-            "SW_FLAT" =>
+            "SW_FLAT" or
+            "FLAT" =>
                 FootOptionType.Flat,
 
-            /*
-             * Empty and unsupported values use the flat foot.
-             */
             _ =>
                 FootOptionType.Flat
         };
@@ -959,12 +919,9 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         FeatureRuleContext context,
         FootOptionType footOption,
         bool hasSlb,
+        bool hasOverlayVrFamily,
         OverlayVwCase overlayVwCase)
     {
-        /*
-         * Reset all overlay names before activating the correct
-         * overlay configuration and subclass group.
-         */
         plan.Deactivate(
             OverlayManagedNames);
 
@@ -980,6 +937,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
             context.Subclass,
             footOption,
             hasSlb,
+            hasOverlayVrFamily,
             overlayVwCase);
     }
 
@@ -1083,26 +1041,33 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         WedgeSubclass subclass,
         FootOptionType footOption,
         bool hasSlb,
+        bool hasOverlayVrFamily,
         OverlayVwCase overlayVwCase)
     {
         if (subclass == WedgeSubclass.PGB)
         {
-            /*
-             * Explicitly suppress every FG overlay sketch during
-             * a PGB run.
-             */
             plan.ForceSuppress(
                 FgOverlayManagedNames);
 
-            /*
-             * Reset the PGB overlay group before selecting the
-             * required PGB sketches.
-             */
             plan.Deactivate(
                 PgbOverlayManagedNames);
 
+            /*
+             * When VR/VW exists, the VW case overlay sketch replaces
+             * the standalone W overlay sketch.
+             */
+            if (hasOverlayVrFamily)
+            {
+                plan.ForceSuppress(
+                    WPgbOverlaySketch);
+            }
+            else
+            {
+                plan.Activate(
+                    WPgbOverlaySketch);
+            }
+
             plan.Activate(
-                WPgbOverlaySketch,
                 FlPgbOverlaySketch);
 
             if (hasSlb)
@@ -1117,27 +1082,35 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
             Logger.Info(
                 "[_4516FeatureRules] PGB overlay -> " +
+                $"W overlay={!hasOverlayVrFamily}, " +
+                $"VR/VW family={hasOverlayVrFamily}, " +
                 "all FG overlay sketches suppressed.");
 
             return;
         }
 
-        /*
-         * Explicitly suppress every PGB overlay sketch during
-         * an FG run.
-         */
         plan.ForceSuppress(
             PgbOverlayManagedNames);
 
-        /*
-         * Reset the FG overlay group before selecting the
-         * required FG sketches.
-         */
         plan.Deactivate(
             FgOverlayManagedNames);
 
+        /*
+         * When VR/VW exists, the VW case overlay sketch replaces
+         * the standalone W overlay sketch.
+         */
+        if (hasOverlayVrFamily)
+        {
+            plan.ForceSuppress(
+                WFgOverlaySketch);
+        }
+        else
+        {
+            plan.Activate(
+                WFgOverlaySketch);
+        }
+
         plan.Activate(
-            WFgOverlaySketch,
             FlFgOverlaySketch);
 
         if (hasSlb)
@@ -1156,6 +1129,8 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
         Logger.Info(
             "[_4516FeatureRules] FG overlay -> " +
+            $"W overlay={!hasOverlayVrFamily}, " +
+            $"VR/VW family={hasOverlayVrFamily}, " +
             "all PGB overlay sketches suppressed.");
     }
 
@@ -1206,17 +1181,16 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 FootOptionType.Vg =>
                     VgFgOverlaySketch,
 
-                FootOptionType.C or
-                FootOptionType.CWithCbr =>
+                /*
+                 * Normal C and C with CBR use the same
+                 * C overlay sketch.
+                 */
+                FootOptionType.C =>
                     CFgOverlaySketch,
 
                 FootOptionType.G =>
                     GFgOverlaySketch,
 
-                /*
-                 * No overlay foot sketch was specified for CC
-                 * or flat feet.
-                 */
                 _ =>
                     null
             };
@@ -1354,7 +1328,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         Flat,
         Vg,
         C,
-        CWithCbr,
         G,
         Cc
     }

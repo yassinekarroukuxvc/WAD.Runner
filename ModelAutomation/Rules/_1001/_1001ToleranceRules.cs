@@ -102,33 +102,45 @@ public sealed class _1001ToleranceRules : IToleranceRuleSet
             EquationGeometry.OverlayScaleDecimal(
                 magnification);
 
-        var cutMm =
+        var rightCutMm =
             EquationGeometry.RefPointOverlayCutMm(
                 facts,
                 scale,
                 WedgeType._1001);
 
-        var targets =
-            shank == _1001ShankType.Std
-                ? new[]
-                {
-                    "std_ref_point_right@std_ref_point_right",
-                    "std_ref_point_left@std_ref_point_left"
-                }
-                : new[]
-                {
-                    "rev_ref_point_right@rev_ref_point_right",
-                    "rev_ref_point_left@rev_ref_point_left"
-                };
+        var leftCutMm =
+            38.1m / (decimal)scale;
 
-        foreach (var target in targets)
-        {
-            updates.Add(
-                new ToleranceUpdate(
-                    target,
-                    cutMm,
-                    ToleranceUnit.LengthMm));
-        }
+        var rightTarget =
+            shank == _1001ShankType.Std
+                ? "std_ref_point_right@std_ref_point_right"
+                : "rev_ref_point_right@rev_ref_point_right";
+
+        var leftTarget =
+            shank == _1001ShankType.Std
+                ? "std_ref_point_left@std_ref_point_left"
+                : "rev_ref_point_left@rev_ref_point_left";
+
+        updates.Add(
+            new ToleranceUpdate(
+                rightTarget,
+                rightCutMm,
+                ToleranceUnit.LengthMm));
+
+        updates.Add(
+            new ToleranceUpdate(
+                leftTarget,
+                leftCutMm,
+                ToleranceUnit.LengthMm));
+
+        Logger.Info(
+            "[_1001ToleranceRules] Overlay cut reference points -> " +
+            $"shank={shank}, " +
+            $"VR present={facts.HasPositive("VR")}, " +
+            $"magnification={magnification}, " +
+            $"scale={scale}, " +
+            $"rightCut={rightCutMm} mm -> {rightTarget}, " +
+            $"leftCut={leftCutMm} mm -> {leftTarget}.");
     }
 
     private static void AddSubclassWTolerances(
@@ -360,6 +372,7 @@ public sealed class _1001ToleranceRules : IToleranceRuleSet
         switch (footOption)
         {
             case FootOptionType.C:
+            case FootOptionType.CWithCbr:
                 {
                     var sketch =
                         $"{prefix}_c_overlay_sketch";
@@ -488,7 +501,10 @@ public sealed class _1001ToleranceRules : IToleranceRuleSet
             "LW_C" or
             "SW_C" or
             "C" =>
-                FootOptionType.C,
+                facts.HasPositive("CBRL") &&
+                facts.HasPositive("CBRD")
+                    ? FootOptionType.CWithCbr
+                    : FootOptionType.C,
 
             "LW_VG" or
             "SW_VG" or
@@ -748,6 +764,7 @@ public sealed class _1001ToleranceRules : IToleranceRuleSet
     {
         Unknown,
         C,
+        CWithCbr,
         Vg,
         G,
         F,

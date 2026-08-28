@@ -18,13 +18,16 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///
 /// Feed-hole:
 ///     STD / STD(Round) -> keep H
-///     Oval            -> H = HH
-///     Slot            -> H = ST
+///     Oval             -> H = HH
+///     Slot             -> H = ST
 ///
 /// Foot depth:
 ///     VG               -> foot_depth = GD
 ///     G                -> foot_depth = GD
-///     C / C with CBR   -> foot_depth = CD
+///     C                 -> foot_depth = CD
+///     C with CBR       -> foot_depth = CD
+///                         detected when Wed-Foot_Option is C
+///                         and CBRL > 0 and CBRD > 0
 ///     Other            -> foot_depth = 0
 ///
 /// SLB:
@@ -46,7 +49,8 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///
 /// FG overlay foot overrides:
 ///     VG         -> B_MIN, GD_MIN, GA_MIN
-///     C / C_CBR  -> CL_MIN, CD_MIN
+///     C          -> CL_MIN, CD_MIN
+///     C with CBR -> CL_MIN, CD_MIN
 ///     G          -> GD_MIN, GO_MIN
 /// </summary>
 public sealed class _4516EquationPlanner : StandardEquationPlanner
@@ -118,9 +122,10 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
             builder,
             facts);
 
-        ApplySlbBackAngleRule(
+        // i was wrong we should not do this
+        /*ApplySlbBackAngleRule(
             builder,
-            facts);
+            facts);*/
 
         if (context.DrawingType == DrawingType.Overlay)
         {
@@ -226,12 +231,16 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 facts);
         }
 
+        var normalizedFootOption =
+            ResolveNormalizedFootOption(
+                facts);
+
         Logger.Info(
             "[_4516EquationPlanner] Overlay dimension overrides -> " +
             $"subclass={subclass}, " +
             $"VR/VW present={hasVrVw}, " +
             $"VW case={overlayVwCase}, " +
-            $"foot option={ResolveFootKind(ResolveNormalizedFootOption(facts))}.");
+            $"foot option={ResolveFootKind(facts, normalizedFootOption)}.");
     }
 
     private static void AddVrVwOverlayOverrides(
@@ -270,6 +279,7 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
 
         var footKind =
             ResolveFootKind(
+                facts,
                 normalizedFootOption);
 
         switch (footKind)
@@ -678,6 +688,7 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
 
         var footKind =
             ResolveFootKind(
+                facts,
                 footOption);
 
         decimal footDepthMm;
@@ -755,33 +766,35 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
     }
 
     private static FootKind ResolveFootKind(
+        WedgeFacts facts,
         string normalizedFootOption)
     {
-        return normalizedFootOption switch
+        switch (normalizedFootOption)
         {
-            "LW_VG" or
-            "SW_VG" =>
-                FootKind.Vg,
+            case "LW_VG":
+            case "SW_VG":
+                return FootKind.Vg;
 
-            "LW_G" or
-            "SW_G" =>
-                FootKind.G,
+            case "LW_G":
+            case "SW_G":
+                return FootKind.G;
 
-            "LW_C" or
-            "SW_C" =>
-                FootKind.C,
+            case "LW_C":
+            case "SW_C":
+                return HasAllPositiveNominal(
+                    facts,
+                    "CBRL",
+                    "CBRD")
+                        ? FootKind.CWithCbr
+                        : FootKind.C;
 
-            "LW_C_CBR" or
-            "SW_C_CBR" =>
-                FootKind.CWithCbr,
+            case "LW_CC":
+            case "SW_CC":
+                return FootKind.CC;
 
-            "LW_CC" or
-            "SW_CC" =>
-                FootKind.CC,
-
-            _ =>
-                FootKind.FlatOrUnknown
-        };
+            default:
+                return FootKind.FlatOrUnknown;
+        }
     }
 
     private static decimal RequireFootDepthSource(

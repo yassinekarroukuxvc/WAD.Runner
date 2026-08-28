@@ -6,6 +6,7 @@ using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Domain.Validation.Rules._4516;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.ABT;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.AB16;
+using WAD.Runner.DataManagement.Domain.Validation.Rules.COB;
 using WAD.Runner.DataManagement.Domain.Validation.Rules._45CK;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.OSG7;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.M;
@@ -73,6 +74,14 @@ public static class WedgeDimensionValidator
             wedgeType,
             ruleSet.ConditionalOrGroups,
             issues);
+
+        if (wedgeType == WedgeType.COB)
+        {
+            CobConditionalDimensionValidator.Validate(
+                wedge,
+                wedgeType,
+                issues);
+        }
 
         if (wedgeType == WedgeType._4516)
         {

@@ -41,6 +41,10 @@ namespace WAD.Runner.ModelAutomation.Rules._1001;
 /// Overlay:
 ///     left_view  -> left cut/reference family
 ///     right_view -> right cut/reference family
+///
+/// W overlay:
+///     When the VR/VW family is present, the standalone W overlay
+///     sketch is suppressed and the VW case overlay sketch is used.
 /// </summary>
 public sealed class _1001FeatureRules : IFeatureRuleSet
 {
@@ -305,12 +309,17 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
         var active = shank == _1001ShankType.Std ? Std : Rev;
 
         var hasVr = HasAllPositive(facts, "VR", "VRR", "VW", "VRA");
+        var hasOverlayVrFamily = HasAnyPositive(facts, "VR", "VRR", "VW");
         var hasSlb = HasAllPositive(facts, "VBL", "VBLR");
         var hasW2 = facts.HasPositive("W2");
         var hasRa2 = HasAllPositive(facts, "RA2", "RA2H");
         var hasOverlayVbl = facts.HasPositive("VBL");
         var hasOverlayRa2 = facts.HasPositive("RA2");
-        var vwCase = ResolveOverlayVwCase(facts);
+
+        var vwCase =
+            ResolveOverlayVwCase(
+                facts,
+                hasOverlayVrFamily);
 
         var feedHole = context.Subclass == WedgeSubclass.FG
             ? ResolveFeedHoleType(facts)
@@ -319,6 +328,13 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
         var footOption = context.Subclass == WedgeSubclass.FG
             ? ResolveFootOption(facts)
             : FootOptionType.NotApplicable;
+
+        var hasCbr =
+            footOption == FootOptionType.C &&
+            HasAllPositive(
+                facts,
+                "CBRL",
+                "CBRD");
 
         var plan = new FeaturePlanBuilder()
             .Know(StdManaged)
@@ -356,6 +372,7 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
                 footOption,
                 hasOverlayVbl,
                 hasOverlayRa2,
+                hasOverlayVrFamily,
                 vwCase);
         }
         else
@@ -372,7 +389,10 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
             $"targetConfig={context.TargetConfigurationName}, " +
             $"feedHole={feedHole}, " +
             $"footOption={footOption}, " +
-            $"VR={hasVr}, SLB={hasSlb}, " +
+            $"VR={hasVr}, " +
+            $"overlay VR family={hasOverlayVrFamily}, " +
+            $"CBR={hasCbr}, " +
+            $"SLB={hasSlb}, " +
             $"W2={hasW2}, RA2={hasRa2}, " +
             $"VW case={vwCase}.");
 
@@ -524,6 +544,12 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
             facts.HasPositive(
                 "CBRD");
 
+        /*
+         * There is no C-with-CBR foot option.
+         *
+         * CBR is inferred only from the dimensions.
+         * Both values must be present together.
+         */
         if (hasCbrl != hasCbrd)
         {
             throw new InvalidOperationException(
@@ -540,8 +566,17 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
 
         if (hasCbr)
         {
+            /*
+             * C + CBRL > 0 + CBRD > 0
+             *
+             * Use the CBR back-radius feature instead of
+             * the normal C back-radius feature.
+             */
             plan.Activate(
                 family.CCbr);
+
+            plan.ForceSuppress(
+                family.CBr);
 
             if (!froEqualsFr)
             {
@@ -552,8 +587,14 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
             return;
         }
 
+        /*
+         * Normal C foot without CBR.
+         */
         plan.Activate(
             family.CBr);
+
+        plan.ForceSuppress(
+            family.CCbr);
 
         if (!froEqualsFr)
         {
@@ -569,6 +610,7 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
         FootOptionType footOption,
         bool hasVbl,
         bool hasRa2,
+        bool hasOverlayVrFamily,
         OverlayVwCase vwCase)
     {
         plan.Deactivate(
@@ -579,15 +621,39 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
             context,
             family);
 
-        plan.ActivateOnly(
+        /*
+         * W overlay behavior:
+         *
+         * No VR/VW family:
+         *     -> use the standalone W overlay sketch.
+         *
+         * VR/VW family:
+         *     -> suppress the standalone W sketch and use
+         *        the VW case1/case2 overlay sketch instead.
+         */
+        var selectedWOverlay =
             context.Subclass == WedgeSubclass.PGB
                 ? family.WPgbOverlay
-                : family.WFgOverlay,
-            new[]
-            {
-                family.WPgbOverlay,
-                family.WFgOverlay
-            });
+                : family.WFgOverlay;
+
+        var otherWOverlay =
+            context.Subclass == WedgeSubclass.PGB
+                ? family.WFgOverlay
+                : family.WPgbOverlay;
+
+        plan.ForceSuppress(
+            otherWOverlay);
+
+        if (hasOverlayVrFamily)
+        {
+            plan.ForceSuppress(
+                selectedWOverlay);
+        }
+        else
+        {
+            plan.Activate(
+                selectedWOverlay);
+        }
 
         if (vwCase != OverlayVwCase.None)
         {
@@ -595,6 +661,11 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
                 vwCase == OverlayVwCase.Case1
                     ? family.VwCases[0]
                     : family.VwCases[1],
+                family.VwCases);
+        }
+        else
+        {
+            plan.ForceSuppress(
                 family.VwCases);
         }
 
@@ -616,12 +687,25 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
             plan.ForceSuppress(
                 family.FootOverlays);
 
+            Logger.Info(
+                "[_1001FeatureRules] PGB overlay -> " +
+                $"W overlay={!hasOverlayVrFamily}, " +
+                $"VR/VW family={hasOverlayVrFamily}, " +
+                $"VW case={vwCase}.");
+
             return;
         }
 
         var footSketch =
             footOption switch
             {
+                /*
+                 * Normal C and C with CBR both use the
+                 * same C foot overlay sketch.
+                 *
+                 * C with CBR is inferred from CBRL/CBRD,
+                 * not from a separate foot-option token.
+                 */
                 FootOptionType.C =>
                     family.FootOverlays[0],
 
@@ -631,6 +715,9 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
                 FootOptionType.G =>
                     family.FootOverlays[2],
 
+                /*
+                 * F has no foot-option overlay sketch.
+                 */
                 FootOptionType.F =>
                     null,
 
@@ -644,6 +731,17 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
                 footSketch,
                 family.FootOverlays);
         }
+        else
+        {
+            plan.ForceSuppress(
+                family.FootOverlays);
+        }
+
+        Logger.Info(
+            "[_1001FeatureRules] FG overlay -> " +
+            $"W overlay={!hasOverlayVrFamily}, " +
+            $"VR/VW family={hasOverlayVrFamily}, " +
+            $"VW case={vwCase}.");
     }
 
     private static void ApplyOverlayCutRule(
@@ -698,7 +796,8 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
 
         return token switch
         {
-            "SW_STD" or "STD" =>
+            "SW_STD" or
+            "STD" =>
                 _1001ShankType.Std,
 
             "SW_180REV" or
@@ -763,6 +862,14 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
                     "Foot Option",
                     "foot_option"));
 
+        /*
+         * IMPORTANT:
+         *
+         * There is no LW_C_CBR / SW_C_CBR.
+         *
+         * C with CBR still comes from LW_C / SW_C / C.
+         * CBRL and CBRD decide whether CBR geometry is used.
+         */
         return token switch
         {
             "LW_C" or
@@ -796,9 +903,11 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
     }
 
     private static OverlayVwCase ResolveOverlayVwCase(
-        WedgeFacts facts)
+        WedgeFacts facts,
+        bool hasOverlayVrFamily)
     {
-        if (!facts.TryGetLengthMm(
+        if (!hasOverlayVrFamily ||
+            !facts.TryGetLengthMm(
                 "VW",
                 out var vw) ||
             vw <= WedgeFacts.DefaultPositiveEpsilon)
@@ -817,7 +926,9 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
             return OverlayVwCase.None;
         }
 
-        return decimal.Abs(vw - w) <=
+        return decimal.Abs(
+                   vw -
+                   w) <=
                WedgeFacts.DefaultPositiveEpsilon
             ? OverlayVwCase.Case1
             : OverlayVwCase.Case2;
@@ -842,7 +953,9 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
                 "Cannot apply _1001 C-foot rules because FR is missing/not a length.");
         }
 
-        return decimal.Abs(fro - fr) <=
+        return decimal.Abs(
+                   fro -
+                   fr) <=
                WedgeFacts.DefaultPositiveEpsilon;
     }
 
@@ -850,6 +963,12 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
         WedgeFacts facts,
         params string[] keys)
         => keys.All(
+            key => facts.HasPositive(key));
+
+    private static bool HasAnyPositive(
+        WedgeFacts facts,
+        params string[] keys)
+        => keys.Any(
             key => facts.HasPositive(key));
 
     private static string NormalizeFeedHoleToken(

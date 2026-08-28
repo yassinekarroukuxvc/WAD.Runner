@@ -12,12 +12,12 @@ using DomDim =
 namespace WAD.Runner.ModelAutomation.Equations;
 
 /// <summary>
-/// Builds the equations used by the ABT model.
+/// Builds the equations used by the COB model.
 ///
-/// ABT PGB overlay:
+/// COB PGB overlay:
 ///     W     = W_MAX
 ///
-/// ABT FG overlay:
+/// COB FG overlay:
 ///     W     = nominal value
 ///
 /// Both PGB and FG overlay:
@@ -38,34 +38,24 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///     ISA = ISA_MAX
 ///
 /// Foot depth:
-///     LW_VG / SW_VG -> foot_depth = GD
-///     LW_G / SW_G   -> foot_depth = GD
-///     LW_C / SW_C   -> foot_depth = CD
-///     Other         -> foot_depth = 0
+///     PGB            -> foot_depth = 0
+///     FG LW_VG/SW_VG -> foot_depth = GD
+///     FG LW_G/SW_G   -> foot_depth = GD
+///     FG LW_C/SW_C   -> foot_depth = CD
+///     Other          -> foot_depth = 0
 ///
 /// C with CBR is not a separate foot-option token.
-/// LW_C / SW_C is treated as C-with-CBR when CBR > 0.
+/// LW_C / SW_C is treated as C-with-CBR when CBRL > 0 and CBRD > 0.
 ///
 /// FG overlay foot overrides:
 ///     LW_C / SW_C   -> CL_MIN, CD_MIN
 ///     LW_VG / SW_VG -> GA_MIN, GD_MIN, B_MIN
 ///     LW_G / SW_G   -> GO_MIN, GD_MIN
 /// </summary>
-public sealed class AbtEquationPlanner : StandardEquationPlanner
+public sealed class CobEquationPlanner : StandardEquationPlanner
 {
     private const string FootDepthEquationName =
         "foot_depth";
-
-    private const string NonStdCutEquationName =
-        "non_std_cut";
-
-    private readonly WedgeType _wedgeType;
-
-    public AbtEquationPlanner(
-        WedgeType wedgeType)
-    {
-        _wedgeType = wedgeType;
-    }
 
     public override EquationPlan Build(
         ModelAutomationContext context)
@@ -75,7 +65,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
 
         var wedge = context.Wedge
             ?? throw new InvalidOperationException(
-                "WedgeData is required to build ABT equations.");
+                "WedgeData is required to build COB equations.");
 
         var facts = context.Facts
             ?? new WedgeFacts(wedge);
@@ -92,7 +82,8 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
 
         AddFootDepthEquation(
             builder,
-            facts);
+            facts,
+            context.Subclass);
 
         AddFunnelGapEquation(
             builder,
@@ -114,12 +105,26 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
             builder,
             context);
 
-        AddNonStandardCutEquation(
-            builder,
-            facts,
-            context.DrawingType);
 
         return builder.Build();
+    }
+
+    private static void AddFunnelGapEquation(
+        EquationPlanBuilder builder,
+        WedgeFacts facts)
+    {
+        var funnelGap =
+            EquationGeometry.FunnelGapMmOrDefault(
+                facts);
+
+        builder.AddManaged(
+            EquationCatalog.Names.FunnelGap,
+            EquationFormatting.LengthLineFromMillimeters(
+                EquationCatalog.Names.FunnelGap,
+                funnelGap));
+
+        Logger.Info(
+            $"[CobEquationPlanner] funnel_gap={funnelGap} mm.");
     }
 
     // ================================================================
@@ -203,7 +208,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         }
 
         Logger.Info(
-            "[AbtEquationPlanner] Overlay dimension overrides -> " +
+            "[CobEquationPlanner] Overlay dimension overrides -> " +
             $"subclass={subclass}, " +
             $"W override={(subclass == WedgeSubclass.PGB ? "MAX" : "NOMINAL")}, " +
             $"VR/VW present={hasVrVw}, " +
@@ -309,7 +314,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         }
 
         Logger.Info(
-            "[AbtEquationPlanner] FG overlay foot overrides -> " +
+            "[CobEquationPlanner] FG overlay foot overrides -> " +
             $"raw='{DisplayToken(normalizedFootOption)}', " +
             $"resolved={footKind}.");
     }
@@ -326,7 +331,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 out var maximumMillimeters))
         {
             Logger.Warn(
-                "[AbtEquationPlanner] Missing or invalid nominal/" +
+                "[CobEquationPlanner] Missing or invalid nominal/" +
                 $"tolerance for length dimension '{dimensionKey}'. " +
                 $"The requested {(useMaximum ? "maximum" : "minimum")} " +
                 "overlay override was skipped. The nominal equation " +
@@ -347,7 +352,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 selectedMillimeters));
 
         Logger.Info(
-            "[AbtEquationPlanner] Overlay length bound -> " +
+            "[CobEquationPlanner] Overlay length bound -> " +
             $"{dimensionKey}=" +
             $"{(useMaximum ? "MAX" : "MIN")}, " +
             $"value={selectedMillimeters} mm.");
@@ -365,7 +370,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 out var maximumDegrees))
         {
             Logger.Warn(
-                "[AbtEquationPlanner] Missing or invalid nominal/" +
+                "[CobEquationPlanner] Missing or invalid nominal/" +
                 $"tolerance for angle dimension '{dimensionKey}'. " +
                 $"The requested {(useMaximum ? "maximum" : "minimum")} " +
                 "overlay override was skipped. The nominal equation " +
@@ -387,7 +392,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 "deg"));
 
         Logger.Info(
-            "[AbtEquationPlanner] Overlay angle bound -> " +
+            "[CobEquationPlanner] Overlay angle bound -> " +
             $"{dimensionKey}=" +
             $"{(useMaximum ? "MAX" : "MIN")}, " +
             $"value={selectedDegrees} deg.");
@@ -414,7 +419,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 out var wMillimeters))
         {
             Logger.Warn(
-                "[AbtEquationPlanner] VW is present but W is " +
+                "[CobEquationPlanner] VW is present but W is " +
                 "missing or not a length. The VW overlay case " +
                 "could not be resolved.");
 
@@ -451,8 +456,24 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
 
     private static void AddFootDepthEquation(
         EquationPlanBuilder builder,
-        WedgeFacts facts)
+        WedgeFacts facts,
+        WedgeSubclass subclass)
     {
+        if (subclass == WedgeSubclass.PGB)
+        {
+            builder.AddManaged(
+                FootDepthEquationName,
+                EquationFormatting.LengthLineFromMillimeters(
+                    FootDepthEquationName,
+                    0m));
+
+            Logger.Info(
+                "[CobEquationPlanner] PGB has no foot option -> " +
+                "foot_depth=0 mm.");
+
+            return;
+        }
+
         var footOption =
             ResolveNormalizedFootOption(
                 facts);
@@ -512,7 +533,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 footDepthMm));
 
         Logger.Info(
-            "[AbtEquationPlanner] Foot depth resolved -> " +
+            "[CobEquationPlanner] Foot depth resolved -> " +
             $"Wed-Foot_Option='{DisplayToken(footOption)}', " +
             $"foot kind={footKind}, " +
             $"source={sourceDescription}, " +
@@ -529,7 +550,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 out var valueMm))
         {
             throw new InvalidOperationException(
-                "Cannot calculate ABT foot_depth. " +
+                "Cannot calculate COB foot_depth. " +
                 $"Wed-Foot_Option '{DisplayToken(footOption)}' " +
                 $"requires dimension '{sourceDimension}', " +
                 "but that dimension is missing or is not a " +
@@ -539,30 +560,12 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         if (valueMm < 0m)
         {
             throw new InvalidOperationException(
-                "Cannot calculate ABT foot_depth. " +
+                "Cannot calculate COB foot_depth. " +
                 $"Dimension '{sourceDimension}' has an invalid " +
                 $"negative value: {valueMm} mm.");
         }
 
         return valueMm;
-    }
-
-    private static void AddFunnelGapEquation(
-        EquationPlanBuilder builder,
-        WedgeFacts facts)
-    {
-        var funnelGap =
-            EquationGeometry.FunnelGapMmOrDefault(
-                facts);
-
-        builder.AddManaged(
-            EquationCatalog.Names.FunnelGap,
-            EquationFormatting.LengthLineFromMillimeters(
-                EquationCatalog.Names.FunnelGap,
-                funnelGap));
-
-        Logger.Info(
-            $"[AbtEquationPlanner] funnel_gap={funnelGap} mm.");
     }
 
     // ================================================================
@@ -593,67 +596,30 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         return normalizedFootOption switch
         {
             "LW_C" or
-            "SW_C" =>
+            "SW_C" or
+            "C" =>
                 facts.HasPositive("CBRL") && facts.HasPositive("CBRD")
                     ? FootKind.CWithCbr
                     : FootKind.C,
 
             "LW_VG" or
-            "SW_VG" =>
+            "SW_VG" or
+            "VG" =>
                 FootKind.Vg,
 
             "LW_G" or
-            "SW_G" =>
+            "SW_G" or
+            "G" =>
                 FootKind.G,
 
             "LW_CC" or
-            "SW_CC" =>
+            "SW_CC" or
+            "CC" =>
                 FootKind.CC,
 
             _ =>
                 FootKind.Unknown
         };
-    }
-
-    // ================================================================
-    // NON-STANDARD CUT
-    // ================================================================
-
-    private void AddNonStandardCutEquation(
-        EquationPlanBuilder builder,
-        WedgeFacts facts,
-        DrawingType drawingType)
-    {
-        var rawCut =
-            EquationGeometry.NonStdCutRawMm(
-                facts);
-
-        var finalCut =
-            rawCut;
-
-        if (drawingType == DrawingType.Overlay)
-        {
-            var magnification =
-                EquationGeometry.OverlayMagnification(
-                    facts,
-                    _wedgeType);
-
-            var scale =
-                EquationGeometry.OverlayScaleDecimal(
-                    magnification);
-
-            finalCut =
-                EquationGeometry.OverlaySafeNonStdCutMm(
-                    rawCut,
-                    scale,
-                    _wedgeType);
-        }
-
-        builder.AddManaged(
-            NonStdCutEquationName,
-            EquationFormatting.LengthLineFromMillimeters(
-                NonStdCutEquationName,
-                finalCut));
     }
 
     // ================================================================

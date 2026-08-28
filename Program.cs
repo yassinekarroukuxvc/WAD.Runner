@@ -362,25 +362,21 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     templatePartPath = Path.Combine(
-                        "Resources", "Templates", "COB", "Working Version",
-                        "COB.SLDPRT");
+                        "Resources", "Templates", "COB", "COB_rev2", "COB_part_rev1.SLDPRT");
 
                     templateDrawingPath = dtype switch
                     {
                         DrawingType.Overlay =>
                             Path.Combine(
-                                "Resources", "Templates", "COB", "Working Version",
-                                "COB_Overlay.SLDDRW"),
+                                "Resources", "Templates", "COB", "COB_rev2", "COB_overlay_rev1.SLDDRW"),
 
                         DrawingType.Production or DrawingType.Customer or _ =>
                             Path.Combine(
-                                "Resources", "Templates", "COB", "Working Version",
-                                "COB_drawings.SLDDRW"),
+                                "Resources", "Templates", "COB", "COB_rev2", "COB_drawing_rev1.SLDPRT.SLDDRW"),
                     };
 
                     equationTemplatePathForModelPhase = Path.Combine(
-                        "Resources", "Templates", "COB", "Working Version",
-                        "equations.txt");
+                        "Resources", "Templates", "COB", "COB_rev2","equations.txt");
                     break;
 
                 case WedgeType.UTUS:
@@ -718,12 +714,10 @@ switch (cmd)
             {
                 case WedgeType.COB:
                     partTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
-                        "COB.SLDPRT");
+                        "Resources", "Templates", "COB", "COB_rev2", "COB_part_rev1.SLDPRT");
 
                     equationTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB template 02-14-2026", "V5",
-                        "equations.txt");
+                        "Resources", "Templates", "COB", "COB_rev2","equations.txt");
                     break;
 
                 case WedgeType.UTUS:

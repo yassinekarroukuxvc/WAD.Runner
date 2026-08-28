@@ -64,35 +64,44 @@ public sealed class _45CKToleranceRules : IToleranceRuleSet
             EquationGeometry.OverlayScaleDecimal(
                 magnification);
 
-        var cutMm =
+        // 45CK only has the STD reference points used by this model.
+        // RIGHT keeps the existing calculated overlay cut.
+        var rightCutMm =
             EquationGeometry.RefPointOverlayCutMm(
                 facts,
                 scale,
                 WedgeType._45CK);
 
-        var targets =
-            new[]
-            {
-                "ref_point_right@ref_point_right",
-                "ref_point_left@ref_point_left"
-            };
+        // LEFT is always 1.5 inches converted to millimeters,
+        // divided by the overlay scale.
+        var leftCutMm =
+            38.1m / (decimal)scale;
 
-        foreach (var target in targets)
-        {
-            updates.Add(
-                new ToleranceUpdate(
-                    target,
-                    cutMm,
-                    ToleranceUnit.LengthMm));
-        }
+        const string rightTarget =
+            "ref_point_right@ref_point_right";
+
+        const string leftTarget =
+            "ref_point_left@ref_point_left";
+
+        updates.Add(
+            new ToleranceUpdate(
+                rightTarget,
+                rightCutMm,
+                ToleranceUnit.LengthMm));
+
+        updates.Add(
+            new ToleranceUpdate(
+                leftTarget,
+                leftCutMm,
+                ToleranceUnit.LengthMm));
 
         Logger.Info(
             "[_45CKToleranceRules] Overlay cut reference points -> " +
             $"VR present={facts.HasPositive("VR")}, " +
             $"magnification={magnification}, " +
             $"scale={scale}, " +
-            $"cut={cutMm} mm, " +
-            $"targets={string.Join(", ", targets)}.");
+            $"rightCut={rightCutMm} mm -> {rightTarget}, " +
+            $"leftCut={leftCutMm} mm -> {leftTarget}.");
     }
 
     // ================================================================

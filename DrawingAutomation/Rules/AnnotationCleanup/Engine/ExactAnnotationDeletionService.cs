@@ -483,31 +483,11 @@ public sealed class ExactAnnotationDeletionService
     private static IReadOnlyList<DisplayDimensionHandle> Enumerate(
         SwView view)
     {
-        object? raw;
+        var byFullName = new Dictionary<string, DisplayDimensionHandle>(
+            StringComparer.OrdinalIgnoreCase);
 
-        try
+        foreach (var displayDimension in EnumerateDisplayDimensions(view))
         {
-            raw = view.GetDisplayDimensions();
-        }
-        catch
-        {
-            return Array.Empty<DisplayDimensionHandle>();
-        }
-
-        if (raw is not object[] displayDimensions ||
-            displayDimensions.Length == 0)
-        {
-            return Array.Empty<DisplayDimensionHandle>();
-        }
-
-        var results = new List<DisplayDimensionHandle>(
-            displayDimensions.Length);
-
-        foreach (var item in displayDimensions)
-        {
-            if (item is not SwDisplayDimension displayDimension)
-                continue;
-
             SwDimension? dimension = null;
             SwAnnotation? annotation = null;
 
@@ -554,16 +534,79 @@ public sealed class ExactAnnotationDeletionService
                     AnnotationNameIdentity.GetDimensionName(fullName);
             }
 
-            if (string.IsNullOrWhiteSpace(fullName))
+            if (string.IsNullOrWhiteSpace(fullName) ||
+                byFullName.ContainsKey(fullName))
+            {
                 continue;
+            }
 
-            results.Add(new DisplayDimensionHandle(
+            byFullName.Add(
                 fullName,
-                dimensionName,
-                annotation));
+                new DisplayDimensionHandle(
+                    fullName,
+                    dimensionName,
+                    annotation));
         }
 
-        return results;
+        return byFullName.Values.ToList();
+    }
+
+    /// <summary>
+    /// Enumerate display dimensions through both SolidWorks APIs.  Some template
+    /// dimensions are visible through GetAnnotations() but omitted from
+    /// GetDisplayDimensions(); cleanup and deletion must therefore use the same
+    /// superset as the annotation positioner.
+    /// </summary>
+    private static IReadOnlyList<SwDisplayDimension> EnumerateDisplayDimensions(
+        SwView view)
+    {
+        var result = new List<SwDisplayDimension>(64);
+
+        try
+        {
+            var rawAnnotations = view.GetAnnotations();
+            if (rawAnnotations is object[] annotations)
+            {
+                foreach (var item in annotations)
+                {
+                    if (item is not SwAnnotation annotation)
+                        continue;
+
+                    try
+                    {
+                        if (annotation.GetSpecificAnnotation() is SwDisplayDimension displayDimension)
+                            result.Add(displayDimension);
+                    }
+                    catch
+                    {
+                        // Best effort only.
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Continue with the legacy API.
+        }
+
+        try
+        {
+            var rawDisplayDimensions = view.GetDisplayDimensions();
+            if (rawDisplayDimensions is object[] displayDimensions)
+            {
+                foreach (var item in displayDimensions)
+                {
+                    if (item is SwDisplayDimension displayDimension)
+                        result.Add(displayDimension);
+                }
+            }
+        }
+        catch
+        {
+            // Return anything already collected through GetAnnotations().
+        }
+
+        return result;
     }
 
     private static void SafeClearSelection(SwModelDoc2 drawingModel)

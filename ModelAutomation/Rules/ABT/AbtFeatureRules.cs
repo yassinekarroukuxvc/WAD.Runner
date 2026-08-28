@@ -37,14 +37,23 @@ namespace WAD.Runner.ModelAutomation.Rules.ABT;
 ///     Slot -> Slot family
 ///
 /// FG foot:
-///     C / C+CBR -> C family
-///     VG        -> VG family
-///     G         -> G family
-///     CC        -> no ABT foot features were specified.
+///     C  -> C family.
+///           C+CBR is inferred when CBRL > 0 and CBRD > 0.
+///     VG -> VG family.
+///     G  -> G family.
+///     CC -> no ABT foot features were specified.
+///
+/// C foot:
+///     std_round_br / rev_round_br are suppressed for every C foot,
+///     including C with CBR.
 ///
 /// Overlay:
 ///     Activates the selected shank cut/reference family.
 ///     PGB and FG use different W overlay sketches.
+///
+///     When VR/VW data is present, the standalone W overlay sketch
+///     is suppressed and the appropriate VW case sketch is used.
+///
 ///     VW Case 1 -> VW = W
 ///     VW Case 2 -> VW != W
 ///     T Case 1  -> no VBL and no RA2
@@ -117,9 +126,19 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] StdFeedHoleManagedNames =
     {
-        "std_hole_feature", "std_hole_sketch", "std_hole_cut_feature", "std_hole_cut_sketch", "std_hole_combine",
-        "std_oval_plan", "std_oval_feature", "std_oval_sketch", "std_oval_cut_feature", "std_oval_cut_sketch", "std_oval_combine",
-        "std_slot_plan", "std_slot_feature", "std_slot_sketch", "std_slot_cut_feature", "std_slot_cut_sketch", "std_slot_combine"
+        "std_hole_feature", "std_hole_sketch",
+        "std_hole_cut_feature", "std_hole_cut_sketch",
+        "std_hole_combine",
+
+        "std_oval_plan",
+        "std_oval_feature", "std_oval_sketch",
+        "std_oval_cut_feature", "std_oval_cut_sketch",
+        "std_oval_combine",
+
+        "std_slot_plan",
+        "std_slot_feature", "std_slot_sketch",
+        "std_slot_cut_feature", "std_slot_cut_sketch",
+        "std_slot_combine"
     };
 
     // ================================================================
@@ -128,7 +147,8 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] StdCFootBaseNames =
     {
-        "std_c_feature", "std_c_sketch"
+        "std_c_feature",
+        "std_c_sketch"
     };
 
     private const string StdCFrFeature =
@@ -160,10 +180,23 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] StdFootManagedNames =
     {
-        "std_c_feature", "std_c_sketch", "std_fr_c_feature", "std_cbr_c_feature",
-        "std_cbr_c_core_feature", "std_br_c_feature", "std_c_round_br_feature",
-        "std_vg_feature", "std_vg_sketch", "std_fr_vg_feature", "std_br_vg_feature",
-        "std_g_feature", "std_g_sketch", "std_g_fr_feature", "std_g_br_feature"
+        "std_c_feature",
+        "std_c_sketch",
+        "std_fr_c_feature",
+        "std_br_c_feature",
+        "std_cbr_c_feature",
+        "std_cbr_c_core_feature",
+        "std_c_round_br_feature",
+
+        "std_vg_feature",
+        "std_vg_sketch",
+        "std_fr_vg_feature",
+        "std_br_vg_feature",
+
+        "std_g_feature",
+        "std_g_sketch",
+        "std_g_fr_feature",
+        "std_g_br_feature"
     };
 
     // ================================================================
@@ -172,12 +205,16 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] StdRightOverlayCutNames =
     {
-        "std_ref_point_right", "std_right_cut_plan", "std_right_cut"
+        "std_ref_point_right",
+        "std_right_cut_plan",
+        "std_right_cut"
     };
 
     private static readonly string[] StdLeftOverlayCutNames =
     {
-        "std_ref_point_left", "std_left_cut_plan", "std_left_cut"
+        "std_ref_point_left",
+        "std_left_cut_plan",
+        "std_left_cut"
     };
 
     private const string StdWPgbOverlaySketch =
@@ -188,29 +225,49 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] StdVwCaseOverlaySketches =
     {
-        "std_vw_case1_overlay_sketch", "std_vw_case2_overlay_sketch"
+        "std_vw_case1_overlay_sketch",
+        "std_vw_case2_overlay_sketch"
     };
 
     private static readonly string[] StdTCaseOverlaySketches =
     {
-        "std_t_case1_overlay_sketch", "std_t_case2_overlay_sketch",
-        "std_t_case3_overlay_sketch", "std_t_case4_overlay_sketch"
+        "std_t_case1_overlay_sketch",
+        "std_t_case2_overlay_sketch",
+        "std_t_case3_overlay_sketch",
+        "std_t_case4_overlay_sketch"
     };
 
     private static readonly string[] StdFootOverlaySketches =
     {
-        "std_c_overlay_sketch", "std_vg_overlay_sketch", "std_g_overlay_sketch"
+        "std_c_overlay_sketch",
+        "std_vg_overlay_sketch",
+        "std_g_overlay_sketch"
     };
 
     private static readonly string[] StdOverlayManagedNames =
     {
-        "std_ref_point_right", "std_right_cut_plan", "std_right_cut",
-        "std_ref_point_left", "std_left_cut_plan", "std_left_cut",
-        "std_w_pgb_overlay_sketch", "std_w_fg_overlay_sketch",
-        "std_vw_case1_overlay_sketch", "std_vw_case2_overlay_sketch",
-        "std_t_case1_overlay_sketch", "std_t_case2_overlay_sketch",
-        "std_t_case3_overlay_sketch", "std_t_case4_overlay_sketch",
-        "std_c_overlay_sketch", "std_vg_overlay_sketch", "std_g_overlay_sketch"
+        "std_ref_point_right",
+        "std_right_cut_plan",
+        "std_right_cut",
+
+        "std_ref_point_left",
+        "std_left_cut_plan",
+        "std_left_cut",
+
+        "std_w_pgb_overlay_sketch",
+        "std_w_fg_overlay_sketch",
+
+        "std_vw_case1_overlay_sketch",
+        "std_vw_case2_overlay_sketch",
+
+        "std_t_case1_overlay_sketch",
+        "std_t_case2_overlay_sketch",
+        "std_t_case3_overlay_sketch",
+        "std_t_case4_overlay_sketch",
+
+        "std_c_overlay_sketch",
+        "std_vg_overlay_sketch",
+        "std_g_overlay_sketch"
     };
 
     // ================================================================
@@ -229,22 +286,26 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] RevVrNames =
     {
-        "vr_rev_feature", "vr_rev_sketch"
+        "vr_rev_feature",
+        "vr_rev_sketch"
     };
 
     private static readonly string[] RevSlbNames =
     {
-        "slb_rev_feature", "slb_rev_sketch"
+        "slb_rev_feature",
+        "slb_rev_sketch"
     };
 
     private static readonly string[] RevW2Names =
     {
-        "w2_rev_feature", "w2_rev_sketch"
+        "w2_rev_feature",
+        "w2_rev_sketch"
     };
 
     private static readonly string[] RevRa2Names =
     {
-        "ra2_rev_feature", "ra2_rev_sketch"
+        "ra2_rev_feature",
+        "ra2_rev_sketch"
     };
 
     // ================================================================
@@ -276,9 +337,19 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] RevFeedHoleManagedNames =
     {
-        "rev_hole_feature", "rev_hole_sketch", "rev_hole_cut_feature", "rev_hole_cut_sketch", "rev_hole_combine",
-        "rev_oval_plan", "rev_oval_feature", "rev_oval_sketch", "rev_oval_cut_feature", "rev_oval_cut_sketch", "rev_oval_combine_feature",
-        "rev_slot_plan", "rev_slot_feature", "rev_slot_sketch", "rev_slot_cut_feature", "rev_slot_cut_sketch", "rev_slot_combine_feature"
+        "rev_hole_feature", "rev_hole_sketch",
+        "rev_hole_cut_feature", "rev_hole_cut_sketch",
+        "rev_hole_combine",
+
+        "rev_oval_plan",
+        "rev_oval_feature", "rev_oval_sketch",
+        "rev_oval_cut_feature", "rev_oval_cut_sketch",
+        "rev_oval_combine_feature",
+
+        "rev_slot_plan",
+        "rev_slot_feature", "rev_slot_sketch",
+        "rev_slot_cut_feature", "rev_slot_cut_sketch",
+        "rev_slot_combine_feature"
     };
 
     // ================================================================
@@ -287,7 +358,8 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] RevCFootBaseNames =
     {
-        "rev_c_feature", "rev_c_sketch"
+        "rev_c_feature",
+        "rev_c_sketch"
     };
 
     private const string RevCFrFeature =
@@ -319,10 +391,23 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] RevFootManagedNames =
     {
-        "rev_c_feature", "rev_c_sketch", "rev_c_fr_feature", "rev_c_br_feature",
-        "rev_c_cbr_feature", "rev_cbr_c_core_feature", "rev_c_round_br_feature",
-        "rev_vg_feature", "rev_vg_sketch", "rev_vg_fr_feature", "rev_vg_br_feature",
-        "rev_g_feature", "rev_g_sketch", "rev_g_fr_feature", "rev_g_br_feature"
+        "rev_c_feature",
+        "rev_c_sketch",
+        "rev_c_fr_feature",
+        "rev_c_br_feature",
+        "rev_c_cbr_feature",
+        "rev_cbr_c_core_feature",
+        "rev_c_round_br_feature",
+
+        "rev_vg_feature",
+        "rev_vg_sketch",
+        "rev_vg_fr_feature",
+        "rev_vg_br_feature",
+
+        "rev_g_feature",
+        "rev_g_sketch",
+        "rev_g_fr_feature",
+        "rev_g_br_feature"
     };
 
     // ================================================================
@@ -331,12 +416,16 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] RevRightOverlayCutNames =
     {
-        "rev_ref_point_right", "rev_right_cut_plan", "rev_right_cut"
+        "rev_ref_point_right",
+        "rev_right_cut_plan",
+        "rev_right_cut"
     };
 
     private static readonly string[] RevLeftOverlayCutNames =
     {
-        "rev_ref_point_left", "rev_left_cut_plan", "rev_left_cut"
+        "rev_ref_point_left",
+        "rev_left_cut_plan",
+        "rev_left_cut"
     };
 
     private const string RevWPgbOverlaySketch =
@@ -347,29 +436,49 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static readonly string[] RevVwCaseOverlaySketches =
     {
-        "rev_vw_case1_overlay_sketch", "rev_vw_case2_overlay_sketch"
+        "rev_vw_case1_overlay_sketch",
+        "rev_vw_case2_overlay_sketch"
     };
 
     private static readonly string[] RevTCaseOverlaySketches =
     {
-        "rev_t_case1_overlay_sketch", "rev_t_case2_overlay_sketch",
-        "rev_t_case3_overlay_sketch", "rev_t_case4_overlay_sketch"
+        "rev_t_case1_overlay_sketch",
+        "rev_t_case2_overlay_sketch",
+        "rev_t_case3_overlay_sketch",
+        "rev_t_case4_overlay_sketch"
     };
 
     private static readonly string[] RevFootOverlaySketches =
     {
-        "rev_c_overlay_sketch", "rev_vg_overlay_sketch", "rev_g_overlay_sketch"
+        "rev_c_overlay_sketch",
+        "rev_vg_overlay_sketch",
+        "rev_g_overlay_sketch"
     };
 
     private static readonly string[] RevOverlayManagedNames =
     {
-        "rev_ref_point_right", "rev_right_cut_plan", "rev_right_cut",
-        "rev_ref_point_left", "rev_left_cut_plan", "rev_left_cut",
-        "rev_w_pgb_overlay_sketch", "rev_w_fg_overlay_sketch",
-        "rev_vw_case1_overlay_sketch", "rev_vw_case2_overlay_sketch",
-        "rev_t_case1_overlay_sketch", "rev_t_case2_overlay_sketch",
-        "rev_t_case3_overlay_sketch", "rev_t_case4_overlay_sketch",
-        "rev_c_overlay_sketch", "rev_vg_overlay_sketch", "rev_g_overlay_sketch"
+        "rev_ref_point_right",
+        "rev_right_cut_plan",
+        "rev_right_cut",
+
+        "rev_ref_point_left",
+        "rev_left_cut_plan",
+        "rev_left_cut",
+
+        "rev_w_pgb_overlay_sketch",
+        "rev_w_fg_overlay_sketch",
+
+        "rev_vw_case1_overlay_sketch",
+        "rev_vw_case2_overlay_sketch",
+
+        "rev_t_case1_overlay_sketch",
+        "rev_t_case2_overlay_sketch",
+        "rev_t_case3_overlay_sketch",
+        "rev_t_case4_overlay_sketch",
+
+        "rev_c_overlay_sketch",
+        "rev_vg_overlay_sketch",
+        "rev_g_overlay_sketch"
     };
 
     // ================================================================
@@ -427,6 +536,19 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                 "VRR",
                 "VRA");
 
+        /*
+         * Used specifically for the overlay W suppression.
+         *
+         * When the VR/VW family is present, the standalone W
+         * overlay sketch must not be used.
+         */
+        var hasOverlayVrFamily =
+            HasAnyPositiveNominal(
+                facts,
+                "VR",
+                "VRR",
+                "VW");
+
         var hasSlb =
             HasAllPositiveNominal(
                 facts,
@@ -454,7 +576,8 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
         var overlayVwCase =
             ResolveOverlayVwCase(
-                facts);
+                facts,
+                hasOverlayVrFamily);
 
         var feedHoleType =
             context.Subclass == WedgeSubclass.FG
@@ -476,6 +599,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                 .Know(StdFeedHoleManagedNames)
                 .Know(StdFootManagedNames)
                 .Know(StdOverlayManagedNames)
+
                 .Know(RevAlwaysOnNames)
                 .Know(RevVrNames)
                 .Know(RevSlbNames)
@@ -484,6 +608,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                 .Know(RevFeedHoleManagedNames)
                 .Know(RevFootManagedNames)
                 .Know(RevOverlayManagedNames)
+
                 .ForceSuppress(
                     SwNames.EngravingFeature,
                     SwNames.EngravingSketch);
@@ -515,6 +640,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                     footOption,
                     hasOverlayVbl,
                     hasOverlayRa2,
+                    hasOverlayVrFamily,
                     overlayVwCase);
             }
             else
@@ -550,6 +676,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                     footOption,
                     hasOverlayVbl,
                     hasOverlayRa2,
+                    hasOverlayVrFamily,
                     overlayVwCase);
             }
             else
@@ -567,6 +694,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             $"feedHole={feedHoleType}, " +
             $"footOption={footOption}, " +
             $"VR family={hasCompleteVrFamily}, " +
+            $"overlay VR family={hasOverlayVrFamily}, " +
             $"SLB={hasSlb}, " +
             $"W2={hasW2}, " +
             $"RA2 family={hasRa2}, " +
@@ -604,16 +732,28 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             StdRa2Names);
 
         if (hasCompleteVrFamily)
-            plan.Activate(StdVrNames);
+        {
+            plan.Activate(
+                StdVrNames);
+        }
 
         if (hasSlb)
-            plan.Activate(StdSlbNames);
+        {
+            plan.Activate(
+                StdSlbNames);
+        }
 
         if (hasW2)
-            plan.Activate(StdW2Names);
+        {
+            plan.Activate(
+                StdW2Names);
+        }
 
         if (hasRa2)
-            plan.Activate(StdRa2Names);
+        {
+            plan.Activate(
+                StdRa2Names);
+        }
     }
 
     private static void ApplyRevBaseRules(
@@ -639,16 +779,28 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             RevRa2Names);
 
         if (hasCompleteVrFamily)
-            plan.Activate(RevVrNames);
+        {
+            plan.Activate(
+                RevVrNames);
+        }
 
         if (hasSlb)
-            plan.Activate(RevSlbNames);
+        {
+            plan.Activate(
+                RevSlbNames);
+        }
 
         if (hasW2)
-            plan.Activate(RevW2Names);
+        {
+            plan.Activate(
+                RevW2Names);
+        }
 
         if (hasRa2)
-            plan.Activate(RevRa2Names);
+        {
+            plan.Activate(
+                RevRa2Names);
+        }
     }
 
     // ================================================================
@@ -811,10 +963,17 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
         return token switch
         {
-            "STD" => FeedHoleType.Std,
-            "OVAL" => FeedHoleType.Oval,
-            "SLOT" => FeedHoleType.Slot,
-            _ => FeedHoleType.Unknown
+            "STD" =>
+                FeedHoleType.Std,
+
+            "OVAL" =>
+                FeedHoleType.Oval,
+
+            "SLOT" =>
+                FeedHoleType.Slot,
+
+            _ =>
+                FeedHoleType.Unknown
         };
     }
 
@@ -868,23 +1027,19 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         switch (footOption)
         {
             case FootOptionType.C:
+                /*
+                 * std_round_br is normally part of StdAlwaysOnNames,
+                 * but it must be OFF for every C foot:
+                 *
+                 * - normal C
+                 * - C with CBR
+                 */
                 plan.ForceSuppress(
                     "std_round_br");
 
                 ApplyStdCFootRules(
                     plan,
-                    facts,
-                    withCbr: false);
-                break;
-
-            case FootOptionType.CWithCbr:
-                plan.ForceSuppress(
-                    "std_round_br");
-
-                ApplyStdCFootRules(
-                    plan,
-                    facts,
-                    withCbr: true);
+                    facts);
                 break;
 
             case FootOptionType.Vg:
@@ -906,7 +1061,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             default:
                 throw new InvalidOperationException(
                     "Unable to resolve the ABT foot option for an FG wedge. " +
-                    "Expected LW_C, LW_C_CBR, LW_VG, LW_G or LW_CC.");
+                    "Expected LW_C, LW_VG, LW_G or LW_CC.");
         }
     }
 
@@ -918,23 +1073,19 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         switch (footOption)
         {
             case FootOptionType.C:
+                /*
+                 * rev_round_br is normally part of RevAlwaysOnNames,
+                 * but it must be OFF for every C foot:
+                 *
+                 * - normal C
+                 * - C with CBR
+                 */
                 plan.ForceSuppress(
                     "rev_round_br");
 
                 ApplyRevCFootRules(
                     plan,
-                    facts,
-                    withCbr: false);
-                break;
-
-            case FootOptionType.CWithCbr:
-                plan.ForceSuppress(
-                    "rev_round_br");
-
-                ApplyRevCFootRules(
-                    plan,
-                    facts,
-                    withCbr: true);
+                    facts);
                 break;
 
             case FootOptionType.Vg:
@@ -956,26 +1107,35 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             default:
                 throw new InvalidOperationException(
                     "Unable to resolve the ABT foot option for an FG wedge. " +
-                    "Expected LW_C, LW_C_CBR, LW_VG, LW_G or LW_CC.");
+                    "Expected LW_C, LW_VG, LW_G or LW_CC.");
         }
     }
 
     private static void ApplyStdCFootRules(
         FeaturePlanBuilder plan,
-        WedgeFacts facts,
-        bool withCbr)
+        WedgeFacts facts)
     {
         var froEqualsFr =
             ResolveFroEqualsFr(
                 facts);
 
+        var hasCbr =
+            ResolveHasCbr(
+                facts);
+
         plan.Activate(
             StdCFootBaseNames);
 
-        if (withCbr)
+        if (hasCbr)
         {
-            RequireCbrDimensions(
-                facts);
+            /*
+             * Normal C foot + CBRL > 0 + CBRD > 0
+             * means C with CBR.
+             *
+             * There is no LW_C_CBR/SW_C_CBR token.
+             */
+            plan.ForceSuppress(
+                StdCBrFeature);
 
             plan.Activate(
                 StdCCbrFeature,
@@ -988,8 +1148,19 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                     StdCFrFeature);
             }
 
+            Logger.Info(
+                "[AbtFeatureRules] STD C foot -> CBR detected from " +
+                "CBRL/CBRD; CBR feature family selected.");
+
             return;
         }
+
+        /*
+         * Normal C without CBR.
+         */
+        plan.ForceSuppress(
+            StdCCbrFeature,
+            StdCCbrCoreFeature);
 
         plan.Activate(
             StdCBrFeature,
@@ -1000,24 +1171,36 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             plan.Activate(
                 StdCFrFeature);
         }
+
+        Logger.Info(
+            "[AbtFeatureRules] STD C foot -> no CBR; normal C BR selected.");
     }
 
     private static void ApplyRevCFootRules(
         FeaturePlanBuilder plan,
-        WedgeFacts facts,
-        bool withCbr)
+        WedgeFacts facts)
     {
         var froEqualsFr =
             ResolveFroEqualsFr(
                 facts);
 
+        var hasCbr =
+            ResolveHasCbr(
+                facts);
+
         plan.Activate(
             RevCFootBaseNames);
 
-        if (withCbr)
+        if (hasCbr)
         {
-            RequireCbrDimensions(
-                facts);
+            /*
+             * Normal C foot + CBRL > 0 + CBRD > 0
+             * means C with CBR.
+             *
+             * There is no LW_C_CBR/SW_C_CBR token.
+             */
+            plan.ForceSuppress(
+                RevCBrFeature);
 
             plan.Activate(
                 RevCCbrFeature,
@@ -1030,8 +1213,19 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                     RevCFrFeature);
             }
 
+            Logger.Info(
+                "[AbtFeatureRules] REV C foot -> CBR detected from " +
+                "CBRL/CBRD; CBR feature family selected.");
+
             return;
         }
+
+        /*
+         * Normal C without CBR.
+         */
+        plan.ForceSuppress(
+            RevCCbrFeature,
+            RevCCbrCoreFeature);
 
         plan.Activate(
             RevCBrFeature,
@@ -1042,6 +1236,32 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             plan.Activate(
                 RevCFrFeature);
         }
+
+        Logger.Info(
+            "[AbtFeatureRules] REV C foot -> no CBR; normal C BR selected.");
+    }
+
+    private static bool ResolveHasCbr(
+        WedgeFacts facts)
+    {
+        var hasCbrl =
+            facts.HasPositive(
+                "CBRL");
+
+        var hasCbrd =
+            facts.HasPositive(
+                "CBRD");
+
+        if (hasCbrl != hasCbrd)
+        {
+            throw new InvalidOperationException(
+                "ABT C foot has incomplete CBR dimensions. " +
+                "CBRL and CBRD must either both be > 0 or both be absent/zero.");
+        }
+
+        return
+            hasCbrl &&
+            hasCbrd;
     }
 
     private static bool ResolveFroEqualsFr(
@@ -1078,22 +1298,6 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         return equal;
     }
 
-    private static void RequireCbrDimensions(
-        WedgeFacts facts)
-    {
-        if (HasAllPositiveNominal(
-                facts,
-                "CBRL",
-                "CBRD"))
-        {
-            return;
-        }
-
-        throw new InvalidOperationException(
-            "ABT foot option C with CBR requires both CBRL and CBRD " +
-            "to be greater than zero.");
-    }
-
     private static FootOptionType ResolveFootOption(
         WedgeFacts facts)
     {
@@ -1111,16 +1315,38 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             NormalizePackedToken(
                 raw);
 
+        /*
+         * IMPORTANT:
+         *
+         * There is no LW_C_CBR or SW_C_CBR foot option.
+         *
+         * A C foot is always stored as LW_C / SW_C / C.
+         * CBRL and CBRD determine whether the CBR geometry is used.
+         */
         return token switch
         {
-            "LW_C" or "SW_C" or "C" =>
-                facts.HasPositive("CBR")
-                    ? FootOptionType.CWithCbr
-                    : FootOptionType.C,
-            "LW_VG" or "SW_VG" or "VG" => FootOptionType.Vg,
-            "LW_G" or "SW_G" or "G" => FootOptionType.G,
-            "LW_CC" or "SW_CC" or "CC" => FootOptionType.Cc,
-            _ => FootOptionType.Unknown
+            "LW_C" or
+            "SW_C" or
+            "C" =>
+                FootOptionType.C,
+
+            "LW_VG" or
+            "SW_VG" or
+            "VG" =>
+                FootOptionType.Vg,
+
+            "LW_G" or
+            "SW_G" or
+            "G" =>
+                FootOptionType.G,
+
+            "LW_CC" or
+            "SW_CC" or
+            "CC" =>
+                FootOptionType.Cc,
+
+            _ =>
+                FootOptionType.Unknown
         };
     }
 
@@ -1134,6 +1360,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         FootOptionType footOption,
         bool hasVbl,
         bool hasRa2,
+        bool hasOverlayVrFamily,
         OverlayVwCase overlayVwCase)
     {
         plan.Deactivate(
@@ -1149,7 +1376,8 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             plan,
             context.Subclass,
             StdWPgbOverlaySketch,
-            StdWFgOverlaySketch);
+            StdWFgOverlaySketch,
+            hasOverlayVrFamily);
 
         ActivateOverlayVwCase(
             plan,
@@ -1179,6 +1407,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         FootOptionType footOption,
         bool hasVbl,
         bool hasRa2,
+        bool hasOverlayVrFamily,
         OverlayVwCase overlayVwCase)
     {
         plan.Deactivate(
@@ -1194,7 +1423,8 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             plan,
             context.Subclass,
             RevWPgbOverlaySketch,
-            RevWFgOverlaySketch);
+            RevWFgOverlaySketch,
+            hasOverlayVrFamily);
 
         ActivateOverlayVwCase(
             plan,
@@ -1295,11 +1525,31 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         FeaturePlanBuilder plan,
         WedgeSubclass subclass,
         string pgbSketch,
-        string fgSketch)
+        string fgSketch,
+        bool hasOverlayVrFamily)
     {
         plan.Deactivate(
             pgbSketch,
             fgSketch);
+
+        /*
+         * VR/VW replaces the standalone W overlay.
+         *
+         * Therefore both possible W overlay sketches are explicitly
+         * forced OFF whenever the VR/VW family is present.
+         */
+        if (hasOverlayVrFamily)
+        {
+            plan.ForceSuppress(
+                pgbSketch,
+                fgSketch);
+
+            Logger.Info(
+                "[AbtFeatureRules] Overlay W -> VR/VW family present; " +
+                "PGB and FG W overlay sketches suppressed.");
+
+            return;
+        }
 
         if (subclass == WedgeSubclass.PGB)
         {
@@ -1332,7 +1582,12 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             vwCaseSketches);
 
         if (overlayVwCase == OverlayVwCase.None)
+        {
+            plan.ForceSuppress(
+                vwCaseSketches);
+
             return;
+        }
 
         plan.ActivateOnly(
             overlayVwCase == OverlayVwCase.Case1
@@ -1384,8 +1639,12 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         var selectedSketch =
             footOption switch
             {
-                FootOptionType.C or
-                FootOptionType.CWithCbr =>
+                /*
+                 * Normal C and C with CBR use the same
+                 * C overlay sketch because CBR is not a
+                 * separate foot-option token.
+                 */
+                FootOptionType.C =>
                     footOverlaySketches[0],
 
                 FootOptionType.Vg =>
@@ -1399,7 +1658,12 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             };
 
         if (selectedSketch is null)
+        {
+            plan.ForceSuppress(
+                footOverlaySketches);
+
             return;
+        }
 
         plan.ActivateOnly(
             selectedSketch,
@@ -1407,8 +1671,12 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
     }
 
     private static OverlayVwCase ResolveOverlayVwCase(
-        WedgeFacts facts)
+        WedgeFacts facts,
+        bool hasOverlayVrFamily)
     {
+        if (!hasOverlayVrFamily)
+            return OverlayVwCase.None;
+
         if (!facts.TryGetLengthMm(
                 "VW",
                 out var vwMm) ||
@@ -1422,7 +1690,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                 out var wMm))
         {
             Logger.Warn(
-                "[AbtFeatureRules] VW is present but W is missing " +
+                "[AbtFeatureRules] VR/VW is present but W is missing " +
                 "or is not a length. No ABT VW overlay case was selected.");
 
             return OverlayVwCase.None;
@@ -1461,10 +1729,14 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
         return token switch
         {
-            "SW_STD" or "STD" =>
+            "SW_STD" or
+            "STD" =>
                 AbtShankType.Std,
 
-            "SW_180REV" or "SW_180_REV" or "180REV" or "180_REV" =>
+            "SW_180REV" or
+            "SW_180_REV" or
+            "180REV" or
+            "180_REV" =>
                 AbtShankType.Rev,
 
             _ =>
@@ -1482,27 +1754,57 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
     private static void ForceSuppressStdShank(
         FeaturePlanBuilder plan)
     {
-        plan.ForceSuppress(StdAlwaysOnNames);
-        plan.ForceSuppress(StdVrNames);
-        plan.ForceSuppress(StdSlbNames);
-        plan.ForceSuppress(StdW2Names);
-        plan.ForceSuppress(StdRa2Names);
-        plan.ForceSuppress(StdFeedHoleManagedNames);
-        plan.ForceSuppress(StdFootManagedNames);
-        plan.ForceSuppress(StdOverlayManagedNames);
+        plan.ForceSuppress(
+            StdAlwaysOnNames);
+
+        plan.ForceSuppress(
+            StdVrNames);
+
+        plan.ForceSuppress(
+            StdSlbNames);
+
+        plan.ForceSuppress(
+            StdW2Names);
+
+        plan.ForceSuppress(
+            StdRa2Names);
+
+        plan.ForceSuppress(
+            StdFeedHoleManagedNames);
+
+        plan.ForceSuppress(
+            StdFootManagedNames);
+
+        plan.ForceSuppress(
+            StdOverlayManagedNames);
     }
 
     private static void ForceSuppressRevShank(
         FeaturePlanBuilder plan)
     {
-        plan.ForceSuppress(RevAlwaysOnNames);
-        plan.ForceSuppress(RevVrNames);
-        plan.ForceSuppress(RevSlbNames);
-        plan.ForceSuppress(RevW2Names);
-        plan.ForceSuppress(RevRa2Names);
-        plan.ForceSuppress(RevFeedHoleManagedNames);
-        plan.ForceSuppress(RevFootManagedNames);
-        plan.ForceSuppress(RevOverlayManagedNames);
+        plan.ForceSuppress(
+            RevAlwaysOnNames);
+
+        plan.ForceSuppress(
+            RevVrNames);
+
+        plan.ForceSuppress(
+            RevSlbNames);
+
+        plan.ForceSuppress(
+            RevW2Names);
+
+        plan.ForceSuppress(
+            RevRa2Names);
+
+        plan.ForceSuppress(
+            RevFeedHoleManagedNames);
+
+        plan.ForceSuppress(
+            RevFootManagedNames);
+
+        plan.ForceSuppress(
+            RevOverlayManagedNames);
     }
 
     // ================================================================
@@ -1520,6 +1822,19 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         }
 
         return true;
+    }
+
+    private static bool HasAnyPositiveNominal(
+        WedgeFacts facts,
+        params string[] dimensionKeys)
+    {
+        foreach (var key in dimensionKeys)
+        {
+            if (facts.HasPositive(key))
+                return true;
+        }
+
+        return false;
     }
 
     // ================================================================
@@ -1606,7 +1921,6 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         NotApplicable,
         Unknown,
         C,
-        CWithCbr,
         Vg,
         G,
         Cc

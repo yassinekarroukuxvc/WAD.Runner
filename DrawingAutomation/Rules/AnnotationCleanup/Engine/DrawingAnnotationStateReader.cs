@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
+
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
+
+using SwAnnotation = SolidWorks.Interop.sldworks.Annotation;
 
 namespace WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Engine;
 
@@ -14,8 +18,11 @@ public sealed class DrawingAnnotationStateReader
         AnnotationViewNameMap viewNames,
         bool activateEachView)
     {
-        if (drawingModel is null) throw new ArgumentNullException(nameof(drawingModel));
-        if (viewNames is null) throw new ArgumentNullException(nameof(viewNames));
+        if (drawingModel is null)
+            throw new ArgumentNullException(nameof(drawingModel));
+
+        if (viewNames is null)
+            throw new ArgumentNullException(nameof(viewNames));
 
         var byView = new Dictionary<string, IReadOnlyCollection<string>>(
             StringComparer.OrdinalIgnoreCase);
@@ -36,8 +43,6 @@ public sealed class DrawingAnnotationStateReader
             return byView;
         }
 
-        // Build the view lookup once. The old implementation traversed the
-        // complete drawing-view chain separately for every requested view.
         var drawingViews = BuildDrawingViewMap(drawing);
 
         foreach (var viewName in requestedNames)
@@ -65,8 +70,7 @@ public sealed class DrawingAnnotationStateReader
                 }
                 catch
                 {
-                    // Activation is best-effort only. Dimension enumeration
-                    // can still work without it.
+                    // Best effort only.
                 }
             }
 
@@ -86,7 +90,6 @@ public sealed class DrawingAnnotationStateReader
 
         try
         {
-            // The first SolidWorks drawing view is the sheet.
             var sheetView = drawing.GetFirstView() as View;
             var view = sheetView?.GetNextView() as View;
 
@@ -105,43 +108,33 @@ public sealed class DrawingAnnotationStateReader
         }
         catch
         {
-            // Return whatever was collected before the COM failure.
+            // Return everything collected before the COM failure.
         }
 
         return result;
     }
 
-    private static string SafeGetViewName(View view)
+    private static string SafeGetViewName(
+        View view)
     {
-        try { return view?.Name ?? string.Empty; }
-        catch { return string.Empty; }
+        try
+        {
+            return view?.Name ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private static IEnumerable<string> EnumerateDisplayDimensionFullNames(
         View view)
     {
-        object obj;
+        var seen = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase);
 
-        try
+        foreach (var displayDimension in EnumerateDisplayDimensions(view))
         {
-            obj = view.GetDisplayDimensions();
-        }
-        catch
-        {
-            yield break;
-        }
-
-        if (obj is not object[] displayDimensions ||
-            displayDimensions.Length == 0)
-        {
-            yield break;
-        }
-
-        foreach (var item in displayDimensions)
-        {
-            if (item is not DisplayDimension displayDimension)
-                continue;
-
             Dimension? dimension = null;
 
             try
@@ -167,8 +160,74 @@ public sealed class DrawingAnnotationStateReader
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(fullName))
-                yield return fullName.Trim();
+            fullName = fullName.Trim();
+
+            if (!string.IsNullOrWhiteSpace(fullName) &&
+                seen.Add(fullName))
+            {
+                yield return fullName;
+            }
         }
+    }
+
+    private static IReadOnlyList<DisplayDimension> EnumerateDisplayDimensions(
+        View view)
+    {
+        var result = new List<DisplayDimension>(64);
+        var seen = new HashSet<DisplayDimension>();
+
+        try
+        {
+            var rawAnnotations = view.GetAnnotations();
+
+            if (rawAnnotations is object[] annotations)
+            {
+                foreach (var item in annotations)
+                {
+                    if (item is not SwAnnotation annotation)
+                        continue;
+
+                    try
+                    {
+                        if (annotation.GetSpecificAnnotation() is DisplayDimension displayDimension &&
+                            seen.Add(displayDimension))
+                        {
+                            result.Add(displayDimension);
+                        }
+                    }
+                    catch
+                    {
+                        // Continue with remaining annotations.
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Continue with GetDisplayDimensions().
+        }
+
+        try
+        {
+            var rawDisplayDimensions = view.GetDisplayDimensions();
+
+            if (rawDisplayDimensions is object[] displayDimensions)
+            {
+                foreach (var item in displayDimensions)
+                {
+                    if (item is DisplayDimension displayDimension &&
+                        seen.Add(displayDimension))
+                    {
+                        result.Add(displayDimension);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Return anything already collected through GetAnnotations().
+        }
+
+        return result;
     }
 }

@@ -14,7 +14,8 @@ internal static class WedgeDimensionValidationRuleCatalog
             WedgeType.CKVD => BuildCkvdRules(),
             WedgeType.OSG7 => BuildOsg7Rules(),
 
-            WedgeType.COB or
+            WedgeType.COB => BuildCobRules(),
+
             WedgeType.UTUS or
             WedgeType.FP => BuildCobLikeRules(),
 
@@ -413,6 +414,52 @@ internal static class WedgeDimensionValidationRuleCatalog
                         Slot("VW"),
                         Slot("VR"),
                         Slot("VRR"))
+                }
+        };
+    }
+
+    private static WedgeDimensionValidationRuleSet
+        BuildCobRules()
+    {
+        return new WedgeDimensionValidationRuleSet
+        {
+            RequiredStandalone =
+                Slots(
+                    "TL",
+                    "TD",
+                    "TDF",
+                    "W",
+                    "ISA",
+                    "FD",
+                    "T",
+                    "RA",
+                    "BA",
+                    "FRO",
+                    "ERL",
+                    "ERD",
+                    "ERW",
+                    "CA",
+                    "FL"),
+
+            ConditionalAndGroups =
+                new[]
+                {
+                    Group(
+                        "VR, VRA, VW, VRR",
+                        Slot("VR"),
+                        Slot("VRA"),
+                        Slot("VW"),
+                        Slot("VRR")),
+
+                    Group(
+                        "VBL, VBLR",
+                        Slot("VBL"),
+                        Slot("VBLR")),
+
+                    Group(
+                        "RA2, RA2H",
+                        Slot("RA2"),
+                        Slot("RA2H"))
                 }
         };
     }
