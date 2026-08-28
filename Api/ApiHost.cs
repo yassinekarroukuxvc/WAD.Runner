@@ -222,6 +222,21 @@ public sealed class StaWorkerService : BackgroundService
                             j.Message = "Cancelled";
                         });
                     }
+                    catch (WedgeTypeResolutionException ex)
+                    {
+                        _logger.LogWarning(
+                            ex,
+                            "Wedge type resolution failed before executing job {JobId}.",
+                            job.Id);
+
+                        _store.Update(job.Id, j =>
+                        {
+                            j.Status = JobStatus.Failed;
+                            j.FinishedUtc = DateTimeOffset.UtcNow;
+                            j.Error = ex.Message;
+                            j.Message = "Wedge type could not be identified";
+                        });
+                    }
                     catch (WedgeDimensionValidationException ex)
                     {
                         _logger.LogWarning(

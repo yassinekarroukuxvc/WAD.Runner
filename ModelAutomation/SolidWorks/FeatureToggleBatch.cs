@@ -72,16 +72,37 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         {
             public Feature Feature { get; }
 
+            /// <summary>
+            /// Sub-feature nesting depth (how deeply this feature is
+            /// nested inside another feature, e.g. a sketch folded into
+            /// a cut). NOT the same as rebuild/tree order — kept mainly
+            /// for diagnostics.
+            /// </summary>
             public int Depth { get; }
+
+            /// <summary>
+            /// The position of this feature in the FeatureManager design
+            /// tree walk performed during Build() (top-level features in
+            /// GetNextFeature() order, sub-features interleaved via
+            /// GetFirstSubFeature()/GetNextSubFeature()).
+            ///
+            /// This — not Depth — is the correct signal for suppress /
+            /// unsuppress sequencing: a feature can only depend on
+            /// features that appear earlier in the tree, regardless of
+            /// how deeply either one is nested.
+            /// </summary>
+            public int TreeOrder { get; }
 
             public string? SelectionType { get; set; }
 
             public FeatureEntry(
                 Feature feature,
-                int depth)
+                int depth,
+                int treeOrder)
             {
                 Feature = feature;
                 Depth = depth;
+                TreeOrder = treeOrder;
             }
         }
 
@@ -132,6 +153,26 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             /// directly using Feature.SetSuppression2.
             /// </summary>
             public bool RepairMismatches { get; init; } = true;
+
+            /// <summary>
+            /// How many verify+repair passes to run. A single mismatched
+            /// feature that blocks a dependent feature can be fixed on
+            /// pass 1, which then lets the dependent feature succeed on
+            /// pass 2 — so more than one pass matters for batches with
+            /// cross-dependencies. The loop stops early once a pass makes
+            /// no further progress.
+            /// </summary>
+            public int MaxVerificationPasses { get; init; } = 3;
+
+            /// <summary>
+            /// Force a document rebuild after the fast apply pass and
+            /// after every direct repair, before re-reading suppression
+            /// state. Without this, IsSuppressed2 can return a stale
+            /// value immediately after a suppression edit in the same
+            /// transaction, which shows up as an intermittent,
+            /// hard-to-reproduce "it says it worked but it didn't."
+            /// </summary>
+            public bool RebuildBeforeVerification { get; init; } = true;
         }
 
         // ================================================================
@@ -154,6 +195,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 new Dictionary<string, FeatureEntry>(
                     StringComparer.OrdinalIgnoreCase);
 
+            var treeOrder = 0;
+
             var feature =
                 part.FirstFeature() as Feature;
 
@@ -162,7 +205,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 AddFeatureTree(
                     map,
                     feature,
-                    depth: 0);
+                    depth: 0,
+                    ref treeOrder);
 
                 feature =
                     feature.GetNextFeature() as Feature;
@@ -186,13 +230,51 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             IEnumerable<string>? unsuppressNames,
             swInConfigurationOpts_e scope =
                 swInConfigurationOpts_e.swThisConfiguration,
-            ToggleOptions? options = null)
+            ToggleOptions? options = null,
+            string? expectedActiveConfigurationName = null)
         {
             options ??=
                 new ToggleOptions();
 
             var res =
                 new ToggleResult();
+
+            var activeConfiguration =
+                GetActiveConfigurationName();
+
+            // ============================================================
+            // ACTIVE-CONFIGURATION GUARD
+            // ============================================================
+            //
+            // Suppression state is per-configuration in SolidWorks.
+            // scope=swThisConfiguration silently reads/writes whatever
+            // configuration happens to be active on the model doc right
+            // now. If the caller intended a specific wedge configuration
+            // but the wrong one is active (a missed ShowConfiguration2,
+            // a stale reference reused across configs, an async race),
+            // every call below will appear to succeed while quietly
+            // editing the wrong configuration's suppression state. That
+            // is the single most common cause of "this feature stays
+            // unsuppressed for this wedge type even though the rule
+            // says suppress" bugs. Fail loudly instead of silently.
+            //
+
+            if (scope ==
+                swInConfigurationOpts_e.swThisConfiguration &&
+                !string.IsNullOrWhiteSpace(
+                    expectedActiveConfigurationName) &&
+                !string.Equals(
+                    activeConfiguration,
+                    expectedActiveConfigurationName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "[FeatureToggleBatch] Refusing to apply -> " +
+                    $"expected active configuration '{expectedActiveConfigurationName}', " +
+                    $"but the model's active configuration is '{activeConfiguration}'. " +
+                    "Switch to the correct configuration (ShowConfiguration2) before " +
+                    "calling Apply for this configuration's feature rules.");
+            }
 
             var unsup =
                 unsuppressNames is null
@@ -252,12 +334,18 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             // ============================================================
             //
             // UNSUPPRESS:
-            //     parent -> child
+            //     earliest-in-tree -> latest-in-tree
             //
             // SUPPRESS:
-            //     child -> parent
+            //     latest-in-tree -> earliest-in-tree
             //
-            // This removes the need for wedge-specific critical-name lists.
+            // Ordered by each feature's actual FeatureManager tree
+            // position (TreeOrder), not sub-feature nesting depth — a
+            // feature can only reference features that appear earlier
+            // in the tree, no matter how deeply either is nested. This
+            // removes the need for wedge-specific critical-name lists
+            // and avoids "unsuppress attempted while a real upstream
+            // dependency was still suppressed" failures.
             //
 
             unsup =
@@ -269,9 +357,6 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 OrderForTarget(
                     sup,
                     targetSuppress: true);
-
-            var activeConfiguration =
-                GetActiveConfigurationName();
 
             Logger.Info(
                 "[FeatureToggleBatch] Apply -> " +
@@ -338,27 +423,64 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             // FINAL VERIFICATION + REPAIR
             // ============================================================
             //
-            // EditSuppress2/EditUnsuppress2 returning true does NOT prove
-            // every selected feature actually reached the requested state.
-            //
-            // This pass makes the requested feature plan the source of truth.
+            // EditSuppress2/EditUnsuppress2/SetSuppression2 returning
+            // true does NOT prove every selected feature actually
+            // reached the requested state, and reading the state back
+            // immediately can be stale until a rebuild runs. This pass
+            // makes the requested feature plan the source of truth, and
+            // runs multiple passes because repairing one feature can
+            // unblock a dependent feature that failed earlier in the
+            // same run.
             //
 
             if (options.VerifyFinalState)
             {
-                VerifyAndRepairRequestedState(
-                    unsup,
-                    targetSuppress: false,
-                    scope,
-                    options,
-                    res);
+                if (options.RebuildBeforeVerification)
+                {
+                    ForceRebuild();
+                }
 
-                VerifyAndRepairRequestedState(
-                    sup,
-                    targetSuppress: true,
-                    scope,
-                    options,
-                    res);
+                var passes =
+                    Math.Max(
+                        1,
+                        options.MaxVerificationPasses);
+
+                for (var pass = 0;
+                     pass < passes;
+                     pass++)
+                {
+                    var failedBefore =
+                        res.Failed.Count;
+
+                    VerifyAndRepairRequestedState(
+                        unsup,
+                        targetSuppress: false,
+                        scope,
+                        options,
+                        res);
+
+                    VerifyAndRepairRequestedState(
+                        sup,
+                        targetSuppress: true,
+                        scope,
+                        options,
+                        res);
+
+                    Logger.Info(
+                        "[FeatureToggleBatch] Verification pass " +
+                        $"{pass + 1}/{passes} -> failed={res.Failed.Count}.");
+
+                    if (res.Failed.Count == 0)
+                        break;
+
+                    //
+                    // No progress this pass -> further passes won't help
+                    // either; stop instead of spinning.
+                    //
+
+                    if (res.Failed.Count == failedBefore)
+                        break;
+                }
             }
 
             Logger.Info(
@@ -438,6 +560,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 return false;
             }
 
+            ForceRebuild();
+
             if (!TryReadMatchesTarget(
                     entry,
                     scope,
@@ -477,8 +601,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                                 Name = name,
                                 OriginalIndex = originalIndex,
                                 Known = known,
-                                Depth = known
-                                    ? entry!.Depth
+                                TreeOrder = known
+                                    ? entry!.TreeOrder
                                     : 0
                             };
                         });
@@ -487,10 +611,11 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             // Known features first.
             //
             // Suppress:
-            //     deeper descendants first.
+            //     latest-in-tree first (so descendants go before the
+            //     ancestors they depend on).
             //
             // Unsuppress:
-            //     shallow parents first.
+            //     earliest-in-tree first (parents before children).
             //
 
             return entries
@@ -498,8 +623,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 .ThenBy(
                     x =>
                         targetSuppress
-                            ? -x.Depth
-                            : x.Depth)
+                            ? -x.TreeOrder
+                            : x.TreeOrder)
                 .ThenBy(x => x.OriginalIndex)
                 .Select(x => x.Name)
                 .ToArray();
@@ -772,6 +897,18 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     continue;
                 }
 
+                if (options.RebuildBeforeVerification)
+                {
+                    //
+                    // Read the repaired state only after a rebuild, or
+                    // this check can see the pre-repair value and either
+                    // falsely fail a repair that actually worked, or
+                    // falsely pass one that didn't.
+                    //
+
+                    ForceRebuild();
+                }
+
                 // ========================================================
                 // VERIFY REPAIR
                 // ========================================================
@@ -824,6 +961,24 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                     $"config={activeConfiguration}, " +
                     $"feature='{name}', " +
                     $"state={TargetStateName(targetSuppress)}.");
+            }
+        }
+
+        // ================================================================
+        // REBUILD
+        // ================================================================
+
+        private void ForceRebuild()
+        {
+            try
+            {
+                _model.EditRebuild3();
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(
+                    "[FeatureToggleBatch] EditRebuild3 threw -> " +
+                    $"{ex.GetType().Name}: {ex.Message}");
             }
         }
 
@@ -1197,12 +1352,14 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         private static void AddFeatureTree(
             Dictionary<string, FeatureEntry> map,
             Feature feature,
-            int depth)
+            int depth,
+            ref int treeOrder)
         {
             TryAdd(
                 map,
                 feature,
-                depth);
+                depth,
+                ref treeOrder);
 
             var subFeature =
                 feature.GetFirstSubFeature()
@@ -1213,7 +1370,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 AddFeatureTree(
                     map,
                     subFeature,
-                    depth + 1);
+                    depth + 1,
+                    ref treeOrder);
 
                 subFeature =
                     subFeature.GetNextSubFeature()
@@ -1224,7 +1382,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
         private static void TryAdd(
             Dictionary<string, FeatureEntry> map,
             Feature feature,
-            int depth)
+            int depth,
+            ref int treeOrder)
         {
             try
             {
@@ -1240,7 +1399,8 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 var entry =
                     new FeatureEntry(
                         feature,
-                        depth);
+                        depth,
+                        treeOrder++);
 
                 var swType =
                     feature.GetTypeName2()

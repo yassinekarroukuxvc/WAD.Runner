@@ -9,6 +9,7 @@ using WAD.Runner.DrawingAutomation.Wedges._4516;
 using WAD.Runner.DrawingAutomation.Wedges.ABT;
 using WAD.Runner.DrawingAutomation.Wedges.AB16;
 using WAD.Runner.DrawingAutomation.Wedges._45CK;
+using WAD.Runner.DrawingAutomation.Wedges._1001;
 using WAD.Runner.DrawingAutomation.Wedges.Ckvd;
 using WAD.Runner.DrawingAutomation.Wedges.Cob;
 using WAD.Runner.DrawingAutomation.Wedges.Fp;
@@ -69,7 +70,8 @@ public static class DrawingWedgeModuleRegistry
             new FpDrawingModule(),
             new UtusDrawingModule(),
             new Osg7DrawingModule(),
-            new MDrawingModule()
+            new MDrawingModule(),
+            new _1001DrawingModule()
         };
 
         var duplicateTypes =

@@ -194,7 +194,13 @@ switch (cmd)
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
 
-            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
+            if (!TryParseWedgeTypeEnum(args, out var wedgeTypeEnum, out var wedgeTypeError))
+            {
+                Logger.Error(wedgeTypeError);
+                Console.WriteLine(wedgeTypeError);
+                Environment.ExitCode = 2;
+                break;
+            }
 
             Logger.Info($"[get-drawing] Article={article}, Subclass={subclass}, Type={dtype}, WedgeType={wedgeTypeEnum}");
 
@@ -208,7 +214,13 @@ switch (cmd)
     case "plan-lite":
         {
             var (article, subclass, dtype) = ParsePlanArgs(args);
-            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
+            if (!TryParseWedgeTypeEnum(args, out var wedgeTypeEnum, out var wedgeTypeError))
+            {
+                Logger.Error(wedgeTypeError);
+                Console.WriteLine(wedgeTypeError);
+                Environment.ExitCode = 2;
+                break;
+            }
 
             Logger.Info($"[plan-lite] Article={article}, Subclass={subclass}, Type={dtype}, WedgeType={wedgeTypeEnum}");
 
@@ -334,7 +346,13 @@ switch (cmd)
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
 
-            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
+            if (!TryParseWedgeTypeEnum(args, out var wedgeTypeEnum, out var wedgeTypeError))
+            {
+                Logger.Error(wedgeTypeError);
+                Console.WriteLine(wedgeTypeError);
+                Environment.ExitCode = 2;
+                break;
+            }
 
             string templatePartPath;
             string templateDrawingPath;
@@ -483,8 +501,37 @@ switch (cmd)
                     equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "45CK", "45CK_rev1", "equations.txt");
                     break;
 
+                case WedgeType.M:
+                    templatePartPath = Path.Combine("Resources", "Templates", "M", "M_rev1", "M_part_rev1.SLDPRT");
+
+                    templateDrawingPath = dtype switch
+                    {
+                        DrawingType.Overlay =>
+                            Path.Combine("Resources", "Templates", "M", "M_rev1", "M_overlay_rev2.SLDDRW"),
+
+                        DrawingType.Production or DrawingType.Customer or _ =>
+                            Path.Combine("Resources", "Templates", "M", "M_rev1", "M_drawing_rev2.SLDPRT.SLDDRW"),
+                    };
+
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "M", "M_rev1", "equations.txt");
+                    break;
+
+                case WedgeType._1001:
+                    templatePartPath = Path.Combine("Resources", "Templates", "1001", "1001A_part_rev1.SLDPRT");
+
+                    templateDrawingPath = dtype switch
+                    {
+                        DrawingType.Overlay =>
+                            Path.Combine("Resources", "Templates", "1001", "1001A_overlay_rev2.SLDDRW"),
+
+                        DrawingType.Production or DrawingType.Customer or _ =>
+                            Path.Combine("Resources", "Templates", "1001", "1001A_drawing_rev2.SLDPRT.SLDDRW"),
+                    };
+
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "1001", "equations.txt");
+                    break;
+
                 case WedgeType.CKVD:
-                default:
                     templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
                     templateDrawingPath = dtype switch
                     {
@@ -495,6 +542,10 @@ switch (cmd)
                     };
                     equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "equations.txt");
                     break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"No drawing automation template is configured for wedge type '{wedgeTypeEnum}'.");
             }
 
             Logger.Info($"[run-drawing] Article={article}, Subclass={subclass}, Type={dtype}, WedgeType={wedgeTypeEnum}");
@@ -652,7 +703,13 @@ switch (cmd)
             var dtypeStr = GetArgValue(args, "--dtype") ?? "Production";
             if (!Enum.TryParse<DrawingType>(dtypeStr, true, out var dtype)) dtype = DrawingType.Production;
 
-            var wedgeTypeEnum = ParseWedgeTypeEnum(args);
+            if (!TryParseWedgeTypeEnum(args, out var wedgeTypeEnum, out var wedgeTypeError))
+            {
+                Logger.Error(wedgeTypeError);
+                Console.WriteLine(wedgeTypeError);
+                Environment.ExitCode = 2;
+                break;
+            }
 
             string partTemplatePath;
             string equationTemplatePath;
@@ -696,11 +753,11 @@ switch (cmd)
 
                 case WedgeType._4516:
                     partTemplatePath = Path.Combine("Resources", "Templates", "4516", "4516_part_rev2.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "4516","equations.txt");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "4516", "equations.txt");
                     break;
 
                 case WedgeType.ABT:
-                    partTemplatePath = Path.Combine("Resources", "Templates", "ABT", "ABT_rev1" ,"ABT_part_rev1.SLDPRT");
+                    partTemplatePath = Path.Combine("Resources", "Templates", "ABT", "ABT_rev1", "ABT_part_rev1.SLDPRT");
                     equationTemplatePath = Path.Combine("Resources", "Templates", "ABT", "ABT_rev1", "equations.txt");
                     break;
 
@@ -719,11 +776,19 @@ switch (cmd)
                     equationTemplatePath = Path.Combine("Resources", "Templates", "M", "M_rev1", "equations.txt");
                     break;
 
+                case WedgeType._1001:
+                    partTemplatePath = Path.Combine("Resources", "Templates", "1001", "1001A_part_rev1.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "1001", "equations.txt");
+                    break;
+
                 case WedgeType.CKVD:
-                default:
                     partTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
                     equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "equations.txt");
                     break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"No model automation template is configured for wedge type '{wedgeTypeEnum}'.");
             }
 
             var outputRoot = Path.Combine("Resources", "Out");
@@ -810,8 +875,8 @@ Default:
 
 Data:
   get-wedge      --article <num> --subclass <FG|PGB>
-  get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> [--wtype CKVD|COB|UTUS|OSG7]
-  plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|UTUS|OSG7]
+  get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
+  plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
 
 Diagnostics (SQLite only):
   db-info        [--limit 20]
@@ -819,10 +884,10 @@ Diagnostics (SQLite only):
   show-article   --article <num>
 
 Drawing Automation:
-  run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|UTUS|OSG7]
+  run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
 
 Model Automation:
-  run-model      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] [--wtype CKVD|COB|UTUS|OSG7]
+  run-model      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
 
 API:
   serve-api      Starts the minimal API host
@@ -854,24 +919,78 @@ static (string article, WedgeSubclass subclass, DrawingType dtype) ParsePlanArgs
     return (article, subclass, dtype);
 }
 
-static WedgeType ParseWedgeTypeEnum(string[] a)
+static bool TryParseWedgeTypeEnum(string[] a, out WedgeType wedgeType, out string error)
 {
-    var wtype = (GetArgValue(a, "--wtype") ?? "CKVD").Trim().ToUpperInvariant();
+    wedgeType = default;
+    error = string.Empty;
 
-    return wtype switch
+    var rawWedgeType = GetArgValue(a, "--wtype");
+
+    if (string.IsNullOrWhiteSpace(rawWedgeType))
     {
-        "CKVD" => WedgeType.CKVD,
-        "COB" => WedgeType.COB,
-        "UTUS" => WedgeType.UTUS,
-        "OSG7" => WedgeType.OSG7,
-        "FP" => WedgeType.FP,
-        "4516" => WedgeType._4516,
-        "ABT" => WedgeType.ABT,
-        "AB16" => WedgeType.AB16,
-        "45CK" => WedgeType._45CK,
-        "M" => WedgeType.M,
-        _ => WedgeType.CKVD
-    };
+        error =
+            "[CLI] ERROR: --wtype is required. Automation was not started. " +
+            "Supported wedge types: CKVD, COB, UTUS, OSG7, FP, 4516, ABT, AB16, 45CK, M, 1001, 1007, 1300, 1005A.";
+        return false;
+    }
+
+    var wtype = rawWedgeType.Trim().ToUpperInvariant();
+
+    switch (wtype)
+    {
+        case "CKVD":
+            wedgeType = WedgeType.CKVD;
+            return true;
+
+        case "COB":
+            wedgeType = WedgeType.COB;
+            return true;
+
+        case "UTUS":
+            wedgeType = WedgeType.UTUS;
+            return true;
+
+        case "OSG7":
+            wedgeType = WedgeType.OSG7;
+            return true;
+
+        case "FP":
+            wedgeType = WedgeType.FP;
+            return true;
+
+        case "4516":
+            wedgeType = WedgeType._4516;
+            return true;
+
+        case "ABT":
+            wedgeType = WedgeType.ABT;
+            return true;
+
+        case "AB16":
+            wedgeType = WedgeType.AB16;
+            return true;
+
+        case "45CK":
+            wedgeType = WedgeType._45CK;
+            return true;
+
+        case "M":
+            wedgeType = WedgeType.M;
+            return true;
+
+        case "1001":
+        case "1007":
+        case "1300":
+        case "1005A":
+            wedgeType = WedgeType._1001;
+            return true;
+
+        default:
+            error =
+                $"[CLI] ERROR: Unsupported wedge type '{rawWedgeType}'. Automation was not started. " +
+                "Supported wedge types: CKVD, COB, UTUS, OSG7, FP, 4516, ABT, AB16, 45CK, M, 1001, 1007, 1300, 1005A.";
+            return false;
+    }
 }
 
 static string ResolveSqliteConnectionString(string rawValue, string contentRootPath)

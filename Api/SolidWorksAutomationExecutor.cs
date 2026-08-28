@@ -25,8 +25,19 @@ using WAD.Runner.ModelAutomation.SolidWorks;
 
 namespace WAD.Runner.Api;
 
+public sealed class WedgeTypeResolutionException : InvalidOperationException
+{
+    public WedgeTypeResolutionException(string message)
+        : base(message)
+    {
+    }
+}
+
 public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
 {
+    private const string SupportedWedgeTypesText =
+        "CKVD, COB, UTUS, OSG7, FP, 4516, ABT, AB16, 45CK, M, 1001, 1007, 1300, 1005A";
+
     private readonly ILogger<SolidWorksAutomationExecutor> _logger;
     private readonly IServiceProvider _services;
 
@@ -225,18 +236,148 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "4516", "equations.txt");
                             break;
 
-                        case WedgeType.CKVD:
-                        default:
-                            templatePartPath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_part_rev2.SLDPRT");
+                        case WedgeType.ABT:
+                            templatePartPath = Path.Combine(
+                                "Resources", "Templates", "ABT", "ABT_rev1",
+                                "ABT_part_rev1.SLDPRT");
+
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
-                                    Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_overlay_rev2.SLDDRW"),
+                                    Path.Combine(
+                                        "Resources", "Templates", "ABT", "ABT_rev1",
+                                        "ABT_overlay_rev1.SLDDRW"),
+
                                 DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "ckvd_drawing_rev2.SLDPRT.SLDDRW"),
+                                    Path.Combine(
+                                        "Resources", "Templates", "ABT", "ABT_rev1",
+                                        "ABT_drawing_rev1.SLDPRT.SLDDRW"),
                             };
-                            equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "equations.txt");
+
+                            equationTemplatePathForModelPhase = Path.Combine(
+                                "Resources", "Templates", "ABT", "ABT_rev1",
+                                "equations.txt");
                             break;
+
+                        case WedgeType.AB16:
+                            templatePartPath = Path.Combine(
+                                "Resources", "Templates", "AB16", "AB16_rev1",
+                                "AB16_part_rev1.SLDPRT");
+
+                            templateDrawingPath = dtype switch
+                            {
+                                DrawingType.Overlay =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "AB16", "AB16_rev1",
+                                        "AB16_overlay_rev2.SLDDRW"),
+
+                                DrawingType.Production or DrawingType.Customer or _ =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "AB16", "AB16_rev1",
+                                        "AB16_drawing_rev2.SLDPRT.SLDDRW"),
+                            };
+
+                            equationTemplatePathForModelPhase = Path.Combine(
+                                "Resources", "Templates", "AB16", "AB16_rev1",
+                                "equations.txt");
+                            break;
+
+                        case WedgeType._45CK:
+                            templatePartPath = Path.Combine(
+                                "Resources", "Templates", "45CK", "45CK_rev1",
+                                "CK45_part_rev1.SLDPRT");
+
+                            templateDrawingPath = dtype switch
+                            {
+                                DrawingType.Overlay =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "45CK", "45CK_rev1",
+                                        "CK45_overlay_rev2.SLDDRW"),
+
+                                DrawingType.Production or DrawingType.Customer or _ =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "45CK", "45CK_rev1",
+                                        "CK45_drawing_rev2.SLDPRT.SLDDRW"),
+                            };
+
+                            equationTemplatePathForModelPhase = Path.Combine(
+                                "Resources", "Templates", "45CK", "45CK_rev1",
+                                "equations.txt");
+                            break;
+
+                        case WedgeType.M:
+                            templatePartPath = Path.Combine(
+                                "Resources", "Templates", "M", "M_rev1",
+                                "M_part_rev1.SLDPRT");
+
+                            templateDrawingPath = dtype switch
+                            {
+                                DrawingType.Overlay =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "M", "M_rev1",
+                                        "M_overlay_rev2.SLDDRW"),
+
+                                DrawingType.Production or DrawingType.Customer or _ =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "M", "M_rev1",
+                                        "M_drawing_rev2.SLDPRT.SLDDRW"),
+                            };
+
+                            equationTemplatePathForModelPhase = Path.Combine(
+                                "Resources", "Templates", "M", "M_rev1",
+                                "equations.txt");
+                            break;
+
+                        case WedgeType._1001:
+                            templatePartPath = Path.Combine(
+                                "Resources", "Templates", "1001",
+                                "1001A_part_rev1.SLDPRT");
+
+                            templateDrawingPath = dtype switch
+                            {
+                                DrawingType.Overlay =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "1001",
+                                        "1001A_overlay_rev2.SLDDRW"),
+
+                                DrawingType.Production or DrawingType.Customer or _ =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "1001",
+                                        "1001A_drawing_rev2.SLDPRT.SLDDRW"),
+                            };
+
+                            equationTemplatePathForModelPhase = Path.Combine(
+                                "Resources", "Templates", "1001",
+                                "equations.txt");
+                            break;
+
+                        case WedgeType.CKVD:
+                            templatePartPath = Path.Combine(
+                                "Resources", "Templates", "CKVD", "CKVD_rev2",
+                                "ckvd_part_rev2.SLDPRT");
+
+                            templateDrawingPath = dtype switch
+                            {
+                                DrawingType.Overlay =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "CKVD", "CKVD_rev2",
+                                        "ckvd_overlay_rev2.SLDDRW"),
+
+                                DrawingType.Production or DrawingType.Customer or _ =>
+                                    Path.Combine(
+                                        "Resources", "Templates", "CKVD", "CKVD_rev2",
+                                        "ckvd_drawing_rev2.SLDPRT.SLDDRW"),
+                            };
+
+                            equationTemplatePathForModelPhase = Path.Combine(
+                                "Resources", "Templates", "CKVD", "CKVD_rev2",
+                                "equations.txt");
+                            break;
+
+                        default:
+                            throw new WedgeTypeResolutionException(
+                                $"No automation template is configured for wedge type '{wedgeType}'. " +
+                                "Automation was not started.");
                     }
 
                     var plan = PathPlanner.Build(
@@ -431,7 +572,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                     .GetAwaiter()
                                     .GetResult();
 
-            var wedgeType = ResolveWedgeType(wedgeData, payload);
+            var wedgeType = ResolveWedgeType(article, wedgeData, payload);
 
             if (shouldValidateDimensions)
             {
@@ -546,29 +687,143 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
 
     private sealed record ValidatedWedgeData(WedgeData WedgeData, WedgeType WedgeType);
 
-    private static WedgeType ResolveWedgeType(WedgeData wedgeData, RunRequest payload)
+    private static WedgeType ResolveWedgeType(
+        string article,
+        WedgeData wedgeData,
+        RunRequest payload)
     {
-        if (TryGetPropertyIgnoreCase(wedgeData, "wedge_type", out var storedType) &&
-            WedgeStyleParser.TryParseWedgeType(storedType, out var parsedFromStoredType))
+        string? storedType = null;
+        string? storedStyle = null;
+        string? payloadType = null;
+
+        if (TryGetPropertyIgnoreCase(wedgeData, "wedge_type", out var storedTypeValue))
         {
-            return parsedFromStoredType;
+            storedType = storedTypeValue;
+
+            if (TryResolveSupportedWedgeType(storedType, out var parsedFromStoredType))
+                return parsedFromStoredType;
         }
 
-        if (TryGetPropertyIgnoreCase(wedgeData, "wedge_style", out var storedStyle) &&
-            WedgeStyleParser.TryParseWedgeType(storedStyle, out var parsedFromStoredStyle))
+        if (TryGetPropertyIgnoreCase(wedgeData, "wedge_style", out var storedStyleValue))
         {
-            return parsedFromStoredStyle;
+            storedStyle = storedStyleValue;
+
+            if (TryResolveSupportedWedgeType(storedStyle, out var parsedFromStoredStyle))
+                return parsedFromStoredStyle;
         }
 
         if (payload.Options is not null &&
-            payload.Options.TryGetValue("wedgeType", out var oldValue) &&
-            WedgeStyleParser.TryParseWedgeType(oldValue, out var parsedFromPayload))
+            payload.Options.TryGetValue("wedgeType", out var payloadTypeValue))
         {
-            return parsedFromPayload;
+            payloadType = payloadTypeValue;
+
+            if (TryResolveSupportedWedgeType(payloadType, out var parsedFromPayload))
+                return parsedFromPayload;
         }
 
-        return WedgeType.CKVD;
+        throw new WedgeTypeResolutionException(
+            $"Wedge type could not be identified for article '{article}'. Automation was not started. " +
+            $"wedge_type={DisplayWedgeTypeValue(storedType)}, " +
+            $"wedge_style={DisplayWedgeTypeValue(storedStyle)}, " +
+            $"options.wedgeType={DisplayWedgeTypeValue(payloadType)}. " +
+            $"Supported wedge types: {SupportedWedgeTypesText}.");
     }
+
+    private static bool TryResolveSupportedWedgeType(
+        string? rawValue,
+        out WedgeType wedgeType)
+    {
+        wedgeType = default;
+
+        if (string.IsNullOrWhiteSpace(rawValue))
+            return false;
+
+        var token = rawValue.Trim().ToUpperInvariant();
+
+        switch (token)
+        {
+            case "CKVD":
+                wedgeType = WedgeType.CKVD;
+                return true;
+
+            case "COB":
+                wedgeType = WedgeType.COB;
+                return true;
+
+            case "UTUS":
+                wedgeType = WedgeType.UTUS;
+                return true;
+
+            case "OSG7":
+                wedgeType = WedgeType.OSG7;
+                return true;
+
+            case "FP":
+                wedgeType = WedgeType.FP;
+                return true;
+
+            case "4516":
+                wedgeType = WedgeType._4516;
+                return true;
+
+            case "ABT":
+                wedgeType = WedgeType.ABT;
+                return true;
+
+            case "AB16":
+                wedgeType = WedgeType.AB16;
+                return true;
+
+            case "45CK":
+                wedgeType = WedgeType._45CK;
+                return true;
+
+            case "M":
+                wedgeType = WedgeType.M;
+                return true;
+
+            case "1001":
+            case "1007":
+            case "1300":
+            case "1005A":
+            case "_1001":
+                wedgeType = WedgeType._1001;
+                return true;
+        }
+
+        if (!WedgeStyleParser.TryParseWedgeType(rawValue, out var parsed))
+            return false;
+
+        if (!IsSupportedWedgeType(parsed))
+            return false;
+
+        wedgeType = parsed;
+        return true;
+    }
+
+    private static bool IsSupportedWedgeType(WedgeType wedgeType)
+    {
+        return wedgeType switch
+        {
+            WedgeType.CKVD => true,
+            WedgeType.COB => true,
+            WedgeType.UTUS => true,
+            WedgeType.OSG7 => true,
+            WedgeType.FP => true,
+            WedgeType._4516 => true,
+            WedgeType.ABT => true,
+            WedgeType.AB16 => true,
+            WedgeType._45CK => true,
+            WedgeType.M => true,
+            WedgeType._1001 => true,
+            _ => false
+        };
+    }
+
+    private static string DisplayWedgeTypeValue(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            ? "<missing-or-empty>"
+            : $"'{value.Trim()}'";
 
     private static bool TryGetPropertyIgnoreCase(WedgeData wedgeData, string key, out string value)
     {

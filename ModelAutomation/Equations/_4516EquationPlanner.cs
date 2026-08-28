@@ -158,11 +158,14 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         /*
          * These four overrides apply to both PGB and FG overlays.
          */
-        AddLengthBoundEquation(
-            builder,
-            facts,
-            dimensionKey: "W",
-            useMaximum: true);
+        if (subclass == WedgeSubclass.PGB)
+        {
+            AddLengthBoundEquation(
+                builder,
+                facts,
+                "W",
+                useMaximum: true);
+        }
 
         AddLengthBoundEquation(
             builder,

@@ -208,13 +208,13 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
             updates,
             facts,
             dimensionKey: "W",
-            target: "W_MIN@w_fg_overlay_sketch ");
+            target: "W_MIN@w_fg_overlay_sketch");
 
         AddLengthMaximum(
             updates,
             facts,
             dimensionKey: "W",
-            target: "W_MAX@w_fg_overlay_sketch ");
+            target: "W_MAX@w_fg_overlay_sketch");
 
         if (hasSlb)
         {

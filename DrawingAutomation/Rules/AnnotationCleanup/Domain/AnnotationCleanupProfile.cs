@@ -50,4 +50,10 @@ public enum AnnotationCleanupProfile
     MFgOverlay,
     MFgCustomer,
     MFgProduction,
+
+    _1001PgbOverlay,
+    _1001PgbProduction,
+    _1001FgOverlay,
+    _1001FgCustomer,
+    _1001FgProduction,
 }

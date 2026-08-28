@@ -760,6 +760,162 @@
               "SpecialNote": "45CK production override"
             }
           }
+        },
+        "M": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [
+                  100,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Section": {
+                "PositionMm": [
+                  220,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Top": {
+                "PositionMm": [
+                  45,
+                  185
+                ],
+                "Scale": 7.0
+              },
+              "Front": {
+                "PositionMm": [
+                  20,
+                  100
+                ],
+                "Scale": 7.0,
+                "Params": {
+                  "breakline_gap_mm": 2
+                }
+              },
+              "Side": {
+                "PositionMm": [
+                  45,
+                  100
+                ],
+                "Scale": 7.0,
+                "Params": {
+                  "breakline_gap_mm": 2
+                }
+              }
+            },
+            "Tables": {
+              "TitleBlock": {
+                "PositionMm": [
+                  15,
+                  15
+                ]
+              },
+              "DimTable": {
+                "PositionMm": [
+                  60,
+                  0
+                ]
+              },
+              "HowToOrder": {
+                "PositionMm": [
+                  196,
+                  210
+                ]
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "M production override"
+            }
+          }
+        },
+        "_1001": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [
+                  100,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Section": {
+                "PositionMm": [
+                  220,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Top": {
+                "PositionMm": [
+                  45,
+                  185
+                ],
+                "Scale": 7.0
+              },
+              "Front": {
+                "PositionMm": [
+                  20,
+                  100
+                ],
+                "Scale": 7.0,
+                "Params": {
+                  "breakline_gap_mm": 2
+                }
+              },
+              "Side": {
+                "PositionMm": [
+                  45,
+                  100
+                ],
+                "Scale": 7.0,
+                "Params": {
+                  "breakline_gap_mm": 2
+                }
+              }
+            },
+            "Tables": {
+              "TitleBlock": {
+                "PositionMm": [
+                  15,
+                  15
+                ]
+              },
+              "DimTable": {
+                "PositionMm": [
+                  60,
+                  0
+                ]
+              },
+              "HowToOrder": {
+                "PositionMm": [
+                  196,
+                  210
+                ]
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "1001 production override"
+            }
+          }
         }
       }
     },
@@ -1329,6 +1485,146 @@
               "SpecialNote": "45CK customer override"
             }
           }
+        },
+        "M": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [
+                  100,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Section": {
+                "PositionMm": [
+                  220,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Top": {
+                "PositionMm": [
+                  45,
+                  185
+                ],
+                "Scale": 7.0
+              },
+              "Front": {
+                "PositionMm": [
+                  20,
+                  100
+                ],
+                "Scale": 7.0
+              },
+              "Side": {
+                "PositionMm": [
+                  45,
+                  100
+                ],
+                "Scale": 7.0
+              }
+            },
+            "Tables": {
+              "TitleBlock": {
+                "PositionMm": [
+                  15,
+                  15
+                ]
+              },
+              "DimTable": {
+                "PositionMm": [
+                  60,
+                  0
+                ]
+              },
+              "HowToOrder": {
+                "PositionMm": [
+                  196,
+                  210
+                ]
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "M customer override"
+            }
+          }
+        },
+        "_1001": {
+          "Common": {
+            "Views": {
+              "Detail": {
+                "PositionMm": [
+                  100,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Section": {
+                "PositionMm": [
+                  220,
+                  170
+                ],
+                "Scale": 140.0,
+                "Params": {
+                  "detail_inset_mm": 80.0
+                }
+              },
+              "Top": {
+                "PositionMm": [
+                  45,
+                  185
+                ],
+                "Scale": 7.0
+              },
+              "Front": {
+                "PositionMm": [
+                  20,
+                  100
+                ],
+                "Scale": 7.0
+              },
+              "Side": {
+                "PositionMm": [
+                  45,
+                  100
+                ],
+                "Scale": 7.0
+              }
+            },
+            "Tables": {
+              "TitleBlock": {
+                "PositionMm": [
+                  15,
+                  15
+                ]
+              },
+              "DimTable": {
+                "PositionMm": [
+                  60,
+                  0
+                ]
+              },
+              "HowToOrder": {
+                "PositionMm": [
+                  196,
+                  210
+                ]
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "1001 customer override"
+            }
+          }
         }
       }
     },
@@ -1462,6 +1758,34 @@
             },
             "Metadata": {
               "SpecialNote": "45CK overlay tuning"
+            }
+          }
+        },
+        "M": {
+          "Common": {
+            "Views": {
+              "Side": {
+                "Params": {
+                  "breakline_gap_mm": 8.0
+                }
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "M overlay tuning"
+            }
+          }
+        },
+        "_1001": {
+          "Common": {
+            "Views": {
+              "Side": {
+                "Params": {
+                  "breakline_gap_mm": 8.0
+                }
+              }
+            },
+            "Metadata": {
+              "SpecialNote": "1001 overlay tuning"
             }
           }
         }

@@ -114,11 +114,10 @@ public sealed class MEquationPlanner : StandardEquationPlanner
             "T",
             useMaximum: true);
 
-        AddSourceLengthBoundEquation(
+        AddLengthBoundEquation(
             builder,
             facts,
-            targetEquationKey: "FL",
-            sourceDimensionKey: "FD",
+            "FL",
             useMaximum: true);
 
         AddLengthBoundEquation(
