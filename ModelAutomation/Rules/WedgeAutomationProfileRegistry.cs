@@ -124,21 +124,25 @@ public static class WedgeAutomationProfileRegistry
 
         Add(
             profiles,
-            CreateCobLikeProfile(
+            new WedgeAutomationProfile(
                 WedgeType.FP,
                 "FP",
                 new FpConfigurationRules(),
                 new FpFeatureRules(),
-                new FpToleranceRules()));
+                new FpEquationPlanner(),
+                new FpToleranceRules(),
+                Array.Empty<string>()));
 
         Add(
             profiles,
-            CreateCobLikeProfile(
+            new WedgeAutomationProfile(
                 WedgeType.UTUS,
                 "UTUS",
                 new UtusConfigurationRules(),
                 new UtusFeatureRules(),
-                new UtusToleranceRules()));
+                new UtusEquationPlanner(),
+                new UtusToleranceRules(),
+                Array.Empty<string>()));
 
         Add(
             profiles,

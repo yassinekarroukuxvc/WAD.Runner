@@ -1,4 +1,3 @@
-
 public enum AnnotationCleanupProfile
 {
     CobLikeProduction,
@@ -13,6 +12,18 @@ public enum AnnotationCleanupProfile
     CobFgOverlay,
     CobFgCustomer,
     CobFgProduction,
+
+    UtusPgbOverlay,
+    UtusPgbProduction,
+    UtusFgOverlay,
+    UtusFgCustomer,
+    UtusFgProduction,
+
+    FpPgbOverlay,
+    FpPgbProduction,
+    FpFgOverlay,
+    FpFgCustomer,
+    FpFgProduction,
 
     CkvdFgProduction,
     CkvdFgCustomer,

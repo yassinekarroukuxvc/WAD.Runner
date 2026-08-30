@@ -16,8 +16,8 @@ internal static class WedgeDimensionValidationRuleCatalog
 
             WedgeType.COB => BuildCobRules(),
 
-            WedgeType.UTUS or
-            WedgeType.FP => BuildCobLikeRules(),
+            WedgeType.UTUS => BuildUtusRules(),
+            WedgeType.FP => BuildFpsRules(),
 
             WedgeType._4516 => Build4516Rules(),
             WedgeType.ABT => BuildAbtRules(),
@@ -420,6 +420,98 @@ internal static class WedgeDimensionValidationRuleCatalog
 
     private static WedgeDimensionValidationRuleSet
         BuildCobRules()
+    {
+        return new WedgeDimensionValidationRuleSet
+        {
+            RequiredStandalone =
+                Slots(
+                    "TL",
+                    "TD",
+                    "TDF",
+                    "W",
+                    "ISA",
+                    "FD",
+                    "T",
+                    "RA",
+                    "BA",
+                    "FRO",
+                    "ERL",
+                    "ERD",
+                    "ERW",
+                    "CA",
+                    "FL"),
+
+            ConditionalAndGroups =
+                new[]
+                {
+                    Group(
+                        "VR, VRA, VW, VRR",
+                        Slot("VR"),
+                        Slot("VRA"),
+                        Slot("VW"),
+                        Slot("VRR")),
+
+                    Group(
+                        "VBL, VBLR",
+                        Slot("VBL"),
+                        Slot("VBLR")),
+
+                    Group(
+                        "RA2, RA2H",
+                        Slot("RA2"),
+                        Slot("RA2H"))
+                }
+        };
+    }
+
+    private static WedgeDimensionValidationRuleSet
+        BuildUtusRules()
+    {
+        return new WedgeDimensionValidationRuleSet
+        {
+            RequiredStandalone =
+                Slots(
+                    "TL",
+                    "TD",
+                    "TDF",
+                    "W",
+                    "ISA",
+                    "FD",
+                    "T",
+                    "RA",
+                    "BA",
+                    "FRO",
+                    "ERL",
+                    "ERD",
+                    "ERW",
+                    "CA",
+                    "FL"),
+
+            ConditionalAndGroups =
+                new[]
+                {
+                    Group(
+                        "VR, VRA, VW, VRR",
+                        Slot("VR"),
+                        Slot("VRA"),
+                        Slot("VW"),
+                        Slot("VRR")),
+
+                    Group(
+                        "VBL, VBLR",
+                        Slot("VBL"),
+                        Slot("VBLR")),
+
+                    Group(
+                        "RA2, RA2H",
+                        Slot("RA2"),
+                        Slot("RA2H"))
+                }
+        };
+    }
+
+    private static WedgeDimensionValidationRuleSet
+        BuildFpsRules()
     {
         return new WedgeDimensionValidationRuleSet
         {

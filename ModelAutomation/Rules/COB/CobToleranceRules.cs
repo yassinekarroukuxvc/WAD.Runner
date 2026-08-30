@@ -169,7 +169,7 @@ public sealed class CobToleranceRules : IToleranceRuleSet
 
         // LEFT reference point: always 1.5 inches converted to mm, divided by scale.
         var leftCutMm =
-            (decimal)((1.5 * 25.4) / scale);
+            38.1m / (decimal)scale;
 
         var rightTarget =
             shank == CobShankType.Std

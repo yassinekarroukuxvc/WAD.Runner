@@ -12,7 +12,11 @@ using WAD.Runner.ModelAutomation.Rules.Common;
 namespace WAD.Runner.ModelAutomation.Rules.COB;
 
 /// <summary>
-/// COB-only feature rules. COB no longer inherits any COB-like feature behavior.
+///
+/// Overlay W behavior:
+///     No VR/VW family -> use the subclass-specific W overlay sketch.
+///     VR/VW family    -> suppress both W overlay sketches and use
+///                        the appropriate VW case overlay sketch.
 /// </summary>
 public sealed class CobFeatureRules : IFeatureRuleSet
 {
@@ -26,31 +30,57 @@ public sealed class CobFeatureRules : IFeatureRuleSet
             "erw_std_feature", "erw_std_sketch",
             "core_fillet_std_feature"
         },
-        Vr: new[] { "vr_std_feature", "vr_std_sketch" },
-        Slb: new[] { "slb_std_feature", "slb_std_sketch" },
-        W2: new[] { "w2_std_feature", "w2_std_sketch" },
-        Ra2: new[] { "ra2_std_feature", "ra2_std_sketch" },
+        Vr: new[]
+        {
+            "vr_std_feature",
+            "vr_std_sketch"
+        },
+        Slb: new[]
+        {
+            "slb_std_feature",
+            "slb_std_sketch"
+        },
+        W2: new[]
+        {
+            "w2_std_feature",
+            "w2_std_sketch"
+        },
+        Ra2: new[]
+        {
+            "ra2_std_feature",
+            "ra2_std_sketch"
+        },
         Hole: new[]
         {
-            "std_hole_feature", "std_hole_sketch",
-            "std_hole_cut_feature", "std_hole_cut_sketch",
+            "std_hole_feature",
+            "std_hole_sketch",
+            "std_hole_cut_feature",
+            "std_hole_cut_sketch",
             "std_hole_combine"
         },
         Oval: new[]
         {
             "std_oval_plan",
-            "std_oval_feature", "std_oval_sketch",
-            "std_oval_cut_feature", "std_oval_cut_sketch",
+            "std_oval_feature",
+            "std_oval_sketch",
+            "std_oval_cut_feature",
+            "std_oval_cut_sketch",
             "std_oval_combine"
         },
         Slot: new[]
         {
             "std_slot_plan",
-            "std_slot_feature", "std_slot_sketch",
-            "std_slot_cut_feature", "std_slot_cut_sketch",
+            "std_slot_feature",
+            "std_slot_sketch",
+            "std_slot_cut_feature",
+            "std_slot_cut_sketch",
             "std_slot_combine"
         },
-        CBase: new[] { "std_c_feature", "std_c_sketch" },
+        CBase: new[]
+        {
+            "std_c_feature",
+            "std_c_sketch"
+        },
         CFr: "std_fr_c_feature",
         CBr: "std_br_c_feature",
         CCbr: "std_cbr_c_feature",
@@ -58,14 +88,18 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         CRoundBr: "std_c_round_br_feature",
         Vg: new[]
         {
-            "std_vg_feature", "std_vg_sketch",
-            "std_fr_vg_feature", "std_br_vg_feature",
+            "std_vg_feature",
+            "std_vg_sketch",
+            "std_fr_vg_feature",
+            "std_br_vg_feature",
             "std_vg_round_br_feature"
         },
         G: new[]
         {
-            "std_g_feature", "std_g_sketch",
-            "std_g_fr_feature", "std_g_br_feature",
+            "std_g_feature",
+            "std_g_sketch",
+            "std_g_fr_feature",
+            "std_g_br_feature",
             "std_g_round_br_feature"
         },
         RightCut: new[]
@@ -112,31 +146,57 @@ public sealed class CobFeatureRules : IFeatureRuleSet
             "core_fillet_rev_feature",
             "rev_round_br"
         },
-        Vr: new[] { "vr_rev_feature", "vr_rev_sketch" },
-        Slb: new[] { "slb_rev_feature", "slb_rev_sketch" },
-        W2: new[] { "w2_rev_feature", "w2_rev_sketch" },
-        Ra2: new[] { "ra2_rev_feature", "ra2_rev_sketch" },
+        Vr: new[]
+        {
+            "vr_rev_feature",
+            "vr_rev_sketch"
+        },
+        Slb: new[]
+        {
+            "slb_rev_feature",
+            "slb_rev_sketch"
+        },
+        W2: new[]
+        {
+            "w2_rev_feature",
+            "w2_rev_sketch"
+        },
+        Ra2: new[]
+        {
+            "ra2_rev_feature",
+            "ra2_rev_sketch"
+        },
         Hole: new[]
         {
-            "rev_hole_feature", "rev_hole_sketch",
-            "rev_hole_cut_feature", "rev_hole_cut_sketch",
+            "rev_hole_feature",
+            "rev_hole_sketch",
+            "rev_hole_cut_feature",
+            "rev_hole_cut_sketch",
             "rev_hole_combine"
         },
         Oval: new[]
         {
             "rev_oval_plan",
-            "rev_oval_feature", "rev_oval_sketch",
-            "rev_oval_cut_feature", "rev_oval_cut_sketch",
+            "rev_oval_feature",
+            "rev_oval_sketch",
+            "rev_oval_cut_feature",
+            "rev_oval_cut_sketch",
             "rev_oval_combine_feature"
         },
         Slot: new[]
         {
             "rev_slot_plan",
-            "rev_slot_feature", "rev_slot_sketch",
-            "rev_slot_cut_feature", "rev_slot_cut_sketch",
+            "rev_slot_feature",
+            "rev_slot_sketch",
+            "rev_slot_cut_feature",
+            "rev_slot_cut_sketch",
             "rev_slot_combine_feature"
         },
-        CBase: new[] { "rev_c_feature", "rev_c_sketch" },
+        CBase: new[]
+        {
+            "rev_c_feature",
+            "rev_c_sketch"
+        },
         CFr: "rev_c_fr_feature",
         CBr: "rev_c_br_feature",
         CCbr: "rev_c_cbr_feature",
@@ -144,14 +204,18 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         CRoundBr: "rev_c_round_br_feature",
         Vg: new[]
         {
-            "rev_vg_feature", "rev_vg_sketch",
-            "rev_vg_fr_feature", "rev_vg_br_feature",
+            "rev_vg_feature",
+            "rev_vg_sketch",
+            "rev_vg_fr_feature",
+            "rev_vg_br_feature",
             "rev_vg_round_br_feature"
         },
         G: new[]
         {
-            "rev_g_feature", "rev_g_sketch",
-            "rev_g_fr_feature", "rev_g_br_feature",
+            "rev_g_feature",
+            "rev_g_sketch",
+            "rev_g_fr_feature",
+            "rev_g_br_feature",
             "rev_g_round_br_feature"
         },
         RightCut: new[]
@@ -187,44 +251,125 @@ public sealed class CobFeatureRules : IFeatureRuleSet
             "rev_g_overlay_sketch"
         });
 
-    private static readonly string[] StdManaged = AllManaged(Std);
-    private static readonly string[] RevManaged = AllManaged(Rev);
+    private static readonly string[] StdManaged =
+        AllManaged(Std);
 
-    public ModelRuleRunner.FeaturePlan Build(WedgeData wedge, FeatureRuleContext context)
+    private static readonly string[] RevManaged =
+        AllManaged(Rev);
+
+    public ModelRuleRunner.FeaturePlan Build(
+        WedgeData wedge,
+        FeatureRuleContext context)
     {
-        if (wedge is null) throw new ArgumentNullException(nameof(wedge));
-        if (context is null) throw new ArgumentNullException(nameof(context));
+        if (wedge is null)
+            throw new ArgumentNullException(nameof(wedge));
 
-        var facts = new WedgeFacts(wedge);
-        var shank = ResolveShankType(facts);
-        var family = shank == CobShankType.Std ? Std : Rev;
+        if (context is null)
+            throw new ArgumentNullException(nameof(context));
 
-        var hasVr = HasAllPositive(facts, "VR", "VW", "VRR", "VRA");
-        var hasSlb = HasAllPositive(facts, "VBL", "VBLR", "T");
-        var hasW2 = facts.HasPositive("W2");
-        var hasRa2 = HasAllPositive(facts, "RA2", "RA2H");
-        var hasOverlayVbl = facts.HasPositive("VBL");
-        var hasOverlayRa2 = facts.HasPositive("RA2");
-        var vwCase = ResolveOverlayVwCase(facts);
+        var facts =
+            new WedgeFacts(wedge);
 
-        var feedHole = context.Subclass == WedgeSubclass.FG
-            ? ResolveFeedHoleType(facts)
-            : FeedHoleType.NotApplicable;
+        var shank =
+            ResolveShankType(
+                facts);
 
-        var footOption = context.Subclass == WedgeSubclass.FG
-            ? ResolveFootOption(facts)
-            : FootOptionType.NotApplicable;
+        var family =
+            shank == CobShankType.Std
+                ? Std
+                : Rev;
 
-        var plan = new FeaturePlanBuilder()
-            .Know(StdManaged)
-            .Know(RevManaged)
-            .ForceSuppress(SwNames.EngravingFeature, SwNames.EngravingSketch)
-            .ForceSuppress(shank == CobShankType.Std ? RevManaged : StdManaged);
+        var hasVr =
+            HasAllPositive(
+                facts,
+                "VR",
+                "VW",
+                "VRR",
+                "VRA");
 
-        ApplyBaseRules(plan, family, hasVr, hasSlb, hasW2, hasRa2);
-        ApplySubclassRules(plan, facts, family, context.Subclass, feedHole, footOption);
+        /*
+         * Used specifically for W overlay suppression.
+         *
+         * If any of the VR/VW overlay family is present,
+         * the standalone W overlay sketch must stay OFF.
+         */
+        var hasOverlayVrFamily =
+            HasAnyPositive(
+                facts,
+                "VR",
+                "VRR",
+                "VW");
+
+        var hasSlb =
+            HasAllPositive(
+                facts,
+                "VBL",
+                "VBLR",
+                "T");
+
+        var hasW2 =
+            facts.HasPositive(
+                "W2");
+
+        var hasRa2 =
+            HasAllPositive(
+                facts,
+                "RA2",
+                "RA2H");
+
+        var hasOverlayVbl =
+            facts.HasPositive(
+                "VBL");
+
+        var hasOverlayRa2 =
+            facts.HasPositive(
+                "RA2");
+
+        var vwCase =
+            ResolveOverlayVwCase(
+                facts,
+                hasOverlayVrFamily);
+
+        var feedHole =
+            context.Subclass == WedgeSubclass.FG
+                ? ResolveFeedHoleType(facts)
+                : FeedHoleType.NotApplicable;
+
+        var footOption =
+            context.Subclass == WedgeSubclass.FG
+                ? ResolveFootOption(facts)
+                : FootOptionType.NotApplicable;
+
+        var plan =
+            new FeaturePlanBuilder()
+                .Know(StdManaged)
+                .Know(RevManaged)
+                .ForceSuppress(
+                    SwNames.EngravingFeature,
+                    SwNames.EngravingSketch)
+                .ForceSuppress(
+                    shank == CobShankType.Std
+                        ? RevManaged
+                        : StdManaged);
+
+        ApplyBaseRules(
+            plan,
+            family,
+            hasVr,
+            hasSlb,
+            hasW2,
+            hasRa2);
+
+        ApplySubclassRules(
+            plan,
+            facts,
+            family,
+            context.Subclass,
+            feedHole,
+            footOption);
 
         if (context.DrawingType == DrawingType.Overlay)
+        {
             ApplyOverlayRules(
                 plan,
                 context,
@@ -232,16 +377,29 @@ public sealed class CobFeatureRules : IFeatureRuleSet
                 footOption,
                 hasOverlayVbl,
                 hasOverlayRa2,
+                hasOverlayVrFamily,
                 vwCase);
+        }
         else
-            plan.ForceSuppress(OverlayManaged(family));
+        {
+            plan.ForceSuppress(
+                OverlayManaged(family));
+        }
 
         Logger.Info(
             "[CobFeatureRules] Build -> " +
-            $"shank={shank}, subclass={context.Subclass}, drawingType={context.DrawingType}, " +
+            $"shank={shank}, " +
+            $"subclass={context.Subclass}, " +
+            $"drawingType={context.DrawingType}, " +
             $"targetConfig={context.TargetConfigurationName}, " +
-            $"feedHole={feedHole}, footOption={footOption}, VR={hasVr}, SLB={hasSlb}, " +
-            $"W2={hasW2}, RA2={hasRa2}, VW case={vwCase}.");
+            $"feedHole={feedHole}, " +
+            $"footOption={footOption}, " +
+            $"VR={hasVr}, " +
+            $"overlay VR family={hasOverlayVrFamily}, " +
+            $"SLB={hasSlb}, " +
+            $"W2={hasW2}, " +
+            $"RA2={hasRa2}, " +
+            $"VW case={vwCase}.");
 
         return plan.Build();
     }
@@ -254,11 +412,32 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         bool hasW2,
         bool hasRa2)
     {
-        plan.Activate(family.AlwaysOn);
-        if (hasVr) plan.Activate(family.Vr);
-        if (hasSlb) plan.Activate(family.Slb);
-        if (hasW2) plan.Activate(family.W2);
-        if (hasRa2) plan.Activate(family.Ra2);
+        plan.Activate(
+            family.AlwaysOn);
+
+        if (hasVr)
+        {
+            plan.Activate(
+                family.Vr);
+        }
+
+        if (hasSlb)
+        {
+            plan.Activate(
+                family.Slb);
+        }
+
+        if (hasW2)
+        {
+            plan.Activate(
+                family.W2);
+        }
+
+        if (hasRa2)
+        {
+            plan.Activate(
+                family.Ra2);
+        }
     }
 
     private static void ApplySubclassRules(
@@ -269,37 +448,59 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         FeedHoleType feedHole,
         FootOptionType footOption)
     {
-        var feedManaged = FeedHoleManaged(family);
-        var footManaged = FootManaged(family);
+        var feedManaged =
+            FeedHoleManaged(
+                family);
 
-        plan.Deactivate(feedManaged);
-        plan.Deactivate(footManaged);
+        var footManaged =
+            FootManaged(
+                family);
+
+        plan.Deactivate(
+            feedManaged);
+
+        plan.Deactivate(
+            footManaged);
 
         if (subclass == WedgeSubclass.PGB)
         {
-            plan.ForceSuppress(feedManaged);
-            plan.ForceSuppress(footManaged);
+            plan.ForceSuppress(
+                feedManaged);
+
+            plan.ForceSuppress(
+                footManaged);
+
             return;
         }
 
         switch (feedHole)
         {
             case FeedHoleType.Std:
-                plan.Activate(family.Hole);
+                plan.Activate(
+                    family.Hole);
                 break;
+
             case FeedHoleType.Oval:
-                plan.Activate(family.Oval);
+                plan.Activate(
+                    family.Oval);
                 break;
+
             case FeedHoleType.Slot:
-                plan.Activate(family.Slot);
+                plan.Activate(
+                    family.Slot);
                 break;
+
             default:
                 throw new InvalidOperationException(
                     "Unable to resolve the COB feed-hole type for an FG wedge. " +
                     "Expected STD, Oval or Slot in 'Wed-Feed_H/Slot'.");
         }
 
-        ApplyFootRules(plan, facts, family, footOption);
+        ApplyFootRules(
+            plan,
+            facts,
+            family,
+            footOption);
     }
 
     private static void ApplyFootRules(
@@ -311,17 +512,26 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         switch (footOption)
         {
             case FootOptionType.C:
-                ApplyCFootRules(plan, facts, family);
+                ApplyCFootRules(
+                    plan,
+                    facts,
+                    family);
                 break;
+
             case FootOptionType.Vg:
-                plan.Activate(family.Vg);
+                plan.Activate(
+                    family.Vg);
                 break;
+
             case FootOptionType.G:
-                plan.Activate(family.G);
+                plan.Activate(
+                    family.G);
                 break;
+
             case FootOptionType.Other:
             case FootOptionType.NotApplicable:
                 break;
+
             default:
                 break;
         }
@@ -332,8 +542,13 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         WedgeFacts facts,
         FeatureFamily family)
     {
-        var hasCbrl = facts.HasPositive("CBRL");
-        var hasCbrd = facts.HasPositive("CBRD");
+        var hasCbrl =
+            facts.HasPositive(
+                "CBRL");
+
+        var hasCbrd =
+            facts.HasPositive(
+                "CBRD");
 
         if (hasCbrl != hasCbrd)
         {
@@ -342,22 +557,48 @@ public sealed class CobFeatureRules : IFeatureRuleSet
                 "CBRL and CBRD must either both be > 0 or both be absent/zero.");
         }
 
-        var froEqualsFr = ResolveFroEqualsFr(facts);
-        var hasCbr = hasCbrl && hasCbrd;
+        var froEqualsFr =
+            ResolveFroEqualsFr(
+                facts);
 
-        plan.Activate(family.CBase);
-        plan.Activate(family.CRoundBr);
+        var hasCbr =
+            hasCbrl &&
+            hasCbrd;
+
+        plan.Activate(
+            family.CBase);
+
+        plan.Activate(
+            family.CRoundBr);
 
         if (hasCbr)
         {
-            plan.Activate(family.CCbr, family.CCbrCore);
-            if (!froEqualsFr) plan.Activate(family.CFr);
+            plan.Activate(
+                family.CCbr,
+                family.CCbrCore);
+
+            if (!froEqualsFr)
+            {
+                plan.Activate(
+                    family.CFr);
+            }
+
             return;
         }
 
-        plan.Activate(family.CBr);
-        if (!froEqualsFr) plan.Activate(family.CFr);
+        plan.Activate(
+            family.CBr);
+
+        if (!froEqualsFr)
+        {
+            plan.Activate(
+                family.CFr);
+        }
     }
+
+    // ================================================================
+    // OVERLAY RULES
+    // ================================================================
 
     private static void ApplyOverlayRules(
         FeaturePlanBuilder plan,
@@ -366,50 +607,140 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         FootOptionType footOption,
         bool hasVbl,
         bool hasRa2,
+        bool hasOverlayVrFamily,
         OverlayVwCase vwCase)
     {
-        plan.Deactivate(OverlayManaged(family));
+        plan.Deactivate(
+            OverlayManaged(family));
 
         ApplyOverlayCutRule(
             plan,
             context,
             family);
 
+        ApplyOverlayWRule(
+            plan,
+            context.Subclass,
+            family,
+            hasOverlayVrFamily);
+
+        ActivateOverlayVwCase(
+            plan,
+            family,
+            vwCase);
+
+        var tSketch =
+            hasVbl
+                ? hasRa2
+                    ? family.TCases[3]
+                    : family.TCases[1]
+                : hasRa2
+                    ? family.TCases[2]
+                    : family.TCases[0];
+
         plan.ActivateOnly(
-            context.Subclass == WedgeSubclass.PGB ? family.WPgbOverlay : family.WFgOverlay,
-            new[] { family.WPgbOverlay, family.WFgOverlay });
-
-        if (vwCase != OverlayVwCase.None)
-        {
-            plan.ActivateOnly(
-                vwCase == OverlayVwCase.Case1 ? family.VwCases[0] : family.VwCases[1],
-                family.VwCases);
-        }
-
-        var tSketch = hasVbl
-            ? hasRa2 ? family.TCases[3] : family.TCases[1]
-            : hasRa2 ? family.TCases[2] : family.TCases[0];
-
-        plan.ActivateOnly(tSketch, family.TCases);
+            tSketch,
+            family.TCases);
 
         if (context.Subclass == WedgeSubclass.PGB)
         {
-            plan.ForceSuppress(family.FootOverlays);
+            plan.ForceSuppress(
+                family.FootOverlays);
+
             return;
         }
 
-        var footSketch = footOption switch
-        {
-            FootOptionType.C => family.FootOverlays[0],
-            FootOptionType.Vg => family.FootOverlays[1],
-            FootOptionType.G => family.FootOverlays[2],
-            _ => null
-        };
+        var footSketch =
+            footOption switch
+            {
+                FootOptionType.C =>
+                    family.FootOverlays[0],
+
+                FootOptionType.Vg =>
+                    family.FootOverlays[1],
+
+                FootOptionType.G =>
+                    family.FootOverlays[2],
+
+                _ =>
+                    null
+            };
 
         if (footSketch is not null)
-            plan.ActivateOnly(footSketch, family.FootOverlays);
+        {
+            plan.ActivateOnly(
+                footSketch,
+                family.FootOverlays);
+        }
         else
-            plan.ForceSuppress(family.FootOverlays);
+        {
+            plan.ForceSuppress(
+                family.FootOverlays);
+        }
+    }
+
+    private static void ApplyOverlayWRule(
+        FeaturePlanBuilder plan,
+        WedgeSubclass subclass,
+        FeatureFamily family,
+        bool hasOverlayVrFamily)
+    {
+        var wOverlaySketches =
+            new[]
+            {
+                family.WPgbOverlay,
+                family.WFgOverlay
+            };
+
+        plan.Deactivate(
+            wOverlaySketches);
+
+        /*
+         * VR/VW family replaces the standalone W overlay sketch.
+         *
+         * Both PGB and FG W overlay sketches are forced OFF so
+         * nothing can remain active from the original template.
+         */
+        if (hasOverlayVrFamily)
+        {
+            plan.ForceSuppress(
+                wOverlaySketches);
+
+            Logger.Info(
+                "[CobFeatureRules] Overlay W -> " +
+                "VR/VW family present; W overlay sketches suppressed.");
+
+            return;
+        }
+
+        plan.ActivateOnly(
+            subclass == WedgeSubclass.PGB
+                ? family.WPgbOverlay
+                : family.WFgOverlay,
+            wOverlaySketches);
+    }
+
+    private static void ActivateOverlayVwCase(
+        FeaturePlanBuilder plan,
+        FeatureFamily family,
+        OverlayVwCase vwCase)
+    {
+        plan.Deactivate(
+            family.VwCases);
+
+        if (vwCase == OverlayVwCase.None)
+        {
+            plan.ForceSuppress(
+                family.VwCases);
+
+            return;
+        }
+
+        plan.ActivateOnly(
+            vwCase == OverlayVwCase.Case1
+                ? family.VwCases[0]
+                : family.VwCases[1],
+            family.VwCases);
     }
 
     private static void ApplyOverlayCutRule(
@@ -424,18 +755,27 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         switch (configuration)
         {
             case "RIGHT_VIEW":
-                plan.Activate(family.RightCut);
-                plan.ForceSuppress(family.LeftCut);
+                plan.Activate(
+                    family.RightCut);
+
+                plan.ForceSuppress(
+                    family.LeftCut);
                 break;
 
             case "LEFT_VIEW":
-                plan.Activate(family.LeftCut);
-                plan.ForceSuppress(family.RightCut);
+                plan.Activate(
+                    family.LeftCut);
+
+                plan.ForceSuppress(
+                    family.RightCut);
                 break;
 
             default:
-                plan.ForceSuppress(family.RightCut);
-                plan.ForceSuppress(family.LeftCut);
+                plan.ForceSuppress(
+                    family.RightCut);
+
+                plan.ForceSuppress(
+                    family.LeftCut);
 
                 Logger.Warn(
                     "[CobFeatureRules] Overlay configuration is neither " +
@@ -445,138 +785,307 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         }
     }
 
-    private static CobShankType ResolveShankType(WedgeFacts facts)
+    private static CobShankType ResolveShankType(
+        WedgeFacts facts)
     {
-        var token = NormalizePackedToken(facts.NormalizedPropertyToken(
-            "Wed-Type", "Wed_Type", "Wed Type", "Wedge-Type", "Wedge_Type", "wedge_type"));
+        var token =
+            NormalizePackedToken(
+                facts.NormalizedPropertyToken(
+                    "Wed-Type",
+                    "Wed_Type",
+                    "Wed Type",
+                    "Wedge-Type",
+                    "Wedge_Type",
+                    "wedge_type"));
 
         return token switch
         {
-            "SW_STD" or "STD" => CobShankType.Std,
-            "SW_180REV" or "SW_180_REV" or "180REV" or "180_REV" => CobShankType.Rev,
-            _ => throw new InvalidOperationException(
-                "Unable to resolve the COB shank from 'Wed-Type'. " +
-                $"Expected SW_STD or SW_180REV, but received '{DisplayToken(token)}'.")
+            "SW_STD" or
+            "STD" =>
+                CobShankType.Std,
+
+            "SW_180REV" or
+            "SW_180_REV" or
+            "180REV" or
+            "180_REV" =>
+                CobShankType.Rev,
+
+            _ =>
+                throw new InvalidOperationException(
+                    "Unable to resolve the COB shank from 'Wed-Type'. " +
+                    $"Expected SW_STD or SW_180REV, but received '{DisplayToken(token)}'.")
         };
     }
 
-    private static FeedHoleType ResolveFeedHoleType(WedgeFacts facts)
+    private static FeedHoleType ResolveFeedHoleType(
+        WedgeFacts facts)
     {
-        var raw = facts.NormalizedPropertyToken(
-            "Wed-Feed_H/Slot", "Wed_Feed_H_Slot", "Wed Feed H Slot", "Wed-Feed H Slot",
-            "Feed_H/Slot", "Feed_H_Slot", "Feed H Slot", "feed_h_slot");
+        var raw =
+            facts.NormalizedPropertyToken(
+                "Wed-Feed_H/Slot",
+                "Wed_Feed_H_Slot",
+                "Wed Feed H Slot",
+                "Wed-Feed H Slot",
+                "Feed_H/Slot",
+                "Feed_H_Slot",
+                "Feed H Slot",
+                "feed_h_slot");
 
-        var token = NormalizeFeedHoleToken(raw);
+        var token =
+            NormalizeFeedHoleToken(
+                raw);
+
         return token switch
         {
-            "STD" => FeedHoleType.Std,
-            "OVAL" => FeedHoleType.Oval,
-            "SLOT" => FeedHoleType.Slot,
-            _ => FeedHoleType.Unknown
+            "STD" =>
+                FeedHoleType.Std,
+
+            "OVAL" =>
+                FeedHoleType.Oval,
+
+            "SLOT" =>
+                FeedHoleType.Slot,
+
+            _ =>
+                FeedHoleType.Unknown
         };
     }
 
-    private static FootOptionType ResolveFootOption(WedgeFacts facts)
+    private static FootOptionType ResolveFootOption(
+        WedgeFacts facts)
     {
-        var token = NormalizePackedToken(facts.NormalizedPropertyToken(
-            "Wed-Foot_Option", "Wed_Foot_Option", "Wed Foot Option", "Wed-Foot Option",
-            "Foot_Option", "Foot Option", "foot_option"));
+        var token =
+            NormalizePackedToken(
+                facts.NormalizedPropertyToken(
+                    "Wed-Foot_Option",
+                    "Wed_Foot_Option",
+                    "Wed Foot Option",
+                    "Wed-Foot Option",
+                    "Foot_Option",
+                    "Foot Option",
+                    "foot_option"));
 
         return token switch
         {
-            "LW_C" or "SW_C" or "C" => FootOptionType.C,
-            "LW_VG" or "SW_VG" or "VG" => FootOptionType.Vg,
-            "LW_G" or "SW_G" or "G" => FootOptionType.G,
-            _ => FootOptionType.Other
+            "LW_C" or
+            "SW_C" or
+            "C" =>
+                FootOptionType.C,
+
+            "LW_VG" or
+            "SW_VG" or
+            "VG" =>
+                FootOptionType.Vg,
+
+            "LW_G" or
+            "SW_G" or
+            "G" =>
+                FootOptionType.G,
+
+            _ =>
+                FootOptionType.Other
         };
     }
 
-    private static OverlayVwCase ResolveOverlayVwCase(WedgeFacts facts)
+    private static OverlayVwCase ResolveOverlayVwCase(
+        WedgeFacts facts,
+        bool hasOverlayVrFamily)
     {
-        if (!facts.TryGetLengthMm("VW", out var vw) || vw <= WedgeFacts.DefaultPositiveEpsilon)
+        if (!hasOverlayVrFamily)
             return OverlayVwCase.None;
 
-        if (!facts.TryGetLengthMm("W", out var w))
+        if (!facts.TryGetLengthMm(
+                "VW",
+                out var vw) ||
+            vw <= WedgeFacts.DefaultPositiveEpsilon)
         {
-            Logger.Warn("[CobFeatureRules] VW is present but W is missing/not a length. No VW overlay case selected.");
             return OverlayVwCase.None;
         }
 
-        return decimal.Abs(vw - w) <= WedgeFacts.DefaultPositiveEpsilon
+        if (!facts.TryGetLengthMm(
+                "W",
+                out var w))
+        {
+            Logger.Warn(
+                "[CobFeatureRules] VR/VW is present but W is " +
+                "missing/not a length. No VW overlay case selected.");
+
+            return OverlayVwCase.None;
+        }
+
+        return decimal.Abs(
+                   vw -
+                   w) <=
+               WedgeFacts.DefaultPositiveEpsilon
             ? OverlayVwCase.Case1
             : OverlayVwCase.Case2;
     }
 
-    private static bool ResolveFroEqualsFr(WedgeFacts facts)
+    private static bool ResolveFroEqualsFr(
+        WedgeFacts facts)
     {
-        if (!facts.TryGetLengthMm("FRO", out var fro))
-            throw new InvalidOperationException("Cannot apply COB C-foot rules because FRO is missing/not a length.");
+        if (!facts.TryGetLengthMm(
+                "FRO",
+                out var fro))
+        {
+            throw new InvalidOperationException(
+                "Cannot apply COB C-foot rules because FRO is missing/not a length.");
+        }
 
-        if (!facts.TryGetLengthMm("FR", out var fr))
-            throw new InvalidOperationException("Cannot apply COB C-foot rules because FR is missing/not a length.");
+        if (!facts.TryGetLengthMm(
+                "FR",
+                out var fr))
+        {
+            throw new InvalidOperationException(
+                "Cannot apply COB C-foot rules because FR is missing/not a length.");
+        }
 
-        return decimal.Abs(fro - fr) <= WedgeFacts.DefaultPositiveEpsilon;
+        return decimal.Abs(
+                   fro -
+                   fr) <=
+               WedgeFacts.DefaultPositiveEpsilon;
     }
 
-    private static bool HasAllPositive(WedgeFacts facts, params string[] keys)
-        => keys.All(key => facts.HasPositive(key));
+    private static bool HasAllPositive(
+        WedgeFacts facts,
+        params string[] keys)
+        => keys.All(
+            key => facts.HasPositive(key));
 
-    private static string NormalizeFeedHoleToken(string? raw)
+    private static bool HasAnyPositive(
+        WedgeFacts facts,
+        params string[] keys)
+        => keys.Any(
+            key => facts.HasPositive(key));
+
+    private static string NormalizeFeedHoleToken(
+        string? raw)
     {
-        var token = RemovePackedDatabaseSuffix(raw).Trim().ToUpperInvariant();
-        if (token.StartsWith("STD", StringComparison.OrdinalIgnoreCase) ||
-            token.StartsWith("STANDARD", StringComparison.OrdinalIgnoreCase)) return "STD";
-        if (token.StartsWith("OVAL", StringComparison.OrdinalIgnoreCase)) return "OVAL";
-        if (token.StartsWith("SLOT", StringComparison.OrdinalIgnoreCase)) return "SLOT";
+        var token =
+            RemovePackedDatabaseSuffix(raw)
+                .Trim()
+                .ToUpperInvariant();
+
+        if (token.StartsWith(
+                "STD",
+                StringComparison.OrdinalIgnoreCase) ||
+            token.StartsWith(
+                "STANDARD",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "STD";
+        }
+
+        if (token.StartsWith(
+                "OVAL",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "OVAL";
+        }
+
+        if (token.StartsWith(
+                "SLOT",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "SLOT";
+        }
+
         return token;
     }
 
-    private static string NormalizePackedToken(string? raw)
+    private static string NormalizePackedToken(
+        string? raw)
     {
-        var token = RemovePackedDatabaseSuffix(raw)
-            .Trim()
-            .Replace('-', '_')
-            .Replace(' ', '_')
-            .Trim('_')
-            .ToUpperInvariant();
+        var token =
+            RemovePackedDatabaseSuffix(raw)
+                .Trim()
+                .Replace('-', '_')
+                .Replace(' ', '_')
+                .Trim('_')
+                .ToUpperInvariant();
 
-        while (token.Contains("__", StringComparison.Ordinal))
-            token = token.Replace("__", "_", StringComparison.Ordinal);
+        while (token.Contains(
+                   "__",
+                   StringComparison.Ordinal))
+        {
+            token =
+                token.Replace(
+                    "__",
+                    "_",
+                    StringComparison.Ordinal);
+        }
 
         return token;
     }
 
-    private static string RemovePackedDatabaseSuffix(string? raw)
+    private static string RemovePackedDatabaseSuffix(
+        string? raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
-        var token = raw.Trim().Trim('\0');
-        var separatorIndex = token.IndexOf(';');
-        return separatorIndex >= 0 ? token[..separatorIndex] : token;
+        if (string.IsNullOrWhiteSpace(raw))
+            return string.Empty;
+
+        var token =
+            raw
+                .Trim()
+                .Trim('\0');
+
+        var separatorIndex =
+            token.IndexOf(';');
+
+        return separatorIndex >= 0
+            ? token[..separatorIndex]
+            : token;
     }
 
-    private static string DisplayToken(string token)
-        => string.IsNullOrWhiteSpace(token) ? "<missing>" : token;
+    private static string DisplayToken(
+        string token)
+        => string.IsNullOrWhiteSpace(token)
+            ? "<missing>"
+            : token;
 
-    private static string[] FeedHoleManaged(FeatureFamily family)
-        => family.Hole.Concat(family.Oval).Concat(family.Slot)
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    private static string[] FeedHoleManaged(
+        FeatureFamily family)
+        => family.Hole
+            .Concat(family.Oval)
+            .Concat(family.Slot)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-    private static string[] FootManaged(FeatureFamily family)
+    private static string[] FootManaged(
+        FeatureFamily family)
         => family.CBase
-            .Concat(new[] { family.CFr, family.CBr, family.CCbr, family.CCbrCore, family.CRoundBr })
+            .Concat(
+                new[]
+                {
+                    family.CFr,
+                    family.CBr,
+                    family.CCbr,
+                    family.CCbrCore,
+                    family.CRoundBr
+                })
             .Concat(family.Vg)
             .Concat(family.G)
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-    private static string[] OverlayManaged(FeatureFamily family)
-        => family.RightCut.Concat(family.LeftCut)
-            .Concat(new[] { family.WPgbOverlay, family.WFgOverlay })
+    private static string[] OverlayManaged(
+        FeatureFamily family)
+        => family.RightCut
+            .Concat(family.LeftCut)
+            .Concat(
+                new[]
+                {
+                    family.WPgbOverlay,
+                    family.WFgOverlay
+                })
             .Concat(family.VwCases)
             .Concat(family.TCases)
             .Concat(family.FootOverlays)
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-    private static string[] AllManaged(FeatureFamily family)
+    private static string[] AllManaged(
+        FeatureFamily family)
         => family.AlwaysOn
             .Concat(family.Vr)
             .Concat(family.Slb)
@@ -585,7 +1094,8 @@ public sealed class CobFeatureRules : IFeatureRuleSet
             .Concat(FeedHoleManaged(family))
             .Concat(FootManaged(family))
             .Concat(OverlayManaged(family))
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private sealed record FeatureFamily(
         string[] AlwaysOn,
@@ -612,8 +1122,34 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         string[] TCases,
         string[] FootOverlays);
 
-    private enum CobShankType { Std, Rev }
-    private enum FeedHoleType { NotApplicable, Unknown, Std, Oval, Slot }
-    private enum FootOptionType { NotApplicable, C, Vg, G, Other }
-    private enum OverlayVwCase { None, Case1, Case2 }
+    private enum CobShankType
+    {
+        Std,
+        Rev
+    }
+
+    private enum FeedHoleType
+    {
+        NotApplicable,
+        Unknown,
+        Std,
+        Oval,
+        Slot
+    }
+
+    private enum FootOptionType
+    {
+        NotApplicable,
+        C,
+        Vg,
+        G,
+        Other
+    }
+
+    private enum OverlayVwCase
+    {
+        None,
+        Case1,
+        Case2
+    }
 }

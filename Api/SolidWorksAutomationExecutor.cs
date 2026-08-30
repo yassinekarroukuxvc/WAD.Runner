@@ -131,71 +131,59 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                     {
                         case WedgeType.COB:
                             templatePartPath = Path.Combine(
-                                "Resources", "Templates", "COB", "Working Version",
-                                "COB.SLDPRT");
+                                "Resources", "Templates", "COB", "COB_rev2", "COB_part_rev1.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
                                     Path.Combine(
-                                        "Resources", "Templates", "COB", "Working Version",
-                                        "COB_Overlay.SLDDRW"),
+                                        "Resources", "Templates", "COB", "COB_rev2", "COB_overlay_rev1.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
                                     Path.Combine(
-                                        "Resources", "Templates", "COB", "Working Version",
-                                        "COB_drawings.SLDDRW"),
+                                        "Resources", "Templates", "COB", "COB_rev2", "COB_drawing_rev1.SLDPRT.SLDDRW"),
                             };
 
                             equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "COB", "Working Version",
-                                "equations.txt");
+                                "Resources", "Templates", "COB", "COB_rev2", "equations.txt");
                             break;
 
                         case WedgeType.UTUS:
                             templatePartPath = Path.Combine(
-                                "Resources", "Templates", "UT-US", "Working Version",
-                                "COB.SLDPRT");
+                                "Resources", "Templates", "UT-US", "UTUS_rev2", "UTUS_part_rev1.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
                                     Path.Combine(
-                                        "Resources", "Templates", "UT-US", "Working Version",
-                                        "COB_Overlay.SLDDRW"),
+                                        "Resources", "Templates", "UT-US", "UTUS_rev2", "UTUS_overlay_rev1.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
                                     Path.Combine(
-                                        "Resources", "Templates", "UT-US", "Working Version",
-                                        "COB_drawings.SLDDRW"),
+                                        "Resources", "Templates", "UT-US", "UTUS_rev2", "UTUS_drawing_rev1.SLDPRT.SLDDRW"),
                             };
 
                             equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "UT-US", "Working Version",
-                                "equations.txt");
+                                "Resources", "Templates", "UT-US", "UTUS_rev2", "equations.txt");
                             break;
 
                         case WedgeType.FP:
                             templatePartPath = Path.Combine(
-                                "Resources", "Templates", "FP", "Working Version",
-                                "COB.SLDPRT");
+                                "Resources", "Templates", "FP", "FP_rev2", "FP_part_rev1.SLDPRT");
 
                             templateDrawingPath = dtype switch
                             {
                                 DrawingType.Overlay =>
                                     Path.Combine(
-                                        "Resources", "Templates", "FP", "Working Version",
-                                        "COB_Overlay.SLDDRW"),
+                                        "Resources", "Templates", "FP", "FP_rev2", "FP_overlay_rev1.SLDDRW"),
 
                                 DrawingType.Production or DrawingType.Customer or _ =>
                                     Path.Combine(
-                                        "Resources", "Templates", "FP", "Working Version",
-                                        "COB_drawings.SLDDRW"),
+                                        "Resources", "Templates", "FP", "FP_rev2", "FP_drawing_rev1.SLDPRT.SLDDRW"),
                             };
 
                             equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "FP", "Working Version",
-                                "equations.txt");
+                                "Resources", "Templates", "FP", "FP_rev2", "equations.txt");
                             break;
 
                         case WedgeType.OSG7:
