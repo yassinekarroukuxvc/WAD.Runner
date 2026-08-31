@@ -25,7 +25,8 @@ internal static class Ab16DimensionRules
     {
         var dims = new List<DimensionSpec>();
 
-        var TL = LayoutMath.Dmm(ctx, "TL");
+        //var TL = LayoutMath.Dmm(ctx, "TL");
+        var TL = 20.0;
         var TD = LayoutMath.Dmm(ctx, "TD");
 
         if (TL <= 0)
@@ -67,7 +68,8 @@ internal static class Ab16DimensionRules
         var dsv = LayoutMath.Scale(ctx, Detail);
         var scv = LayoutMath.Scale(ctx, Section);
 
-        var TL = LayoutMath.Dmm(ctx, "TL");
+        //var TL = LayoutMath.Dmm(ctx, "TL");
+        var TL = 20.0;
         var TD = LayoutMath.Dmm(ctx, "TD");
 
         var LFront = TL * fsv;

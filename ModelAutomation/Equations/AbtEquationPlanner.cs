@@ -90,6 +90,12 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 EquationCatalog.DbToModelAliases)
             .SkipProvidedZeroDimensions();
 
+        builder.AddManaged(
+            "TL",
+            EquationFormatting.LengthLineFromMillimeters(
+                "TL",
+                20.0));
+
         AddFootDepthEquation(
             builder,
             facts);

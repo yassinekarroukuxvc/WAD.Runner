@@ -24,7 +24,8 @@ internal static class _4516DimensionRules
     {
         var dims = new List<DimensionSpec>();
 
-        var TL = LayoutMath.Dmm(ctx, "TL");
+        //var TL = LayoutMath.Dmm(ctx, "TL");
+        var TL = 20.0;
         var TD = LayoutMath.Dmm(ctx, "TD");
 
         if (TL <= 0)
@@ -66,7 +67,8 @@ internal static class _4516DimensionRules
         var dsv = LayoutMath.Scale(ctx, Detail);
         var scv = LayoutMath.Scale(ctx, Section);
 
-        var TL = LayoutMath.Dmm(ctx, "TL");
+        //var TL = LayoutMath.Dmm(ctx, "TL");
+        var TL = 20.0;
         var TD = LayoutMath.Dmm(ctx, "TD");
 
         var LFront = TL * fsv;
@@ -94,6 +96,10 @@ internal static class _4516DimensionRules
         double LFront)
     {
         PlaceDim(ctx, diag, outList, "TL", Front, DimAxis.Horizontal,
+            F[0] - fsv * TD / 2.0 - 13.5,
+            F[1]);
+
+        PlaceDim(ctx, diag, outList, "D1", Front, DimAxis.Horizontal,
             F[0] - fsv * TD / 2.0 - 13.5,
             F[1]);
 
@@ -168,6 +174,7 @@ internal static class _4516DimensionRules
         var VBL = LayoutMath.Dmm(ctx, "VBL");
 
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
+        PlaceDim(ctx, diag, outList, "D1", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
         PlaceDim(ctx, diag, outList, "BA_VBL", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
 
         PlaceDim(ctx, diag, outList, "VBL", Side, DimAxis.Horizontal,

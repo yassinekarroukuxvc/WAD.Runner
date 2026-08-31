@@ -1,233 +1,264 @@
+using System;
+
+using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Common;
 using WAD.Runner.ModelAutomation.Core;
 using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.Rules.Common;
 
-using System;
-
-using WAD.Runner.Application;
-
 namespace WAD.Runner.ModelAutomation.Rules.CKVD;
 
+/// <summary>
+/// CKVD feature rules.
+///
+/// Shank selection:
+///     LW_STYLE_A_CKVD -> style_a_* family
+///     LW_STYLE_B_CKVD -> style_b_* family
+///
+/// VR:
+///     Active when VR, VW, VRR and VRA are all > 0.
+///
+/// Style base (style_a_feature/style_b_feature):
+///     Active for the resolved shank style regardless of subclass
+///     (PGB and FG both get it).
+///
+/// Style FR/BR family (style_a_fr_br_*/style_b_fr_*):
+///     Active for the resolved shank style, FG only.
+///     Suppressed for every other subclass (including PGB).
+///
+/// Ref point / cut:
+///     ON if VR = 0 and VW = 0     -> ref_point / cut_plan_feature / cut_feature
+///     ON if VR > 0 and VW > 0     -> ref_point_non_std_cut / non_std_cut_plan_feature / non_std_cut_feature
+///     ref_point_a and ref_point_b are always ON for Overlay.
+///     All of the above (and every overlay sketch) are suppressed
+///     for non-Overlay drawings.
+///
+/// Overlay W:
+///     w_pgb_overlay_sketch / w_fg_overlay_sketch are active for
+///     their respective subclass, unless VR > 0 and VW > 0, in which
+///     case a VW case sketch is used instead.
+///
+///     vg_fg_overlay_sketch is unconditionally ON for FG overlays.
+///
+///     VW Case 1 -> VR > 0 and VW > 0 and VW = W
+///     VW Case 2 -> VR > 0 and VW > 0 and VW > W
+///
+/// Overlay style sketches:
+///     PGB uses style_a_fl_pgb_overlay_sketch / style_b_fl_pgb_overlay_sketch.
+///     FG uses both style_a_fr_br_overlay_sketch / style_b_fr_br_overlay_sketch
+///     and style_a_fl_fg_overlay_sketch / style_b_fl_fg_overlay_sketch.
+///     Selection between the A/B pair is based on the resolved shank style.
+/// </summary>
 public sealed class CkvdFeatureRules : IFeatureRuleSet
 {
-    private const string AnnotationTopPlan =
-        "annotation_top_plan";
+    // ================================================================
+    // ALWAYS ON
+    // ================================================================
 
-    private const string AnnotationRightPlan =
-        "annotation_right_plan";
+    private static readonly string[] AlwaysOnNames =
+    {
+        "td_feature", "td_sketch",
+        "isa_feature", "isa_sketch"
+    };
 
-    private const string PartAxis =
-        "part_axis";
+    private static readonly string[] VrNames =
+    {
+        "vr_feature", "vr_sketch"
+    };
 
-    private const string TdFeature =
-        "td_feature";
+    // ================================================================
+    // STYLE BASE (PGB and FG)
+    // ================================================================
 
-    private const string IsaFeature =
-        "isa_feature";
+    private static readonly string[] StyleAFeatureNames =
+    {
+        "style_a_feature", "style_a_sketch"
+    };
 
-    private const string VrFeature =
-        "vr_feature";
+    private static readonly string[] StyleBFeatureNames =
+    {
+        "style_b_feature", "style_b_sketch"
+    };
 
-    private const string StyleAFeature =
-        "style_a_feature";
+    private static readonly string[] StyleBaseManagedNames =
+    {
+        "style_a_feature", "style_a_sketch",
+        "style_b_feature", "style_b_sketch"
+    };
 
-    private const string StyleBFeature =
-        "style_b_feature";
+    // ================================================================
+    // STYLE FR/BR FAMILY (FG ONLY)
+    // ================================================================
 
-    private const string StyleAFrBrFeature =
-        "style_a_fr_br_feature";
+    private static readonly string[] StyleAFrBrNames =
+    {
+        "style_a_fr_br_feature",
+        "style_a_fr_br_sketch",
+        "style_a_vg_sketch",
+        "style_a_fr_br_cut_feature"
+    };
 
-    private const string StyleAFrBrCutFeature =
-        "style_a_fr_br_cut_feature";
+    private static readonly string[] StyleBFrBrNames =
+    {
+        "style_b_fr_feature",
+        "style_b_fr_br_sketch",
+        "style_b_vg_sketch",
+        "style_b_fr_br_cut_feature"
+    };
 
-    private const string StyleBFrBrFeature =
-        "style_b_fr_br_feature";
+    private static readonly string[] StyleFrBrManagedNames =
+    {
+        "style_a_fr_br_feature",
+        "style_a_fr_br_sketch",
+        "style_a_vg_sketch",
+        "style_a_fr_br_cut_feature",
 
-    private const string StyleBFrBrCutFeature =
-        "style_b_fr_br_cut_feature";
+        "style_b_fr_feature",
+        "style_b_fr_br_sketch",
+        "style_b_vg_sketch",
+        "style_b_fr_br_cut_feature"
+    };
 
-    private const string RefPoint =
-        "ref_point";
+    // ================================================================
+    // REF POINT / CUT (OVERLAY ONLY)
+    // ================================================================
 
-    private const string RefPointNonStdCut =
-        "ref_point_non_std_cut";
+    private static readonly string[] RefPointStdNames =
+    {
+        "ref_point",
+        "cut_plan_feature",
+        "cut_feature"
+    };
 
-    private const string RefPointA =
-        "ref_point_a";
+    private static readonly string[] RefPointNonStdNames =
+    {
+        "ref_point_non_std_cut",
+        "non_std_cut_plan_feature",
+        "non_std_cut_feature"
+    };
 
-    private const string RefPointB =
-        "ref_point_b";
+    private static readonly string[] RefPointOverlayAlwaysOnNames =
+    {
+        "ref_point_a",
+        "ref_point_b"
+    };
 
-    private const string CutPlanFeature =
-        "cut_plan_feature";
+    private static readonly string[] RefCutManagedNames =
+    {
+        "ref_point",
+        "cut_plan_feature",
+        "cut_feature",
 
-    private const string CutFeature =
-        "cut_feature";
+        "ref_point_non_std_cut",
+        "non_std_cut_plan_feature",
+        "non_std_cut_feature",
 
-    private const string NonStdCutPlanFeature =
-        "non_std_cut_plan_feature";
+        "ref_point_a",
+        "ref_point_b"
+    };
 
-    private const string NonStdCutFeature =
-        "non_std_cut_feature";
+    // ================================================================
+    // OVERLAY SKETCHES (OVERLAY ONLY)
+    // ================================================================
 
     private const string WPgbOverlaySketch =
         "w_pgb_overlay_sketch";
 
-    private const string StyleAFlPgbOverlaySketch =
-        "style_a_fl_pgb_overlay_sketch";
-
-    private const string StyleBFlPgbOverlaySketch =
-        "style_b_fl_pgb_overlay_sketch";
-
-    private const string VwCase1PgbOverlaySketch =
-        "vw_case1_pgb_overlay_sketch";
-
-    private const string VwCase2PgbOverlaySketch =
-        "vw_case2_pgb_overlay_sketch";
-
-    private const string StyleAFrBrOverlaySketch =
-        "style_a_fr_br_overlay_sketch";
-
-    private const string StyleBFrBrOverlaySketch =
-        "style_b_fr_br_overlay_sketch";
+    private const string WFgOverlaySketch =
+        "w_fg_overlay_sketch";
 
     private const string VgFgOverlaySketch =
         "vg_fg_overlay_sketch";
 
-    private const string WFgOverlaySketch =
-        "w_fg_overlay_sketch";
-
-    private const string StyleAFlFgOverlaySketch =
-        "style_a_fl_fg_overlay_sketch";
-
-    private const string StyleBFlFgOverlaySketch =
-        "style_b_fl_fg_overlay_sketch";
-
-    private const string VwCase1FgOverlaySketch =
-        "vw_case1_fg_overlay_sketch";
-
-    private const string VwCase2FgOverlaySketch =
-        "vw_case2_fg_overlay_sketch";
-
-    /*
-     * These features are always active regardless of CKVD style.
-     *
-     * The style-specific front annotation planes are intentionally
-     * not managed by these rules. Their suppression state is left
-     * unchanged in the SolidWorks model.
-     */
-    private static readonly string[] AlwaysOn =
+    private static readonly string[] StyleFlPgbOverlaySketches =
     {
-        AnnotationTopPlan,
-        AnnotationRightPlan,
-        PartAxis,
-        TdFeature,
-        IsaFeature
+        "style_a_fl_pgb_overlay_sketch",
+        "style_b_fl_pgb_overlay_sketch"
     };
 
-    private static readonly string[] StyleFeatures =
+    private static readonly string[] StyleFlFgOverlaySketches =
     {
-        StyleAFeature,
-        StyleBFeature
+        "style_a_fl_fg_overlay_sketch",
+        "style_b_fl_fg_overlay_sketch"
     };
 
-    private static readonly string[] OverlayReferenceNames =
+    private static readonly string[] StyleFrBrOverlaySketches =
     {
-        RefPoint,
-        RefPointNonStdCut,
-        RefPointA,
-        RefPointB
+        "style_a_fr_br_overlay_sketch",
+        "style_b_fr_br_overlay_sketch"
     };
 
-    private static readonly string[] StandardCutNames =
+    private static readonly string[] VwCasePgbOverlaySketches =
     {
-        CutPlanFeature,
-        CutFeature
+        "vw_case1_pgb_overlay_sketch",
+        "vw_case2_pgb_overlay_sketch"
     };
 
-    private static readonly string[] NonStandardCutNames =
+    private static readonly string[] VwCaseFgOverlaySketches =
     {
-        NonStdCutPlanFeature,
-        NonStdCutFeature
+        "vw_case1_fg_overlay_sketch",
+        "vw_case2_fg_overlay_sketch"
     };
 
-    private static readonly string[] PgbStyleFlOverlaySketches =
+    private static readonly string[] OverlaySketchManagedNames =
     {
-        StyleAFlPgbOverlaySketch,
-        StyleBFlPgbOverlaySketch
-    };
+        "w_pgb_overlay_sketch",
+        "w_fg_overlay_sketch",
+        "vg_fg_overlay_sketch",
 
-    private static readonly string[] PgbVwCaseOverlaySketches =
-    {
-        VwCase1PgbOverlaySketch,
-        VwCase2PgbOverlaySketch
-    };
+        "style_a_fl_pgb_overlay_sketch",
+        "style_b_fl_pgb_overlay_sketch",
 
-    private static readonly string[] FgStyleFrBrOverlaySketches =
-    {
-        StyleAFrBrOverlaySketch,
-        StyleBFrBrOverlaySketch
-    };
+        "style_a_fl_fg_overlay_sketch",
+        "style_b_fl_fg_overlay_sketch",
 
-    private static readonly string[] FgStyleFlOverlaySketches =
-    {
-        StyleAFlFgOverlaySketch,
-        StyleBFlFgOverlaySketch
-    };
+        "style_a_fr_br_overlay_sketch",
+        "style_b_fr_br_overlay_sketch",
 
-    private static readonly string[] FgVwCaseOverlaySketches =
-    {
-        VwCase1FgOverlaySketch,
-        VwCase2FgOverlaySketch
-    };
+        "vw_case1_pgb_overlay_sketch",
+        "vw_case2_pgb_overlay_sketch",
 
-    /*
-     * These names are managed for Production, Customer and Overlay.
-     * Features that are known but not activated by the plan are
-     * suppressed by FeaturePlanBuilder.
-     */
-    private static readonly string[] ManagedNames =
-    {
-        AnnotationTopPlan,
-        AnnotationRightPlan,
-        PartAxis,
-        TdFeature,
-        IsaFeature,
-        VrFeature,
-        StyleAFeature,
-        StyleBFeature,
-        StyleAFrBrFeature,
-        StyleAFrBrCutFeature,
-        StyleBFrBrFeature,
-        StyleBFrBrCutFeature
+        "vw_case1_fg_overlay_sketch",
+        "vw_case2_fg_overlay_sketch"
     };
 
     private static readonly string[] OverlayManagedNames =
     {
-        RefPoint,
-        RefPointNonStdCut,
-        RefPointA,
-        RefPointB,
-        CutPlanFeature,
-        CutFeature,
-        NonStdCutPlanFeature,
-        NonStdCutFeature,
-        WPgbOverlaySketch,
-        StyleAFlPgbOverlaySketch,
-        StyleBFlPgbOverlaySketch,
-        VwCase1PgbOverlaySketch,
-        VwCase2PgbOverlaySketch,
-        StyleAFrBrOverlaySketch,
-        StyleBFrBrOverlaySketch,
-        VgFgOverlaySketch,
-        WFgOverlaySketch,
-        StyleAFlFgOverlaySketch,
-        StyleBFlFgOverlaySketch,
-        VwCase1FgOverlaySketch,
-        VwCase2FgOverlaySketch
+        "ref_point",
+        "cut_plan_feature",
+        "cut_feature",
+
+        "ref_point_non_std_cut",
+        "non_std_cut_plan_feature",
+        "non_std_cut_feature",
+
+        "ref_point_a",
+        "ref_point_b",
+
+        "w_pgb_overlay_sketch",
+        "w_fg_overlay_sketch",
+        "vg_fg_overlay_sketch",
+
+        "style_a_fl_pgb_overlay_sketch",
+        "style_b_fl_pgb_overlay_sketch",
+
+        "style_a_fl_fg_overlay_sketch",
+        "style_b_fl_fg_overlay_sketch",
+
+        "style_a_fr_br_overlay_sketch",
+        "style_b_fr_br_overlay_sketch",
+
+        "vw_case1_pgb_overlay_sketch",
+        "vw_case2_pgb_overlay_sketch",
+
+        "vw_case1_fg_overlay_sketch",
+        "vw_case2_fg_overlay_sketch"
     };
+
+    // ================================================================
+    // ENTRY POINT
+    // ================================================================
 
     public ModelRuleRunner.FeaturePlan Build(
         WedgeData wedge,
@@ -239,10 +270,16 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
         if (context is null)
             throw new ArgumentNullException(nameof(context));
 
-        var facts = new WedgeFacts(wedge);
+        var facts =
+            new WedgeFacts(wedge);
+
+        var shank =
+            ResolveShankType(
+                facts);
 
         Logger.Info(
             "[CkvdFeatureRules] Build -> " +
+            $"shank={shank}, " +
             $"subclass={context.Subclass}, " +
             $"drawingType={context.DrawingType}, " +
             $"targetConfig={context.TargetConfigurationName}, " +
@@ -250,416 +287,552 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
 
         return BuildDrawingPlan(
             facts,
-            context);
+            context,
+            shank);
     }
+
+    // ================================================================
+    // DRAWING PLAN
+    // ================================================================
 
     private static ModelRuleRunner.FeaturePlan BuildDrawingPlan(
         WedgeFacts facts,
-        FeatureRuleContext context)
+        FeatureRuleContext context,
+        CkvdShankType shank)
     {
-        var style = ResolveStyle(facts);
-
         var isOverlay =
             context.DrawingType == DrawingType.Overlay;
 
-        /*
-         * Preserve the existing VR feature rule, including VRA.
-         */
-        var hasVrFeatureFamily = HasAnyPositiveNominal(
-            facts,
-            "VR",
-            "VW",
-            "VRR",
-            "VRA");
+        var hasVrFamily =
+            HasAllPositiveNominal(
+                facts,
+                "VR",
+                "VW",
+                "VRR",
+                "VRA");
 
         /*
-         * The new CKVD overlay case selection is driven specifically
-         * by VR, VRR and VW, as defined by the overlay specification.
+         * Used for the ref-point/cut selection and the overlay W /
+         * VW-case suppression. Only VR and VW are considered here,
+         * unlike hasVrFamily above which also requires VRR and VRA.
          */
-        var hasOverlayVrFamily = HasAnyPositiveNominal(
-            facts,
-            "VR",
-            "VRR",
-            "VW");
+        var hasVrVw =
+            facts.HasPositive(
+                "VR") &&
+            facts.HasPositive(
+                "VW");
 
-        var overlayVwCase = ResolveOverlayVwCase(
-            facts,
-            hasOverlayVrFamily);
+        var vwCase =
+            ResolveVwCase(
+                facts,
+                hasVrVw);
 
-        var plan = new FeaturePlanBuilder()
-            .Know(ManagedNames)
-            .Activate(AlwaysOn)
-            .ForceSuppress(
-                SwNames.EngravingFeature,
-                SwNames.EngravingSketch);
+        var plan =
+            new FeaturePlanBuilder()
+                .Know(AlwaysOnNames)
+                .Know(VrNames)
+                .Know(StyleBaseManagedNames)
+                .Know(StyleFrBrManagedNames)
+                .Know(OverlayManagedNames);
+
+        ApplyBaseRules(
+            plan,
+            hasVrFamily);
+
+        ApplyStyleRules(
+            plan,
+            context.Subclass,
+            shank);
 
         if (isOverlay)
         {
-            plan.Know(OverlayManagedNames);
-            plan.Activate(OverlayReferenceNames);
-
-            ApplyOverlayCutRules(
+            ApplyOverlayRules(
                 plan,
-                context);
-
-            ApplyOverlaySketchRules(
-                plan,
-                context.Subclass,
-                style,
-                overlayVwCase);
+                context,
+                shank,
+                hasVrVw,
+                vwCase);
         }
-
-        /*
-         * vr_feature is enabled when at least one member of the
-         * existing VR dimension family has a positive nominal value.
-         */
-        if (hasVrFeatureFamily)
-            plan.Activate(VrFeature);
-
-        /*
-         * Only the feature belonging to the resolved CKVD style
-         * may remain active.
-         */
-        plan.ActivateOnly(
-            style == CkvdStyle.StyleA
-                ? StyleAFeature
-                : StyleBFeature,
-            StyleFeatures);
-
-        /*
-         * PGB:
-         * All four FR/BR features stay suppressed because they are
-         * known by the plan but none of them is activated.
-         *
-         * FG:
-         * Activate the FR/BR feature and cut belonging to the
-         * selected CKVD style.
-         */
-        if (context.Subclass == WedgeSubclass.FG)
+        else
         {
-            if (style == CkvdStyle.StyleA)
-            {
-                plan.Activate(
-                    StyleAFrBrFeature,
-                    StyleAFrBrCutFeature);
-            }
-            else
-            {
-                plan.Activate(
-                    StyleBFrBrFeature,
-                    StyleBFrBrCutFeature);
-            }
-
-            /*
-             * FG Overlay follows the same TIP rule as FG
-             * Production and Customer.
-             */
-            AddTipGuardPlan(
-                facts,
-                plan);
+            plan.ForceSuppress(
+                OverlayManagedNames);
         }
 
         Logger.Info(
             "[CkvdFeatureRules] Drawing plan -> " +
+            $"shank={shank}, " +
             $"drawingType={context.DrawingType}, " +
             $"subclass={context.Subclass}, " +
-            $"style={style}, " +
-            $"VR feature family present={hasVrFeatureFamily}, " +
-            $"overlay VR/VRR/VW present={hasOverlayVrFamily}, " +
-            $"overlay VW case={overlayVwCase}, " +
-            $"FR/BR features active={context.Subclass == WedgeSubclass.FG}.");
+            $"VR family={hasVrFamily}, " +
+            $"VR/VW={hasVrVw}, " +
+            $"VW case={vwCase}.");
 
         return plan.Build();
     }
 
-    private static void ApplyOverlayCutRules(
+    // ================================================================
+    // BASE FEATURE RULES
+    // ================================================================
+
+    private static void ApplyBaseRules(
         FeaturePlanBuilder plan,
-        FeatureRuleContext context)
+        bool hasVrFamily)
     {
-        var mode = ResolveOverlayCutMode(context);
+        plan.Activate(
+            AlwaysOnNames);
 
-        plan.Deactivate(StandardCutNames);
-        plan.Deactivate(NonStandardCutNames);
+        plan.Deactivate(
+            VrNames);
 
-        if (mode == OverlayCutMode.NonStandard)
+        if (hasVrFamily)
         {
-            plan.Activate(NonStandardCutNames);
+            plan.Activate(
+                VrNames);
+        }
+    }
+
+    // ================================================================
+    // STYLE RULES
+    // ================================================================
+
+    private static void ApplyStyleRules(
+        FeaturePlanBuilder plan,
+        WedgeSubclass subclass,
+        CkvdShankType shank)
+    {
+        plan.Deactivate(
+            StyleBaseManagedNames);
+
+        plan.Deactivate(
+            StyleFrBrManagedNames);
+
+        /*
+         * Style base is ON for the resolved shank style regardless
+         * of subclass (PGB and FG both get it).
+         */
+        if (shank == CkvdShankType.A)
+        {
+            plan.Activate(
+                StyleAFeatureNames);
         }
         else
         {
-            plan.Activate(StandardCutNames);
+            plan.Activate(
+                StyleBFeatureNames);
         }
 
-        Logger.Info(
-            "[CkvdFeatureRules] Overlay cut selection -> " +
-            $"mode={mode}, config={context.TargetConfigurationName}, " +
-            $"profile={context.FeatureRuleProfile ?? "(none)"}.");
-    }
-
-    private static OverlayCutMode ResolveOverlayCutMode(
-        FeatureRuleContext context)
-    {
-        var token =
-            string.IsNullOrWhiteSpace(context.FeatureRuleProfile)
-                ? context.TargetConfigurationName
-                : context.FeatureRuleProfile;
-
-        var normalized =
-            (token ?? string.Empty)
-            .Trim()
-            .Replace('-', '_')
-            .Replace(' ', '_')
-            .ToLowerInvariant();
-
-        return normalized switch
+        /*
+         * Style FR/BR family is FG only.
+         */
+        if (subclass != WedgeSubclass.FG)
         {
-            "overlay_non_std_cut" =>
-                OverlayCutMode.NonStandard,
+            plan.ForceSuppress(
+                StyleFrBrManagedNames);
 
-            OverlayCutProfiles.NonStandardCut =>
-                OverlayCutMode.NonStandard,
-
-            "default" =>
-                OverlayCutMode.Standard,
-
-            "overlay" =>
-                OverlayCutMode.Standard,
-
-            OverlayCutProfiles.DefaultConfiguration =>
-                OverlayCutMode.Standard,
-
-            OverlayCutProfiles.StandardCut =>
-                OverlayCutMode.Standard,
-
-            _ => ResolveUnknownOverlayCutMode(
-                normalized)
-        };
-    }
-
-    private static OverlayCutMode ResolveUnknownOverlayCutMode(
-        string normalizedProfile)
-    {
-        Logger.Warn(
-            "[CkvdFeatureRules] Unknown overlay configuration/profile " +
-            $"'{normalizedProfile}'. Preserving the previous CKVD " +
-            "behavior by using the standard cut features.");
-
-        return OverlayCutMode.Standard;
-    }
-
-    private static void ApplyOverlaySketchRules(
-        FeaturePlanBuilder plan,
-        WedgeSubclass subclass,
-        CkvdStyle style,
-        OverlayVwCase overlayVwCase)
-    {
-        if (subclass == WedgeSubclass.PGB)
-        {
-            plan.Activate(WPgbOverlaySketch);
-
-            plan.ActivateOnly(
-                style == CkvdStyle.StyleA
-                    ? StyleAFlPgbOverlaySketch
-                    : StyleBFlPgbOverlaySketch,
-                PgbStyleFlOverlaySketches);
-
-            ActivatePgbVwCaseSketch(
-                plan,
-                overlayVwCase);
+            Logger.Info(
+                "[CkvdFeatureRules] Non-FG subclass -> style FR/BR " +
+                "features suppressed.");
 
             return;
+        }
+
+        if (shank == CkvdShankType.A)
+        {
+            plan.Activate(
+                StyleAFrBrNames);
+        }
+        else
+        {
+            plan.Activate(
+                StyleBFrBrNames);
+        }
+    }
+
+    // ================================================================
+    // OVERLAY RULES
+    // ================================================================
+
+    private static void ApplyOverlayRules(
+        FeaturePlanBuilder plan,
+        FeatureRuleContext context,
+        CkvdShankType shank,
+        bool hasVrVw,
+        VwCase vwCase)
+    {
+        plan.Deactivate(
+            OverlayManagedNames);
+
+        ApplyRefPointCutRule(
+            plan,
+            hasVrVw);
+
+        ApplyWOverlayRule(
+            plan,
+            context.Subclass,
+            hasVrVw);
+
+        ApplyVwCaseOverlayRule(
+            plan,
+            context.Subclass,
+            vwCase);
+
+        ApplyStyleOverlayRule(
+            plan,
+            context.Subclass,
+            shank);
+    }
+
+    private static void ApplyRefPointCutRule(
+        FeaturePlanBuilder plan,
+        bool hasVrVw)
+    {
+        plan.Deactivate(
+            RefPointStdNames);
+
+        plan.Deactivate(
+            RefPointNonStdNames);
+
+        if (hasVrVw)
+        {
+            plan.Activate(
+                RefPointNonStdNames);
+
+            plan.ForceSuppress(
+                RefPointStdNames);
+        }
+        else
+        {
+            plan.Activate(
+                RefPointStdNames);
+
+            plan.ForceSuppress(
+                RefPointNonStdNames);
         }
 
         plan.Activate(
-            VgFgOverlaySketch,
-            WFgOverlaySketch);
-
-        plan.ActivateOnly(
-            style == CkvdStyle.StyleA
-                ? StyleAFrBrOverlaySketch
-                : StyleBFrBrOverlaySketch,
-            FgStyleFrBrOverlaySketches);
-
-        plan.ActivateOnly(
-            style == CkvdStyle.StyleA
-                ? StyleAFlFgOverlaySketch
-                : StyleBFlFgOverlaySketch,
-            FgStyleFlOverlaySketches);
-
-        ActivateFgVwCaseSketch(
-            plan,
-            overlayVwCase);
+            RefPointOverlayAlwaysOnNames);
     }
 
-    private static void ActivatePgbVwCaseSketch(
+    private static void ApplyWOverlayRule(
         FeaturePlanBuilder plan,
-        OverlayVwCase overlayVwCase)
+        WedgeSubclass subclass,
+        bool hasVrVw)
     {
-        if (overlayVwCase == OverlayVwCase.None)
-            return;
+        plan.Deactivate(
+            WPgbOverlaySketch,
+            WFgOverlaySketch,
+            VgFgOverlaySketch);
 
-        plan.ActivateOnly(
-            overlayVwCase == OverlayVwCase.Case1
-                ? VwCase1PgbOverlaySketch
-                : VwCase2PgbOverlaySketch,
-            PgbVwCaseOverlaySketches);
-    }
-
-    private static void ActivateFgVwCaseSketch(
-        FeaturePlanBuilder plan,
-        OverlayVwCase overlayVwCase)
-    {
-        if (overlayVwCase == OverlayVwCase.None)
-            return;
-
-        plan.ActivateOnly(
-            overlayVwCase == OverlayVwCase.Case1
-                ? VwCase1FgOverlaySketch
-                : VwCase2FgOverlaySketch,
-            FgVwCaseOverlaySketches);
-    }
-
-    private static OverlayVwCase ResolveOverlayVwCase(
-        WedgeFacts facts,
-        bool hasOverlayVrFamily)
-    {
-        if (!hasOverlayVrFamily ||
-            !facts.TryGetLengthMm(
-                "VW",
-                out var vwMillimeters) ||
-            vwMillimeters <= WedgeFacts.DefaultPositiveEpsilon)
+        if (subclass == WedgeSubclass.PGB)
         {
-            return OverlayVwCase.None;
+            plan.ForceSuppress(
+                WFgOverlaySketch,
+                VgFgOverlaySketch);
+
+            if (hasVrVw)
+            {
+                plan.ForceSuppress(
+                    WPgbOverlaySketch);
+            }
+            else
+            {
+                plan.Activate(
+                    WPgbOverlaySketch);
+            }
+
+            return;
+        }
+
+        /*
+         * FG (and any other subclass, mirroring the ABT default-to-FG
+         * handling).
+         */
+        plan.ForceSuppress(
+            WPgbOverlaySketch);
+
+        plan.Activate(
+            VgFgOverlaySketch);
+
+        if (hasVrVw)
+        {
+            plan.ForceSuppress(
+                WFgOverlaySketch);
+        }
+        else
+        {
+            plan.Activate(
+                WFgOverlaySketch);
+        }
+    }
+
+    private static void ApplyVwCaseOverlayRule(
+        FeaturePlanBuilder plan,
+        WedgeSubclass subclass,
+        VwCase vwCase)
+    {
+        plan.Deactivate(
+            VwCasePgbOverlaySketches);
+
+        plan.Deactivate(
+            VwCaseFgOverlaySketches);
+
+        var targetSketches =
+            subclass == WedgeSubclass.PGB
+                ? VwCasePgbOverlaySketches
+                : VwCaseFgOverlaySketches;
+
+        var otherSketches =
+            subclass == WedgeSubclass.PGB
+                ? VwCaseFgOverlaySketches
+                : VwCasePgbOverlaySketches;
+
+        plan.ForceSuppress(
+            otherSketches);
+
+        if (vwCase == VwCase.None)
+        {
+            plan.ForceSuppress(
+                targetSketches);
+
+            return;
+        }
+
+        plan.ActivateOnly(
+            vwCase == VwCase.Case1
+                ? targetSketches[0]
+                : targetSketches[1],
+            targetSketches);
+    }
+
+    private static void ApplyStyleOverlayRule(
+        FeaturePlanBuilder plan,
+        WedgeSubclass subclass,
+        CkvdShankType shank)
+    {
+        plan.Deactivate(
+            StyleFlPgbOverlaySketches);
+
+        plan.Deactivate(
+            StyleFlFgOverlaySketches);
+
+        plan.Deactivate(
+            StyleFrBrOverlaySketches);
+
+        if (subclass == WedgeSubclass.PGB)
+        {
+            plan.ForceSuppress(
+                StyleFlFgOverlaySketches);
+
+            plan.ForceSuppress(
+                StyleFrBrOverlaySketches);
+
+            plan.ActivateOnly(
+                shank == CkvdShankType.A
+                    ? StyleFlPgbOverlaySketches[0]
+                    : StyleFlPgbOverlaySketches[1],
+                StyleFlPgbOverlaySketches);
+
+            return;
+        }
+
+        /*
+         * FG (and any other subclass, mirroring the ABT default-to-FG
+         * handling).
+         */
+        plan.ForceSuppress(
+            StyleFlPgbOverlaySketches);
+
+        plan.ActivateOnly(
+            shank == CkvdShankType.A
+                ? StyleFlFgOverlaySketches[0]
+                : StyleFlFgOverlaySketches[1],
+            StyleFlFgOverlaySketches);
+
+        plan.ActivateOnly(
+            shank == CkvdShankType.A
+                ? StyleFrBrOverlaySketches[0]
+                : StyleFrBrOverlaySketches[1],
+            StyleFrBrOverlaySketches);
+    }
+
+    private static VwCase ResolveVwCase(
+        WedgeFacts facts,
+        bool hasVrVw)
+    {
+        if (!hasVrVw)
+            return VwCase.None;
+
+        if (!facts.TryGetLengthMm(
+                "VW",
+                out var vwMm) ||
+            vwMm <= WedgeFacts.DefaultPositiveEpsilon)
+        {
+            return VwCase.None;
         }
 
         if (!facts.TryGetLengthMm(
                 "W",
-                out var wMillimeters))
+                out var wMm))
         {
             Logger.Warn(
-                "[CkvdFeatureRules] VW is present but W is missing or " +
-                "not a length. No CKVD VW overlay case sketch was selected.");
+                "[CkvdFeatureRules] VR/VW is present but W is missing " +
+                "or is not a length. No CKVD VW overlay case was selected.");
 
-            return OverlayVwCase.None;
+            return VwCase.None;
         }
 
         if (decimal.Abs(
-                vwMillimeters -
-                wMillimeters) <= WedgeFacts.DefaultPositiveEpsilon)
+                vwMm -
+                wMm) <=
+            WedgeFacts.DefaultPositiveEpsilon)
         {
-            return OverlayVwCase.Case1;
+            return VwCase.Case1;
         }
 
-        if (vwMillimeters >
-            wMillimeters + WedgeFacts.DefaultPositiveEpsilon)
+        if (vwMm > wMm)
         {
-            return OverlayVwCase.Case2;
+            return VwCase.Case2;
         }
 
         Logger.Warn(
-            "[CkvdFeatureRules] CKVD overlay received VW < W " +
-            $"(VW={vwMillimeters} mm, W={wMillimeters} mm). " +
-            "Only VW = W (Case 1) and VW > W (Case 2) are defined; " +
-            "no VW case sketch was selected.");
+            "[CkvdFeatureRules] VW " +
+            $"({vwMm} mm) is less than W ({wMm} mm); " +
+            "no CKVD VW overlay case is defined for this combination.");
 
-        return OverlayVwCase.None;
+        return VwCase.None;
     }
 
-    private static CkvdStyle ResolveStyle(
+    // ================================================================
+    // SHANK SELECTION
+    // ================================================================
+
+    private static CkvdShankType ResolveShankType(
         WedgeFacts facts)
     {
-        var raw = facts.NormalizedPropertyToken(
-            "Wed-Type",
-            "Wed_Type",
-            "Wed Type",
-            "Shank_Type",
-            "shank_type");
+        var raw =
+            facts.NormalizedPropertyToken(
+                "Wed-Type",
+                "Wed_Type",
+                "Wed Type",
+                "Wedge-Type",
+                "Wedge_Type",
+                "wedge_type");
 
-        if (string.Equals(
-                raw,
-                "LW_STYLE_A_CKVD",
-                StringComparison.OrdinalIgnoreCase))
+        var token =
+            NormalizePackedToken(
+                raw);
+
+        return token switch
         {
-            return CkvdStyle.StyleA;
-        }
+            "LW_STYLE_A_CKVD" or
+            "STYLE_A_CKVD" or
+            "STYLE_A" or
+            "A" =>
+                CkvdShankType.A,
 
-        if (string.Equals(
-                raw,
-                "LW_STYLE_B_CKVD",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return CkvdStyle.StyleB;
-        }
+            "LW_STYLE_B_CKVD" or
+            "STYLE_B_CKVD" or
+            "STYLE_B" or
+            "B" =>
+                CkvdShankType.B,
 
-        throw new InvalidOperationException(
-            "Unable to resolve the CKVD shank style from Wed-Type. " +
-            "Expected 'LW_STYLE_A_CKVD' or " +
-            $"'LW_STYLE_B_CKVD', but received '{raw}'.");
+            _ =>
+                throw new InvalidOperationException(
+                    "Unable to resolve the CKVD shank from 'Wed-Type'. " +
+                    "Expected LW_STYLE_A_CKVD or LW_STYLE_B_CKVD, but received " +
+                    $"'{DisplayToken(token)}'.")
+        };
     }
 
-    private static bool HasAnyPositiveNominal(
+    // ================================================================
+    // DIMENSION HELPERS
+    // ================================================================
+
+    private static bool HasAllPositiveNominal(
         WedgeFacts facts,
         params string[] dimensionKeys)
     {
         foreach (var key in dimensionKeys)
         {
-            if (facts.HasPositive(key))
-                return true;
+            if (!facts.HasPositive(key))
+                return false;
         }
 
-        return false;
+        return true;
     }
 
-    private static void AddTipGuardPlan(
-        WedgeFacts facts,
-        FeaturePlanBuilder plan)
+    // ================================================================
+    // TOKEN HELPERS
+    // ================================================================
+
+    private static string NormalizePackedToken(
+        string? raw)
     {
-        if (!facts.TryGetLengthMm(
-                "TIP",
-                out var tipMm))
-        {
-            Logger.Info(
-                "[CkvdFeatureRules] TIP not present/mm -> " +
-                "TIP guard skipped.");
+        if (string.IsNullOrWhiteSpace(raw))
+            return string.Empty;
 
-            return;
+        var token =
+            RemovePackedDatabaseSuffix(raw)
+                .Trim()
+                .Replace('-', '_')
+                .Replace(' ', '_')
+                .Trim('_')
+                .ToUpperInvariant();
+
+        while (token.Contains(
+                   "__",
+                   StringComparison.Ordinal))
+        {
+            token =
+                token.Replace(
+                    "__",
+                    "_",
+                    StringComparison.Ordinal);
         }
 
-        plan.Know(SwNames.SketchCrmet);
-
-        if (tipMm <= WedgeFacts.DefaultPositiveEpsilon)
-        {
-            plan.ForceSuppress(
-                SwNames.SketchCrmet);
-
-            Logger.Info(
-                $"[CkvdFeatureRules] TIP={tipMm} mm -> " +
-                $"suppress '{SwNames.SketchCrmet}'.");
-        }
-        else
-        {
-            plan.Activate(
-                SwNames.SketchCrmet);
-
-            Logger.Info(
-                $"[CkvdFeatureRules] TIP={tipMm} mm -> " +
-                $"unsuppress '{SwNames.SketchCrmet}'.");
-        }
+        return token;
     }
 
-    private enum CkvdStyle
+    private static string RemovePackedDatabaseSuffix(
+        string raw)
     {
-        StyleA,
-        StyleB
+        var token =
+            raw
+                .Trim()
+                .Trim('\0');
+
+        var separatorIndex =
+            token.IndexOf(';');
+
+        if (separatorIndex >= 0)
+        {
+            token =
+                token[..separatorIndex];
+        }
+
+        return token;
     }
 
-    private enum OverlayCutMode
+    private static string DisplayToken(
+        string token)
     {
-        Standard,
-        NonStandard
+        return string.IsNullOrWhiteSpace(token)
+            ? "<missing>"
+            : token;
     }
 
-    private enum OverlayVwCase
+    // ================================================================
+    // ENUMS
+    // ================================================================
+
+    private enum CkvdShankType
+    {
+        A,
+        B
+    }
+
+    private enum VwCase
     {
         None,
         Case1,

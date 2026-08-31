@@ -67,7 +67,8 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
         OverlayReferencePointSketch: "std_ref_point_right",
         RepositionPrimaryOverlayViews: false,
         DeleteFrontOverlayViewWhenVrIsZero: false,
-        HideVrExtremaWhenOverlayCompressed: false);
+        HideVrExtremaWhenOverlayCompressed: false,
+        BreaklineTlOverrideMm: 20.0m);
 
     public IReadOnlyList<DrawingProfile> Profiles { get; }
 

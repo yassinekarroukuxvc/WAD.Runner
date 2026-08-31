@@ -23,7 +23,8 @@ internal static class UtusDimensionRules
     {
         var dims = new List<DimensionSpec>();
 
-        var TL = LayoutMath.Dmm(ctx, "TL");
+        //var TL = LayoutMath.Dmm(ctx, "TL");
+        var TL = 20.0; 
         var TD = LayoutMath.Dmm(ctx, "TD");
 
         if (TL <= 0) diag.Suspicious("PLN003", "TL <= 0 detected.");
@@ -62,7 +63,8 @@ internal static class UtusDimensionRules
         var dsv = LayoutMath.Scale(ctx, Detail);
         var scv = LayoutMath.Scale(ctx, Section);
 
-        var TL = LayoutMath.Dmm(ctx, "TL");
+        //var TL = LayoutMath.Dmm(ctx, "TL");
+        var TL = 20.0;
         var TD = LayoutMath.Dmm(ctx, "TD");
 
         var L_front = TL * fsv;

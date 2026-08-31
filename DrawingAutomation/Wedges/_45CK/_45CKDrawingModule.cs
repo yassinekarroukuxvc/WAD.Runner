@@ -127,7 +127,8 @@ public sealed class _45CKDrawingModule : IDrawingWedgeModule
         OverlayReferencePointSketch: "ref_point_right",
         RepositionPrimaryOverlayViews: false,
         DeleteFrontOverlayViewWhenVrIsZero: false,
-        HideVrExtremaWhenOverlayCompressed: false);
+        HideVrExtremaWhenOverlayCompressed: false,
+        BreaklineTlOverrideMm: 20.0m);
 
     public IReadOnlyList<DrawingProfile> Profiles { get; }
 

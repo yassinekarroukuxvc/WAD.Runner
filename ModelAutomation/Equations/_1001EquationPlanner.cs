@@ -44,6 +44,12 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
                     EquationCatalog.DbToModelAliases)
                 .SkipProvidedZeroDimensions();
 
+        builder.AddManaged(
+            "TL",
+            EquationFormatting.LengthLineFromMillimeters(
+                "TL",
+                20.0));
+
         AddFootDepthEquation(
             builder,
             facts);

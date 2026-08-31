@@ -116,7 +116,8 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         OverlayReferencePointSketch: "ref_point_1",
         RepositionPrimaryOverlayViews: false,
         DeleteFrontOverlayViewWhenVrIsZero: true,
-        HideVrExtremaWhenOverlayCompressed: false);
+        HideVrExtremaWhenOverlayCompressed: false,
+        BreaklineTlOverrideMm: 20.0m);
 
     public IReadOnlyList<DrawingProfile> Profiles { get; }
 
