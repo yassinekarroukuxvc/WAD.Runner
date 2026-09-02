@@ -27,19 +27,26 @@ namespace WAD.Runner.ModelAutomation.Rules.CKVD;
 ///     Active for the resolved shank style, FG only.
 ///     Suppressed for every other subclass (including PGB).
 ///
-/// Ref point / cut:
-///     ON if VR = 0 and VW = 0     -> ref_point / cut_plan_feature / cut_feature
-///     ON if VR > 0 and VW > 0     -> ref_point_non_std_cut / non_std_cut_plan_feature / non_std_cut_feature
-///     ref_point_a and ref_point_b are always ON for Overlay.
-///     All of the above (and every overlay sketch) are suppressed
-///     for non-Overlay drawings.
+/// Ref point / cut feature:
+///     ref_point, ref_point_a, ref_point_b, cut_plan_feature and
+///     cut_feature are ON only when the resolved drawing
+///     configuration is "Overlay".
+///     ref_point_non_std_cut, non_std_cut_plan_feature and
+///     non_std_cut_feature are ON only when the resolved drawing
+///     configuration is "Overlay_non_std_cut".
+///     (See CkvdConfigurationRules for how the configuration name
+///     is resolved from VR/VRR/VW.)
+///
+///     All of the ref-point/cut features (and every overlay sketch)
+///     are suppressed for non-Overlay drawings.
 ///
 /// Overlay W:
 ///     w_pgb_overlay_sketch / w_fg_overlay_sketch are active for
 ///     their respective subclass, unless VR > 0 and VW > 0, in which
 ///     case a VW case sketch is used instead.
 ///
-///     vg_fg_overlay_sketch is unconditionally ON for FG overlays.
+///     vg_fg_overaly_sketch is unconditionally ON for FG overlays.
+///     (Name kept as "overaly" - matches the source of truth.)
 ///
 ///     VW Case 1 -> VR > 0 and VW > 0 and VW = W
 ///     VW Case 2 -> VR > 0 and VW > 0 and VW > W
@@ -121,41 +128,37 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
     };
 
     // ================================================================
-    // REF POINT / CUT (OVERLAY ONLY)
+    // REF POINT / CUT FEATURE (OVERLAY ONLY - DRIVEN BY THE RESOLVED
+    // CONFIG NAME)
     // ================================================================
 
-    private static readonly string[] RefPointStdNames =
+    private static readonly string[] OverlayCutGroupNames =
     {
         "ref_point",
+        "ref_point_a",
+        "ref_point_b",
         "cut_plan_feature",
         "cut_feature"
     };
 
-    private static readonly string[] RefPointNonStdNames =
+    private static readonly string[] OverlayNonStdCutGroupNames =
     {
         "ref_point_non_std_cut",
         "non_std_cut_plan_feature",
         "non_std_cut_feature"
     };
 
-    private static readonly string[] RefPointOverlayAlwaysOnNames =
-    {
-        "ref_point_a",
-        "ref_point_b"
-    };
-
     private static readonly string[] RefCutManagedNames =
     {
         "ref_point",
+        "ref_point_a",
+        "ref_point_b",
         "cut_plan_feature",
         "cut_feature",
 
         "ref_point_non_std_cut",
         "non_std_cut_plan_feature",
-        "non_std_cut_feature",
-
-        "ref_point_a",
-        "ref_point_b"
+        "non_std_cut_feature"
     };
 
     // ================================================================
@@ -168,8 +171,12 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
     private const string WFgOverlaySketch =
         "w_fg_overlay_sketch";
 
+    /*
+     * Kept as "vg_fg_overaly_sketch" (typo) - matches the actual
+     * feature name in the SolidWorks model.
+     */
     private const string VgFgOverlaySketch =
-        "vg_fg_overlay_sketch";
+        "vg_fg_overaly_sketch";
 
     private static readonly string[] StyleFlPgbOverlaySketches =
     {
@@ -205,7 +212,7 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
     {
         "w_pgb_overlay_sketch",
         "w_fg_overlay_sketch",
-        "vg_fg_overlay_sketch",
+        "vg_fg_overaly_sketch",
 
         "style_a_fl_pgb_overlay_sketch",
         "style_b_fl_pgb_overlay_sketch",
@@ -226,6 +233,8 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
     private static readonly string[] OverlayManagedNames =
     {
         "ref_point",
+        "ref_point_a",
+        "ref_point_b",
         "cut_plan_feature",
         "cut_feature",
 
@@ -233,12 +242,9 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
         "non_std_cut_plan_feature",
         "non_std_cut_feature",
 
-        "ref_point_a",
-        "ref_point_b",
-
         "w_pgb_overlay_sketch",
         "w_fg_overlay_sketch",
-        "vg_fg_overlay_sketch",
+        "vg_fg_overaly_sketch",
 
         "style_a_fl_pgb_overlay_sketch",
         "style_b_fl_pgb_overlay_sketch",
@@ -312,9 +318,7 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
                 "VRA");
 
         /*
-         * Used for the ref-point/cut selection and the overlay W /
-         * VW-case suppression. Only VR and VW are considered here,
-         * unlike hasVrFamily above which also requires VRR and VRA.
+         * Used for the overlay W / VW-case suppression only.
          */
         var hasVrVw =
             facts.HasPositive(
@@ -364,6 +368,7 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
             $"shank={shank}, " +
             $"drawingType={context.DrawingType}, " +
             $"subclass={context.Subclass}, " +
+            $"targetConfig={context.TargetConfigurationName}, " +
             $"VR family={hasVrFamily}, " +
             $"VR/VW={hasVrVw}, " +
             $"VW case={vwCase}.");
@@ -465,7 +470,7 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
 
         ApplyRefPointCutRule(
             plan,
-            hasVrVw);
+            context);
 
         ApplyWOverlayRule(
             plan,
@@ -483,35 +488,82 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
             shank);
     }
 
+    /// <summary>
+    /// ref_point / ref_point_a / ref_point_b / cut_plan_feature /
+    /// cut_feature and ref_point_non_std_cut / non_std_cut_plan_feature /
+    /// non_std_cut_feature are driven directly by the resolved drawing
+    /// configuration name ("Overlay" vs "Overlay_non_std_cut"), as
+    /// produced by CkvdConfigurationRules.
+    /// </summary>
     private static void ApplyRefPointCutRule(
         FeaturePlanBuilder plan,
-        bool hasVrVw)
+        FeatureRuleContext context)
     {
         plan.Deactivate(
-            RefPointStdNames);
+            OverlayCutGroupNames);
 
         plan.Deactivate(
-            RefPointNonStdNames);
+            OverlayNonStdCutGroupNames);
 
-        if (hasVrVw)
+        var cutConfig =
+            ResolveCutConfiguration(
+                context);
+
+        switch (cutConfig)
         {
-            plan.Activate(
-                RefPointNonStdNames);
+            case CutConfiguration.Overlay:
+                plan.Activate(
+                    OverlayCutGroupNames);
 
-            plan.ForceSuppress(
-                RefPointStdNames);
+                plan.ForceSuppress(
+                    OverlayNonStdCutGroupNames);
+
+                break;
+
+            case CutConfiguration.OverlayNonStdCut:
+                plan.Activate(
+                    OverlayNonStdCutGroupNames);
+
+                plan.ForceSuppress(
+                    OverlayCutGroupNames);
+
+                break;
+
+            case CutConfiguration.None:
+            default:
+                plan.ForceSuppress(
+                    OverlayCutGroupNames);
+
+                plan.ForceSuppress(
+                    OverlayNonStdCutGroupNames);
+
+                break;
         }
-        else
+
+        Logger.Info(
+            "[CkvdFeatureRules] Ref-point/cut config -> " +
+            $"targetConfig={context.TargetConfigurationName}, " +
+            $"resolved={cutConfig}.");
+    }
+
+    private static CutConfiguration ResolveCutConfiguration(
+        FeatureRuleContext context)
+    {
+        var normalized =
+            NormalizePackedToken(
+                context.TargetConfigurationName);
+
+        return normalized switch
         {
-            plan.Activate(
-                RefPointStdNames);
+            "OVERLAY" =>
+                CutConfiguration.Overlay,
 
-            plan.ForceSuppress(
-                RefPointNonStdNames);
-        }
+            "OVERLAY_NON_STD_CUT" =>
+                CutConfiguration.OverlayNonStdCut,
 
-        plan.Activate(
-            RefPointOverlayAlwaysOnNames);
+            _ =>
+                CutConfiguration.None
+        };
     }
 
     private static void ApplyWOverlayRule(
@@ -837,5 +889,12 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
         None,
         Case1,
         Case2
+    }
+
+    private enum CutConfiguration
+    {
+        None,
+        Overlay,
+        OverlayNonStdCut
     }
 }

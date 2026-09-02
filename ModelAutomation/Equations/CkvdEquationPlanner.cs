@@ -97,7 +97,7 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
             radiusKey: "BR",
             angleNameForLog: "BA");
 
-        if (shankStyle == CkvdShankStyle.StyleB)
+        if (shankStyle == CkvdShankStyle.StyleB || shankStyle == CkvdShankStyle.StyleA)
         {
             AddCalculatedXIfMissing(
                 builder,
