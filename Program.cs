@@ -79,7 +79,10 @@ var host = Host.CreateDefaultBuilder(args)
             var apiKey = ctx.Configuration.GetValue<string>("Runner:JavaDbApi:ApiKey");
 
             var firma = ctx.Configuration.GetValue<int?>("ProAlpha:Firma") ?? 200;
-            var language = ctx.Configuration.GetValue<string>("ProAlpha:Language", "E");
+            var language = ctx.Configuration.GetValue<string>("ProAlpha:Language", "E") ?? "E";
+
+            services.AddSingleton<JavaDatabaseSelectionContext>();
+            services.AddTransient<JavaDatabaseSelectionHandler>();
 
             services.AddHttpClient("JavaLegacyWedgeTransport", http =>
             {
@@ -91,7 +94,8 @@ var host = Host.CreateDefaultBuilder(args)
 
                 if (!string.IsNullOrWhiteSpace(apiKey))
                     http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
-            });
+            })
+            .AddHttpMessageHandler<JavaDatabaseSelectionHandler>();
 
             services.AddSingleton<IJavaWedgeTransport>(sp =>
             {
@@ -167,6 +171,29 @@ if (string.IsNullOrWhiteSpace(cmd))
     cmd = "serve-api";
 
 Logger.Info($"[CLI] Command = '{cmd}'");
+
+IDisposable? cliDatabaseScope = null;
+var cliDatabaseSelection = host.Services.GetService<JavaDatabaseSelectionContext>();
+if (cliDatabaseSelection is not null)
+{
+    var rawDatabase = GetArgValue(args, "--database") ?? "Production";
+
+    if (!JavaDatabaseTargetParser.TryParse(rawDatabase, out var cliDatabaseTarget))
+    {
+        var message =
+            $"[CLI] ERROR: Unsupported database '{rawDatabase}'. " +
+            "Supported values: Production, Test.";
+        Logger.Error(message);
+        Console.WriteLine(message);
+        Environment.ExitCode = 2;
+        return;
+    }
+
+    cliDatabaseScope = cliDatabaseSelection.Push(cliDatabaseTarget);
+    Logger.Info($"[CLI] Java database = {cliDatabaseTarget}");
+}
+
+using var _cliDatabaseScope = cliDatabaseScope;
 
 switch (cmd)
 {
@@ -376,7 +403,7 @@ switch (cmd)
                     };
 
                     equationTemplatePathForModelPhase = Path.Combine(
-                        "Resources", "Templates", "COB", "COB_rev2","equations.txt");
+                        "Resources", "Templates", "COB", "COB_rev2", "equations.txt");
                     break;
 
                 case WedgeType.UTUS:
@@ -709,12 +736,12 @@ switch (cmd)
                         "Resources", "Templates", "COB", "COB_rev2", "COB_part_rev1.SLDPRT");
 
                     equationTemplatePath = Path.Combine(
-                        "Resources", "Templates", "COB", "COB_rev2","equations.txt");
+                        "Resources", "Templates", "COB", "COB_rev2", "equations.txt");
                     break;
 
                 case WedgeType.UTUS:
                     partTemplatePath = Path.Combine(
-                        "Resources", "Templates", "UT-US", "UTUS_rev2","UTUS_part_rev1.SLDPRT");
+                        "Resources", "Templates", "UT-US", "UTUS_rev2", "UTUS_part_rev1.SLDPRT");
 
                     equationTemplatePath = Path.Combine(
                         "Resources", "Templates", "UT-US", "UTUS_rev2", "equations.txt");
@@ -858,9 +885,9 @@ Default:
   dotnet run     Starts the minimal API host
 
 Data:
-  get-wedge      --article <num> --subclass <FG|PGB>
-  get-drawing    --article <num> --subclass <FG|PGB> --dtype <Production|Customer|Overlay> --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
-  plan-lite      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
+  get-wedge      --article <num> --subclass <FG|PGB> [--database Production|Test]
+  get-drawing    --article <num> --subclass <FG|PGB> [--database Production|Test] --dtype <Production|Customer|Overlay> --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
+  plan-lite      --article <num> --subclass <FG|PGB> [--database Production|Test] [--dtype Production|Customer|Overlay] --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
 
 Diagnostics (SQLite only):
   db-info        [--limit 20]
@@ -868,10 +895,10 @@ Diagnostics (SQLite only):
   show-article   --article <num>
 
 Drawing Automation:
-  run-drawing    --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
+  run-drawing    --article <num> --subclass <FG|PGB> [--database Production|Test] [--dtype Production|Customer|Overlay] --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
 
 Model Automation:
-  run-model      --article <num> --subclass <FG|PGB> [--dtype Production|Customer|Overlay] --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
+  run-model      --article <num> --subclass <FG|PGB> [--database Production|Test] [--dtype Production|Customer|Overlay] --wtype <CKVD|COB|UTUS|OSG7|FP|4516|ABT|AB16|45CK|M|1001|1007|1300|1005A>
 
 API:
   serve-api      Starts the minimal API host

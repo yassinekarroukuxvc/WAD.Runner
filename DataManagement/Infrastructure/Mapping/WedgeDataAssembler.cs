@@ -143,6 +143,12 @@ public static class WedgeDataAssembler
             var key = DimensionKeyPolicy.ToDomainKey(tkey);
             if (key.IsEmpty) continue;
 
+            // Skip rows where every semicolon-delimited field is blank
+            // (e.g. ";;;;;;;;;;;;;;"). This means no value was ever entered
+            // for this dimension on this article, not an actual 0/blank
+            // measurement, so there is nothing to parse.
+            if (IsBlankPayload(payload)) continue;
+
             if (DimensionKeyPolicy.IsAngle(tkey))
             {
                 var (deg, tolZero, comment) = DimensionPayloadParser.ParseAngleRow(payload);
@@ -156,6 +162,14 @@ public static class WedgeDataAssembler
         }
 
         return dict;
+    }
+
+    private static bool IsBlankPayload(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return true;
+
+        // A payload like ";;;;;;;;;;;;;;" splits into all-empty fields.
+        return payload.Split(';').All(string.IsNullOrWhiteSpace);
     }
 
     private static string? NullIfWhite(string? s)

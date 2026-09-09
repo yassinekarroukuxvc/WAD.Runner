@@ -75,6 +75,15 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
             using var scope = _services.CreateScope();
             var sp = scope.ServiceProvider;
 
+            var databaseTarget = JavaDatabaseTargetParser.ParseOrDefault(payload.Database);
+            var databaseSelection = sp.GetService<JavaDatabaseSelectionContext>();
+            using var databaseScope = databaseSelection?.Push(databaseTarget);
+
+            _logger.LogInformation(
+                "Job {JobId}: database selection = {Database} (applies when Runner:UseJavaDbApi=true).",
+                job.Id,
+                databaseTarget);
+
             var getWedge = sp.GetRequiredService<GetWedgeData>();
             var getDrawing = sp.GetRequiredService<GetDrawingData>();
             var modelOrchestrator = sp.GetRequiredService<ModelAutomationOrchestrator>();
@@ -112,10 +121,11 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                     report(Progress(++doneSteps, totalSteps, $"Loading drawing data for {article} ({dtype})…"));
 
                     _logger.LogInformation(
-                        "Job {JobId}: starting automation for article={Article}, subclass={Subclass}, type={Type}, wtype={WType}",
+                        "Job {JobId}: starting automation for article={Article}, subclass={Subclass}, database={Database}, type={Type}, wtype={WType}",
                         job.Id,
                         article,
                         subclass,
+                        databaseTarget,
                         dtype,
                         wedgeType);
 

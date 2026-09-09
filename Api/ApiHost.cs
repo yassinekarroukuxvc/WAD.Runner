@@ -1,4 +1,4 @@
-using System;
+
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -53,6 +53,8 @@ public record RunRequest
 
     public string Subclass { get; init; } = "FG";
 
+    public string Database { get; init; } = "Production";
+
     public string? OutputFolder { get; init; }
 
     public Dictionary<string, string>? Options { get; init; }
@@ -70,6 +72,9 @@ public static class RunRequestValidator
         var subclass = (r.Subclass ?? string.Empty).Trim().ToUpperInvariant();
         if (subclass is not ("FG" or "PGB"))
             errors.Add("subclass must be either 'FG' or 'PGB'.");
+
+        if (!JavaDatabaseTargetParser.TryParse(r.Database, out _))
+            errors.Add("database must be either 'Production' or 'Test'.");
 
         if (string.IsNullOrWhiteSpace(r.OutputFolder))
             errors.Add("outputFolder is required.");
@@ -324,7 +329,10 @@ public static class ApiHost
             var apiKey = builder.Configuration.GetValue<string>("Runner:JavaDbApi:ApiKey");
 
             var firma = builder.Configuration.GetValue<int?>("ProAlpha:Firma") ?? 200;
-            var language = builder.Configuration.GetValue<string>("ProAlpha:Language", "E");
+            var language = builder.Configuration.GetValue<string>("ProAlpha:Language", "E") ?? "E";
+
+            builder.Services.AddSingleton<JavaDatabaseSelectionContext>();
+            builder.Services.AddTransient<JavaDatabaseSelectionHandler>();
 
             builder.Services.AddHttpClient("JavaLegacyWedgeTransport", http =>
             {
@@ -336,7 +344,8 @@ public static class ApiHost
 
                 if (!string.IsNullOrWhiteSpace(apiKey))
                     http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
-            });
+            })
+            .AddHttpMessageHandler<JavaDatabaseSelectionHandler>();
 
             builder.Services.AddSingleton<IJavaWedgeTransport>(sp =>
             {
@@ -436,6 +445,7 @@ public static class ApiHost
                 DrawingTypes = body.DrawingTypes,
                 DrawingType = body.DrawingType,
                 Subclass = body.Subclass,
+                Database = JavaDatabaseTargetParser.ParseOrDefault(body.Database).ToString(),
                 OutputFolder = resultsDir,
                 Options = body.Options
             };
@@ -455,10 +465,11 @@ public static class ApiHost
                 return Results.StatusCode(StatusCodes.Status429TooManyRequests);
 
             logger.LogInformation(
-                "Enqueued job {JobId} for {Count} article(s) [{Subclass}] types=[{Types}] out='{Out}'",
+                "Enqueued job {JobId} for {Count} article(s) [{Subclass}] database={Database} types=[{Types}] out='{Out}'",
                 id,
                 payload.ArticleNumbers?.Count ?? 0,
                 payload.Subclass,
+                payload.Database,
                 string.Join(",", drawingTypes),
                 payload.OutputFolder);
 
@@ -480,7 +491,8 @@ public static class ApiHost
                 job.ProgressPercent,
                 job.Message,
                 job.ResultPath,
-                job.Error
+                job.Error,
+                Database = job.Payload?.Database ?? "Production"
             });
         });
 
@@ -534,14 +546,27 @@ public static class ApiHost
             int firma,
             string article,
             string? subclass,
+            string? database,
             IServiceProvider sp,
             IConfiguration cfg) =>
         {
             var subclassNorm = (subclass ?? "FG").Trim().ToUpperInvariant();
             var useJavaLocal = cfg.GetValue<bool>("Runner:UseJavaDbApi", false);
 
+            JavaDatabaseTarget databaseTarget;
+            try
+            {
+                databaseTarget = JavaDatabaseTargetParser.ParseOrDefault(database);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+
             if (useJavaLocal)
             {
+                var dbSelection = sp.GetRequiredService<JavaDatabaseSelectionContext>();
+                using var dbScope = dbSelection.Push(databaseTarget);
                 var api = sp.GetRequiredService<IJavaWedgeTransport>();
 
                 if (subclassNorm == "PGB")
@@ -583,6 +608,7 @@ public static class ApiHost
                         firma,
                         article,
                         subclass = subclassNorm,
+                        database = databaseTarget.ToString(),
                         partSpec = "(via Java API)",
                         spec1,
                         spec2,
@@ -643,6 +669,7 @@ public static class ApiHost
                         firma,
                         article,
                         subclass = subclassNorm,
+                        database = databaseTarget.ToString(),
                         partSpec = "(via Java API)",
                         spec1,
                         spec2,
@@ -685,6 +712,7 @@ public static class ApiHost
                     firma,
                     article,
                     subclass = subclassNorm,
+                    database = "SQLite",
                     partSpec,
                     spec1,
                     spec2,
@@ -711,6 +739,7 @@ public static class ApiHost
                     firma,
                     article,
                     subclass = subclassNorm,
+                    database = "SQLite",
                     partSpec,
                     spec1,
                     spec2,
