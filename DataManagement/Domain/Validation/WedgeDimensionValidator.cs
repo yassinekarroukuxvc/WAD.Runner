@@ -35,6 +35,22 @@ public static class WedgeDimensionValidator
         var issues =
             new List<DimensionValidationIssue>();
 
+        // PGB has its own deliberately narrow validation contract.
+        // Do not run the FG/conditional rule pipeline for PGB because those
+        // rules require dimensions that are intentionally not part of PGB.
+        if (wedge.Subclass == WedgeSubclass.PGB)
+        {
+            PgbWedgeValidator.Validate(
+                wedge,
+                wedgeType,
+                issues);
+
+            return new DimensionValidationResult(
+                wedge.ArticleNumber,
+                wedgeType,
+                issues);
+        }
+
         ApplyWedgeSpecificPropertyResolution(
             wedge,
             wedgeType,

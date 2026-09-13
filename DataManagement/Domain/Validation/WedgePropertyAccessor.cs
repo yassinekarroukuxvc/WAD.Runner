@@ -111,16 +111,32 @@ internal static class WedgePropertyAccessor
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
 
-        var token = value
-            .Trim()
-            .Trim('\0');
+        // Values coming from OpenEdge can contain padding/control characters
+        // and, in some datasets, a semicolon-delimited suffix. Keep only the
+        // actual database token before validating it.
+        var token = new string(
+                value
+                    .Where(ch => !char.IsControl(ch))
+                    .ToArray())
+            .Trim();
 
         var separatorIndex = token.IndexOf(';');
 
         if (separatorIndex >= 0)
             token = token[..separatorIndex];
 
-        return token.Trim();
+        token = token.Trim();
+
+        // Remove accidental wrapping quotes without touching meaningful
+        // underscores, slashes, hyphens, or internal characters.
+        if (token.Length >= 2 &&
+            ((token[0] == '\"' && token[^1] == '\"') ||
+             (token[0] == '\'' && token[^1] == '\'')))
+        {
+            token = token[1..^1].Trim();
+        }
+
+        return token;
     }
 
     private static string NormalizeKey(

@@ -115,9 +115,9 @@ internal static class FpDimensionRules
     {
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
-        PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical, T[0] + 5.0, T[1] - 5.0);
-        PlaceDim(ctx, diag, outList, "TDF_STD", Top, DimAxis.Horizontal, T[0], T[1] + 5.0);
-        PlaceDim(ctx, diag, outList, "TDF_REV", Top, DimAxis.Horizontal, T[0], T[1] + 5.0);
+        PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical, T[0] + (TDF / 2) * tsv + 5.0, T[1] - (TD / 2) * tsv);
+        PlaceDim(ctx, diag, outList, "TDF_STD", Top, DimAxis.Horizontal, T[0], T[1] + 5.0 + (TD / 2) * tsv);
+        PlaceDim(ctx, diag, outList, "TDF_REV", Top, DimAxis.Horizontal, T[0], T[1] + 5.0 + (TD / 2) * tsv);
 
     }
 

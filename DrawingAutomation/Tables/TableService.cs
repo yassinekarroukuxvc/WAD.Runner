@@ -6,6 +6,7 @@ using System.Linq;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
+using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Dimensions;
@@ -57,10 +58,60 @@ namespace WAD.Runner.DrawingAutomation.Tables
             string tableId = "DimTable",
             string header = "DIMENSIONS")
         {
-            if (!TryGetCfg(draw, tableId, out var cfg)) return false;
+            if (wedge is null)
+                throw new ArgumentNullException(nameof(wedge));
+
+            if (draw is null)
+                throw new ArgumentNullException(nameof(draw));
+
+            if (!TryGetCfg(draw, tableId, out var cfg))
+            {
+                var configuredTables = draw.Tables == null
+                    ? "<none>"
+                    : string.Join(", ", draw.Tables.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase));
+
+                Logger.Warn(
+                    $"[Tables] '{tableId}' config missing/incomplete -> " +
+                    $"wedge={wedgeType}, subclass={wedge.Subclass}, drawingType={draw.DrawingType}. " +
+                    $"Configured table ids=[{configuredTables}].");
+                return false;
+            }
+
+            var allowed = DrawingWedgeModuleRegistry
+                .Get(wedgeType)
+                .GetAllowedDimensionTableKeys(wedge.Subclass, draw.DrawingType);
 
             var rows = BuildDimensionRows_Filtered(wedge, draw, wedgeType);
-            if (rows.Count == 0) return false;
+
+            Logger.Info(
+                $"[Tables] Dimension rows built -> " +
+                $"wedge={wedgeType}, subclass={wedge.Subclass}, drawingType={draw.DrawingType}, " +
+                $"sourceDimensions={wedge.Dimensions?.Count ?? 0}, " +
+                $"allowedKeys={(allowed?.Count.ToString(CultureInfo.InvariantCulture) ?? "<unfiltered>")}, " +
+                $"rows={rows.Count}.");
+
+            if (rows.Count == 0)
+            {
+                var actualKeys = wedge.Dimensions is null
+                    ? "<none>"
+                    : string.Join(
+                        ", ",
+                        wedge.Dimensions
+                            .Select(kv =>
+                                $"{kv.Key.Value}={kv.Value.Nominal.Value.ToString(CultureInfo.InvariantCulture)} {kv.Value.Nominal.Unit}")
+                            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase));
+
+                var allowedKeys = allowed is null
+                    ? "<unfiltered>"
+                    : string.Join(", ", allowed.OrderBy(k => k, StringComparer.OrdinalIgnoreCase));
+
+                Logger.Warn(
+                    $"[Tables] '{tableId}' has ZERO writable dimension rows -> " +
+                    $"wedge={wedgeType}, subclass={wedge.Subclass}, drawingType={draw.DrawingType}. " +
+                    $"Allowed=[{allowedKeys}]. Actual=[{actualKeys}]. " +
+                    "Rows are only written for non-zero dimensions whose units match the expected length/angle units.");
+                return false;
+            }
 
             var configWidthM = ResolveWidthM(cfg, fallbackM: 0.14);
             var contentWidthM = EstimateMonospaceWidthM(rows, header,
@@ -73,8 +124,19 @@ namespace WAD.Runner.DrawingAutomation.Tables
             double tableHeightM = EstimateTableHeightM(rows.Count, DimTableRowHeightMm, includeTitle: true);
             double anchorY = posM.y + tableHeightM + TableAnchorGapM;
 
+            Logger.Info(
+                $"[Tables] Inserting '{tableId}' -> " +
+                $"x={posM.x * 1000.0:0.###} mm, yAnchor={anchorY * 1000.0:0.###} mm, " +
+                $"width={widthM * 1000.0:0.###} mm, rows={rows.Count + 1}.");
+
             var table = CreateOneColumnTable(posM.x, anchorY, rows.Count + 1, "Dimensions", widthM);
-            if (table is null) return false;
+            if (table is null)
+            {
+                Logger.Warn(
+                    $"[Tables] SolidWorks did not create '{tableId}' -> " +
+                    $"wedge={wedgeType}, subclass={wedge.Subclass}, drawingType={draw.DrawingType}.");
+                return false;
+            }
 
             table.set_Text(0, 0, header);
             table.CellTextHorizontalJustification[0, 0] = (int)swTextJustification_e.swTextJustificationLeft;
@@ -90,6 +152,10 @@ namespace WAD.Runner.DrawingAutomation.Tables
             SetAllRowHeights(table, DimTableRowHeightMm, includeTitle: true);
             TrimTrailingEmptyRows(table);
 
+            Logger.Success(
+                $"[Tables] '{tableId}' inserted successfully -> " +
+                $"wedge={wedgeType}, subclass={wedge.Subclass}, drawingType={draw.DrawingType}, dataRows={rows.Count}.");
+
             return true;
         }
 
@@ -97,19 +163,51 @@ namespace WAD.Runner.DrawingAutomation.Tables
             IReadOnlyList<OverlayDimensionRow> dimensions,
             double xMm,
             double yMm,
-            double widthMm = 0.2,
+            double widthMm = 30.0,
             string header = "DIMENSIONS")
         {
-            if (dimensions == null || dimensions.Count == 0) return false;
+            if (dimensions == null || dimensions.Count == 0)
+            {
+                Logger.Warn("[Tables/Overlay] No overlay dimensions were supplied; table creation skipped.");
+                return false;
+            }
 
             var rows = BuildOverlayDimensionRowStrings(dimensions);
-            if (rows.Count == 0) return false;
+            if (rows.Count == 0)
+            {
+                var supplied = string.Join(
+                    ", ",
+                    dimensions.Select(d => $"{d.Key}={d.Nominal.Value.ToString(CultureInfo.InvariantCulture)} {d.Nominal.Unit}"));
+
+                Logger.Warn(
+                    $"[Tables/Overlay] Overlay dimensions produced ZERO writable rows. " +
+                    $"Supplied=[{supplied}].");
+                return false;
+            }
+
+            if (!double.IsFinite(xMm) || !double.IsFinite(yMm))
+            {
+                Logger.Warn(
+                    $"[Tables/Overlay] Invalid table position: x={xMm}, y={yMm} mm.");
+                return false;
+            }
+
+            if (!double.IsFinite(widthMm) || widthMm <= 0.0)
+                widthMm = 30.0;
+
+            Logger.Info(
+                $"[Tables/Overlay] Inserting overlay dimension table -> " +
+                $"x={xMm:0.###} mm, y={yMm:0.###} mm, width={widthMm:0.###} mm, rows={rows.Count}.");
 
             var table = CreateOneColumnTable(
                 xMm / 1000.0, yMm / 1000.0,
                 rows.Count, "OverlayDimensions",
                 widthMm / 1000.0);
-            if (table is null) return false;
+            if (table is null)
+            {
+                Logger.Warn("[Tables/Overlay] SolidWorks did not create the overlay dimension table.");
+                return false;
+            }
 
             table.TitleVisible = false;
 
@@ -125,6 +223,9 @@ namespace WAD.Runner.DrawingAutomation.Tables
             SetTableLayer(table, "annotation");
             HideAllTableBorders(table);
             TrimTrailingEmptyRows(table);
+
+            Logger.Success(
+                $"[Tables/Overlay] Overlay dimension table inserted successfully -> dataRows={rows.Count}.");
 
             return true;
         }
@@ -248,7 +349,14 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 var table = _drawing.InsertTableAnnotation2(
                     false, xM, yM, 1, "", rows, 1) as TableAnnotation;
 
-                if (table == null) return null;
+                if (table == null)
+                {
+                    Logger.Warn(
+                        $"[Tables] InsertTableAnnotation2 returned null -> " +
+                        $"title='{title}', x={xM:0.######} m, y={yM:0.######} m, " +
+                        $"rows={rows}, width={colWidthM:0.######} m.");
+                    return null;
+                }
 
                 table.SetColumnWidth(
                     0, colWidthM,
@@ -260,7 +368,14 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
                 return table;
             }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                Logger.Warn(
+                    $"[Tables] SolidWorks table insertion threw an exception -> " +
+                    $"title='{title}', x={xM:0.######} m, y={yM:0.######} m, " +
+                    $"rows={rows}, width={colWidthM:0.######} m. Error: {ex}");
+                return null;
+            }
         }
 
         // -------------------------------------------------------------------------
@@ -390,8 +505,21 @@ namespace WAD.Runner.DrawingAutomation.Tables
 
         private static double ResolveWidthM(TableConfig cfg, double fallbackM)
         {
-            if (cfg?.SizeMm is { Length: >= 1 }) return cfg.SizeMm[0] / 1000.0;
-            if (cfg?.Params != null && cfg.Params.TryGetValue("widthMm", out var wmm)) return wmm / 1000.0;
+            if (cfg?.SizeMm is { Length: >= 1 } &&
+                double.IsFinite(cfg.SizeMm[0]) &&
+                cfg.SizeMm[0] > 0.0)
+            {
+                return cfg.SizeMm[0] / 1000.0;
+            }
+
+            if (cfg?.Params != null &&
+                cfg.Params.TryGetValue("widthMm", out var wmm) &&
+                double.IsFinite(wmm) &&
+                wmm > 0.0)
+            {
+                return wmm / 1000.0;
+            }
+
             return fallbackM;
         }
 

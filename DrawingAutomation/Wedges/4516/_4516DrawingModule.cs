@@ -19,7 +19,7 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
             "TD", "TDF", "W", "ISA", "VW", "VR", "VRR", "VRA", "TL",
             "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C",
             "NR", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
-            "G", "CGR", "CGD", "VBL", "VBLR"
+            "G", "CGR", "CGD", "VBL", "VBLR","FD"
         });
 
     private static readonly ViewNames ProductionCustomerViews = new(
@@ -37,16 +37,16 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         Section: "Drawing View2");
 
     private static readonly IReadOnlySet<string> FgDrawingTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL",
-        "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C",
-        "NR", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
-        "G", "CGR", "CGD", "VBL");
+        "TD", "TDF", "W", "VW", "VR", "TL",
+        "B", "GD", "GO", "CL", "CD","T", "FL", "C",
+        "NR", "BR", "FR", "H","F", "BF", "Y",
+        "G", "CGR", "CGD", "VBL","FD");
 
     private static readonly IReadOnlySet<string> FgOverlayTableKeys = Keys(
         "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL",
         "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C",
         "NR", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
-        "G", "CGR", "CGD", "VBL");
+        "G", "CGR", "CGD", "VBL", "FD");
 
     private static readonly IReadOnlySet<string> PgbProductionTableKeys = Keys(
         "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",

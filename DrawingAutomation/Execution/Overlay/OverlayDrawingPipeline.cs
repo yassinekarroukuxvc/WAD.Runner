@@ -32,8 +32,11 @@ public sealed class OverlayDrawingPipeline : IDrawingPipeline
         var drawingData =
             context.DrawingData;
 
+        var wedgeModule =
+            DrawingWedgeModuleRegistry.Get(run.WedgeType);
+
         var behavior =
-            DrawingWedgeModuleRegistry.Get(run.WedgeType).Behavior;
+            wedgeModule.Behavior;
 
         DrawingService? drawingService =
             null;
@@ -82,9 +85,31 @@ public sealed class OverlayDrawingPipeline : IDrawingPipeline
                     run,
                     drawingData);
 
-            var overlayKeys =
-                OverlayMagnificationService.DefaultOverlayDimKeys(
-                    run.WedgeType);
+            var subclassOverlayKeys =
+                wedgeModule.GetAllowedDimensionTableKeys(
+                    run.Wedge.Subclass,
+                    DrawingType.Overlay);
+
+            IReadOnlyCollection<string> overlayKeys;
+
+            if (subclassOverlayKeys is { Count: > 0 })
+            {
+                overlayKeys = subclassOverlayKeys;
+
+                Logger.Info(
+                    $"[OverlayData] Using subclass-specific table keys -> " +
+                    $"wedge={run.WedgeType}, subclass={run.Wedge.Subclass}, " +
+                    $"count={overlayKeys.Count}.");
+            }
+            else
+            {
+                overlayKeys = behavior.OverlayDimensionKeys;
+
+                Logger.Warn(
+                    $"[OverlayData] No subclass-specific overlay table keys were returned for " +
+                    $"wedge={run.WedgeType}, subclass={run.Wedge.Subclass}. " +
+                    $"Falling back to wedge-level overlay keys, count={overlayKeys.Count}.");
+            }
 
             var overlayPayload =
                 OverlayPayloadBuilder.BuildOverlayPayload(
@@ -101,6 +126,18 @@ public sealed class OverlayDrawingPipeline : IDrawingPipeline
                 drawingService,
                 viewNames,
                 overlayMagnification);
+
+            try
+            {
+                drawingService.Model?.ForceRebuild3(false);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(
+                    $"[Overlay] ForceRebuild3 after scale change failed: {ex.Message}");
+            }
+
+            drawingService.Rebuild(redraw: true);
 
             OverlayViewScaler.TryRepositionAllOverlayViews(
                 context.SwApp,

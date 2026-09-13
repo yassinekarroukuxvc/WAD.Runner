@@ -75,7 +75,7 @@ internal static class _1001DimensionRules
         var LFront = TL * fsv;
         var LSide = TL * fsv;
 
-        const double detailLower = 80.0;
+        const double detailLower = 90.0;
         var detailBreak = GetBreakline(ctx, Detail, defaultMm: 50.0);
         var bandMidY = D[1] - (detailBreak + detailLower) / 2.0;
 
@@ -118,8 +118,10 @@ internal static class _1001DimensionRules
         _ = tsv;
         _ = TD;
 
-        PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical, T[0] + 5.0, T[1] - 5.0);
-        PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal, T[0], T[1] + 5.0);
+        var TDF = LayoutMath.Dmm(ctx, "TDF");
+
+        PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical, T[0] + (TDF / 2) * tsv + 5.0, T[1] - (TD / 2) * tsv);
+        PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal, T[0], T[1] + 5.0 + (TD / 2) * tsv);
     }
 
     private static void AddDetail(

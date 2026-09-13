@@ -21,7 +21,7 @@ internal static class EquationGeometry
     {
         if (!facts.TryGetLengthMm("FNO", out var fno) || fno <= 0m) return DefaultFunnelGapMm;
         if (!facts.TryGetAngleDeg("FNA", out var fna)) return DefaultFunnelGapMm;
-        if (!facts.TryGetAngleDeg("RA", out var ra)) return DefaultFunnelGapMm;
+        if (!facts.TryGetAngleDeg("HA", out var ha)) return DefaultFunnelGapMm;
         if (!facts.TryGetLengthMm("H", out var h)) return DefaultFunnelGapMm;
 
         decimal ba;
@@ -36,7 +36,7 @@ internal static class EquationGeometry
         }
 
         var alpha = DegToRad((double)(fna / 2m));
-        var k = DegToRad((double)(ba + ra));
+        var k = DegToRad((double)(ba + ha));
 
         var sinAlpha = Math.Sin(alpha);
         if (Math.Abs(sinAlpha) <= 1e-12) return DefaultFunnelGapMm;

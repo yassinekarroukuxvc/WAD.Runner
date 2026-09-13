@@ -37,23 +37,23 @@ public sealed class Ab16DrawingModule : IDrawingWedgeModule
         Section: "Drawing View2");
 
     private static readonly IReadOnlySet<string> FgDrawingTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL",
-        "B", "GA", "GD", "GO", "BA", "T", "FL", "C",
-        "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
-        "G", "CGR", "CGD", "VBL", "RA", "RA2", "W2", "ST");
+        "TD", "TDF", "W", "VW", "VR", "TL","FD",
+        "B", "GD", "GO", "T", "FL", "C",
+        "HH", "BR", "FR", "H", "F", "BF", "Y",
+        "G", "CGR", "CGD", "VBL", "W2", "ST");
 
     private static readonly IReadOnlySet<string> FgOverlayTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL",
+        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "FD",
         "B", "GA", "GD", "GO", "BA", "T", "FL", "C",
         "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
         "G", "CGR", "CGD", "VBL", "RA", "RA2", "W2", "ST");
 
     private static readonly IReadOnlySet<string> PgbProductionTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
+        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "FD",
         "TL", "BA", "T", "FL", "VBL", "W2");
 
     private static readonly IReadOnlySet<string> PgbOverlayTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
+        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "FD",
         "TL", "BA", "T", "FL", "VBL", "W2");
 
     public Ab16DrawingModule()

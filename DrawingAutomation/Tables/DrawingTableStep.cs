@@ -31,14 +31,33 @@ public static class DrawingTableStep
 
             TryCreate("DimTable", () =>
             {
-                if (drawingData.Tables?.ContainsKey("DimTable") == true)
+                Logger.Info(
+                    $"[Tables] Dimension table request -> " +
+                    $"wedge={run.WedgeType}, subclass={run.Wedge.Subclass}, " +
+                    $"drawingType={drawingData.DrawingType}, " +
+                    $"sourceDimensions={run.Wedge.Dimensions?.Count ?? 0}.");
+
+                var created = tables.CreateDimensionTable(
+                    run.Wedge,
+                    drawingData,
+                    wedgeType: run.WedgeType,
+                    tableId: "DimTable",
+                    header: "DIMENSIONS");
+
+                if (created)
                 {
-                    tables.CreateDimensionTable(
-                        run.Wedge,
-                        drawingData,
-                        wedgeType: run.WedgeType,
-                        tableId: "DimTable",
-                        header: "DIMENSIONS");
+                    Logger.Success(
+                        $"[Tables] DimTable created -> " +
+                        $"wedge={run.WedgeType}, subclass={run.Wedge.Subclass}, " +
+                        $"drawingType={drawingData.DrawingType}.");
+                }
+                else
+                {
+                    Logger.Warn(
+                        $"[Tables] DimTable was NOT created -> " +
+                        $"wedge={run.WedgeType}, subclass={run.Wedge.Subclass}, " +
+                        $"drawingType={drawingData.DrawingType}. " +
+                        "See the preceding [Tables] diagnostics for the exact reason.");
                 }
             });
 

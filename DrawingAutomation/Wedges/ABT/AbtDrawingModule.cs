@@ -35,7 +35,7 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
         Section: "Drawing View2");
 
     private static readonly IReadOnlySet<string> FgDrawingTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C", "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y", "G", "CGR", "CGD", "VBL", "RA", "RA2");
+        "TD", "TDF", "W", "VW", "VR","TL", "B", "FD", "GD", "GO", "CL", "CD", "T", "FL", "C", "HH", "BR", "FR", "H","F", "BF", "Y", "G", "CGR", "CGD", "VBL", "RA2");
 
     private static readonly IReadOnlySet<string> FgOverlayTableKeys = Keys(
         "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C", "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y", "G", "CGR", "CGD", "VBL", "RA", "RA2");

@@ -1,38 +1,67 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-
-using SolidWorks.Interop.sldworks;
-using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
-using WAD.Runner.DataManagement.Domain.Dimensions;
-using WAD.Runner.DataManagement.Domain.Planning;
-using WAD.Runner.DataManagement.Domain.Units;
-using WAD.Runner.DataManagement.Domain.Wedge;
-
-using WAD.Runner.DrawingAutomation.Common;
-using WAD.Runner.DrawingAutomation.Metadata;
-using WAD.Runner.DrawingAutomation.Overlay;
-using WAD.Runner.DrawingAutomation.Profiles;
-using WAD.Runner.DrawingAutomation.SolidWorks;
-using WAD.Runner.DrawingAutomation.Tables;
-using WAD.Runner.DrawingAutomation.Views;
 
 namespace WAD.Runner.DrawingAutomation.Overlay
 {
     public static class OverlayPayloadBuilder
     {
-        public static OverlayDrawingPayload BuildOverlayPayload(DrawingRun run, DrawingData drawingData, string[] dimKeys)
+        public static OverlayDrawingPayload BuildOverlayPayload(
+            DrawingRun run,
+            DrawingData drawingData,
+            IEnumerable<string> dimKeys)
         {
-            var overlayBuilder = new OverlayDrawingDataBuilder();
-            var overlayData = overlayBuilder.Build(run.Wedge, drawingData, dimKeys);
+            if (run is null)
+                throw new ArgumentNullException(nameof(run));
 
-            Logger.Info($"[OverlayData] Desc='{overlayData.DrawingDescription}', Coining='{overlayData.CoiningText ?? "(none)"}', DimCount={overlayData.Dimensions.Count}");
+            if (drawingData is null)
+                throw new ArgumentNullException(nameof(drawingData));
+
+            if (dimKeys is null)
+                throw new ArgumentNullException(nameof(dimKeys));
+
+            var keys = dimKeys
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .Select(k => k.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            Logger.Info(
+                $"[OverlayData] Build payload -> " +
+                $"wedge={run.WedgeType}, subclass={run.Wedge.Subclass}, " +
+                $"drawingType={drawingData.DrawingType}, " +
+                $"sourceDimensions={run.Wedge.Dimensions?.Count ?? 0}, " +
+                $"filterKeys={keys.Length}.");
+
+            var overlayBuilder = new OverlayDrawingDataBuilder();
+            var overlayData = overlayBuilder.Build(run.Wedge, drawingData, keys);
+
+            Logger.Info(
+                $"[OverlayData] Desc='{overlayData.DrawingDescription}', " +
+                $"Coining='{overlayData.CoiningText ?? "(none)"}', " +
+                $"DimCount={overlayData.Dimensions.Count}.");
+
+            if (overlayData.Dimensions.Count == 0)
+            {
+                var actualKeys = run.Wedge.Dimensions is null
+                    ? "<none>"
+                    : string.Join(
+                        ", ",
+                        run.Wedge.Dimensions.Keys
+                            .Select(k => k.Value)
+                            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase));
+
+                Logger.Warn(
+                    $"[OverlayData] Overlay payload contains ZERO dimension rows -> " +
+                    $"wedge={run.WedgeType}, subclass={run.Wedge.Subclass}. " +
+                    $"Allowed=[{string.Join(", ", keys)}]. " +
+                    $"Actual wedge dimension keys=[{actualKeys}].");
+            }
+
             return overlayData;
         }
-
     }
 }

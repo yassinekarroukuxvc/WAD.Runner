@@ -49,7 +49,7 @@ namespace WAD.Runner.ModelAutomation.Equations;
 /// </summary>
 public sealed class Ab16EquationPlanner : StandardEquationPlanner
 {
-    private const string FootDepthEquationName = "foot_depth";
+    private const string FootDepthEquationName = "foor_depth";
 
     public override EquationPlan Build(
         ModelAutomationContext context)

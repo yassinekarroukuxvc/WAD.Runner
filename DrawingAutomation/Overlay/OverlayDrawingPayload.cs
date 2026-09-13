@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -129,7 +128,7 @@ public sealed class OverlayDrawingDataBuilder : IOverlayDrawingDataBuilder
             yield break;
 
         foreach (var kvp in wedge.Dimensions
-                                 .OrderBy(d => d.Key.ToString(), StringComparer.Ordinal))
+                                 .OrderBy(d => d.Key.Value, StringComparer.Ordinal))
         {
             var dimKey = kvp.Key;
             var dim = kvp.Value;
@@ -138,7 +137,7 @@ public sealed class OverlayDrawingDataBuilder : IOverlayDrawingDataBuilder
                 continue;
 
 
-            var key = dimKey.ToString();
+            var key = dimKey.Value;
 
 
             if (allowedKeys != null && !allowedKeys.Contains(key))

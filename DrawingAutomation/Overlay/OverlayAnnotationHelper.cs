@@ -103,24 +103,51 @@ namespace WAD.Runner.DrawingAutomation.Overlay
             try
             {
                 var tableService = new TableService(swApp, ds.Model!);
-                if (!TryCreateOverlayDimensionTable(tableService, drawingData, overlayData))
-                    Logger.Warn("[Overlay] Dimension table creation skipped or reported failure.");
+
+                if (TryCreateOverlayDimensionTable(tableService, drawingData, overlayData))
+                {
+                    Logger.Success(
+                        $"[Overlay] Dimension table created -> " +
+                        $"subclass={overlayData.Subclass}, rows={overlayData.Dimensions.Count}.");
+                }
+                else
+                {
+                    Logger.Warn(
+                        $"[Overlay] Dimension table creation skipped or failed -> " +
+                        $"subclass={overlayData.Subclass}, rows={overlayData.Dimensions.Count}. " +
+                        "See the preceding [Overlay]/[Tables] diagnostics for the exact reason.");
+                }
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[Overlay] Dimension table step failed (continuing): {ex.Message}");
+                Logger.Warn(
+                    $"[Overlay] Dimension table step failed (continuing): {ex}");
             }
         }
 
         private static bool TryCreateOverlayDimensionTable(TableService tableService, DrawingData drawingData, OverlayDrawingPayload overlayData)
         {
+            if (overlayData.Dimensions == null || overlayData.Dimensions.Count == 0)
+            {
+                Logger.Warn(
+                    $"[Overlay] DimTable not created because the overlay payload has zero dimension rows -> " +
+                    $"subclass={overlayData.Subclass}, drawingType={overlayData.DrawingType}.");
+                return false;
+            }
+
             if (drawingData.Tables == null ||
                 !drawingData.Tables.TryGetValue("DimTable", out var cfg) ||
                 cfg == null ||
                 cfg.PositionMm == null ||
                 cfg.PositionMm.Length < 2)
             {
-                Logger.Warn("[Overlay] DimTable config missing or incomplete; cannot place dimension table.");
+                var configuredTables = drawingData.Tables == null
+                    ? "<none>"
+                    : string.Join(", ", drawingData.Tables.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase));
+
+                Logger.Warn(
+                    $"[Overlay] DimTable config missing or incomplete; cannot place dimension table. " +
+                    $"Configured table ids=[{configuredTables}].");
                 return false;
             }
 
@@ -132,12 +159,15 @@ namespace WAD.Runner.DrawingAutomation.Overlay
             if (cfg.SizeMm != null && cfg.SizeMm.Length >= 1 && cfg.SizeMm[0] > 0)
                 widthMm = cfg.SizeMm[0];
 
-            Logger.Info($"[Overlay] Creating overlay dimension table at ({xMm:0.###}, {yMm:0.###}) mm, width={widthMm:0.###} mm.");
+            Logger.Info(
+                $"[Overlay] Creating overlay dimension table at " +
+                $"({xMm:0.###}, {yMm:0.###}) mm, width={widthMm:0.###} mm, " +
+                $"rows={overlayData.Dimensions.Count}, subclass={overlayData.Subclass}.");
 
             return tableService.CreateOverlayDimensionTableAt(
                 overlayData.Dimensions,
-                5,
-                118,
+                xMm,
+                yMm,
                 widthMm,
                 header: "DIMENSIONS");
         }
@@ -190,8 +220,6 @@ namespace WAD.Runner.DrawingAutomation.Overlay
 
             if (rawMm <= 0.0)
                 return false;
-
-            const double OverlayTlMm = 30.0;
 
             double softCapMm = 0.5;
 
