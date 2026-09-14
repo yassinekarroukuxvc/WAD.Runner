@@ -307,17 +307,59 @@ internal static class WedgeDimensionValidationRuleCatalog
     private static WedgeDimensionValidationRuleSet
         Build4516Rules()
     {
-        /*
-         * The required 4516 dimensions depend on the resolved values of:
-         *
-         * - Wed-Feed_H/Slot
-         * - Wed-Foot_Option
-         *
-         * Wedge4516PropertyResolver resolves/normalizes the properties first.
-         * Wedge4516ConditionalDimensionValidator then validates the dimensions
-         * required by the selected feed-hole type and foot option.
-         */
-        return WedgeDimensionValidationRuleSet.Empty;
+        return new WedgeDimensionValidationRuleSet
+        {
+            RequiredStandalone =
+                Slots(
+                    "TL",
+                    "TD",
+                    "TDF",
+                    "W",
+                    "ISA",
+                    "FD",
+                    "T",
+                    "RA",
+                    "BA",
+                    "FL"),
+
+            ConditionalAndGroups =
+                new[]
+                {
+                    Group(
+                        "VR, VRA, VW, VRR",
+                        Slot("VR"),
+                        Slot("VRA"),
+                        Slot("VW"),
+                        Slot("VRR")),
+
+                    Group(
+                        "VBL, VBLR",
+                        Slot("VBL"),
+                        Slot("VBLR")),
+
+                    Group(
+                        "B, GA, GD",
+                        Slot("B"),
+                        Slot("GA"),
+                        Slot("GD")),
+
+                    Group(
+                        "CGD, CGR, G",
+                        Slot("CGD"),
+                        Slot("CGR"),
+                        Slot("G")),
+
+                    Group(
+                        "HW, HH",
+                        Slot("HW"),
+                        Slot("HH")),
+
+                    Group(
+                        "ST, SW",
+                        Slot("ST"),
+                        Slot("SW"))
+                }
+        };
     }
 
     private static WedgeDimensionValidationRuleSet
@@ -364,7 +406,8 @@ internal static class WedgeDimensionValidationRuleCatalog
                         "VW, VR, VRR, VRA",
                         Slot("VW"),
                         Slot("VR"),
-                        Slot("VRR"))
+                        Slot("VRR"),
+                        Slot("VRA"))
                 }
         };
     }
@@ -413,7 +456,8 @@ internal static class WedgeDimensionValidationRuleCatalog
                         "VW, VR, VRR, VRA",
                         Slot("VW"),
                         Slot("VR"),
-                        Slot("VRR"))
+                        Slot("VRR"),
+                        Slot("VRA"))
                 }
         };
     }

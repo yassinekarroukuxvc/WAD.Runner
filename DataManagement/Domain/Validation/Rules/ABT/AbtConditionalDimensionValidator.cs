@@ -66,9 +66,16 @@ internal static class AbtConditionalDimensionValidator
             case "LW_C" or "SW_C":
                 RequireAllPositive(wedge, wedgeType, issues, "ABT Foot Option Validation", $"{FootOptionProperty} = {footOption}", new[] { "CL", "CD" });
 
-                if (WedgeDimensionAccess.IsPositive(wedge, "CBR"))
+                if (WedgeDimensionAccess.IsPositive(wedge, "CBRL") ||
+                    WedgeDimensionAccess.IsPositive(wedge, "CBRD"))
                 {
-                    RequireAllPositive(wedge, wedgeType, issues, "ABT CBR Validation", $"{FootOptionProperty} = {footOption} and CBR > 0", new[] { "CBRL", "CBRD" });
+                    RequireAllPositive(
+                        wedge,
+                        wedgeType,
+                        issues,
+                        "ABT CBR Validation",
+                        $"{FootOptionProperty} = {footOption} with CBR",
+                        new[] { "CBRL", "CBRD" });
                 }
 
                 break;
@@ -77,15 +84,12 @@ internal static class AbtConditionalDimensionValidator
                 RequireAllPositive(wedge, wedgeType, issues, "ABT Foot Option Validation", $"{FootOptionProperty} = {footOption}", new[] { "GO", "GD" });
                 break;
 
-            case "LW_CC" or "SW_CC":
-                break;
-
             case "":
-                AddPropertyIssue(wedge, wedgeType, issues, "ABT Foot Option Validation", "Foot option is required", FootOptionProperty, "field is empty. Expected LW_VG/SW_VG, LW_C/SW_C, LW_G/SW_G or LW_CC/SW_CC.");
+                AddPropertyIssue(wedge, wedgeType, issues, "ABT Foot Option Validation", "Foot option is required", FootOptionProperty, "field is empty. Expected LW_VG/SW_VG, LW_C/SW_C or LW_G/SW_G.");
                 break;
 
             default:
-                AddPropertyIssue(wedge, wedgeType, issues, "ABT Foot Option Validation", "Supported foot option", FootOptionProperty, $"unsupported value '{raw}'. Expected LW_VG/SW_VG, LW_C/SW_C, LW_G/SW_G or LW_CC/SW_CC.");
+                AddPropertyIssue(wedge, wedgeType, issues, "ABT Foot Option Validation", "Supported foot option", FootOptionProperty, $"unsupported value '{raw}'. Expected LW_VG/SW_VG, LW_C/SW_C or LW_G/SW_G.");
                 break;
         }
     }

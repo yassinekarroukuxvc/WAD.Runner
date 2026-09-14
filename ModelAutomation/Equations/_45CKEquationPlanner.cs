@@ -548,10 +548,10 @@ public sealed class _45CKEquationPlanner : StandardEquationPlanner
         return ResolveNormalizedFootOption(
             facts) switch
         {
-            "LW_VG" or "VG" =>
+            "LW_VG" or "SW_VG" or "VG" =>
                 FootOptionType.Vg,
 
-            "LW_CG" or "CG" =>
+            "LW_CG" or "SW_CG" or "CG" =>
                 FootOptionType.Cg,
 
             _ =>

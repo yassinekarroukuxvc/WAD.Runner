@@ -145,7 +145,7 @@ internal static class _45CKConditionalDimensionValidator
 
         switch (footOption)
         {
-            case "LW_VG":
+            case "LW_VG" or "SW_VG":
                 RequireAllPositive(
                     wedge,
                     wedgeType,
@@ -160,7 +160,7 @@ internal static class _45CKConditionalDimensionValidator
                     });
                 break;
 
-            case "LW_CG":
+            case "LW_CG" or "SW_CG":
                 RequireAllPositive(
                     wedge,
                     wedgeType,
@@ -183,7 +183,7 @@ internal static class _45CKConditionalDimensionValidator
                     "45CK Foot Option Validation",
                     "Foot option is required",
                     FootOptionProperty,
-                    "field is empty. Expected LW_VG or LW_CG.");
+                    "field is empty. Expected LW_VG/SW_VG or LW_CG/SW_CG.");
                 break;
 
             default:
@@ -194,7 +194,7 @@ internal static class _45CKConditionalDimensionValidator
                     "45CK Foot Option Validation",
                     "Supported foot option",
                     FootOptionProperty,
-                    $"unsupported value '{raw}'. Expected LW_VG or LW_CG.");
+                    $"unsupported value '{raw}'. Expected LW_VG/SW_VG or LW_CG/SW_CG.");
                 break;
         }
     }

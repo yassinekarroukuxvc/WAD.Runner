@@ -202,8 +202,26 @@ internal static class CobConditionalDimensionValidator
                     });
                 break;
 
+            case "":
+                AddPropertyIssue(
+                    wedge,
+                    wedgeType,
+                    issues,
+                    "COB Foot Option Validation",
+                    "Foot option is required",
+                    FootOptionProperty,
+                    "field is empty. Expected LW_VG/SW_VG, LW_C/SW_C or LW_G/SW_G.");
+                break;
+
             default:
-                // Any other foot option has no additional COB dimension rules.
+                AddPropertyIssue(
+                    wedge,
+                    wedgeType,
+                    issues,
+                    "COB Foot Option Validation",
+                    "Supported foot option",
+                    FootOptionProperty,
+                    $"unsupported value '{raw}'. Expected LW_VG/SW_VG, LW_C/SW_C or LW_G/SW_G.");
                 break;
         }
     }

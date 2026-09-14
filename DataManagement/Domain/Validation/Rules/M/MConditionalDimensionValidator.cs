@@ -154,7 +154,7 @@ internal static class MConditionalDimensionValidator
 
         switch (footOption)
         {
-            case "LW_VG" or "SW_VG" or "VG":
+            case "LW_VG" or "SW_VG":
                 RequireAllPositive(
                     wedge,
                     wedgeType,
@@ -168,7 +168,7 @@ internal static class MConditionalDimensionValidator
                     });
                 break;
 
-            case "LW_C" or "SW_C" or "C":
+            case "LW_C" or "SW_C":
                 RequireAllPositive(
                     wedge,
                     wedgeType,
@@ -188,7 +188,7 @@ internal static class MConditionalDimensionValidator
 
                 break;
 
-            case "LW_G" or "SW_G" or "G":
+            case "LW_G" or "SW_G":
                 RequireAllPositive(
                     wedge,
                     wedgeType,
@@ -202,12 +202,8 @@ internal static class MConditionalDimensionValidator
                     });
                 break;
 
-            case "LW_F" or "SW_F" or "F":
+            case "LW_F" or "SW_F":
                 // F has no additional dimension validation rules.
-                break;
-
-            case "LW_CC" or "SW_CC" or "CC":
-                // CC has no additional dimension validation rules.
                 break;
 
             case "":
@@ -218,7 +214,7 @@ internal static class MConditionalDimensionValidator
                     "M Foot Option Validation",
                     "Foot option is required",
                     FootOptionProperty,
-                    "field is empty. Expected LW_VG, LW_C, LW_G, LW_F or LW_CC.");
+                    "field is empty. Expected LW_VG/SW_VG, LW_C/SW_C, LW_G/SW_G or LW_F/SW_F.");
                 break;
 
             default:
@@ -229,7 +225,7 @@ internal static class MConditionalDimensionValidator
                     "M Foot Option Validation",
                     "Supported foot option",
                     FootOptionProperty,
-                    $"unsupported value '{raw}'. Expected LW_VG, LW_C, LW_G, LW_F or LW_CC.");
+                    $"unsupported value '{raw}'. Expected LW_VG/SW_VG, LW_C/SW_C, LW_G/SW_G or LW_F/SW_F.");
                 break;
         }
     }

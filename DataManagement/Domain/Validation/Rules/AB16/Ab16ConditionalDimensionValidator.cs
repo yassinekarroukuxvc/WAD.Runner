@@ -61,20 +61,20 @@ internal static class Ab16ConditionalDimensionValidator
 
         switch (footOption)
         {
-            case "LW_VG":
+            case "LW_VG" or "SW_VG":
                 RequireAllPositive(wedge, wedgeType, issues, "AB16 Foot Option Validation", $"{FootOptionProperty} = {footOption}", new[] { "GA", "GD", "B" });
                 break;
 
-            case "LW_CG":
+            case "LW_CG" or "SW_CG":
                 RequireAllPositive(wedge, wedgeType, issues, "AB16 Foot Option Validation", $"{FootOptionProperty} = {footOption}", new[] { "CGO", "CGR", "G" });
                 break;
 
             case "":
-                AddPropertyIssue(wedge, wedgeType, issues, "AB16 Foot Option Validation", "Foot option is required", FootOptionProperty, "field is empty. Expected LW_VG or LW_CG.");
+                AddPropertyIssue(wedge, wedgeType, issues, "AB16 Foot Option Validation", "Foot option is required", FootOptionProperty, "field is empty. Expected LW_VG/SW_VG or LW_CG/SW_CG.");
                 break;
 
             default:
-                AddPropertyIssue(wedge, wedgeType, issues, "AB16 Foot Option Validation", "Supported foot option", FootOptionProperty, $"unsupported value '{raw}'. Expected LW_VG or LW_CG.");
+                AddPropertyIssue(wedge, wedgeType, issues, "AB16 Foot Option Validation", "Supported foot option", FootOptionProperty, $"unsupported value '{raw}'. Expected LW_VG/SW_VG or LW_CG/SW_CG.");
                 break;
         }
     }

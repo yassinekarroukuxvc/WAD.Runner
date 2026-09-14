@@ -1,4 +1,4 @@
-using System;
+
 using System.Collections.Generic;
 using System.Linq;
 
@@ -19,11 +19,8 @@ namespace WAD.Runner.DataManagement.Domain.Validation;
 public static class WedgeDimensionValidator
 {
     /// <summary>
-    /// Validates a wedge and applies wedge-specific inferred properties.
-    ///
-    /// For WedgeType._4516 this method can modify WedgeData.Properties:
-    /// - normalize/infer Wed-Feed_H/Slot;
-    /// - normalize/infer Wed-Foot_Option.
+    /// Validates a wedge using the FG or PGB validation contract.
+    /// Database-backed property values are cleaned before they are validated.
     /// </summary>
     public static DimensionValidationResult Validate(
         WedgeData wedge,
@@ -51,10 +48,13 @@ public static class WedgeDimensionValidator
                 issues);
         }
 
-        ApplyWedgeSpecificPropertyResolution(
-            wedge,
-            wedgeType,
-            issues);
+        if (wedge.Subclass == WedgeSubclass.FG)
+        {
+            FgWedgePropertyValidator.ValidateAndClean(
+                wedge,
+                wedgeType,
+                issues);
+        }
 
         var ruleSet =
             WedgeDimensionValidationRuleCatalog.For(
@@ -193,20 +193,6 @@ public static class WedgeDimensionValidator
             throw new WedgeDimensionValidationException(
                 result);
         }
-    }
-
-    private static void ApplyWedgeSpecificPropertyResolution(
-        WedgeData wedge,
-        WedgeType wedgeType,
-        List<DimensionValidationIssue> issues)
-    {
-        if (wedgeType != WedgeType._4516)
-            return;
-
-        issues.AddRange(
-            Wedge4516PropertyResolver.ResolveAndApply(
-                wedge,
-                wedgeType));
     }
 
     private static void ValidateRequiredStandalone(

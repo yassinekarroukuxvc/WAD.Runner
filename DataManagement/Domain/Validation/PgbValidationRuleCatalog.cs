@@ -88,8 +88,6 @@ internal static class PgbValidationRuleCatalog
             "Wed-Foot_Option",
             "LW_VG",
             "SW_VG",
-            "LW_CG",
-            "SW_CG",
             "LW_C",
             "SW_C",
             "LW_G",
@@ -102,12 +100,12 @@ internal static class PgbValidationRuleCatalog
             "Wed-Foot_Option",
             "LW_VG",
             "SW_VG",
-            "LW_CG",
-            "SW_CG",
             "LW_C",
             "SW_C",
             "LW_G",
             "SW_G",
+            "LW_CC",
+            "SW_CC",
             "LW_FLAT",
             "SW_FLAT");
 
@@ -179,7 +177,7 @@ internal static class PgbValidationRuleCatalog
                 Rules(
                     StandardDimensions,
                     FeedHoleRule,
-                    FootVgCgCAndGRule,
+                    FootMRule,
                     SwTypeRule),
 
             WedgeType.COB =>

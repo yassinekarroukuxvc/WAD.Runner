@@ -1,4 +1,3 @@
-
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -104,6 +103,10 @@ public sealed class JobInfo
     public int ProgressPercent { get; set; }
     public string? Message { get; set; }
     public string? ResultPath { get; set; }
+    // Safe, user-facing error information returned to WAD.Web.
+    // Never place exception.ToString(), stack traces, source paths, SQL,
+    // downstream response bodies, etc. in these properties.
+    public string? ErrorCode { get; set; }
     public string? Error { get; set; }
 
     public RunRequest? Payload { get; set; }
@@ -217,56 +220,42 @@ public sealed class StaWorkerService : BackgroundService
                             j.ResultPath = resultPath;
                         });
                     }
-                    catch (OperationCanceledException)
-                    {
-                        _store.Update(job.Id, j =>
-                        {
-                            j.Status = JobStatus.Failed;
-                            j.FinishedUtc = DateTimeOffset.UtcNow;
-                            j.Error = "Cancelled";
-                            j.Message = "Cancelled";
-                        });
-                    }
-                    catch (WedgeTypeResolutionException ex)
-                    {
-                        _logger.LogWarning(
-                            ex,
-                            "Wedge type resolution failed before executing job {JobId}.",
-                            job.Id);
-
-                        _store.Update(job.Id, j =>
-                        {
-                            j.Status = JobStatus.Failed;
-                            j.FinishedUtc = DateTimeOffset.UtcNow;
-                            j.Error = ex.Message;
-                            j.Message = "Wedge type could not be identified";
-                        });
-                    }
-                    catch (WedgeDimensionValidationException ex)
-                    {
-                        _logger.LogWarning(
-                            ex,
-                            "Dimension validation failed before executing job {JobId}.",
-                            job.Id);
-
-                        _store.Update(job.Id, j =>
-                        {
-                            j.Status = JobStatus.Failed;
-                            j.FinishedUtc = DateTimeOffset.UtcNow;
-                            j.Error = ex.Message;
-                            j.Message = "Dimension validation failed";
-                        });
-                    }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Unexpected error while executing job {JobId}.", job.Id);
+                        // IMPORTANT:
+                        // Keep the complete technical exception only in the Runner logs.
+                        // WAD.Web receives only the sanitized information produced below.
+                        if (ex is WedgeTypeResolutionException or WedgeDimensionValidationException)
+                        {
+                            _logger.LogWarning(
+                                ex,
+                                "Job {JobId} failed because of invalid/missing wedge data.",
+                                job.Id);
+                        }
+                        else if (ex is OperationCanceledException)
+                        {
+                            _logger.LogInformation(
+                                ex,
+                                "Job {JobId} was cancelled.",
+                                job.Id);
+                        }
+                        else
+                        {
+                            _logger.LogError(
+                                ex,
+                                "Unexpected error while executing job {JobId}.",
+                                job.Id);
+                        }
+
+                        var publicError = JobErrorMapper.Map(ex, job.Id);
 
                         _store.Update(job.Id, j =>
                         {
                             j.Status = JobStatus.Failed;
                             j.FinishedUtc = DateTimeOffset.UtcNow;
-                            j.Error = ex.ToString();
-                            j.Message = "Failed";
+                            j.ErrorCode = publicError.Code;
+                            j.Error = publicError.Message;
+                            j.Message = publicError.StatusMessage;
                         });
                     }
                 }
@@ -491,6 +480,7 @@ public static class ApiHost
                 job.ProgressPercent,
                 job.Message,
                 job.ResultPath,
+                job.ErrorCode,
                 job.Error,
                 Database = job.Payload?.Database ?? "Production"
             });
