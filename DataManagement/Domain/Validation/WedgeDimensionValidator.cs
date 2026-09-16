@@ -1,4 +1,4 @@
-
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -19,8 +19,17 @@ namespace WAD.Runner.DataManagement.Domain.Validation;
 public static class WedgeDimensionValidator
 {
     /// <summary>
-    /// Validates a wedge using the FG or PGB validation contract.
-    /// Database-backed property values are cleaned before they are validated.
+    /// Validates a wedge using the correct validation contract:
+    ///
+    /// PGB:
+    ///     Uses ONLY PgbWedgeValidator.
+    ///     No FG validation rules are allowed to run.
+    ///
+    /// FG:
+    ///     Uses the FG property validation,
+    ///     general dimension validation rules,
+    ///     conditional groups,
+    ///     and wedge-specific conditional validators.
     /// </summary>
     public static DimensionValidationResult Validate(
         WedgeData wedge,
@@ -32,9 +41,18 @@ public static class WedgeDimensionValidator
         var issues =
             new List<DimensionValidationIssue>();
 
-        // PGB has its own deliberately narrow validation contract.
-        // Do not run the FG/conditional rule pipeline for PGB because those
-        // rules require dimensions that are intentionally not part of PGB.
+        // ============================================================
+        // PGB VALIDATION
+        // ============================================================
+        //
+        // PGB has its own completely separate validation contract.
+        //
+        // IMPORTANT:
+        // Once PGB validation is complete, RETURN immediately.
+        //
+        // Nothing below this block belongs to PGB.
+        // The rest of this method is FG-only validation.
+        // ============================================================
         if (wedge.Subclass == WedgeSubclass.PGB)
         {
             PgbWedgeValidator.Validate(
@@ -48,50 +66,88 @@ public static class WedgeDimensionValidator
                 issues);
         }
 
-        if (wedge.Subclass == WedgeSubclass.FG)
+        // ============================================================
+        // FG VALIDATION ONLY
+        // ============================================================
+        //
+        // If somehow another subclass reaches this validator,
+        // do not accidentally apply the FG rules to it.
+        // ============================================================
+        if (wedge.Subclass != WedgeSubclass.FG)
         {
-            FgWedgePropertyValidator.ValidateAndClean(
-                wedge,
+            return new DimensionValidationResult(
+                wedge.ArticleNumber,
                 wedgeType,
                 issues);
         }
 
+        // ------------------------------------------------------------
+        // FG database-backed property validation / cleanup
+        // ------------------------------------------------------------
+        FgWedgePropertyValidator.ValidateAndClean(
+            wedge,
+            wedgeType,
+            issues);
+
+        // ------------------------------------------------------------
+        // FG dimension rule catalog
+        // ------------------------------------------------------------
         var ruleSet =
             WedgeDimensionValidationRuleCatalog.For(
                 wedgeType);
 
-        if (wedge.Subclass == WedgeSubclass.FG)
-        {
-            ValidateRequiredStandalone(
-                wedge,
-                wedgeType,
-                ruleSet.RequiredStandalone,
-                issues);
+        // ------------------------------------------------------------
+        // FG required standalone dimensions
+        // ------------------------------------------------------------
+        ValidateRequiredStandalone(
+            wedge,
+            wedgeType,
+            ruleSet.RequiredStandalone,
+            issues);
 
-            ValidateRequiredAndGroups(
-                wedge,
-                wedgeType,
-                ruleSet.RequiredAndGroups,
-                issues);
+        // ------------------------------------------------------------
+        // FG required AND groups
+        // ------------------------------------------------------------
+        ValidateRequiredAndGroups(
+            wedge,
+            wedgeType,
+            ruleSet.RequiredAndGroups,
+            issues);
 
-            ValidateRequiredOrGroups(
-                wedge,
-                wedgeType,
-                ruleSet.RequiredOrGroups,
-                issues);
-        }
+        // ------------------------------------------------------------
+        // FG required OR groups
+        // ------------------------------------------------------------
+        ValidateRequiredOrGroups(
+            wedge,
+            wedgeType,
+            ruleSet.RequiredOrGroups,
+            issues);
 
+        // ------------------------------------------------------------
+        // FG conditional AND groups
+        // ------------------------------------------------------------
         ValidateConditionalAndGroups(
             wedge,
             wedgeType,
             ruleSet.ConditionalAndGroups,
             issues);
 
+        // ------------------------------------------------------------
+        // FG conditional OR groups
+        // ------------------------------------------------------------
         ValidateConditionalOrGroups(
             wedge,
             wedgeType,
             ruleSet.ConditionalOrGroups,
             issues);
+
+        // ============================================================
+        // FG WEDGE-SPECIFIC CONDITIONAL VALIDATION
+        // ============================================================
+        //
+        // Everything in this section is FG-only because PGB already
+        // returned at the beginning of this method.
+        // ============================================================
 
         if (wedgeType == WedgeType.COB)
         {
@@ -194,6 +250,14 @@ public static class WedgeDimensionValidator
                 result);
         }
     }
+
+    // ============================================================
+    // FG VALIDATION HELPERS
+    // ============================================================
+    //
+    // These helpers are only called from the FG section above.
+    // PGB never reaches any of these methods.
+    // ============================================================
 
     private static void ValidateRequiredStandalone(
         WedgeData wedge,

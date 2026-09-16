@@ -555,66 +555,101 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
         GetWedgeData getWedge,
         Action<ProgressUpdate> report)
     {
-        var validated = new Dictionary<string, ValidatedWedgeData>(StringComparer.OrdinalIgnoreCase);
-        var errors = new List<DimensionValidationIssue>();
-        var shouldValidateDimensions = subclass == WedgeSubclass.FG;
+        var validated =
+            new Dictionary<string, ValidatedWedgeData>(
+                StringComparer.OrdinalIgnoreCase);
 
-        foreach (var articleRaw in payload.ArticleNumbers!.Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.OrdinalIgnoreCase))
+        var errors =
+            new List<DimensionValidationIssue>();
+
+        foreach (var articleRaw in payload.ArticleNumbers!
+                     .Where(a => !string.IsNullOrWhiteSpace(a))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var article = articleRaw.Trim();
-            report(new ProgressUpdate(0, shouldValidateDimensions
-                ? $"Validating dimensions for {article}…"
-                : $"Loading wedge data for {article}; dimension validation skipped for PGB…"));
+            var article =
+                articleRaw.Trim();
 
-            var wedgeData = getWedge.ExecuteAsync(article, subclass, CancellationToken.None)
-                                    .GetAwaiter()
-                                    .GetResult();
+            report(
+                new ProgressUpdate(
+                    0,
+                    $"Validating wedge data for {article} ({subclass})…"));
 
-            var wedgeType = ResolveWedgeType(article, wedgeData, payload);
+            var wedgeData =
+                getWedge
+                    .ExecuteAsync(
+                        article,
+                        subclass,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
 
-            if (shouldValidateDimensions)
+            var wedgeType =
+                ResolveWedgeType(
+                    article,
+                    wedgeData,
+                    payload);
+
+            var validationResult =
+                WedgeDimensionValidator.Validate(
+                    wedgeData,
+                    wedgeType);
+
+            if (!validationResult.IsValid)
             {
-                var validationResult = WedgeDimensionValidator.Validate(wedgeData, wedgeType);
+                errors.AddRange(
+                    validationResult.Issues);
 
-                if (!validationResult.IsValid)
-                {
-                    errors.AddRange(validationResult.Issues);
-                    continue;
-                }
-
-                _logger.LogInformation(
-                    "Job {JobId}: dimension validation passed for article={Article}, subclass={Subclass}, wtype={WType}.",
+                _logger.LogWarning(
+                    "Job {JobId}: validation failed for " +
+                    "article={Article}, subclass={Subclass}, wtype={WType}, issues={IssueCount}.",
                     job.Id,
                     article,
                     subclass,
-                    wedgeType);
-            }
-            else
-            {
-                _logger.LogInformation(
-                    "Job {JobId}: dimension validation skipped for article={Article}, subclass={Subclass}, wtype={WType}. Only FG validation rules are active for now.",
-                    job.Id,
-                    article,
-                    subclass,
-                    wedgeType);
+                    wedgeType,
+                    validationResult.Issues.Count);
+
+                continue;
             }
 
-            validated[article] = new ValidatedWedgeData(wedgeData, wedgeType);
+            _logger.LogInformation(
+                "Job {JobId}: validation passed for " +
+                "article={Article}, subclass={Subclass}, wtype={WType}.",
+                job.Id,
+                article,
+                subclass,
+                wedgeType);
+
+            validated[article] =
+                new ValidatedWedgeData(
+                    wedgeData,
+                    wedgeType);
         }
 
         if (errors.Count > 0)
         {
-            var first = errors[0];
-            var result = new DimensionValidationResult(first.ArticleNumber, first.WedgeType, errors);
-            throw new WedgeDimensionValidationException(result);
+            var first =
+                errors[0];
+
+            var result =
+                new DimensionValidationResult(
+                    first.ArticleNumber,
+                    first.WedgeType,
+                    errors);
+
+            throw new WedgeDimensionValidationException(
+                result);
         }
 
         if (validated.Count == 0)
-            throw new InvalidOperationException("Job payload does not contain any non-empty article numbers.");
+        {
+            throw new InvalidOperationException(
+                "Job payload does not contain any non-empty article numbers.");
+        }
 
-        report(new ProgressUpdate(0, shouldValidateDimensions
-            ? "Dimension validation passed. Starting SolidWorks automation…"
-            : "Dimension validation skipped for PGB. Starting SolidWorks automation…"));
+        report(
+            new ProgressUpdate(
+                0,
+                "Wedge data validation passed. Starting SolidWorks automation…"));
 
         return validated;
     }

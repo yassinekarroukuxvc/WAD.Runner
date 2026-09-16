@@ -572,22 +572,24 @@ switch (cmd)
 
             var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
 
-            if (subclass == WedgeSubclass.FG)
+            var validationResult = WedgeDimensionValidator.Validate(wedgeData, wedgeTypeEnum);
+            if (!validationResult.IsValid)
             {
-                var validationResult = WedgeDimensionValidator.Validate(wedgeData, wedgeTypeEnum);
-                if (!validationResult.IsValid)
-                {
-                    var message = validationResult.ToUserMessage();
-                    Logger.Error(message);
-                    Console.WriteLine(message);
-                    Environment.ExitCode = 1;
-                    break;
-                }
+                var message = validationResult.ToUserMessage();
+
+                Logger.Error(
+                    $"[run-drawing] Validation failed -> Article={article}, " +
+                    $"Subclass={subclass}, WedgeType={wedgeTypeEnum}");
+
+                Logger.Error(message);
+                Console.WriteLine(message);
+                Environment.ExitCode = 1;
+                break;
             }
-            else
-            {
-                Logger.Info($"[run-drawing] Dimension validation skipped for subclass={subclass}. Only FG validation rules are active for now.");
-            }
+
+            Logger.Success(
+                $"[run-drawing] Validation passed -> Article={article}, " +
+                $"Subclass={subclass}, WedgeType={wedgeTypeEnum}");
 
             SolidWorksProcessKiller.KillAll(killVbaServer: true);
 
@@ -818,14 +820,13 @@ switch (cmd)
             {
                 var wedgeData = await getWedge.ExecuteAsync(article, subclass, CancellationToken.None);
 
-                if (subclass == WedgeSubclass.FG)
-                {
-                    WedgeDimensionValidator.ValidateOrThrow(wedgeData, wedgeTypeEnum);
-                }
-                else
-                {
-                    Logger.Info($"[run-model] Dimension validation skipped for subclass={subclass}. Only FG validation rules are active for now.");
-                }
+                WedgeDimensionValidator.ValidateOrThrow(
+                    wedgeData,
+                    wedgeTypeEnum);
+
+                Logger.Success(
+                    $"[run-model] Validation passed -> Article={article}, " +
+                    $"Subclass={subclass}, WedgeType={wedgeTypeEnum}");
 
                 SolidWorksProcessKiller.KillAll(killVbaServer: true);
                 using var sw = sessFactory.Create(visible: true);
