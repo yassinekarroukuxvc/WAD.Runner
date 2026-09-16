@@ -12,7 +12,7 @@ namespace WAD.Runner.ModelAutomation.Rules.COB;
 /// <summary>
 /// Builds the overlay tolerance updates used by the COB model.
 ///
-/// The active SolidWorks tolerance targets depend on Wed-Type:
+/// The active SolidWorks tolerance targets depend on the subclass type property (Wed-Type for FG, PGB-Type for PGB):
 ///     SW_STD      -> std_* overlay sketches
 ///     SW_180REV   -> rev_* overlay sketches
 ///
@@ -39,7 +39,7 @@ public sealed class CobToleranceRules : IToleranceRuleSet
         }
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, subclass);
 
         var shank =
             ResolveShankType(facts);
@@ -557,7 +557,8 @@ public sealed class CobToleranceRules : IToleranceRuleSet
         WedgeFacts facts)
     {
         var raw =
-            facts.NormalizedPropertyToken(
+            facts.NormalizedSubclassPropertyToken(
+                "PGB-Type",
                 "Wed-Type",
                 "Wed_Type",
                 "Wed Type",
@@ -578,7 +579,7 @@ public sealed class CobToleranceRules : IToleranceRuleSet
 
             _ =>
                 throw new InvalidOperationException(
-                    "Unable to resolve the COB shank from 'Wed-Type'. " +
+                    $"Unable to resolve the COB shank from '{facts.EffectivePropertyName("Wed-Type")}'. " +
                     "Expected SW_STD or SW_180REV, but received " +
                     $"'{DisplayToken(token)}'.")
         };

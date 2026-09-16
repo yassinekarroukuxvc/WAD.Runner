@@ -26,7 +26,7 @@ public sealed class _4516ConfigurationRules : IModelConfigurationRules
         var facts =
             wedge is null
                 ? null
-                : new WedgeFacts(wedge);
+                : new WedgeFacts(wedge, subclass);
 
         var finalConfig =
             subclass == WedgeSubclass.PGB

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -38,7 +38,7 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///     ISA = ISA_MAX
 ///
 /// Foot depth:
-///     PGB            -> foot_depth = 0
+///     PGB            -> foot_depth is not managed by ModelAutomation
 ///     FG LW_VG/SW_VG -> foot_depth = GD
 ///     FG LW_G/SW_G   -> foot_depth = GD
 ///     FG LW_C/SW_C   -> foot_depth = CD
@@ -68,7 +68,7 @@ public sealed class UtusEquationPlanner : StandardEquationPlanner
                 "WedgeData is required to build UTUS equations.");
 
         var facts = context.Facts
-            ?? new WedgeFacts(wedge);
+            ?? new WedgeFacts(wedge, context.Subclass);
 
         var dimensions =
             new Dictionary<DimensionKey, DomDim>(
@@ -86,10 +86,13 @@ public sealed class UtusEquationPlanner : StandardEquationPlanner
                 "TL",
                 20.0));
 
-        AddFootDepthEquation(
-            builder,
-            facts,
-            context.Subclass);
+        if (context.Subclass == WedgeSubclass.FG)
+        {
+            AddFootDepthEquation(
+                builder,
+                facts,
+                context.Subclass);
+        }
 
         AddFunnelGapEquation(
             builder,
@@ -220,7 +223,7 @@ public sealed class UtusEquationPlanner : StandardEquationPlanner
             $"VR/VW present={hasVrVw}, " +
             $"VW case={overlayVwCase}, " +
             $"RA2H present={facts.HasPositive("RA2H")}, " +
-            $"foot option={ResolveFootKind(facts, ResolveNormalizedFootOption(facts))}.");
+            $"foot option={(subclass == WedgeSubclass.FG ? ResolveFootKind(facts, ResolveNormalizedFootOption(facts)).ToString() : "N/A")}.");
     }
 
     private static void AddVrVwOverlayOverrides(
@@ -465,20 +468,6 @@ public sealed class UtusEquationPlanner : StandardEquationPlanner
         WedgeFacts facts,
         WedgeSubclass subclass)
     {
-        if (subclass == WedgeSubclass.PGB)
-        {
-            builder.AddManaged(
-                FootDepthEquationName,
-                EquationFormatting.LengthLineFromMillimeters(
-                    FootDepthEquationName,
-                    0m));
-
-            Logger.Info(
-                "[UtusEquationPlanner] PGB has no foot option -> " +
-                "foot_depth=0 mm.");
-
-            return;
-        }
 
         var footOption =
             ResolveNormalizedFootOption(
@@ -540,7 +529,7 @@ public sealed class UtusEquationPlanner : StandardEquationPlanner
 
         Logger.Info(
             "[UtusEquationPlanner] Foot depth resolved -> " +
-            $"Wed-Foot_Option='{DisplayToken(footOption)}', " +
+            $"{facts.EffectivePropertyName("Wed-Foot_Option")}='{DisplayToken(footOption)}', " +
             $"foot kind={footKind}, " +
             $"source={sourceDescription}, " +
             $"foot_depth={footDepthMm} mm.");
@@ -557,7 +546,7 @@ public sealed class UtusEquationPlanner : StandardEquationPlanner
         {
             throw new InvalidOperationException(
                 "Cannot calculate UTUS foot_depth. " +
-                $"Wed-Foot_Option '{DisplayToken(footOption)}' " +
+                $"{facts.EffectivePropertyName("Wed-Foot_Option")} '{DisplayToken(footOption)}' " +
                 $"requires dimension '{sourceDimension}', " +
                 "but that dimension is missing or is not a " +
                 "millimeter dimension.");

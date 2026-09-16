@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -12,7 +12,7 @@ namespace WAD.Runner.ModelAutomation.Rules.ABT;
 /// <summary>
 /// Builds the overlay tolerance updates used by the ABT model.
 ///
-/// The active SolidWorks tolerance targets depend on Wed-Type:
+/// The active SolidWorks tolerance targets depend on the subclass type property (Wed-Type for FG, PGB-Type for PGB):
 ///     SW_STD      -> std_* overlay sketches
 ///     SW_180REV   -> rev_* overlay sketches
 ///
@@ -39,7 +39,7 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
         }
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, subclass);
 
         var shank =
             ResolveShankType(facts);
@@ -555,7 +555,8 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
         WedgeFacts facts)
     {
         var raw =
-            facts.NormalizedPropertyToken(
+            facts.NormalizedSubclassPropertyToken(
+                "PGB-Type",
                 "Wed-Type",
                 "Wed_Type",
                 "Wed Type",
@@ -576,7 +577,7 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
 
             _ =>
                 throw new InvalidOperationException(
-                    "Unable to resolve the ABT shank from 'Wed-Type'. " +
+                    $"Unable to resolve the ABT shank from '{facts.EffectivePropertyName("Wed-Type")}'. " +
                     "Expected SW_STD or SW_180REV, but received " +
                     $"'{DisplayToken(token)}'.")
         };

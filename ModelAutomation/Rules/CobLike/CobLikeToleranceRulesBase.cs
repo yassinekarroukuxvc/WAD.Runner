@@ -22,7 +22,7 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
         if (wedge is null) throw new ArgumentNullException(nameof(wedge));
         if (drawingType != DrawingType.Overlay) return TolerancePlan.Empty;
 
-        var facts = new CobLikeFacts(wedge);
+        var facts = new CobLikeFacts(wedge, subclass);
         var updates = new List<ToleranceUpdate>();
         var prefix = subclass == WedgeSubclass.FG ? "FG" : "PGB";
         var shank = facts.ShankType;
@@ -53,9 +53,13 @@ public abstract class CobLikeToleranceRulesBase : IToleranceRuleSet
         AddLeftOverlayCaseTolerances(updates, facts);
         ApplySubclassSpecificTolerances(updates, facts, subclass);
 
+        var footLog = subclass == WedgeSubclass.FG
+            ? facts.FootOption.ToString()
+            : "N/A";
+
         Logger.Info(
             $"[{_logPrefix}] {subclass} overlay -> planned updates={updates.Count} " +
-            $"(Shank={facts.ShankType}, Foot={facts.FootOption})");
+            $"(Shank={facts.ShankType}, Foot={footLog})");
 
         return updates.Count == 0 ? TolerancePlan.Empty : new TolerancePlan(updates);
     }

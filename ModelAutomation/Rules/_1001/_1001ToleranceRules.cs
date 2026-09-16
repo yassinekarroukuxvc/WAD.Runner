@@ -23,7 +23,7 @@ public sealed class _1001ToleranceRules : IToleranceRuleSet
             return TolerancePlan.Empty;
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, subclass);
 
         var shank =
             ResolveShankType(
@@ -455,8 +455,9 @@ public sealed class _1001ToleranceRules : IToleranceRuleSet
     {
         var token =
             NormalizePackedToken(
-                facts.NormalizedPropertyToken(
-                    "Wed-Type",
+                facts.NormalizedSubclassPropertyToken(
+                    "PGB-Type",
+                "Wed-Type",
                     "Wed_Type",
                     "Wed Type",
                     "Wedge-Type",
@@ -476,7 +477,7 @@ public sealed class _1001ToleranceRules : IToleranceRuleSet
 
             _ =>
                 throw new InvalidOperationException(
-                    "Unable to resolve the _1001 shank from 'Wed-Type'. " +
+                    $"Unable to resolve the _1001 shank from '{facts.EffectivePropertyName("Wed-Type")}'. " +
                     "Expected SW_STD or SW_180REV, but received " +
                     $"'{DisplayToken(token)}'.")
         };
@@ -491,7 +492,7 @@ public sealed class _1001ToleranceRules : IToleranceRuleSet
                     "Wed-Foot_Option",
                     "Wed_Foot_Option",
                     "Wed Foot Option",
-                    "Wed-Foot Option",
+                "Wed-Foot Option",
                     "Foot_Option",
                     "Foot Option",
                     "foot_option"));

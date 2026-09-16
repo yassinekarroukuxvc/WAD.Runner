@@ -135,7 +135,7 @@ public sealed class Osg7FeatureRules : IFeatureRuleSet
         if (context is null)
             throw new ArgumentNullException(nameof(context));
 
-        var facts = new WedgeFacts(wedge);
+        var facts = new WedgeFacts(wedge, context.Subclass);
 
         var isPgb =
             context.Subclass == WedgeSubclass.PGB;

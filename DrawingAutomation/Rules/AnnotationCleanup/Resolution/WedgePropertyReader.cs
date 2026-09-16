@@ -14,6 +14,18 @@ public static class WedgePropertyReader
             ? null
             : new DrawingWedgeFacts(wedge).GetProperty(key);
 
+    public static string? GetSubclassPropLoose(
+        WedgeData wedge,
+        string pgbKey,
+        string fgKey,
+        params string[] fgAliases)
+        => wedge is null
+            ? null
+            : new DrawingWedgeFacts(wedge).GetSubclassProperty(
+                pgbKey,
+                fgKey,
+                fgAliases);
+
     public static string? GetFirstPropLoose(
         WedgeData wedge,
         params string[] keys)

@@ -138,21 +138,21 @@ public sealed class JavaLegacyWedgeTransport : IJavaWedgeTransport
             PS: Get(spec1, "PGB-PS"),
             Remarks: Get(spec1, "PGB-Remarks"),
 
-            Engrave: Get(spec1, "Wed-Engrave"),
-            FLBlank: Get(spec1, "Wed-FL-Blank"),
+            Engrave: Get(spec1, "PGB-Engrave"),
+            FLBlank: Get(spec1, "PGB-Coining"),
 
-            DwgText1: Get(spec1, "Wed-Dwg-Text1"),
-            DwgText2: Get(spec1, "Wed-Dwg-Text2"),
-            DwgText3: Get(spec1, "Wed-Dwg-Text3"),
-            DwgText4: Get(spec1, "Wed-Dwg-Text4"),
-            DwgText5: Get(spec1, "Wed-Dwg-Text5"),
-            DwgText6: Get(spec1, "Wed-Dwg-Text6"),
-            DwgText7: Get(spec1, "Wed-Dwg-Text7"),
+            DwgText1: Get(spec1, "PGB-Dwg-Text1"),
+            DwgText2: Get(spec1, "PGB-Dwg-Text2"),
+            DwgText3: Get(spec1, "PGB-Dwg-Text3"),
+            DwgText4: Get(spec1, "PGB-Dwg-Text4"),
+            DwgText5: Get(spec1, "PGB-Dwg-Text5"),
+            DwgText6: Get(spec1, "PGB-Dwg-Text6"),
+            DwgText7: Get(spec1, "PGB-Dwg-Text7"),
             PgbFgStyle: Get(spec1, "PGB-FG-Style"),
-            WedType: Get(spec1, "Wed-Type"),
-            WedFootOption: Get(spec1, "Wed-Foot_Option"),
-            WedWireExit: Get(spec1, "Wed-Wire_Exit"),
-            WedFeedHSlot: Get(spec1, "Wed-Feed_H/Slot")
+            WedType: Get(spec1, "PGB-Type"),
+            WedFootOption: Get(spec1, "PGB-Foot_Option"),
+            WedWireExit: Get(spec1, "PGB-Wire_Exit"),
+            WedFeedHSlot: Get(spec1, "PGB-Feed_H/Slot")
         );
     }
 

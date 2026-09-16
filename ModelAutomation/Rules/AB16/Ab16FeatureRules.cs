@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -216,7 +216,7 @@ public sealed class Ab16FeatureRules : IFeatureRuleSet
             throw new ArgumentNullException(nameof(context));
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, context.Subclass);
 
         var isFg =
             context.Subclass == WedgeSubclass.FG;

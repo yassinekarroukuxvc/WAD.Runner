@@ -25,7 +25,7 @@ public abstract class CobLikeConfigurationRulesBase : IModelConfigurationRules
         if (drawingType != DrawingType.Overlay)
             return Build("Default", explicitToggleSteps, false, "non-overlay");
 
-        var facts = wedge is null ? null : new WedgeFacts(wedge);
+        var facts = wedge is null ? null : new WedgeFacts(wedge, subclass);
 
         var finalConfig = subclass == WedgeSubclass.PGB
             ? ResolvePgbOverlayConfig(facts)

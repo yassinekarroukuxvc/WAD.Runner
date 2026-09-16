@@ -18,7 +18,7 @@ namespace WAD.Runner.ModelAutomation.Equations;
 /// CKVD-specific rules:
 ///
 /// 1. The CKVD shank/construction style is read from the Parts
-///    Specification property "Wed-Type":
+///    Specification type property: "Wed-Type" for FG, "PGB-Type" for PGB:
 ///
 ///       LW_STYLE_A_CKVD -> Style A
 ///       LW_STYLE_B_CKVD -> Style B
@@ -65,7 +65,7 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
                 "WedgeData is required to build CKVD equations.");
 
         var facts = context.Facts
-            ?? new WedgeFacts(wedge);
+            ?? new WedgeFacts(wedge, context.Subclass);
 
         var shankStyle = ResolveShankStyle(facts);
 
@@ -81,7 +81,7 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
 
         Logger.Info(
             "[CkvdEquationPlanner] CKVD shank style resolved " +
-            $"from Wed-Type: {shankStyle}.");
+            $"from {facts.EffectivePropertyName("Wed-Type")}: {shankStyle}.");
 
         AddCalculatedProjectionIfMissing(
             builder,
@@ -415,8 +415,9 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
         if (facts is null)
             throw new ArgumentNullException(nameof(facts));
 
-        var raw = facts.NormalizedPropertyToken(
-            "Wed-Type",
+        var raw = facts.NormalizedSubclassPropertyToken(
+            "PGB-Type",
+                "Wed-Type",
             "Wed_Type",
             "Wed Type",
             "Shank_Type",
@@ -439,7 +440,7 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
         }
 
         throw new InvalidOperationException(
-            "Cannot resolve the CKVD shank style from 'Wed-Type'. " +
+            $"Cannot resolve the CKVD shank style from '{facts.EffectivePropertyName("Wed-Type")}'. " +
             "Expected 'LW_STYLE_A_CKVD' or 'LW_STYLE_B_CKVD', " +
             $"but received '{(string.IsNullOrWhiteSpace(raw) ? "<missing>" : raw)}'.");
     }

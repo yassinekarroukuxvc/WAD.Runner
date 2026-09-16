@@ -55,79 +55,16 @@ internal static class PgbValidationRuleCatalog
         "FL"
     };
 
-    private static readonly PgbPropertyValidationRule FeedHoleRule =
-        Property(
-            "Wed-Feed_H/Slot",
-            "STD",
-            "Oval",
-            "Slot");
-
-    // All PGB foot-option rules accept both LW_... and SW_... forms.
-    private static readonly PgbPropertyValidationRule FootVgCgRule =
-        Property(
-            "Wed-Foot_Option",
-            "LW_VG",
-            "SW_VG",
-            "LW_CG",
-            "SW_CG");
-
-    private static readonly PgbPropertyValidationRule FootVgCgCAndGRule =
-        Property(
-            "Wed-Foot_Option",
-            "LW_VG",
-            "SW_VG",
-            "LW_CG",
-            "SW_CG",
-            "LW_C",
-            "SW_C",
-            "LW_G",
-            "SW_G");
-
-    private static readonly PgbPropertyValidationRule FootMRule =
-        Property(
-            "Wed-Foot_Option",
-            "LW_VG",
-            "SW_VG",
-            "LW_C",
-            "SW_C",
-            "LW_G",
-            "SW_G",
-            "LW_F",
-            "SW_F");
-
-    private static readonly PgbPropertyValidationRule Foot4516Rule =
-        Property(
-            "Wed-Foot_Option",
-            "LW_VG",
-            "SW_VG",
-            "LW_C",
-            "SW_C",
-            "LW_G",
-            "SW_G",
-            "LW_CC",
-            "SW_CC",
-            "LW_FLAT",
-            "SW_FLAT");
-
-    private static readonly PgbPropertyValidationRule FootCobLikeRule =
-        Property(
-            "Wed-Foot_Option",
-            "LW_VG",
-            "SW_VG",
-            "LW_C",
-            "SW_C",
-            "LW_G",
-            "SW_G");
-
+    // PGB uses PGB-Type. Wed-Type is reserved for FG.
     private static readonly PgbPropertyValidationRule SwTypeRule =
         Property(
-            "Wed-Type",
+            "PGB-Type",
             "SW_180REV",
             "SW_STD");
 
     private static readonly PgbPropertyValidationRule CkvdTypeRule =
         Property(
-            "Wed-Type",
+            "PGB-Type",
             "LW_STYLE_B_CKVD",
             "LW_STYLE_A_CKVD");
 
@@ -142,63 +79,42 @@ internal static class PgbValidationRuleCatalog
                     CkvdTypeRule),
 
             WedgeType._45CK =>
-                Rules(
-                    StandardDimensions,
-                    FeedHoleRule,
-                    FootVgCgRule),
+                Rules(StandardDimensions),
 
             WedgeType.AB16 =>
-                Rules(
-                    StandardDimensions,
-                    FeedHoleRule,
-                    FootVgCgRule),
+                Rules(StandardDimensions),
 
             WedgeType.ABT =>
                 Rules(
                     StandardDimensions,
-                    FeedHoleRule,
-                    FootVgCgCAndGRule,
                     SwTypeRule),
 
             WedgeType.M =>
                 Rules(
                     StandardDimensions,
-                    FeedHoleRule,
-                    FootMRule,
                     SwTypeRule),
 
             WedgeType._4516 =>
-                Rules(
-                    StandardDimensions,
-                    FeedHoleRule,
-                    Foot4516Rule),
+                Rules(StandardDimensions),
 
             WedgeType._1001 =>
                 Rules(
                     StandardDimensions,
-                    FeedHoleRule,
-                    FootMRule,
                     SwTypeRule),
 
             WedgeType.COB =>
                 Rules(
                     StandardDimensions,
-                    FeedHoleRule,
-                    FootCobLikeRule,
                     SwTypeRule),
 
             WedgeType.UTUS =>
                 Rules(
                     StandardDimensions,
-                    FeedHoleRule,
-                    FootCobLikeRule,
                     SwTypeRule),
 
             WedgeType.FP =>
                 Rules(
                     StandardDimensions,
-                    FeedHoleRule,
-                    FootCobLikeRule,
                     SwTypeRule),
 
             WedgeType.OSG7 =>

@@ -31,7 +31,7 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
 
         var facts =
             context.Facts ??
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, context.Subclass);
 
         var dimensions =
             new Dictionary<DimensionKey, DomDim>(
@@ -50,9 +50,12 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
                 "TL",
                 20.0));
 
-        AddFootDepthEquation(
-            builder,
-            facts);
+        if (context.Subclass == WedgeSubclass.FG)
+        {
+            AddFootDepthEquation(
+                builder,
+                facts);
+        }
 
         AddFunnelGapEquation(
             builder,
@@ -211,6 +214,13 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
                 facts);
         }
 
+        var footLog =
+            subclass == WedgeSubclass.FG
+                ? ResolveFootKind(
+                    facts,
+                    ResolveNormalizedFootOption(facts)).ToString()
+                : "N/A";
+
         Logger.Info(
             "[_1001EquationPlanner] Overlay overrides -> " +
             $"subclass={subclass}, " +
@@ -219,7 +229,7 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
             $"VW case={vwCase}, " +
             $"VBL={hasVbl}, " +
             $"RA2={hasRa2}, " +
-            $"foot={ResolveFootKind(facts, ResolveNormalizedFootOption(facts))}.");
+            $"foot={footLog}.");
     }
 
     private static void AddFgFootOverlayOverrides(
@@ -374,7 +384,7 @@ public sealed class _1001EquationPlanner : StandardEquationPlanner
         {
             throw new InvalidOperationException(
                 "Cannot calculate _1001 foot_depth. " +
-                $"Wed-Foot_Option '{DisplayToken(footOption)}' " +
+                $"{facts.EffectivePropertyName("Wed-Foot_Option")} '{DisplayToken(footOption)}' " +
                 $"requires dimension '{dimensionKey}', " +
                 "but it is missing or is not a millimeter dimension.");
         }

@@ -14,7 +14,7 @@ namespace WAD.Runner.ModelAutomation.Rules._1001;
 /// <summary>
 /// Feature rules for the _1001 wedge type.
 ///
-/// Wed-Type:
+/// Type property: FG = Wed-Type; PGB = PGB-Type.
 ///     SW_STD    -> std_* feature family
 ///     SW_180REV -> rev_* feature family
 ///
@@ -22,8 +22,11 @@ namespace WAD.Runner.ModelAutomation.Rules._1001;
 ///     Feed-hole and foot-option features are suppressed.
 ///
 /// FG:
-///     Feed-hole features are selected from Wed-Feed_H/Slot.
-///     Foot features are selected from Wed-Foot_Option.
+///     Feed-hole property: Wed-Feed_H/Slot.
+///     Foot-option property: Wed-Foot_Option.
+///
+/// PGB does not have a feed-hole or foot-option property.
+/// PGB uses only PGB-Type when shank/type resolution is required.
 ///
 /// CBR:
 ///     There is no separate CBR foot-option token.
@@ -304,7 +307,7 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
         if (context is null)
             throw new ArgumentNullException(nameof(context));
 
-        var facts = new WedgeFacts(wedge);
+        var facts = new WedgeFacts(wedge, context.Subclass);
         var shank = ResolveShankType(facts);
         var active = shank == _1001ShankType.Std ? Std : Rev;
 
@@ -474,7 +477,7 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
             default:
                 throw new InvalidOperationException(
                     "Unable to resolve the _1001 feed-hole type for an FG wedge. " +
-                    "Expected STD, Oval or Slot in 'Wed-Feed_H/Slot'.");
+                    $"Expected STD, Oval or Slot in '{facts.EffectivePropertyName("Wed-Feed_H/Slot")}'.");
         }
 
         ApplyFootRules(
@@ -786,8 +789,9 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
     {
         var token =
             NormalizePackedToken(
-                facts.NormalizedPropertyToken(
-                    "Wed-Type",
+                facts.NormalizedSubclassPropertyToken(
+                    "PGB-Type",
+                "Wed-Type",
                     "Wed_Type",
                     "Wed Type",
                     "Wedge-Type",
@@ -808,7 +812,7 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
 
             _ =>
                 throw new InvalidOperationException(
-                    "Unable to resolve the _1001 shank from 'Wed-Type'. " +
+                    $"Unable to resolve the _1001 shank from '{facts.EffectivePropertyName("Wed-Type")}'. " +
                     "Expected SW_STD or SW_180REV, but received " +
                     $"'{DisplayToken(token)}'.")
         };
@@ -857,7 +861,7 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
                     "Wed-Foot_Option",
                     "Wed_Foot_Option",
                     "Wed Foot Option",
-                    "Wed-Foot Option",
+                "Wed-Foot Option",
                     "Foot_Option",
                     "Foot Option",
                     "foot_option"));

@@ -140,21 +140,21 @@ public sealed class SqliteWedgeDataSource : IWedgeDataSource
             PS: Get(spec1Rows, "PGB-PS"),
             Remarks: Get(spec1Rows, "PGB-Remarks"),
 
-            Engrave: Get(spec1Rows, "Wed-Engrave"),
-            FLBlank: Get(spec1Rows, "Wed-FL-Blank"),
+            Engrave: Get(spec1Rows, "PGB-Engrave"),
+            FLBlank: Get(spec1Rows, "PGB-Coining"),
             PgbFgStyle: Get(spec1Rows, "PGB-FG-Style"),
-            DwgText1: Get(spec1Rows, "Wed-Dwg-Text1"),
-            DwgText2: Get(spec1Rows, "Wed-Dwg-Text2"),
-            DwgText3: Get(spec1Rows, "Wed-Dwg-Text3"),
-            DwgText4: Get(spec1Rows, "Wed-Dwg-Text4"),
-            DwgText5: Get(spec1Rows, "Wed-Dwg-Text5"),
-            DwgText6: Get(spec1Rows, "Wed-Dwg-Text6"),
-            DwgText7: Get(spec1Rows, "Wed-Dwg-Text7"),
+            DwgText1: Get(spec1Rows, "PGB-Dwg-Text1"),
+            DwgText2: Get(spec1Rows, "PGB-Dwg-Text2"),
+            DwgText3: Get(spec1Rows, "PGB-Dwg-Text3"),
+            DwgText4: Get(spec1Rows, "PGB-Dwg-Text4"),
+            DwgText5: Get(spec1Rows, "PGB-Dwg-Text5"),
+            DwgText6: Get(spec1Rows, "PGB-Dwg-Text6"),
+            DwgText7: Get(spec1Rows, "PGB-Dwg-Text7"),
 
-            WedType: Get(spec1Rows, "Wed-Type"),
-            WedFootOption: Get(spec1Rows, "Wed-Foot_Option"),
-            WedWireExit: Get(spec1Rows, "Wed-Wire_Exit"),
-            WedFeedHSlot: Get(spec1Rows, "Wed-Feed_H/Slot")
+            WedType: Get(spec1Rows, "PGB-Type"),
+            WedFootOption: Get(spec1Rows, "PGB-Foot_Option"),
+            WedWireExit: Get(spec1Rows, "PGB-Wire_Exit"),
+            WedFeedHSlot: Get(spec1Rows, "PGB-Feed_H/Slot")
         );
 
         var spec2Dto = spec2Rows

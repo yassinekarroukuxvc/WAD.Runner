@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -23,7 +23,7 @@ public sealed class MToleranceRules : IToleranceRuleSet
             return TolerancePlan.Empty;
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, subclass);
 
         var shank =
             ResolveShankType(
@@ -459,8 +459,9 @@ public sealed class MToleranceRules : IToleranceRuleSet
     {
         var token =
             NormalizePackedToken(
-                facts.NormalizedPropertyToken(
-                    "Wed-Type",
+                facts.NormalizedSubclassPropertyToken(
+                    "PGB-Type",
+                "Wed-Type",
                     "Wed_Type",
                     "Wed Type",
                     "Wedge-Type",
@@ -480,7 +481,7 @@ public sealed class MToleranceRules : IToleranceRuleSet
 
             _ =>
                 throw new InvalidOperationException(
-                    "Unable to resolve the M shank from 'Wed-Type'. " +
+                    $"Unable to resolve the M shank from '{facts.EffectivePropertyName("Wed-Type")}'. " +
                     "Expected SW_STD or SW_180REV, but received " +
                     $"'{DisplayToken(token)}'.")
         };
@@ -492,10 +493,10 @@ public sealed class MToleranceRules : IToleranceRuleSet
         var token =
             NormalizePackedToken(
                 facts.NormalizedPropertyToken(
-                    "Wed-Foot_Option",
+                "Wed-Foot_Option",
                     "Wed_Foot_Option",
                     "Wed Foot Option",
-                    "Wed-Foot Option",
+                "Wed-Foot Option",
                     "Foot_Option",
                     "Foot Option",
                     "foot_option"));

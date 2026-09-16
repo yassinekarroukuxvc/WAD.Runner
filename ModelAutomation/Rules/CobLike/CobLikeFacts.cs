@@ -12,9 +12,13 @@ namespace WAD.Runner.ModelAutomation.Rules.CobLike;
 /// </summary>
 public sealed class CobLikeFacts
 {
-    public CobLikeFacts(WedgeData wedge)
+    public CobLikeFacts(
+        WedgeData wedge,
+        WedgeSubclass subclass)
     {
-        Facts = new WedgeFacts(wedge);
+        Facts = new WedgeFacts(
+            wedge,
+            subclass);
     }
 
     public WedgeFacts Facts { get; }
@@ -47,8 +51,9 @@ public sealed class CobLikeFacts
 
     public static CobLikeShankType ResolveShankType(WedgeFacts facts)
     {
-        var raw = facts.NormalizedPropertyToken(
-            "Wed-Type",
+        var raw = facts.NormalizedSubclassPropertyToken(
+            "PGB-Type",
+                "Wed-Type",
             "Wed_Type",
             "Wed Type",
             "Shank_Type",
@@ -70,8 +75,15 @@ public sealed class CobLikeFacts
 
     public CobLikeFootOption ResolveFootOption()
     {
+        if (Facts.Subclass == WedgeSubclass.PGB)
+        {
+            throw new InvalidOperationException(
+                "PGB does not have a foot-option property. " +
+                "CobLike foot-option resolution is FG-only.");
+        }
+
         var raw = Facts.NormalizedPropertyToken(
-            "Wed-Foot_Option",
+                "Wed-Foot_Option",
             "Wed-FootOption",
             "Foot_Option",
             "FootOption");

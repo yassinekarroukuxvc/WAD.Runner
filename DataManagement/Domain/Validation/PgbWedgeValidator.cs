@@ -1,4 +1,4 @@
-﻿
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -26,61 +26,6 @@ internal static class PgbWedgeValidator
             wedgeType,
             rules.PropertyRules,
             issues);
-
-        ValidateCWithCbrConsistency(
-            wedge,
-            wedgeType,
-            issues);
-    }
-
-
-    private static void ValidateCWithCbrConsistency(
-        WedgeData wedge,
-        WedgeType wedgeType,
-        List<DimensionValidationIssue> issues)
-    {
-        var footOption =
-            WedgePropertyAccessor.ReadNormalizedToken(
-                    wedge,
-                    "Wed-Foot_Option",
-                    "Wed_Foot_Option",
-                    "Wed Foot Option",
-                    "Wed-Foot Option",
-                    "Foot_Option",
-                    "Foot Option")
-                .Trim()
-                .Replace('-', '_')
-                .Replace(' ', '_')
-                .ToUpperInvariant();
-
-        if (footOption is not ("LW_C" or "SW_C"))
-            return;
-
-        var hasCbrl = WedgeDimensionAccess.IsPositive(wedge, "CBRL");
-        var hasCbrd = WedgeDimensionAccess.IsPositive(wedge, "CBRD");
-
-        if (!hasCbrl && !hasCbrd)
-            return;
-
-        foreach (var key in new[] { "CBRL", "CBRD" })
-        {
-            if (WedgeDimensionAccess.IsPositive(wedge, key))
-                continue;
-
-            var message =
-                WedgeDimensionAccess.TryGetDimension(wedge, key, out var dimension)
-                    ? $"invalid ({key}={dimension!.Nominal.Value}); must be > 0 when a C foot has CBR data"
-                    : "missing; must be > 0 when a C foot has CBR data";
-
-            AddIssue(
-                wedge,
-                wedgeType,
-                issues,
-                "PGB C with CBR",
-                "C foot with CBR",
-                key,
-                message);
-        }
     }
 
     private static void ValidateRequiredDimensions(

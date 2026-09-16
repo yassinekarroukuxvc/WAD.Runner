@@ -28,7 +28,7 @@ public sealed class FpToleranceRules : IToleranceRuleSet
         }
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, subclass);
 
         var shank =
             ResolveShankType(facts);
@@ -546,7 +546,8 @@ public sealed class FpToleranceRules : IToleranceRuleSet
         WedgeFacts facts)
     {
         var raw =
-            facts.NormalizedPropertyToken(
+            facts.NormalizedSubclassPropertyToken(
+                "PGB-Type",
                 "Wed-Type",
                 "Wed_Type",
                 "Wed Type",
@@ -567,7 +568,7 @@ public sealed class FpToleranceRules : IToleranceRuleSet
 
             _ =>
                 throw new InvalidOperationException(
-                    "Unable to resolve the UTUS shank from 'Wed-Type'. " +
+                    $"Unable to resolve the UTUS shank from '{facts.EffectivePropertyName("Wed-Type")}'. " +
                     "Expected SW_STD or SW_180REV, but received " +
                     $"'{DisplayToken(token)}'.")
         };

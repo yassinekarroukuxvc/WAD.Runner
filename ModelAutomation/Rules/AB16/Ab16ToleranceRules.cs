@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -26,7 +26,7 @@ public sealed class Ab16ToleranceRules : IToleranceRuleSet
         if (drawingType != DrawingType.Overlay)
             return TolerancePlan.Empty;
 
-        var facts = new WedgeFacts(wedge);
+        var facts = new WedgeFacts(wedge, subclass);
         var updates = new List<ToleranceUpdate>();
 
         AddOverlayCutReferencePointUpdates(updates, facts);

@@ -46,17 +46,33 @@ internal static class NoteRules
             });
         }
 
-        AddIfPresent(notes, "Polish", ctx.Wedge, howToOrderPos, yStep: 6,
-            "Wed-Polish", "PGB-Polish", "Polish");
+        if (ctx.Wedge.Subclass == WedgeSubclass.PGB)
+        {
+            // PGB must consume only PGB-Spec1 property names.
+            // Never fall back to Wed-* values, because Wed-* belongs to FG.
+            AddIfPresent(notes, "Polish", ctx.Wedge, howToOrderPos, yStep: 6,
+                "PGB-Polish");
 
-        AddIfPresent(notes, "PS", ctx.Wedge, howToOrderPos, yStep: 6,
-            "Wed-PS", "PGB-PS", "PS");
+            AddIfPresent(notes, "PS", ctx.Wedge, howToOrderPos, yStep: 6,
+                "PGB-PS");
 
-        AddIfPresent(notes, "Remarks", ctx.Wedge, howToOrderPos, yStep: 6,
-            "PGB-Remarks", "Wed-Remarks", "Remarks");
+            AddIfPresent(notes, "Remarks", ctx.Wedge, howToOrderPos, yStep: 6,
+                "PGB-Remarks");
+        }
+        else
+        {
+            AddIfPresent(notes, "Polish", ctx.Wedge, howToOrderPos, yStep: 6,
+                "Wed-Polish");
 
-        AddIfPresent(notes, "Notes", ctx.Wedge, howToOrderPos, yStep: 6,
-            "Wed-Notes", "Notes");
+            AddIfPresent(notes, "PS", ctx.Wedge, howToOrderPos, yStep: 6,
+                "Wed-PS");
+
+            AddIfPresent(notes, "Remarks", ctx.Wedge, howToOrderPos, yStep: 6,
+                "Wed-Remarks");
+
+            AddIfPresent(notes, "Notes", ctx.Wedge, howToOrderPos, yStep: 6,
+                "Wed-Notes");
+        }
 
         if (ctx.Wedge.Marking is not null)
         {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -496,7 +496,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             throw new ArgumentNullException(nameof(context));
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, context.Subclass);
 
         var shank =
             ResolveShankType(
@@ -1715,7 +1715,8 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         WedgeFacts facts)
     {
         var raw =
-            facts.NormalizedPropertyToken(
+            facts.NormalizedSubclassPropertyToken(
+                "PGB-Type",
                 "Wed-Type",
                 "Wed_Type",
                 "Wed Type",
@@ -1741,7 +1742,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
             _ =>
                 throw new InvalidOperationException(
-                    "Unable to resolve the ABT shank from 'Wed-Type'. " +
+                    $"Unable to resolve the ABT shank from '{facts.EffectivePropertyName("Wed-Type")}'. " +
                     "Expected SW_STD or SW_180REV, but received " +
                     $"'{DisplayToken(token)}'.")
         };

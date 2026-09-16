@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -33,7 +33,7 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
         }
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, subclass);
 
         var updates =
             new List<ToleranceUpdate>();

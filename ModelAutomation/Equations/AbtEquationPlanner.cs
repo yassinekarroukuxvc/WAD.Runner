@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -41,7 +41,7 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///     LW_VG / SW_VG -> foot_depth = GD
 ///     LW_G / SW_G   -> foot_depth = GD
 ///     LW_C / SW_C   -> foot_depth = CD
-///     Other         -> foot_depth = 0
+///     Other FG foot options -> foot_depth = 0
 ///
 /// C with CBR is not a separate foot-option token.
 /// LW_C / SW_C is treated as C-with-CBR when CBR > 0.
@@ -78,7 +78,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 "WedgeData is required to build ABT equations.");
 
         var facts = context.Facts
-            ?? new WedgeFacts(wedge);
+            ?? new WedgeFacts(wedge, context.Subclass);
 
         var dimensions =
             new Dictionary<DimensionKey, DomDim>(
@@ -96,9 +96,12 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
                 "TL",
                 20.0));
 
-        AddFootDepthEquation(
-            builder,
-            facts);
+        if (context.Subclass == WedgeSubclass.FG)
+        {
+            AddFootDepthEquation(
+                builder,
+                facts);
+        }
 
         AddFunnelGapEquation(
             builder,
@@ -215,7 +218,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
             $"VR/VW present={hasVrVw}, " +
             $"VW case={overlayVwCase}, " +
             $"RA2H present={facts.HasPositive("RA2H")}, " +
-            $"foot option={ResolveFootKind(facts, ResolveNormalizedFootOption(facts))}.");
+            $"foot option={(subclass == WedgeSubclass.FG ? ResolveFootKind(facts, ResolveNormalizedFootOption(facts)).ToString() : "N/A")}.");
     }
 
     private static void AddVrVwOverlayOverrides(
@@ -519,7 +522,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
 
         Logger.Info(
             "[AbtEquationPlanner] Foot depth resolved -> " +
-            $"Wed-Foot_Option='{DisplayToken(footOption)}', " +
+            $"{facts.EffectivePropertyName("Wed-Foot_Option")}='{DisplayToken(footOption)}', " +
             $"foot kind={footKind}, " +
             $"source={sourceDescription}, " +
             $"foot_depth={footDepthMm} mm.");
@@ -536,7 +539,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         {
             throw new InvalidOperationException(
                 "Cannot calculate ABT foot_depth. " +
-                $"Wed-Foot_Option '{DisplayToken(footOption)}' " +
+                $"{facts.EffectivePropertyName("Wed-Foot_Option")} '{DisplayToken(footOption)}' " +
                 $"requires dimension '{sourceDimension}', " +
                 "but that dimension is missing or is not a " +
                 "millimeter dimension.");

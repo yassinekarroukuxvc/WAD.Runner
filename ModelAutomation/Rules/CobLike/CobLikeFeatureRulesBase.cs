@@ -27,13 +27,19 @@ public abstract class CobLikeFeatureRulesBase : IFeatureRuleSet
         if (wedge is null) throw new ArgumentNullException(nameof(wedge));
         if (context is null) throw new ArgumentNullException(nameof(context));
 
-        var facts = new CobLikeFacts(wedge);
+        var facts = new CobLikeFacts(wedge, context.Subclass);
         var shank = facts.ShankType;
-        var foot = facts.FootOption;
+        var foot = context.Subclass == WedgeSubclass.FG
+            ? facts.FootOption
+            : CobLikeFootOption.C; // placeholder only; never consumed by the PGB branch
+
+        var footLog = context.Subclass == WedgeSubclass.FG
+            ? foot.ToString()
+            : "N/A";
 
         Logger.Info(
             $"[{LogPrefix}] Build — subclass={context.Subclass}, drawing={context.DrawingType}, " +
-            $"shank={shank}, foot={foot}, ruleProfile={context.FeatureRuleProfile ?? "(none)"}");
+            $"shank={shank}, foot={footLog}, ruleProfile={context.FeatureRuleProfile ?? "(none)"}");
 
         var plan = new FeaturePlanBuilder()
             .Know(CobLikeFeatureCatalog.AllManagedNames())

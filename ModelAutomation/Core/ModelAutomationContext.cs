@@ -10,7 +10,7 @@ public sealed class ModelAutomationContext
     {
         Job = job ?? throw new ArgumentNullException(nameof(job));
         Paths = paths ?? throw new ArgumentNullException(nameof(paths));
-        Facts = job.WedgeData is null ? null : new WedgeFacts(job.WedgeData);
+        Facts = job.WedgeData is null ? null : new WedgeFacts(job.WedgeData, job.Subclass);
     }
 
     public ModelJobRequest Job { get; }

@@ -277,7 +277,7 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
             throw new ArgumentNullException(nameof(context));
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, context.Subclass);
 
         var shank =
             ResolveShankType(
@@ -763,7 +763,8 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
         WedgeFacts facts)
     {
         var raw =
-            facts.NormalizedPropertyToken(
+            facts.NormalizedSubclassPropertyToken(
+                "PGB-Type",
                 "Wed-Type",
                 "Wed_Type",
                 "Wed Type",
@@ -791,7 +792,7 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
 
             _ =>
                 throw new InvalidOperationException(
-                    "Unable to resolve the CKVD shank from 'Wed-Type'. " +
+                    $"Unable to resolve the CKVD shank from '{facts.EffectivePropertyName("Wed-Type")}'. " +
                     "Expected LW_STYLE_A_CKVD or LW_STYLE_B_CKVD, but received " +
                     $"'{DisplayToken(token)}'.")
         };

@@ -268,7 +268,7 @@ public sealed class UtusFeatureRules : IFeatureRuleSet
             throw new ArgumentNullException(nameof(context));
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, context.Subclass);
 
         var shank =
             ResolveShankType(
@@ -493,7 +493,7 @@ public sealed class UtusFeatureRules : IFeatureRuleSet
             default:
                 throw new InvalidOperationException(
                     "Unable to resolve the UTUS feed-hole type for an FG wedge. " +
-                    "Expected STD, Oval or Slot in 'Wed-Feed_H/Slot'.");
+                    $"Expected STD, Oval or Slot in '{facts.EffectivePropertyName("Wed-Feed_H/Slot")}'.");
         }
 
         ApplyFootRules(
@@ -790,8 +790,9 @@ public sealed class UtusFeatureRules : IFeatureRuleSet
     {
         var token =
             NormalizePackedToken(
-                facts.NormalizedPropertyToken(
-                    "Wed-Type",
+                facts.NormalizedSubclassPropertyToken(
+                    "PGB-Type",
+                "Wed-Type",
                     "Wed_Type",
                     "Wed Type",
                     "Wedge-Type",
@@ -812,7 +813,7 @@ public sealed class UtusFeatureRules : IFeatureRuleSet
 
             _ =>
                 throw new InvalidOperationException(
-                    "Unable to resolve the UTUS shank from 'Wed-Type'. " +
+                    $"Unable to resolve the UTUS shank from '{facts.EffectivePropertyName("Wed-Type")}'. " +
                     $"Expected SW_STD or SW_180REV, but received '{DisplayToken(token)}'.")
         };
     }
@@ -857,10 +858,10 @@ public sealed class UtusFeatureRules : IFeatureRuleSet
         var token =
             NormalizePackedToken(
                 facts.NormalizedPropertyToken(
-                    "Wed-Foot_Option",
+                "Wed-Foot_Option",
                     "Wed_Foot_Option",
                     "Wed Foot Option",
-                    "Wed-Foot Option",
+                "Wed-Foot Option",
                     "Foot_Option",
                     "Foot Option",
                     "foot_option"));

@@ -18,7 +18,7 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
         if (wedge is null)
             throw new ArgumentNullException(nameof(wedge));
 
-        var facts = new WedgeFacts(wedge);
+        var facts = new WedgeFacts(wedge, subclass);
         var updates = new List<ToleranceUpdate>();
 
         /*
@@ -383,8 +383,9 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
     private static CkvdStyle ResolveStyle(
         WedgeFacts facts)
     {
-        var raw = facts.NormalizedPropertyToken(
-            "Wed-Type",
+        var raw = facts.NormalizedSubclassPropertyToken(
+            "PGB-Type",
+                "Wed-Type",
             "Wed_Type",
             "Wed Type",
             "Shank_Type",
@@ -407,7 +408,7 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
         }
 
         throw new InvalidOperationException(
-            "Unable to resolve the CKVD shank style from Wed-Type. " +
+            $"Unable to resolve the CKVD shank style from {facts.EffectivePropertyName("Wed-Type")}. " +
             "Expected 'LW_STYLE_A_CKVD' or 'LW_STYLE_B_CKVD', " +
             $"but received '{raw}'.");
     }

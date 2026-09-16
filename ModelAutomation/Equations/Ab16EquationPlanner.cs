@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -63,7 +63,7 @@ public sealed class Ab16EquationPlanner : StandardEquationPlanner
 
         var facts =
             context.Facts ??
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, context.Subclass);
 
         var dimensions =
             new Dictionary<DimensionKey, DomDim>(
@@ -94,10 +94,13 @@ public sealed class Ab16EquationPlanner : StandardEquationPlanner
                 "TL",
                 20.0));
 
-        AddFootDepthEquation(
-            builder,
-            facts,
-            context.Subclass);
+        if (context.Subclass == WedgeSubclass.FG)
+        {
+            AddFootDepthEquation(
+                builder,
+                facts,
+                context.Subclass);
+        }
 
         builder.AddManaged(
             EquationCatalog.Names.FunnelGap,
@@ -172,7 +175,7 @@ public sealed class Ab16EquationPlanner : StandardEquationPlanner
             default:
                 throw new InvalidOperationException(
                     "Cannot resolve the AB16 feed-hole type from " +
-                    "'Wed-Feed_H/Slot'. Expected STD, Oval or Slot, " +
+                    $"'{facts.EffectivePropertyName("Wed-Feed_H/Slot")}'. Expected STD, Oval or Slot, " +
                     $"but received '{DisplayToken(token)}'.");
         }
     }
@@ -365,7 +368,7 @@ public sealed class Ab16EquationPlanner : StandardEquationPlanner
             $"VR/VW={hasVrVw}, " +
             $"case={vwCase}, " +
             $"RA2H={facts.HasPositive("RA2H")}, " +
-            $"foot={ResolveFootOption(facts)}.");
+            $"foot={(subclass == WedgeSubclass.FG ? ResolveFootOption(facts).ToString() : "N/A")}.");
     }
 
     // ================================================================

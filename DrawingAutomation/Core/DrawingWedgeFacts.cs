@@ -32,7 +32,8 @@ public sealed class DrawingWedgeFacts
     {
         get
         {
-            var raw = GetProperty(
+            var raw = GetSubclassProperty(
+                "PGB-Type",
                 "Wed-Type",
                 "Wed_Type",
                 "Wed Type",
@@ -89,6 +90,30 @@ public sealed class DrawingWedgeFacts
             return false;
         }
     }
+
+    public string? GetSubclassProperty(
+        string pgbKey,
+        string fgKey,
+        params string[] fgAliases)
+    {
+        if (Wedge.Subclass == WedgeSubclass.PGB)
+            return GetProperty(pgbKey);
+
+        var keys = new string[1 + (fgAliases?.Length ?? 0)];
+        keys[0] = fgKey;
+
+        if (fgAliases is not null && fgAliases.Length > 0)
+            Array.Copy(fgAliases, 0, keys, 1, fgAliases.Length);
+
+        return GetProperty(keys);
+    }
+
+    public string EffectivePropertyName(
+        string pgbKey,
+        string fgKey)
+        => Wedge.Subclass == WedgeSubclass.PGB
+            ? pgbKey
+            : fgKey;
 
     public string? GetProperty(params string[] keys)
     {

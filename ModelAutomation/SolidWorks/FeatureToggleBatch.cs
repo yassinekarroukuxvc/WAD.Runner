@@ -75,7 +75,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             /// <summary>
             /// Sub-feature nesting depth (how deeply this feature is
             /// nested inside another feature, e.g. a sketch folded into
-            /// a cut). NOT the same as rebuild/tree order — kept mainly
+            /// a cut). NOT the same as rebuild/tree order  kept mainly
             /// for diagnostics.
             /// </summary>
             public int Depth { get; }
@@ -86,7 +86,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             /// GetNextFeature() order, sub-features interleaved via
             /// GetFirstSubFeature()/GetNextSubFeature()).
             ///
-            /// This — not Depth — is the correct signal for suppress /
+            /// This  not Depth  is the correct signal for suppress /
             /// unsuppress sequencing: a feature can only depend on
             /// features that appear earlier in the tree, regardless of
             /// how deeply either one is nested.
@@ -158,7 +158,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             /// How many verify+repair passes to run. A single mismatched
             /// feature that blocks a dependent feature can be fixed on
             /// pass 1, which then lets the dependent feature succeed on
-            /// pass 2 — so more than one pass matters for batches with
+            /// pass 2  so more than one pass matters for batches with
             /// cross-dependencies. The loop stops early once a pass makes
             /// no further progress.
             /// </summary>
@@ -340,7 +340,7 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             //     latest-in-tree -> earliest-in-tree
             //
             // Ordered by each feature's actual FeatureManager tree
-            // position (TreeOrder), not sub-feature nesting depth — a
+            // position (TreeOrder), not sub-feature nesting depth  a
             // feature can only reference features that appear earlier
             // in the tree, no matter how deeply either is nested. This
             // removes the need for wedge-specific critical-name lists

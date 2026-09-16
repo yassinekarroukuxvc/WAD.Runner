@@ -13,12 +13,23 @@ public sealed class WedgeFacts
 {
     public const decimal DefaultPositiveEpsilon = 0.000001m;
 
-    public WedgeFacts(WedgeData wedge)
+    public WedgeFacts(
+        WedgeData wedge,
+        WedgeSubclass? subclass = null)
     {
         Wedge = wedge ?? throw new ArgumentNullException(nameof(wedge));
+        Subclass = subclass;
     }
 
     public WedgeData Wedge { get; }
+
+    /// <summary>
+    /// Subclass associated with this fact set when known.
+    ///
+    /// This matters for specification properties:
+    /// FG uses Wed-* specification properties; PGB ModelAutomation uses only PGB-Type when required.
+    /// </summary>
+    public WedgeSubclass? Subclass { get; }
 
     public bool HasPositive(string key, decimal eps = DefaultPositiveEpsilon)
         => TryGetNominalValue(key, out var value) && value > eps;
@@ -209,7 +220,33 @@ public sealed class WedgeFacts
 
     public string Property(params string[] keys)
     {
-        if (keys is null) return string.Empty;
+        if (keys is null)
+            return string.Empty;
+
+        /*
+         * MODEL-AUTOMATION SUBCLASS PROPERTY CONTRACT
+         * -------------------------------------------
+         * FG may use Wed-* specification properties.
+         * PGB has no feed-hole or foot-option property. Within ModelAutomation,
+         * the only PGB specification property that may be consumed is PGB-Type.
+         *
+         * Therefore a PGB run never translates arbitrary Wed-* keys into PGB-*.
+         * Only a type request (for example Wed-Type/PGB-Type) resolves to PGB-Type.
+         */
+        if (Subclass == WedgeSubclass.PGB)
+        {
+            foreach (var key in keys)
+            {
+                if (!IsTypePropertyKey(key))
+                    continue;
+
+                var value = GetPropertyLoose("PGB-Type");
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value!;
+            }
+
+            return string.Empty;
+        }
 
         foreach (var key in keys)
         {
@@ -223,6 +260,54 @@ public sealed class WedgeFacts
 
     public string NormalizedPropertyToken(params string[] keys)
         => NormalizeDbToken(Property(keys));
+
+    /// <summary>
+    /// Reads a type property using the subclass-specific namespace.
+    /// PGB may consume only PGB-Type. FG reads Wed-Type (or another supplied
+    /// Wed-* property when this helper is used by legacy FG code) plus aliases.
+    /// Non-type PGB property requests intentionally resolve to an empty token.
+    /// </summary>
+    public string NormalizedSubclassPropertyToken(
+        string pgbKey,
+        string wedKey,
+        params string[] fgAliases)
+    {
+        if (Subclass == WedgeSubclass.PGB)
+        {
+            if (!IsTypePropertyKey(pgbKey) || !IsTypePropertyKey(wedKey))
+                return string.Empty;
+
+            return NormalizeDbToken(GetPropertyLoose("PGB-Type"));
+        }
+
+        var value = GetPropertyLoose(wedKey);
+        if (!string.IsNullOrWhiteSpace(value))
+            return NormalizeDbToken(value);
+
+        if (fgAliases is not null)
+        {
+            foreach (var alias in fgAliases)
+            {
+                value = GetPropertyLoose(alias);
+                if (!string.IsNullOrWhiteSpace(value))
+                    return NormalizeDbToken(value);
+            }
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// Returns the effective database property name for diagnostics.
+    /// Only type is subclass-mapped in ModelAutomation: PGB + Wed-Type => PGB-Type.
+    /// </summary>
+    public string EffectivePropertyName(string key)
+    {
+        if (Subclass == WedgeSubclass.PGB && IsTypePropertyKey(key))
+            return "PGB-Type";
+
+        return key;
+    }
 
     public string? GetPropertyLoose(string key)
     {
@@ -240,6 +325,18 @@ public sealed class WedgeFacts
         }
 
         return null;
+    }
+
+    private static bool IsTypePropertyKey(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return false;
+
+        var normalized = NormalizeKey(key);
+        return string.Equals(normalized, "WEDTYPE", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "PGBTYPE", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "WEDGETYPE", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "SHANKTYPE", StringComparison.OrdinalIgnoreCase);
     }
 
     public static string NormalizeDbToken(string? value)

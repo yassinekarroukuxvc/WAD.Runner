@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.Application;
@@ -26,7 +26,7 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///     G                -> foot_depth = GD
 ///     C                 -> foot_depth = CD
 ///     C with CBR       -> foot_depth = CD
-///                         detected when Wed-Foot_Option is C
+///                         detected when the subclass foot option (Wed-Foot_Option; FG only) is C
 ///                         and CBRL > 0 and CBRD > 0
 ///     Other            -> foot_depth = 0
 ///
@@ -98,7 +98,7 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 "WedgeData is required to build 4516 equations.");
 
         var facts = context.Facts
-            ?? new WedgeFacts(wedge);
+            ?? new WedgeFacts(wedge, context.Subclass);
 
         var dimensions =
             new Dictionary<DimensionKey, DomDim>(
@@ -116,13 +116,19 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 "TL",
                 20.0));
 
-        ApplyFeedHoleEquationRules(
-            builder,
-            facts);
+        if (context.Subclass == WedgeSubclass.FG)
+        {
+            ApplyFeedHoleEquationRules(
+                builder,
+                facts);
+        }
 
-        AddFootDepthEquation(
-            builder,
-            facts);
+        if (context.Subclass == WedgeSubclass.FG)
+        {
+            AddFootDepthEquation(
+                builder,
+                facts);
+        }
 
         AddFunnelGapEquation(
             builder,
@@ -237,16 +243,19 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 facts);
         }
 
-        var normalizedFootOption =
-            ResolveNormalizedFootOption(
-                facts);
+        var footLog =
+            subclass == WedgeSubclass.FG
+                ? ResolveFootKind(
+                    facts,
+                    ResolveNormalizedFootOption(facts)).ToString()
+                : "N/A";
 
         Logger.Info(
             "[_4516EquationPlanner] Overlay dimension overrides -> " +
             $"subclass={subclass}, " +
             $"VR/VW present={hasVrVw}, " +
             $"VW case={overlayVwCase}, " +
-            $"foot option={ResolveFootKind(facts, normalizedFootOption)}.");
+            $"foot option={footLog}.");
     }
 
     private static void AddVrVwOverlayOverrides(
@@ -547,7 +556,7 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
             default:
                 throw new InvalidOperationException(
                     "Cannot resolve the 4516 feed-hole type from " +
-                    "'Wed-Feed_H/Slot'. Expected STD(Round), STD, " +
+                    $"'{facts.EffectivePropertyName("Wed-Feed_H/Slot")}'. Expected STD(Round), STD, " +
                     $"Oval or Slot, but received " +
                     $"'{DisplayToken(feedHoleToken)}'. The 4516 " +
                     "property validation must run before building " +
@@ -748,7 +757,7 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
 
         Logger.Info(
             "[_4516EquationPlanner] Foot depth resolved -> " +
-            $"Wed-Foot_Option='{DisplayToken(footOption)}', " +
+            $"{facts.EffectivePropertyName("Wed-Foot_Option")}='{DisplayToken(footOption)}', " +
             $"foot kind={footKind}, " +
             $"source={sourceDescription}, " +
             $"foot_depth={footDepthMm} mm.");
@@ -814,7 +823,7 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         {
             throw new InvalidOperationException(
                 "Cannot calculate 4516 foot_depth. " +
-                $"Wed-Foot_Option '{DisplayToken(footOption)}' " +
+                $"{facts.EffectivePropertyName("Wed-Foot_Option")} '{DisplayToken(footOption)}' " +
                 $"requires dimension '{sourceDimension}', " +
                 "but that dimension is missing or is not a " +
                 "millimeter dimension.");

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
@@ -479,7 +479,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
             throw new ArgumentNullException(nameof(context));
 
         var facts =
-            new WedgeFacts(wedge);
+            new WedgeFacts(wedge, context.Subclass);
 
         Logger.Info(
             "[_4516FeatureRules] Build -> " +
@@ -531,12 +531,14 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 hasOverlayVrFamily);
 
         var feedHoleType =
-            ResolveFeedHoleType(
-                facts);
+            context.Subclass == WedgeSubclass.FG
+                ? ResolveFeedHoleType(facts)
+                : FeedHoleType.NotApplicable;
 
         var footOption =
-            ResolveFootOption(
-                facts);
+            context.Subclass == WedgeSubclass.FG
+                ? ResolveFootOption(facts)
+                : FootOptionType.NotApplicable;
 
         /*
          * IMPORTANT:
@@ -550,6 +552,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
          *     CBRD > 0
          */
         var hasCbr =
+            context.Subclass == WedgeSubclass.FG &&
             HasAllPositiveNominal(
                 facts,
                 "CBRL",
@@ -1317,6 +1320,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
     private enum FeedHoleType
     {
+        NotApplicable,
         Unknown,
         Std,
         Oval,
@@ -1325,6 +1329,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
     private enum FootOptionType
     {
+        NotApplicable,
         Flat,
         Vg,
         C,

@@ -21,7 +21,7 @@ public sealed class CobLikeEquationPlanner : StandardEquationPlanner
     public override EquationPlan Build(ModelAutomationContext context)
     {
         var wedge = context.Wedge ?? throw new System.InvalidOperationException("WedgeData is required to build COB-like equations.");
-        var facts = context.Facts ?? new WedgeFacts(wedge);
+        var facts = context.Facts ?? new WedgeFacts(wedge, context.Subclass);
         var dims = new Dictionary<DimensionKey, DomDim>(wedge.Dimensions);
 
         ApplyVraDefault(facts, dims);
