@@ -454,6 +454,11 @@ public sealed class _1001FeatureRules : IFeatureRuleSet
             plan.ForceSuppress(
                 footManaged);
 
+            // PGB does not use FRO.
+            // This suppresses the correct STD/REV FRO family automatically.
+            plan.ForceSuppress(
+                family.Fro);
+
             return;
         }
 

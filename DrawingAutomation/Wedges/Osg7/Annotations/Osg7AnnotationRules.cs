@@ -187,7 +187,7 @@ public sealed class Osg7PgbProductionAnnotationRules : AnnotationRuleCatalogBase
             Keep("OSG7-PGB-PROD-DETAIL-VRA", Detail, "VRA@ANNOT_RIGH_PLAN", DimPositive("VRA"), "Keep VRA only when VRA is positive."),
 
             // SECTION VIEW
-            Keep("OSG7-PGB-PROD-SECTION-FL", Section, "FL@ANNOT_FRONT_PLAN", Always(), "OSG7 PGB section FL.")
+            Keep("OSG7-PGB-PROD-SECTION-FL", Section, "FL@ANNOT_FRONT_PLAN", DimPositive("FL"), "OSG7 PGB section FL.")
         };
     }
 }

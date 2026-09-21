@@ -47,9 +47,9 @@ public abstract class CobAnnotationRuleCatalogBase : AnnotationRuleCatalogBase
             Keep($"{idPrefix}-DETAIL-VW", Detail, $"VW@{AnnotationRightPlan}", DimPositive("VW"), "COB PGB Detail keeps VW when VW is positive."),
             Keep($"{idPrefix}-DETAIL-VRA", Detail, $"VRA@{AnnotationRightPlan}", DimPositive("VR"), "COB PGB Detail keeps VRA when VR is positive."),
 
-            Keep($"{idPrefix}-SECTION-STD-FL", Section, $"FL@{AnnotationStdFrontPlan}", isStd, "COB PGB STD Section keeps FL."),
+            Keep($"{idPrefix}-SECTION-STD-FL", Section, $"FL@{AnnotationStdFrontPlan}", All(isStd, DimPositive("FL")), "COB PGB STD Section keeps FL when FL is positive."),
             Keep($"{idPrefix}-SECTION-STD-T", Section, $"T@{AnnotationStdFrontPlan}", isStd, "COB PGB STD Section keeps T."),
-            Keep($"{idPrefix}-SECTION-REV-FL", Section, $"FL@{AnnotationRevFrontPlan}", isRev, "COB PGB REV Section keeps FL."),
+            Keep($"{idPrefix}-SECTION-REV-FL", Section, $"FL@{AnnotationRevFrontPlan}", All(isRev, DimPositive("FL")), "COB PGB REV Section keeps FL when FL is positive."),
             Keep($"{idPrefix}-SECTION-REV-T", Section, $"T@{AnnotationRevFrontPlan}", isRev, "COB PGB REV Section keeps T.")
         };
     }

@@ -145,7 +145,7 @@ public abstract class _4516AnnotationRuleCatalogBase :
                 $"{idPrefix}-SECTION-FL",
                 Section,
                 $"FL@{AnnotationFrontPlan}",
-                Always(),
+                DimPositive("FL"),
                 "4516 PGB Section keeps FL."),
 
             Keep(

@@ -42,6 +42,8 @@ internal static class PgbValidationRuleCatalog
         "W",
         "ISA",
         "FL",
+        "RA",
+        "BA",
         "T"
     };
 
@@ -52,7 +54,9 @@ internal static class PgbValidationRuleCatalog
         "TDF",
         "W",
         "ISA",
-        "FL"
+        "FL",
+        "RA",
+        "BA"
     };
 
     // PGB uses PGB-Type. Wed-Type is reserved for FG.

@@ -470,6 +470,25 @@ public sealed class UtusFeatureRules : IFeatureRuleSet
             plan.ForceSuppress(
                 footManaged);
 
+            // PGB does not use FRO, ERW or core-fillet features/sketches.
+            if (ReferenceEquals(family, Std))
+            {
+                plan.ForceSuppress(
+                    "fro_std_feature",
+                    "fro_std_sketch",
+                    "erw_std_feature",
+                    "erw_std_sketch",
+                    "core_fillet_std_feature");
+            }
+            else
+            {
+                plan.ForceSuppress(
+                    "fro_rev_feature",
+                    "erw_rev_feature",
+                    "erw_rev_sketch",
+                    "core_fillet_rev_feature");
+            }
+
             return;
         }
 

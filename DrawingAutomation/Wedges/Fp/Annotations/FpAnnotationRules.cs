@@ -47,9 +47,9 @@ public abstract class FpAnnotationRuleCatalogBase : AnnotationRuleCatalogBase
             Keep($"{idPrefix}-DETAIL-VW", Detail, $"VW@{AnnotationRightPlan}", DimPositive("VW"), "FP PGB Detail keeps VW when VW is positive."),
             Keep($"{idPrefix}-DETAIL-VRA", Detail, $"VRA@{AnnotationRightPlan}", DimPositive("VR"), "FP PGB Detail keeps VRA when VR is positive."),
 
-            Keep($"{idPrefix}-SECTION-STD-FL", Section, $"FL@{AnnotationStdFrontPlan}", isStd, "FP PGB STD Section keeps FL."),
+            Keep($"{idPrefix}-SECTION-STD-FL", Section, $"FL@{AnnotationStdFrontPlan}", All(isStd, DimPositive("FL")), "FP PGB STD Section keeps FL."),
             Keep($"{idPrefix}-SECTION-STD-T", Section, $"T@{AnnotationStdFrontPlan}", isStd, "FP PGB STD Section keeps T."),
-            Keep($"{idPrefix}-SECTION-REV-FL", Section, $"FL@{AnnotationRevFrontPlan}", isRev, "FP PGB REV Section keeps FL."),
+            Keep($"{idPrefix}-SECTION-REV-FL", Section, $"FL@{AnnotationRevFrontPlan}", All(isRev, DimPositive("FL")), "FP PGB REV Section keeps FL."),
             Keep($"{idPrefix}-SECTION-REV-T", Section, $"T@{AnnotationRevFrontPlan}", isRev, "FP PGB REV Section keeps T.")
         };
     }

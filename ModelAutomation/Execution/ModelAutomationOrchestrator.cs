@@ -110,6 +110,16 @@ public sealed class ModelAutomationOrchestrator
             context,
             configurationPlan);
 
+        // SolidWorks can auto-suppress an overlay cut/reference feature as
+        // a side effect of suppressing another feature family (for example,
+        // a hole/combine family), even when the cut is not truly dependent
+        // on that family. Reassert the requested cut/reference state last.
+        ReapplyFinalOverlayCutState(
+            editor,
+            profile,
+            context,
+            configurationPlan);
+
         ct.ThrowIfCancellationRequested();
 
         editor.Save();
@@ -298,21 +308,39 @@ public sealed class ModelAutomationOrchestrator
                 context.Wedge!,
                 ruleContext);
 
+        var split =
+            OverlayCutFeatureFinalizer.Split(
+                featurePlan);
+
+        // Apply every normal feature first. Overlay cut/reference features
+        // are deliberately excluded from this pass.
         var result =
             editor.ApplyFeatureToggles(
-                featurePlan.Suppress,
-                featurePlan.Unsuppress,
+                split.NormalPlan.Suppress,
+                split.NormalPlan.Unsuppress,
                 scope);
 
         if (!result.IsSuccess)
         {
             Logger.Warn(
                 "[ModelAutomationOrchestrator] " +
-                "Feature plan completed with " +
+                "Normal feature plan completed with " +
                 $"missing={result.Missing.Count}, " +
                 $"failed={result.Failed.Count}, " +
                 $"config={configurationName}.");
         }
+
+        // IMPORTANT:
+        // Apply the overlay cut/reference state after every other feature
+        // toggle. In the finalizer, OFF cuts are suppressed first and ON
+        // cuts are unsuppressed last, matching the manual SolidWorks
+        // workaround used when another suppression auto-suppresses a cut.
+        OverlayCutFeatureFinalizer.ApplyLast(
+            editor,
+            split.FinalCutPlan,
+            scope,
+            configurationName,
+            phase: "feature-plan");
     }
 
     private void ApplyEquationsAndTolerances(
@@ -492,6 +520,64 @@ public sealed class ModelAutomationOrchestrator
             Array.Empty<string>(),
             swInConfigurationOpts_e
                 .swThisConfiguration);
+    }
+
+    private static void ReapplyFinalOverlayCutState(
+        ModelEditor editor,
+        WedgeAutomationProfile profile,
+        ModelAutomationContext context,
+        ConfigurationPlan configurationPlan)
+    {
+        // For explicit-step profiles the final drawing configuration may
+        // have its own rule profile. Rebuild exactly that final rule plan.
+        var finalStepProfile =
+            (configurationPlan.ToggleSteps ??
+             Array.Empty<FeatureToggleStep>())
+            .LastOrDefault(
+                step => string.Equals(
+                    step.ConfigurationName,
+                    configurationPlan.ConfigurationName,
+                    StringComparison.OrdinalIgnoreCase))
+            ?.FeatureRuleProfile;
+
+        // This pass is configuration-specific. If SolidWorks refuses the
+        // switch, keep the previous behavior and skip the optional final
+        // reconciliation rather than editing the wrong configuration.
+        if (!editor.ActivateConfiguration(
+                configurationPlan.ConfigurationName))
+        {
+            Logger.Warn(
+                "[ModelAutomationOrchestrator] " +
+                "Final overlay-cut reconciliation skipped because " +
+                $"configuration '{configurationPlan.ConfigurationName}' " +
+                "could not be activated.");
+
+            return;
+        }
+
+        var ruleContext =
+            new FeatureRuleContext(
+                context.DrawingType,
+                context.Subclass,
+                configurationPlan.ConfigurationName,
+                finalStepProfile);
+
+        var plan =
+            ModelRuleRunner.BuildFeaturePlan(
+                profile,
+                context.Wedge!,
+                ruleContext);
+
+        var finalCutPlan =
+            OverlayCutFeatureFinalizer.ExtractFinalCutPlan(
+                plan);
+
+        OverlayCutFeatureFinalizer.ApplyLast(
+            editor,
+            finalCutPlan,
+            swInConfigurationOpts_e.swThisConfiguration,
+            configurationPlan.ConfigurationName,
+            phase: "post-rebuild-final");
     }
 
     private static void ValidateInputs(

@@ -36,7 +36,7 @@ public abstract class Ab16AnnotationRuleCatalogBase : AnnotationRuleCatalogBase
             Keep($"{idPrefix}-DETAIL-W2", Detail, $"W2@{AnnotationRightPlan}", DimPositive("W2"), "AB16 PGB Detail keeps W2 when W2 is positive."),
             Keep($"{idPrefix}-DETAIL-VRA", Detail, $"VRA@{AnnotationRightPlan}", DimPositive("VRA"), "AB16 PGB Detail keeps VRA when VRA is positive."),
 
-            Keep($"{idPrefix}-SECTION-FL", Section, $"FL@{AnnotationFrontPlan}", Always(), "AB16 PGB Section keeps FL."),
+            Keep($"{idPrefix}-SECTION-FL", Section, $"FL@{AnnotationFrontPlan}", DimPositive("FL"), "AB16 PGB Section keeps FL."),
             Keep($"{idPrefix}-SECTION-T", Section, $"T@{AnnotationFrontPlan}", Always(), "AB16 PGB Section keeps T.")
         };
     }

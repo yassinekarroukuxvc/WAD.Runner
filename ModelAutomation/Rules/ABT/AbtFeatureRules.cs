@@ -828,9 +828,18 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             plan.ForceSuppress(
                 StdFootManagedNames);
 
+            // PGB does not use FRO, ERW, core-fillet or round-BR geometry.
+            plan.ForceSuppress(
+                "fro_std_feature",
+                "fro_std_sketch",
+                "erw_std_feature",
+                "erw_std_sketch",
+                "core_fillet_std_feature",
+                "std_round_br");
+
             Logger.Info(
-                "[AbtFeatureRules] STD PGB -> all feed-hole and " +
-                "foot-option features suppressed.");
+                "[AbtFeatureRules] STD PGB -> feed-hole, foot-option, " +
+                "FRO, ERW, core-fillet and round-BR features suppressed.");
 
             return;
         }
@@ -866,9 +875,17 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             plan.ForceSuppress(
                 RevFootManagedNames);
 
+            // PGB does not use FRO, ERW, core-fillet or round-BR geometry.
+            plan.ForceSuppress(
+                "fro_rev_feature",
+                "erw_rev_feature",
+                "erw_rev_sketch",
+                "core_fillet_rev_feature",
+                "rev_round_br");
+
             Logger.Info(
-                "[AbtFeatureRules] REV PGB -> all feed-hole and " +
-                "foot-option features suppressed.");
+                "[AbtFeatureRules] REV PGB -> feed-hole, foot-option, " +
+                "FRO, ERW, core-fillet and round-BR features suppressed.");
 
             return;
         }
@@ -1028,11 +1045,18 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         {
             case FootOptionType.C:
                 /*
-                 * std_round_br is normally part of StdAlwaysOnNames,
-                 * but it must be OFF for every C foot:
+                 * FG STD:
                  *
+                 * std_round_br is normally part of StdAlwaysOnNames,
+                 * but it must be FORCE-SUPPRESSED for every C foot.
+                 *
+                 * This covers BOTH:
                  * - normal C
                  * - C with CBR
+                 *
+                 * C with CBR is not a separate foot-option token;
+                 * it is still FootOptionType.C and is inferred from
+                 * CBRL > 0 and CBRD > 0 inside ApplyStdCFootRules().
                  */
                 plan.ForceSuppress(
                     "std_round_br");
