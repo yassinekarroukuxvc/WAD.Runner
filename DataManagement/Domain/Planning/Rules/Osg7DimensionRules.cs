@@ -315,6 +315,7 @@ internal static class Osg7DimensionRules
         var X = LayoutMath.Dmm(ctx, "X");
         var TDF = LayoutMath.Dmm(ctx, "TDF");
         var FX = LayoutMath.Dmm(ctx, "FX");
+        var VFL = LayoutMath.Dmm(ctx, "VFL");
 
         PlaceDim(
             ctx,
@@ -355,6 +356,16 @@ internal static class Osg7DimensionRules
             DimAxis.Horizontal,
             S[0] + ssv * TD / 2.0 - FX * ssv / 2.0,
             S[1] - L_side / 2.0 - 4.0);
+
+        PlaceDim(
+            ctx,
+            diag,
+            outList,
+            "VFL",
+            Side,
+            DimAxis.Horizontal,
+            S[0] + ssv * TD / 2.0 + 5,
+            S[1] - L_side / 2.0 + VFL / 2 * ssv);
     }
 
     private static void AddSection(
@@ -370,6 +381,8 @@ internal static class Osg7DimensionRules
         var X = LayoutMath.Dmm(ctx, "X");
         var F = LayoutMath.Dmm(ctx, "F");
         var FX = LayoutMath.Dmm(ctx, "FX");
+        var FRX = LayoutMath.Dmm(ctx, "FRX");
+        var BRX = LayoutMath.Dmm(ctx, "BRX");
 
         if (X == 0)
             X = TDF - (FX + FL);
@@ -424,26 +437,25 @@ internal static class Osg7DimensionRules
             ctx,
             diag,
             outList,
-            "BRX",
+            "D2",
             Section,
             DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv +
             (FX * scv) +
-            (FL * scv),
-            Sec[1] - 40.0);
+            (FL * scv) - (BRX / 2 * scv),
+            Sec[1] - 55.0);
 
         PlaceDim(
             ctx,
             diag,
             outList,
-            "FRX",
+            "D3",
             Section,
             DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv +
             (FX * scv) +
-            (FL * scv) +
-            10,
-            Sec[1] - 40.0);
+            (FRX / 2 * scv),
+            Sec[1] - 55.0);
     }
 
     private static void AddOverlayBaseline(

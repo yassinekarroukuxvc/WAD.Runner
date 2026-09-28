@@ -799,6 +799,11 @@ switch (cmd)
                     equationTemplatePath = Path.Combine("Resources", "Templates", "CKVD", "CKVD_rev2", "equations.txt");
                     break;
 
+                case WedgeType.VM:
+                    partTemplatePath = Path.Combine("Resources", "Templates", "VM", "VM_part_rev1.SLDPRT");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "VM", "equations2.txt");
+                    break;
+
                 default:
                     throw new InvalidOperationException(
                         $"No model automation template is configured for wedge type '{wedgeTypeEnum}'.");
@@ -995,6 +1000,10 @@ static bool TryParseWedgeTypeEnum(string[] a, out WedgeType wedgeType, out strin
         case "1300":
         case "1005A":
             wedgeType = WedgeType._1001;
+            return true;
+
+        case "VM":
+            wedgeType = WedgeType.VM;
             return true;
 
         default:

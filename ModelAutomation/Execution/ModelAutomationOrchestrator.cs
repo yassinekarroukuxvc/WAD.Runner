@@ -104,17 +104,21 @@ public sealed class ModelAutomationOrchestrator
 
         editor.RebuildOnce();
 
-        EnforcePostRebuildSuppressions(
-            editor,
-            profile,
-            context,
-            configurationPlan);
-
+        // Post-rebuild reconciliation.
+        //
         // SolidWorks can auto-suppress an overlay cut/reference feature as
         // a side effect of suppressing another feature family (for example,
         // a hole/combine family), even when the cut is not truly dependent
-        // on that family. Reassert the requested cut/reference state last.
-        ReapplyFinalOverlayCutState(
+        // on that family. The rebuild above can re-trigger exactly that.
+        //
+        // IMPORTANT:
+        // This reconciliation must run for EVERY configuration that the
+        // toggle plan touched, not only for the final active one. Running
+        // it for a single configuration leaves every other configuration
+        // in whatever state the rebuild produced (usually the template
+        // default), which is why only one of right_view / left_view ever
+        // looked correct.
+        FinalizeConfigurations(
             editor,
             profile,
             context,
@@ -295,18 +299,12 @@ public sealed class ModelAutomationOrchestrator
         string? ruleProfile,
         swInConfigurationOpts_e scope)
     {
-        var ruleContext =
-            new FeatureRuleContext(
-                context.DrawingType,
-                context.Subclass,
+        var featurePlan =
+            BuildFeaturePlanFor(
+                profile,
+                context,
                 configurationName,
                 ruleProfile);
-
-        var featurePlan =
-            ModelRuleRunner.BuildFeaturePlan(
-                profile,
-                context.Wedge!,
-                ruleContext);
 
         var split =
             OverlayCutFeatureFinalizer.Split(
@@ -453,46 +451,155 @@ public sealed class ModelAutomationOrchestrator
             .ToArray();
     }
 
-    private static void EnforcePostRebuildSuppressions(
+    // ================================================================
+    // POST-REBUILD FINALIZATION
+    // ================================================================
+
+    /// <summary>
+    /// Runs the post-rebuild reconciliation for every configuration the
+    /// toggle plan touched.
+    ///
+    /// For explicit-step profiles this means each step configuration gets
+    /// its own rule plan rebuilt and its own overlay cut/reference state
+    /// reasserted. The final active configuration is processed last so the
+    /// part is left on it, and so the very last feature operation in the
+    /// whole run is still an overlay cut unsuppression.
+    /// </summary>
+    private static void FinalizeConfigurations(
         ModelEditor editor,
         WedgeAutomationProfile profile,
         ModelAutomationContext context,
         ConfigurationPlan configurationPlan)
     {
-        if (profile.PostRebuildSuppressions.Count == 0)
-            return;
+        var targets =
+            ResolveFinalizationTargets(
+                configurationPlan);
 
-        // Keep the old behavior:
-        // If the requested configuration does not exist,
-        // skip this optional post-rebuild pass.
-        if (!editor.ActivateConfiguration(
-                configurationPlan.ConfigurationName))
+        foreach (var target in targets)
         {
-            return;
+            // This pass is configuration-specific. If SolidWorks refuses
+            // the switch, keep the previous behavior and skip the optional
+            // reconciliation rather than editing the wrong configuration.
+            if (!editor.ActivateConfiguration(
+                    target.ConfigurationName))
+            {
+                Logger.Warn(
+                    "[ModelAutomationOrchestrator] " +
+                    "Post-rebuild finalization skipped because " +
+                    $"configuration '{target.ConfigurationName}' " +
+                    "could not be activated.");
+
+                continue;
+            }
+
+            var plan =
+                BuildFeaturePlanFor(
+                    profile,
+                    context,
+                    target.ConfigurationName,
+                    target.RuleProfile);
+
+            EnforcePostRebuildSuppressions(
+                editor,
+                profile,
+                target.ConfigurationName,
+                plan);
+
+            ReapplyFinalOverlayCutState(
+                editor,
+                target.ConfigurationName,
+                plan);
+        }
+    }
+
+    /// <summary>
+    /// Builds the ordered list of configurations that need post-rebuild
+    /// reconciliation.
+    ///
+    /// Explicit-step plans contribute every distinct step configuration
+    /// (keeping the last rule profile declared for each one). All modes
+    /// end with the final active configuration.
+    /// </summary>
+    private static List<FinalizationTarget> ResolveFinalizationTargets(
+        ConfigurationPlan configurationPlan)
+    {
+        var targets = new List<FinalizationTarget>();
+
+        if (configurationPlan.ToggleMode ==
+            ToggleApplicationMode.ExplicitSteps)
+        {
+            foreach (
+                var step in
+                configurationPlan.ToggleSteps ??
+                Array.Empty<FeatureToggleStep>())
+            {
+                if (string.IsNullOrWhiteSpace(
+                        step.ConfigurationName))
+                {
+                    continue;
+                }
+
+                var existingIndex =
+                    targets.FindIndex(
+                        target => string.Equals(
+                            target.ConfigurationName,
+                            step.ConfigurationName,
+                            StringComparison.OrdinalIgnoreCase));
+
+                if (existingIndex >= 0)
+                {
+                    // The last step declared for a configuration wins,
+                    // exactly like the previous LastOrDefault lookup.
+                    targets[existingIndex] =
+                        new FinalizationTarget(
+                            targets[existingIndex].ConfigurationName,
+                            step.FeatureRuleProfile);
+
+                    continue;
+                }
+
+                targets.Add(
+                    new FinalizationTarget(
+                        step.ConfigurationName,
+                        step.FeatureRuleProfile));
+            }
         }
 
-        var finalStepProfile =
-            (configurationPlan.ToggleSteps ??
-             Array.Empty<FeatureToggleStep>())
-            .LastOrDefault(
-                step => string.Equals(
-                    step.ConfigurationName,
+        var finalIndex =
+            targets.FindIndex(
+                target => string.Equals(
+                    target.ConfigurationName,
                     configurationPlan.ConfigurationName,
-                    StringComparison.OrdinalIgnoreCase))
-            ?.FeatureRuleProfile;
+                    StringComparison.OrdinalIgnoreCase));
 
-        var ruleContext =
-            new FeatureRuleContext(
-                context.DrawingType,
-                context.Subclass,
+        if (finalIndex >= 0)
+        {
+            // Move the final active configuration to the end so the part
+            // is left on it and its cut state is written last.
+            var finalTarget = targets[finalIndex];
+
+            targets.RemoveAt(finalIndex);
+            targets.Add(finalTarget);
+
+            return targets;
+        }
+
+        targets.Add(
+            new FinalizationTarget(
                 configurationPlan.ConfigurationName,
-                finalStepProfile);
+                null));
 
-        var plan =
-            ModelRuleRunner.BuildFeaturePlan(
-                profile,
-                context.Wedge!,
-                ruleContext);
+        return targets;
+    }
+
+    private static void EnforcePostRebuildSuppressions(
+        ModelEditor editor,
+        WedgeAutomationProfile profile,
+        string configurationName,
+        ModelRuleRunner.FeaturePlan plan)
+    {
+        if (profile.PostRebuildSuppressions.Count == 0)
+            return;
 
         var suppress =
             plan.Suppress
@@ -512,7 +619,7 @@ public sealed class ModelAutomationOrchestrator
 
         Logger.Info(
             "[ModelAutomationOrchestrator] " +
-            "Post-rebuild suppressions -> " +
+            $"Post-rebuild suppressions -> config={configurationName}, " +
             string.Join(", ", suppress));
 
         editor.ApplyFeatureToggles(
@@ -524,50 +631,9 @@ public sealed class ModelAutomationOrchestrator
 
     private static void ReapplyFinalOverlayCutState(
         ModelEditor editor,
-        WedgeAutomationProfile profile,
-        ModelAutomationContext context,
-        ConfigurationPlan configurationPlan)
+        string configurationName,
+        ModelRuleRunner.FeaturePlan plan)
     {
-        // For explicit-step profiles the final drawing configuration may
-        // have its own rule profile. Rebuild exactly that final rule plan.
-        var finalStepProfile =
-            (configurationPlan.ToggleSteps ??
-             Array.Empty<FeatureToggleStep>())
-            .LastOrDefault(
-                step => string.Equals(
-                    step.ConfigurationName,
-                    configurationPlan.ConfigurationName,
-                    StringComparison.OrdinalIgnoreCase))
-            ?.FeatureRuleProfile;
-
-        // This pass is configuration-specific. If SolidWorks refuses the
-        // switch, keep the previous behavior and skip the optional final
-        // reconciliation rather than editing the wrong configuration.
-        if (!editor.ActivateConfiguration(
-                configurationPlan.ConfigurationName))
-        {
-            Logger.Warn(
-                "[ModelAutomationOrchestrator] " +
-                "Final overlay-cut reconciliation skipped because " +
-                $"configuration '{configurationPlan.ConfigurationName}' " +
-                "could not be activated.");
-
-            return;
-        }
-
-        var ruleContext =
-            new FeatureRuleContext(
-                context.DrawingType,
-                context.Subclass,
-                configurationPlan.ConfigurationName,
-                finalStepProfile);
-
-        var plan =
-            ModelRuleRunner.BuildFeaturePlan(
-                profile,
-                context.Wedge!,
-                ruleContext);
-
         var finalCutPlan =
             OverlayCutFeatureFinalizer.ExtractFinalCutPlan(
                 plan);
@@ -576,8 +642,27 @@ public sealed class ModelAutomationOrchestrator
             editor,
             finalCutPlan,
             swInConfigurationOpts_e.swThisConfiguration,
-            configurationPlan.ConfigurationName,
+            configurationName,
             phase: "post-rebuild-final");
+    }
+
+    private static ModelRuleRunner.FeaturePlan BuildFeaturePlanFor(
+        WedgeAutomationProfile profile,
+        ModelAutomationContext context,
+        string configurationName,
+        string? ruleProfile)
+    {
+        var ruleContext =
+            new FeatureRuleContext(
+                context.DrawingType,
+                context.Subclass,
+                configurationName,
+                ruleProfile);
+
+        return ModelRuleRunner.BuildFeaturePlan(
+            profile,
+            context.Wedge!,
+            ruleContext);
     }
 
     private static void ValidateInputs(
@@ -628,4 +713,8 @@ public sealed class ModelAutomationOrchestrator
                 attributes & ~FileAttributes.ReadOnly);
         }
     }
+
+    private sealed record FinalizationTarget(
+        string ConfigurationName,
+        string? RuleProfile);
 }

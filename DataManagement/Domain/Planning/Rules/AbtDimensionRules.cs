@@ -120,7 +120,8 @@ internal static class AbtDimensionRules
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
         PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical, T[0] + (TDF / 2) * tsv + 5.0, T[1] - (TD / 2) * tsv);
-        PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal, T[0], T[1] + 5.0 + (TD / 2) * tsv);
+        PlaceDim(ctx, diag, outList, "TDF_STD", Top, DimAxis.Horizontal, T[0], T[1] + 5.0 + (TD / 2) * tsv);
+        PlaceDim(ctx, diag, outList, "TDF_REV", Top, DimAxis.Horizontal, T[0], T[1] + 5.0 + (TD / 2) * tsv);
     }
 
     private static void AddDetail(
@@ -172,7 +173,7 @@ internal static class AbtDimensionRules
         var VBL = LayoutMath.Dmm(ctx, "VBL");
 
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
-        PlaceDim(ctx, diag, outList, "BA_VBL", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
+        PlaceDim(ctx, diag, outList, "BA_SLB", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
 
         PlaceDim(ctx, diag, outList, "VBL", Side, DimAxis.Horizontal,
             S[0] + ssv * TD / 2.0 + 4.0,
@@ -235,6 +236,17 @@ internal static class AbtDimensionRules
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv,
             bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
+
+        PlaceDim(ctx, diag, outList, "HH", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + T * scv,
+            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
+
+        PlaceDim(ctx, diag, outList, "ST", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + T * scv,
+            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
+
+        PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + T * scv,
+            bandMidY - 10 + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
 
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv,

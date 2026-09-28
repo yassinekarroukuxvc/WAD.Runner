@@ -17,6 +17,7 @@ using WAD.Runner.ModelAutomation.Rules.FP;
 using WAD.Runner.ModelAutomation.Rules.M;
 using WAD.Runner.ModelAutomation.Rules.OSG7;
 using WAD.Runner.ModelAutomation.Rules.UTUS;
+using WAD.Runner.ModelAutomation.Rules.VM;
 using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.Rules;
@@ -208,6 +209,17 @@ public static class WedgeAutomationProfileRegistry
                 new _1001FeatureRules(),
                 new _1001EquationPlanner(),
                 new _1001ToleranceRules(),
+                Array.Empty<string>()));
+
+        Add(
+            profiles,
+            new WedgeAutomationProfile(
+                WedgeType.VM,
+                "VM",
+                new VMConfigurationRules(),
+                new VMFeatureRules(),
+                new VMEquationPlanner(),
+                new VMToleranceRules(),
                 Array.Empty<string>()));
 
         return profiles;

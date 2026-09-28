@@ -30,5 +30,7 @@ public enum WedgeType
 
     _1001 = 13,
 
+    VM = 14,
+
     Other = 99
 }

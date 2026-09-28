@@ -24,6 +24,7 @@ public static class DimensionRules
             WedgeType._45CK => Rules._45CKDimensionRules.Build(ctx,diag),
             WedgeType.M => Rules.MDimensionRules.Build(ctx,diag),
             WedgeType._1001 => Rules._1001DimensionRules.Build(ctx,diag),
+            WedgeType.VM => Rules.VMDimensionRules.Build(ctx,diag),
             _ => Rules.CkvdDimensionRules.Build(ctx, diag)
         };
     }

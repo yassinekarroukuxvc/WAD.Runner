@@ -59,6 +59,24 @@ internal static class PgbValidationRuleCatalog
         "BA"
     };
 
+    private static readonly string[] VmDimensions =
+    {
+        "TL",
+        "TD",
+        "TDF",
+        "W",
+        "ISA",
+        "FD",
+        "T",
+        "RA",
+        "BA",
+        "C",
+        "ND",
+        "NR",
+        "NA",
+        "FTA"
+    };
+
     // PGB uses PGB-Type. Wed-Type is reserved for FG.
     private static readonly PgbPropertyValidationRule SwTypeRule =
         Property(
@@ -105,6 +123,9 @@ internal static class PgbValidationRuleCatalog
                 Rules(
                     StandardDimensions,
                     SwTypeRule),
+
+            WedgeType.VM =>
+                Rules(VmDimensions),
 
             WedgeType.COB =>
                 Rules(

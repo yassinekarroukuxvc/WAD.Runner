@@ -121,7 +121,8 @@ internal static class _1001DimensionRules
         var TDF = LayoutMath.Dmm(ctx, "TDF");
 
         PlaceDim(ctx, diag, outList, "TD", Top, DimAxis.Vertical, T[0] + (TDF / 2) * tsv + 5.0, T[1] - (TD / 2) * tsv);
-        PlaceDim(ctx, diag, outList, "TDF", Top, DimAxis.Horizontal, T[0], T[1] + 5.0 + (TD / 2) * tsv);
+        PlaceDim(ctx, diag, outList, "TDF_STD", Top, DimAxis.Horizontal, T[0], T[1] + 5.0 + (TD / 2) * tsv);
+        PlaceDim(ctx, diag, outList, "TDF_REV", Top, DimAxis.Horizontal, T[0], T[1] + 5.0 + (TD / 2) * tsv);
     }
 
     private static void AddDetail(
@@ -142,7 +143,7 @@ internal static class _1001DimensionRules
         PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0], D[1]);
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal, D[0], bandMidY + 5.0);
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal, D[0], bandMidY - 15.0);
-        PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
+        PlaceDim(ctx, diag, outList, "B_NOM", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
         PlaceDim(ctx, diag, outList, "GO", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
         PlaceDim(ctx, diag, outList, "CL", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
         PlaceDim(ctx, diag, outList, "W_NOM", Detail, DimAxis.Horizontal, D[0], bandMidY - 6.0);
@@ -173,7 +174,7 @@ internal static class _1001DimensionRules
         var VBL = LayoutMath.Dmm(ctx, "VBL");
 
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
-        PlaceDim(ctx, diag, outList, "BA_VBL", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
+        PlaceDim(ctx, diag, outList, "BA_SLB", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
 
         PlaceDim(ctx, diag, outList, "VBL", Side, DimAxis.Horizontal,
             S[0] + ssv * TD / 2.0 + 4.0,
@@ -199,6 +200,7 @@ internal static class _1001DimensionRules
         var FR = LayoutMath.Dmm(ctx, "FR");
         var F = LayoutMath.Dmm(ctx, "F");
         var ERL = LayoutMath.Dmm(ctx, "ERL");
+        var ND = LayoutMath.Dmm(ctx, "ND");
         var HA = LayoutMath.Ddeg(ctx, "HA");
         var RA = LayoutMath.Ddeg(ctx, "RA");
         var RA2 = LayoutMath.Ddeg(ctx, "RA2");
@@ -237,12 +239,36 @@ internal static class _1001DimensionRules
             Sec[0] - (TDF / 2) * scv + T * scv,
             bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
 
+        PlaceDim(ctx, diag, outList, "HH", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + T * scv,
+            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
+
+        PlaceDim(ctx, diag, outList, "ST", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + T * scv,
+            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
+
+        PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + T * scv,
+            bandMidY - 10 + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
+
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv,
             bandMidY + (((T - FD) * scv) * Math.Tan(RA * (Math.PI / 180.0))) / 2);
 
-        PlaceDim(ctx, diag, outList, "CA", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY + ERD / 2 * scv);
+        PlaceDim(ctx, diag, outList, "C", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + T * scv,
+            bandMidY - 3);
+
+        PlaceDim(ctx, diag, outList, "NA", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv - T/2 * scv , bandMidY + ND/2 * scv );
+
+        PlaceDim(ctx, diag, outList, "FTA", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv - FL/2 * scv, bandMidY + ND * scv + 5);
+
+        PlaceDim(ctx, diag, outList, "ND", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + 5, bandMidY + ND /2 * scv);
+
+        PlaceDim(ctx, diag, outList, "NR", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + T * scv + 5, bandMidY + ND * scv + 5);
 
         PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv + 25,

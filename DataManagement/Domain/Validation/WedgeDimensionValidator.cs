@@ -13,6 +13,7 @@ using WAD.Runner.DataManagement.Domain.Validation.Rules._45CK;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.OSG7;
 using WAD.Runner.DataManagement.Domain.Validation.Rules.M;
 using WAD.Runner.DataManagement.Domain.Validation.Rules._1001;
+using WAD.Runner.DataManagement.Domain.Validation.Rules.VM;
 
 namespace WAD.Runner.DataManagement.Domain.Validation;
 
@@ -224,6 +225,14 @@ public static class WedgeDimensionValidator
         if (wedgeType == WedgeType._1001)
         {
             _1001ConditionalDimensionValidator.Validate(
+                wedge,
+                wedgeType,
+                issues);
+        }
+
+        if (wedgeType == WedgeType.VM)
+        {
+            VMConditionalDimensionValidator.Validate(
                 wedge,
                 wedgeType,
                 issues);

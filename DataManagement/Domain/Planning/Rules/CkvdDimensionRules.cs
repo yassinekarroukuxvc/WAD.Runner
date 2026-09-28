@@ -154,6 +154,10 @@ internal static class CkvdDimensionRules
             D[0] + 3.5,
             D[1]);
 
+        PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
+            D[0],
+            D[1] + 5);
+
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
             D[0],
             bandMidY);
@@ -165,6 +169,10 @@ internal static class CkvdDimensionRules
         PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal,
             D[0],
             bandMidY - 15.0);
+
+        PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal,
+            D[0],
+            bandMidY - 18.0);
 
         PlaceDim(ctx, diag, outList, "GD", Detail, DimAxis.Vertical,
             D[0] - W / 2.0 * dsv - 20.0,
@@ -239,6 +247,8 @@ internal static class CkvdDimensionRules
 
         var X = LayoutMath.Dmm(ctx, "X");
         var FX = LayoutMath.Dmm(ctx, "FX");
+        var BRX = LayoutMath.Dmm(ctx, "BRX");
+        var FRX = LayoutMath.Dmm(ctx, "FRX");
 
         if (X == 0)
             X = TDF - (FX + FL);
@@ -261,6 +271,14 @@ internal static class CkvdDimensionRules
         PlaceDim(ctx, diag, outList, "FR", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + (X * scv) + (FL * scv) + 10,
             Sec[1] - 40.0);
+
+        PlaceDim(ctx, diag, outList, "BRX", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + (X * scv) + BRX / 2 * scv,
+            Sec[1] - 55.0);
+
+        PlaceDim(ctx, diag, outList, "FRX", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + (X * scv) + (FL * scv) - FRX / 2 * scv ,
+            Sec[1] - 55.0);
     }
 
     private static void AddOverlayBaseline(

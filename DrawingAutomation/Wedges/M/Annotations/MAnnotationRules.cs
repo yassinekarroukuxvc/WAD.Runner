@@ -154,12 +154,12 @@ public abstract class MAnnotationRuleCatalogBase : AnnotationRuleCatalogBase
                 Keep($"{idPrefix}-TOP-TDF-STD", Top, $"TDF_STD@{AnnotationTopPlan}", isStd, "M FG Top keeps TDF_STD for SW_STD."),
                 Keep($"{idPrefix}-TOP-TDF-REV", Top, $"TDF_REV@{AnnotationTopPlan}", isRev, "M FG Top keeps TDF_REV for SW_180REV."),
 
-                Keep($"{idPrefix}-DETAIL-W", Detail, $"W@{AnnotationRightPlan}", Always(), "M FG Detail keeps W."),
+                Keep($"{idPrefix}-DETAIL-W", Detail, $"W_NOM@{AnnotationRightPlan}", Always(), "M FG Detail keeps W."),
                 Keep($"{idPrefix}-DETAIL-ISA", Detail, $"ISA@{AnnotationRightPlan}", Always(), "M FG Detail keeps ISA."),
                 Keep($"{idPrefix}-DETAIL-VW", Detail, $"VW@{AnnotationRightPlan}", DimPositive("VW"), "M FG Detail keeps VW when VW is positive."),
                 Keep($"{idPrefix}-DETAIL-VRA", Detail, $"VRA@{AnnotationRightPlan}", DimPositive("VR"), "M FG Detail keeps VRA when VR is positive."),
 
-                Keep($"{idPrefix}-DETAIL-VG-B", Detail, $"B@{AnnotationRightPlan}", isVgFoot, "M FG Detail keeps B for VG."),
+                Keep($"{idPrefix}-DETAIL-VG-B", Detail, $"B_NOM@{AnnotationRightPlan}", isVgFoot, "M FG Detail keeps B for VG."),
                 Keep($"{idPrefix}-DETAIL-VG-GA", Detail, $"GA@{AnnotationRightPlan}", isVgFoot, "M FG Detail keeps GA for VG."),
                 Keep($"{idPrefix}-DETAIL-VG-GD", Detail, $"GD@{AnnotationRightPlan}", isVgFoot, "M FG Detail keeps GD for VG."),
 

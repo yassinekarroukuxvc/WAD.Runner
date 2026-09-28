@@ -196,7 +196,7 @@ internal static class CobDimensionRules
         var VBL = LayoutMath.Dmm(ctx, "VBL");
 
         PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
-        PlaceDim(ctx, diag, outList, "BA_VBL", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
+        PlaceDim(ctx, diag, outList, "BA_SLB", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
 
         PlaceDim(ctx, diag, outList, "VBL", Side, DimAxis.Horizontal,
             S[0] + ssv * TD / 2.0 + 4.0,

@@ -25,10 +25,58 @@ internal static class WedgeDimensionValidationRuleCatalog
             WedgeType._45CK => Build45CkRules(),
             WedgeType.M => BuildMRules(),
             WedgeType._1001 => Build1001Rules(),
+            WedgeType.VM => BuildVmRules(),
 
             _ => WedgeDimensionValidationRuleSet.Empty
         };
     }
+    private static WedgeDimensionValidationRuleSet
+        BuildVmRules()
+    {
+        return new WedgeDimensionValidationRuleSet
+        {
+            RequiredStandalone =
+                Slots(
+                    "TL",
+                    "TD",
+                    "TDF",
+                    "W",
+                    "ISA",
+                    "FD",
+                    "T",
+                    "RA",
+                    "BA",
+                    "C",
+                    "ND",
+                    "NR",
+                    "NA",
+                    "FTA",
+                    "ID",
+                    "IDTD",
+                    "IDFA"),
+
+            ConditionalAndGroups =
+                new[]
+                {
+                    Group(
+                        "VR, VW, VRR",
+                        Slot("VR"),
+                        Slot("VW"),
+                        Slot("VRR")),
+
+                    Group(
+                        "VBL, VBLR",
+                        Slot("VBL"),
+                        Slot("VBLR")),
+
+                    Group(
+                        "RA2, RA2H",
+                        Slot("RA2"),
+                        Slot("RA2H"))
+                }
+        };
+    }
+
     private static WedgeDimensionValidationRuleSet
         Build1001Rules()
     {
