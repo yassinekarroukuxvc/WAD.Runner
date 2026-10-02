@@ -1,31 +1,25 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 using SolidWorks.Interop.sldworks;
-using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;
-using WAD.Runner.DataManagement.Domain.Drawing;
-using WAD.Runner.DataManagement.Domain.Dimensions;
-using WAD.Runner.DataManagement.Domain.Planning;
-using WAD.Runner.DataManagement.Domain.Units;
-using WAD.Runner.DataManagement.Domain.Wedge;
-
 using WAD.Runner.DrawingAutomation.Common;
-using WAD.Runner.DrawingAutomation.Metadata;
-using WAD.Runner.DrawingAutomation.Overlay;
-using WAD.Runner.DrawingAutomation.Profiles;
 using WAD.Runner.DrawingAutomation.SolidWorks;
-using WAD.Runner.DrawingAutomation.Tables;
-using WAD.Runner.DrawingAutomation.Views;
 
 namespace WAD.Runner.DrawingAutomation.Overlay
 {
     public static class OverlayTiffExporter
     {
-        public static void ExportOverlayTiff(SldWorks swApp, DrawingService ds, DrawingRun run)
+        private const int DefaultDpi = 200;
+        private const bool DefaultMonochrome = false;
+
+        public static void ExportOverlayTiff(
+            SldWorks swApp,
+            DrawingService ds,
+            DrawingRun run,
+            int dpi = DefaultDpi,
+            bool monochrome = DefaultMonochrome)
         {
             try
             {
@@ -50,7 +44,7 @@ namespace WAD.Runner.DrawingAutomation.Overlay
                 if (!string.IsNullOrWhiteSpace(outputDirectory))
                     Directory.CreateDirectory(outputDirectory);
 
-                if (!DrawingExecutorCommon.SaveCurrentSheetAsTiff(swApp, ds, tiffPath, 200))
+                if (!DrawingExecutorCommon.SaveCurrentSheetAsTiff(swApp, ds, tiffPath, dpi, monochrome))
                     Logger.Warn("[Overlay] TIFF export reported failure; see logs above.");
             }
             catch (Exception ex)
@@ -62,6 +56,5 @@ namespace WAD.Runner.DrawingAutomation.Overlay
                 try { ds.SaveAndClose(); } catch { }
             }
         }
-
     }
 }

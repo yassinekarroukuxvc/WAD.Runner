@@ -114,7 +114,7 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
             "TL",
             EquationFormatting.LengthLineFromMillimeters(
                 "TL",
-                20.0));
+                18.0));
 
         if (context.Subclass == WedgeSubclass.FG)
         {

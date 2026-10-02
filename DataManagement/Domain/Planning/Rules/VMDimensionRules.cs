@@ -184,7 +184,7 @@ internal static class VMDimensionRules
         var VRR = LayoutMath.Dmm(ctx, "VRR");
 
         PlaceDim(ctx, diag, outList, "ISA", Detail,
-            DimAxis.Horizontal, D[0], D[1]);
+            DimAxis.Horizontal, D[0] + 5, D[1]);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail,
             DimAxis.Horizontal, D[0], bandMidY + 5.0);

@@ -381,7 +381,7 @@ public abstract class _4516AnnotationRuleCatalogBase :
                 Keep(
                     $"{idPrefix}-SECTION-HA",
                     Section,
-                    $"HA@{AnnotationFrontPlan}",
+                    $"D5@{AnnotationFrontPlan}",
                     Always(),
                     "4516 FG Section keeps HA."),
 
@@ -406,19 +406,6 @@ public abstract class _4516AnnotationRuleCatalogBase :
                     Always(),
                     "4516 FG Section keeps BR."),
 
-                Keep(
-                    $"{idPrefix}-SECTION-CGD",
-                    Section,
-                    $"CGD@{AnnotationFrontPlan}",
-                    Always(),
-                    "4516 FG Section keeps CGD."),
-
-                Keep(
-                    $"{idPrefix}-SECTION-G",
-                    Section,
-                    $"G@{AnnotationFrontPlan}",
-                    Always(),
-                    "4516 FG Section keeps G.")
             };
 
         if (!includeProductionOnlyRules)
@@ -470,11 +457,12 @@ public abstract class _4516AnnotationRuleCatalogBase :
 
         rules.Add(
             Keep(
-                $"{idPrefix}-SECTION-CGR",
+                $"{idPrefix}-SECTION-G",
                 Section,
-                $"CGR@{AnnotationFrontPlan}",
+                $"G@{AnnotationFrontPlan}",
                 Always(),
-                "4516 FG Production Section keeps CGR."));
+                "4516 FG Production Section keeps G."));
+
 
         return rules;
     }

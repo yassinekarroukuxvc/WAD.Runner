@@ -122,12 +122,12 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         AddOverlayScale(
             builder,
             context);
-
+        /*
         AddNonStandardCutEquation(
             builder,
             facts,
             context.DrawingType);
-
+        */
         return builder.Build();
     }
 

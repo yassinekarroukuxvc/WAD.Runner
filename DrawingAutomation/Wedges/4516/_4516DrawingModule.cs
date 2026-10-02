@@ -14,13 +14,18 @@ namespace WAD.Runner.DrawingAutomation.Wedges._4516;
 public sealed class _4516DrawingModule : IDrawingWedgeModule
 {
     private static readonly IReadOnlyList<string> OverlayDimensionKeyList =
-        Array.AsReadOnly(new[]
-        {
-            "TD", "TDF", "W", "ISA", "VW", "VR", "VRR", "VRA", "TL",
-            "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C",
-            "NR", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
-            "G", "CGR", "CGD", "VBL", "VBLR","FD"
-        });
+    Array.AsReadOnly(new[]
+    {
+        "TD", "TDF", "TL", "ISA", "W",
+        "VW", "VR", "VRR", "VRA",
+        "B", "GA", "GD", "GR", "GO", "CL", "CD",
+        "BA", "T", "FL", "C", "NR", "BR", "FR",
+        "H", "HA", "FNA", "Y", "HH", "HW", "SW",
+        "F", "BF", "FD",
+        "G", "CGR", "CGD",
+        "VBL", "VBLR",
+        "CBRD", "CBRL",
+    });
 
     private static readonly ViewNames ProductionCustomerViews = new(
         Front: "Drawing View2",
@@ -117,7 +122,7 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         RepositionPrimaryOverlayViews: false,
         DeleteFrontOverlayViewWhenVrIsZero: true,
         HideVrExtremaWhenOverlayCompressed: false,
-        BreaklineTlOverrideMm: 20.0m);
+        BreaklineTlOverrideMm: 18.0m);
 
     public IReadOnlyList<DrawingProfile> Profiles { get; }
 

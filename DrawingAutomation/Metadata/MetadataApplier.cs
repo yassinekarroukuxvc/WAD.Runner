@@ -406,8 +406,8 @@ namespace WAD.Runner.DrawingAutomation.Metadata
         }
 
         private static void ApplyDrawingTypeMetadata(
-            ModelDoc2 model,
-            DrawingType drawingType)
+    ModelDoc2 model,
+    DrawingType drawingType)
         {
             var customerDrawingValue = string.Empty;
             var productionDrawingValue = string.Empty;
@@ -416,20 +416,21 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             {
                 case DrawingType.Customer:
                     customerDrawingValue = "**";
+                    productionDrawingValue = string.Empty;
                     break;
 
                 case DrawingType.Production:
+                    customerDrawingValue = string.Empty;
                     productionDrawingValue = "**";
+                    break;
+
+                case DrawingType.Overlay:
+                default:
+                    customerDrawingValue = string.Empty;
+                    productionDrawingValue = string.Empty;
                     break;
             }
 
-            /*
-             * Do not filter empty values here.
-             *
-             * The empty value is intentional and ensures that
-             * an old marker from a reused drawing template is
-             * removed.
-             */
             var drawingTypeProps =
                 new Dictionary<string, string>(
                     StringComparer.OrdinalIgnoreCase)

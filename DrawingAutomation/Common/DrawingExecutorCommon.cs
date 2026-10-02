@@ -162,7 +162,7 @@ namespace WAD.Runner.DrawingAutomation.Common
             }
         }
 
-        private static bool ConfigureTiffExport(SldWorks swApp, DrawingService ds, int dpi)
+        private static bool ConfigureTiffExport(SldWorks swApp, DrawingService ds, int dpi, bool monochrome)
         {
             try
             {
@@ -186,13 +186,27 @@ namespace WAD.Runner.DrawingAutomation.Common
                     (int)swUserPreferenceIntegerValue_e.swTiffPrintDPI,
                     dpi);
 
-                swApp.SetUserPreferenceIntegerValue(
-                    (int)swUserPreferenceIntegerValue_e.swTiffImageType,
-                    (int)swTiffImageType_e.swTiffImageRGB);
+                if (monochrome)
+                {
+                    // 1-bit line art + Group 4 fax compression: crisp, tiny files. Best at >= 400 DPI.
+                    swApp.SetUserPreferenceIntegerValue(
+                        (int)swUserPreferenceIntegerValue_e.swTiffImageType,
+                        (int)swTiffImageType_e.swTiffImageBlackAndWhite);
 
-                swApp.SetUserPreferenceIntegerValue(
-                    (int)swUserPreferenceIntegerValue_e.swTiffCompressionScheme,
-                    (int)swTiffCompressionScheme_e.swTiffPackbitsCompression);
+                    swApp.SetUserPreferenceIntegerValue(
+                        (int)swUserPreferenceIntegerValue_e.swTiffCompressionScheme,
+                        (int)swTiffCompressionScheme_e.swTiffGroup4FaxCompression);
+                }
+                else
+                {
+                    swApp.SetUserPreferenceIntegerValue(
+                        (int)swUserPreferenceIntegerValue_e.swTiffImageType,
+                        (int)swTiffImageType_e.swTiffImageRGB);
+
+                    swApp.SetUserPreferenceIntegerValue(
+                        (int)swUserPreferenceIntegerValue_e.swTiffCompressionScheme,
+                        (int)swTiffCompressionScheme_e.swTiffPackbitsCompression);
+                }
 
                 var sheet = (Sheet)drw.GetCurrentSheet();
                 double w_m = 0, h_m = 0;
@@ -206,14 +220,116 @@ namespace WAD.Runner.DrawingAutomation.Common
 
                 Logger.Info(
                     $"[TIFF] Using SHEET size: {w_in:F4} × {h_in:F4} in @ {applied} DPI " +
-                    $"(≈ {Math.Round(w_in * applied)} × {Math.Round(h_in * applied)} px)");
+                    $"(≈ {Math.Round(w_in * applied)} × {Math.Round(h_in * applied)} px), " +
+                    $"mode={(monochrome ? "1-bit/G4" : "RGB/PackBits")}");
 
                 return true;
             }
             catch (Exception ex)
             {
-                Logger.Error($"[TIFF] ConfigureTiffExportUseSheetSize({dpi}) failed: {ex.Message}");
+                Logger.Error($"[TIFF] ConfigureTiffExport({dpi}) failed: {ex.Message}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Finds the "color" member of swPageSetupDrawingColor_e at runtime (name contains "Color",
+        /// but not "Black" or "Automatic") and logs all members so the real names are visible.
+        /// Returns null if no suitable member exists.
+        /// </summary>
+        private static int? ResolveColorModeValue()
+        {
+            int? result = null;
+            var members = new List<string>();
+
+            foreach (swPageSetupDrawingColor_e value in Enum.GetValues(typeof(swPageSetupDrawingColor_e)))
+            {
+                var name = value.ToString();
+                members.Add($"{name}={(int)value}");
+
+                if (result.HasValue) continue;
+
+                bool isColor = name.IndexOf("Color", StringComparison.OrdinalIgnoreCase) >= 0;
+                bool isBlack = name.IndexOf("Black", StringComparison.OrdinalIgnoreCase) >= 0;
+                bool isAuto = name.IndexOf("Automatic", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                if (isColor && !isBlack && !isAuto)
+                    result = (int)value;
+            }
+
+            Logger.Info($"[TIFF] swPageSetupDrawingColor_e members: {string.Join(", ", members)}");
+
+            if (!result.HasValue)
+                Logger.Warn("[TIFF] No color member found in swPageSetupDrawingColor_e; skipping page setup color change.");
+
+            return result;
+        }
+
+        /// <summary>
+        /// Sets Page Setup > Drawing color to the color mode on the document-level and
+        /// app-level page setup objects (DrawingColor is not available at sheet level).
+        /// Returns the original values so they can be restored after the export.
+        /// </summary>
+        private static (int? Doc, int? App) SetPrintColor(SldWorks swApp, ModelDoc2 doc)
+        {
+            int? originalDoc = null;
+            int? originalApp = null;
+
+            var colorValue = ResolveColorModeValue();
+            if (!colorValue.HasValue)
+                return (null, null);
+
+            try
+            {
+                if (doc.PageSetup is IPageSetup docSetup)
+                {
+                    originalDoc = docSetup.DrawingColor;
+                    docSetup.DrawingColor = colorValue.Value;
+                    Logger.Info($"[TIFF] Doc page setup drawing color: {originalDoc} -> {docSetup.DrawingColor}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[TIFF] Could not set doc-level drawing color: {ex.Message}");
+            }
+
+            try
+            {
+                if (doc.Extension.AppPageSetup is IPageSetup appSetup)
+                {
+                    originalApp = appSetup.DrawingColor;
+                    appSetup.DrawingColor = colorValue.Value;
+                    Logger.Info($"[TIFF] App page setup drawing color: {originalApp} -> {appSetup.DrawingColor}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[TIFF] Could not set app-level drawing color: {ex.Message}");
+            }
+
+            return (originalDoc, originalApp);
+        }
+
+        private static void RestorePrintColor(SldWorks swApp, ModelDoc2 doc, (int? Doc, int? App) original)
+        {
+            try
+            {
+                if (original.Doc.HasValue && doc.PageSetup is IPageSetup docSetup)
+                    docSetup.DrawingColor = original.Doc.Value;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[TIFF] Could not restore doc-level drawing color: {ex.Message}");
+            }
+
+            try
+            {
+                if (original.App.HasValue && doc.Extension.AppPageSetup is IPageSetup appSetup)
+                    appSetup.DrawingColor = original.App.Value;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[TIFF] Could not restore app-level drawing color: {ex.Message}");
             }
         }
 
@@ -221,8 +337,12 @@ namespace WAD.Runner.DrawingAutomation.Common
             SldWorks swApp,
             DrawingService ds,
             string outputFullPath,
-            int dpi)
+            int dpi,
+            bool monochrome)
         {
+            ModelDoc2? colorDoc = null;
+            (int? Doc, int? App) originalColor = (null, null);
+
             try
             {
                 if (string.IsNullOrWhiteSpace(outputFullPath))
@@ -239,8 +359,15 @@ namespace WAD.Runner.DrawingAutomation.Common
                     return false;
                 }
 
-                if (!ConfigureTiffExport(swApp, ds, dpi))
+                if (!ConfigureTiffExport(swApp, ds, dpi, monochrome))
                     return false;
+
+                // Keep the drawing's original colors: force the color mode for RGB exports.
+                if (!monochrome)
+                {
+                    colorDoc = doc;
+                    originalColor = SetPrintColor(swApp, doc);
+                }
 
                 ds.RunInFastMode(() =>
                 {
@@ -284,10 +411,129 @@ namespace WAD.Runner.DrawingAutomation.Common
                 Logger.Error($"[TIFF] SaveCurrentSheetAsTiffUseSheetSize({dpi}) failed: {ex.Message}");
                 return false;
             }
+            finally
+            {
+                if (colorDoc != null)
+                    RestorePrintColor(swApp, colorDoc, originalColor);
+            }
         }
 
-        public static bool SaveCurrentSheetAsTiff(SldWorks swApp, DrawingService ds, string outputFullPath, int dpi)
-            => SaveCurrentSheetAsTiffUseSheetSize(swApp, ds, outputFullPath, dpi);
+        public static bool SaveCurrentSheetAsTiff(
+            SldWorks swApp,
+            DrawingService ds,
+            string outputFullPath,
+            int dpi,
+            bool monochrome = false,
+            int supersample = 2)
+        {
+            if (monochrome || supersample <= 1)
+                return SaveCurrentSheetAsTiffUseSheetSize(swApp, ds, outputFullPath, dpi, monochrome);
+
+            return SaveCurrentSheetAsTiffSupersampled(swApp, ds, outputFullPath, dpi, supersample);
+        }
+
+        private static bool SaveCurrentSheetAsTiffSupersampled(
+            SldWorks swApp,
+            DrawingService ds,
+            string outputFullPath,
+            int targetDpi,
+            int factor)
+        {
+            string? tempPath = null;
+            try
+            {
+                var drw = ds.Drawing as DrawingDoc;
+                if (drw == null)
+                {
+                    Logger.Error("[TIFF] No active drawing document.");
+                    return false;
+                }
+
+                // Exact pixel size a direct export at targetDpi would produce.
+                var sheet = (Sheet)drw.GetCurrentSheet();
+                double w_m = 0, h_m = 0;
+                sheet.GetSize(ref w_m, ref h_m);
+                int targetW = (int)Math.Round(w_m / 0.0254 * targetDpi);
+                int targetH = (int)Math.Round(h_m / 0.0254 * targetDpi);
+
+                var dir = Path.GetDirectoryName(outputFullPath) ?? Path.GetTempPath();
+                tempPath = Path.Combine(dir, $".hires.{Guid.NewGuid():N}.tif");
+
+                Logger.Info($"[TIFF] Supersampling: rendering at {targetDpi * factor} DPI, " +
+                            $"downsampling to {targetW} × {targetH} px @ {targetDpi} DPI");
+
+                if (!SaveCurrentSheetAsTiffUseSheetSize(swApp, ds, tempPath, targetDpi * factor, false))
+                    return false;
+
+                DownsampleTiff(tempPath, outputFullPath, targetW, targetH, targetDpi);
+
+                Logger.Success($"[TIFF] Saved (supersampled {factor}x): {outputFullPath}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[TIFF] Supersampled export failed: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                if (tempPath != null && File.Exists(tempPath))
+                {
+                    try { File.Delete(tempPath); } catch { }
+                }
+            }
+        }
+
+        private static void DownsampleTiff(
+            string sourcePath,
+            string destinationPath,
+            int targetWidth,
+            int targetHeight,
+            int dpi)
+        {
+            using (var src = new System.Drawing.Bitmap(sourcePath))
+            using (var dst = new System.Drawing.Bitmap(
+                       targetWidth,
+                       targetHeight,
+                       System.Drawing.Imaging.PixelFormat.Format24bppRgb))
+            {
+                dst.SetResolution(dpi, dpi);
+
+                using (var g = System.Drawing.Graphics.FromImage(dst))
+                {
+                    g.Clear(System.Drawing.Color.White);
+                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                    g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+
+                    // TileFlipXY avoids a faint border artifact at the image edges.
+                    using (var attrs = new System.Drawing.Imaging.ImageAttributes())
+                    {
+                        attrs.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
+                        g.DrawImage(
+                            src,
+                            new System.Drawing.Rectangle(0, 0, targetWidth, targetHeight),
+                            0, 0, src.Width, src.Height,
+                            System.Drawing.GraphicsUnit.Pixel,
+                            attrs);
+                    }
+                }
+
+                var tiffCodec = System.Drawing.Imaging.ImageCodecInfo
+                    .GetImageEncoders()
+                    .First(c => c.MimeType == "image/tiff");
+
+                using (var encoderParams = new System.Drawing.Imaging.EncoderParameters(1))
+                {
+                    encoderParams.Param[0] = new System.Drawing.Imaging.EncoderParameter(
+                        System.Drawing.Imaging.Encoder.Compression,
+                        (long)System.Drawing.Imaging.EncoderValue.CompressionLZW);
+
+                    dst.Save(destinationPath, tiffCodec, encoderParams);
+                }
+            }
+        }
 
         private static bool TryRelinkWhileClosed(
             SldWorks swApp,

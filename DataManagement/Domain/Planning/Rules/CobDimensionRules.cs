@@ -139,7 +139,7 @@ internal static class CobDimensionRules
         var CR = LayoutMath.Dmm(ctx, "CR");
         var VRR = LayoutMath.Dmm(ctx, "VRR");
 
-        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0], D[1]);
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0] + 5, D[1]);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
             D[0], bandMidY + (VR + VRR) * dsv);
@@ -170,7 +170,7 @@ internal static class CobDimensionRules
         PlaceDim(ctx, diag, outList, "GD_G", Detail, DimAxis.Vertical, D[0] + (W / 2.0 * dsv) + 10.0, bandMidY + dsv * GD / 2.0);
         PlaceDim(ctx, diag, outList, "GO", Detail, DimAxis.Horizontal, D[0] + 20, bandMidY - 2);
         PlaceDim(ctx, diag, outList, "CL", Detail, DimAxis.Horizontal, D[0], bandMidY - 18);
-        PlaceDim(ctx, diag, outList, "CD_NOM", Detail, DimAxis.Horizontal, D[0] + (W / 2.0 * dsv) + 5, bandMidY + dsv * CD / 2.0);
+        PlaceDim(ctx, diag, outList, "CD_NOM", Detail, DimAxis.Horizontal, D[0] + (W / 2.0 * dsv) + 5, bandMidY + dsv * CD / 2.0 + 4);
 
         PlaceDim(ctx, diag, outList, "GR", Detail, DimAxis.Horizontal,
             D[0] - (W / 2.0 * dsv) - 10.0, bandMidY + 20);

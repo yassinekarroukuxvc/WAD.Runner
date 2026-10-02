@@ -140,7 +140,7 @@ internal static class _1001DimensionRules
         var CD = LayoutMath.Dmm(ctx, "CD");
         var VRR = LayoutMath.Dmm(ctx, "VRR");
 
-        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0], D[1]);
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0] + 5, D[1]);
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal, D[0], bandMidY + 5.0);
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal, D[0], bandMidY - 15.0);
         PlaceDim(ctx, diag, outList, "B_NOM", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);

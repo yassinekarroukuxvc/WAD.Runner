@@ -40,13 +40,18 @@ public sealed class CobDrawingModule : IDrawingWedgeModule
         "TD", "TDF", "W", "VW", "VR", "TL",
         "B", "GD", "GO", "CL", "CD", "T", "FL", "C",
         "HH", "BR", "FR", "H", "F", "BF", "Y",
-        "G", "CGR", "CGD", "VBL", "RA2", "RA2H");
+        "G", "CGR", "CGD", "VBL", "RA2", "RA2H","RA","FLC");
+
+    private static readonly IReadOnlySet<string> FgCustomerDrawingTableKeys = Keys(
+        "TD", "TDF", "W", "VW", "VR", "TL",
+        "B", "T","C","BR", "FR", "H", "F", "BF","VBL", "RA2", "RA2H");
 
     private static readonly IReadOnlySet<string> FgOverlayTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL",
+        "W", "ISA", "VW", "VR", "VRA","TD","TDF","TL",
         "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C",
         "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
-        "G", "CGR", "CGD", "VBL", "RA", "RA2");
+        "G", "CGR", "CGD", "VBL", "RA", "RA2",
+        "CA", "FLC", "FD", "RC", "MI", "MB", "FNO", "ERL", "ERW", "ERD", "FLER", "CBL");
 
     private static readonly IReadOnlySet<string> PgbProductionTableKeys = Keys(
         "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
@@ -54,7 +59,7 @@ public sealed class CobDrawingModule : IDrawingWedgeModule
 
     private static readonly IReadOnlySet<string> PgbOverlayTableKeys = Keys(
         "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
-        "TL", "BA", "T", "FL", "VBL");
+        "TL", "BA", "T", "VBL","FD","RA");
 
     public CobDrawingModule()
     {
@@ -145,7 +150,7 @@ public sealed class CobDrawingModule : IDrawingWedgeModule
         => (subclass, drawingType) switch
         {
             (WedgeSubclass.FG, DrawingType.Production) => FgDrawingTableKeys,
-            (WedgeSubclass.FG, DrawingType.Customer) => FgDrawingTableKeys,
+            (WedgeSubclass.FG, DrawingType.Customer) => FgCustomerDrawingTableKeys,
             (WedgeSubclass.FG, DrawingType.Overlay) => FgOverlayTableKeys,
             (WedgeSubclass.PGB, DrawingType.Production) => PgbProductionTableKeys,
             (WedgeSubclass.PGB, DrawingType.Customer) => PgbProductionTableKeys,
