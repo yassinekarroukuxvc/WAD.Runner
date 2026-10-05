@@ -163,7 +163,7 @@ public sealed class FpToleranceRules : IToleranceRuleSet
         var rightTarget =
             shank == UtusShankType.Std
                 ? "std_ref_point_right@std_ref_point_right"
-                : "rev_ref_point_right@rev_ref_point_right";
+                : "rev_ref_point_right @rev_ref_point_right";
 
         var leftTarget =
             shank == UtusShankType.Std

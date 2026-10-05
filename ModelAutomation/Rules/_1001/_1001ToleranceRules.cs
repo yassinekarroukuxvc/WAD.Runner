@@ -114,7 +114,7 @@ public sealed class _1001ToleranceRules : IToleranceRuleSet
         var rightTarget =
             shank == _1001ShankType.Std
                 ? "std_ref_point_right@std_ref_point_right"
-                : "rev_ref_point_right@rev_ref_point_right";
+                : "rev_ref_point_right @rev_ref_point_right ";
 
         var leftTarget =
             shank == _1001ShankType.Std

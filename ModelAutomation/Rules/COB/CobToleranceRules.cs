@@ -174,7 +174,7 @@ public sealed class CobToleranceRules : IToleranceRuleSet
         var rightTarget =
             shank == CobShankType.Std
                 ? "std_ref_point_right@std_ref_point_right"
-                : "rev_ref_point_right@rev_ref_point_right";
+                : "rev_ref_point_right @rev_ref_point_right";
 
         var leftTarget =
             shank == CobShankType.Std

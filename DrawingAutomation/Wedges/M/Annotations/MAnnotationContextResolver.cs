@@ -8,7 +8,8 @@ using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Resolution;
 
 namespace WAD.Runner.DrawingAutomation.Wedges.M.Annotations;
 
-public sealed class MAnnotationContextResolver : IAnnotationWedgeContextResolver
+public sealed class MAnnotationContextResolver :
+    IAnnotationWedgeContextResolver
 {
     private const double EqualityEpsilonMm = 1e-6;
 
@@ -18,19 +19,47 @@ public sealed class MAnnotationContextResolver : IAnnotationWedgeContextResolver
         if (wedge is null)
             throw new ArgumentNullException(nameof(wedge));
 
+        return wedge.Subclass switch
+        {
+            WedgeSubclass.PGB =>
+                ResolvePgbContext(wedge),
+
+            WedgeSubclass.FG =>
+                ResolveFgContext(wedge),
+
+            _ =>
+                throw new InvalidOperationException(
+                    $"Unsupported M subclass '{wedge.Subclass}' " +
+                    "for annotation context resolution.")
+        };
+    }
+
+    // ================================================================
+    // PGB CONTEXT
+    // ================================================================
+
+    /// <summary>
+    /// PGB annotation context.
+    ///
+    /// PGB:
+    ///     Shank      -> PGB-Type only.
+    ///     Foot       -> Not applicable.
+    ///     Feed hole  -> Not applicable.
+    ///
+    /// PGB must never resolve these traits from:
+    ///     Wed-Type
+    ///     Wed-Foot_Option
+    ///     Wed-Feed_H/Slot
+    /// </summary>
+    private static AnnotationWedgeContext ResolvePgbContext(
+        WedgeData wedge)
+    {
         var facts =
             new DrawingWedgeFacts(wedge);
 
         var shankToken =
-            ResolveShankToken(wedge);
-
-        var footToken =
-            ResolveFootToken(
-                wedge,
-                facts);
-
-        var feedHoleToken =
-            ResolveFeedHoleToken(wedge);
+            ResolvePgbShankToken(
+                wedge);
 
         var froEqualsFr =
             ResolveFroEqualsFr(facts)
@@ -39,45 +68,129 @@ public sealed class MAnnotationContextResolver : IAnnotationWedgeContextResolver
 
         return new AnnotationWedgeContext
         {
-            Traits = new AnnotationTraitSet(new[]
-            {
-                Pair(
-                    AnnotationTraitNames.WedType,
-                    shankToken),
+            Traits =
+                new AnnotationTraitSet(
+                    new[]
+                    {
+                        Pair(
+                            AnnotationTraitNames.WedType,
+                            shankToken),
 
-                Pair(
-                    AnnotationTraitNames.ShankType,
-                    shankToken),
+                        Pair(
+                            AnnotationTraitNames.ShankType,
+                            shankToken),
 
-                Pair(
-                    AnnotationTraitNames.FootOption,
-                    footToken),
+                        // PGB has no foot option.
+                        Pair(
+                            AnnotationTraitNames.FootOption,
+                            MAnnotationFootOptions.FlatOrUnknown),
 
-                Pair(
-                    AnnotationTraitNames.FeedHoleType,
-                    feedHoleToken),
+                        // PGB has no feed hole.
+                        Pair(
+                            AnnotationTraitNames.FeedHoleType,
+                            MAnnotationFeedHoleTypes.Unknown),
 
-                Pair(
-                    MAnnotationTraitNames.FroEqualsFr,
-                    froEqualsFr)
-            }),
-            Sketches = SketchNameSet.Empty
+                        Pair(
+                            MAnnotationTraitNames.FroEqualsFr,
+                            froEqualsFr)
+                    }),
+
+            Sketches =
+                SketchNameSet.Empty
         };
     }
 
-    private static string ResolveShankToken(
+    // ================================================================
+    // FG CONTEXT
+    // ================================================================
+
+    /// <summary>
+    /// FG annotation context.
+    ///
+    /// FG:
+    ///     Shank      -> Wed-Type.
+    ///     Foot       -> Wed-Foot_Option.
+    ///     Feed hole  -> Wed-Feed_H/Slot.
+    /// </summary>
+    private static AnnotationWedgeContext ResolveFgContext(
+        WedgeData wedge)
+    {
+        var facts =
+            new DrawingWedgeFacts(wedge);
+
+        var shankToken =
+            ResolveFgShankToken(
+                wedge);
+
+        var footToken =
+            ResolveFgFootToken(
+                wedge,
+                facts);
+
+        var feedHoleToken =
+            ResolveFgFeedHoleToken(
+                wedge);
+
+        var froEqualsFr =
+            ResolveFroEqualsFr(facts)
+                ? MAnnotationTraitValues.True
+                : MAnnotationTraitValues.False;
+
+        return new AnnotationWedgeContext
+        {
+            Traits =
+                new AnnotationTraitSet(
+                    new[]
+                    {
+                        Pair(
+                            AnnotationTraitNames.WedType,
+                            shankToken),
+
+                        Pair(
+                            AnnotationTraitNames.ShankType,
+                            shankToken),
+
+                        Pair(
+                            AnnotationTraitNames.FootOption,
+                            footToken),
+
+                        Pair(
+                            AnnotationTraitNames.FeedHoleType,
+                            feedHoleToken),
+
+                        Pair(
+                            MAnnotationTraitNames.FroEqualsFr,
+                            froEqualsFr)
+                    }),
+
+            Sketches =
+                SketchNameSet.Empty
+        };
+    }
+
+    // ================================================================
+    // PGB SHANK
+    // ================================================================
+
+    /// <summary>
+    /// Resolves PGB shank orientation using ONLY PGB-Type.
+    ///
+    /// No fallback to:
+    ///     Wed-Type
+    ///     Wedge-Type
+    ///     Wedge_Type
+    ///     wedge_type
+    /// </summary>
+    private static string ResolvePgbShankToken(
         WedgeData wedge)
     {
         var token =
             AnnotationTokenNormalizer.Normalize(
-                WedgePropertyReader.GetFirstPropLoose(
+                WedgePropertyReader.GetFirstPgbPropLoose(
                     wedge,
-                    "Wed-Type",
-                    "Wed_Type",
-                    "Wed Type",
-                    "Wedge-Type",
-                    "Wedge_Type",
-                    "wedge_type"));
+                    "PGB-Type",
+                    "PGB_Type",
+                    "PGB Type"));
 
         return token switch
         {
@@ -96,22 +209,69 @@ public sealed class MAnnotationContextResolver : IAnnotationWedgeContextResolver
         };
     }
 
-    private static string ResolveFootToken(
+    // ================================================================
+    // FG SHANK
+    // ================================================================
+
+    /// <summary>
+    /// Resolves FG shank orientation using ONLY Wed-Type.
+    ///
+    /// Wedge-Type / wedge_type are deliberately excluded because
+    /// they identify the wedge family "M", not the STD/REV shank.
+    /// </summary>
+    private static string ResolveFgShankToken(
+        WedgeData wedge)
+    {
+        var token =
+            AnnotationTokenNormalizer.Normalize(
+                WedgePropertyReader.GetFirstFgPropLoose(
+                    wedge,
+                    "Wed-Type",
+                    "Wed_Type",
+                    "Wed Type"));
+
+        return token switch
+        {
+            "SW_STD" or
+            "STD" =>
+                MAnnotationShankTypes.Std,
+
+            "SW_180REV" or
+            "SW_180_REV" or
+            "180REV" or
+            "180_REV" =>
+                MAnnotationShankTypes.Rev,
+
+            _ =>
+                token
+        };
+    }
+
+    // ================================================================
+    // FG FOOT OPTION
+    // ================================================================
+
+    /// <summary>
+    /// Resolves the FG foot option.
+    ///
+    /// PGB never calls this method.
+    ///
+    /// M supports:
+    ///     C
+    ///     C with CBR
+    ///     G
+    ///     VG
+    ///     F
+    ///     CC
+    /// </summary>
+    private static string ResolveFgFootToken(
         WedgeData wedge,
         DrawingWedgeFacts facts)
     {
         var token =
             AnnotationTokenNormalizer.Normalize(
-                WedgePropertyReader.GetFirstPropLoose(
-                    wedge,
-                    "Wed-Foot_Option",
-                    "Wed_Foot_Option",
-                    "Wed Foot Option",
-                    "Wed-Foot Option",
-                    "Foot_Option",
-                    "Foot Option",
-                    "FootOption",
-                    "foot_option"));
+                WedgePropertyReader.GetFgFootOptionProp(
+                    wedge));
 
         return token switch
         {
@@ -147,26 +307,33 @@ public sealed class MAnnotationContextResolver : IAnnotationWedgeContextResolver
         };
     }
 
+    /// <summary>
+    /// There is no separate C-with-CBR foot-option token.
+    ///
+    /// A normal C foot becomes C-with-CBR when both
+    /// CBRL and CBRD are positive.
+    /// </summary>
     private static bool HasCbr(
         DrawingWedgeFacts facts)
         => facts.HasPositiveLength("CBRL") &&
            facts.HasPositiveLength("CBRD");
 
-    private static string ResolveFeedHoleToken(
+    // ================================================================
+    // FG FEED HOLE
+    // ================================================================
+
+    /// <summary>
+    /// Resolves the FG feed-hole type.
+    ///
+    /// PGB never calls this method.
+    /// </summary>
+    private static string ResolveFgFeedHoleToken(
         WedgeData wedge)
     {
         var token =
             AnnotationTokenNormalizer.Normalize(
-                WedgePropertyReader.GetFirstPropLoose(
-                    wedge,
-                    "Wed-Feed_H/Slot",
-                    "Wed_Feed_H_Slot",
-                    "Wed Feed H Slot",
-                    "Wed-Feed H Slot",
-                    "Feed_H/Slot",
-                    "Feed_H_Slot",
-                    "Feed H Slot",
-                    "feed_h_slot"));
+                WedgePropertyReader.GetFgFeedHoleProp(
+                    wedge));
 
         if (token.StartsWith(
                 "STD",
@@ -194,6 +361,10 @@ public sealed class MAnnotationContextResolver : IAnnotationWedgeContextResolver
 
         return MAnnotationFeedHoleTypes.Unknown;
     }
+
+    // ================================================================
+    // COMMON
+    // ================================================================
 
     private static bool ResolveFroEqualsFr(
         DrawingWedgeFacts facts)

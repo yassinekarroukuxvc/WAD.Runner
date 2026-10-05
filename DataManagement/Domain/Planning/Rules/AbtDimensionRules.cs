@@ -245,8 +245,8 @@ internal static class AbtDimensionRules
             Sec[0] - (TDF / 2) * scv + T * scv,
             bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
 
-        PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + T * scv,
-            bandMidY - 10 + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
+        PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + T * scv + 10,
+            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
 
         PlaceDim(ctx, diag, outList, "RA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv,

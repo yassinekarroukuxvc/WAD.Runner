@@ -4,10 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
+
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
+using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Common;
@@ -40,29 +43,43 @@ public sealed class ModelAutomationOrchestrator
             throw new ArgumentNullException(nameof(swApp));
 
         ct.ThrowIfCancellationRequested();
+
         ValidateInputs(job);
 
-        var paths = PathPlanner.Build(
-            article: job.ArticleNumber,
-            subclass: job.Subclass,
-            drawingType: job.DrawingType,
-            outputRoot: job.OutputRoot,
-            fileBase: job.FileBase);
+        var paths =
+            PathPlanner.Build(
+                article: job.ArticleNumber,
+                subclass: job.Subclass,
+                drawingType: job.DrawingType,
+                outputRoot: job.OutputRoot,
+                fileBase: job.FileBase);
 
-        PrepareTemplates(job, paths);
+        PrepareTemplates(
+            job,
+            paths);
+
         ct.ThrowIfCancellationRequested();
 
-        var context = new ModelAutomationContext(job, paths);
+        var context =
+            new ModelAutomationContext(
+                job,
+                paths);
+
         var profile =
-            WedgeAutomationProfileRegistry.For(job.WedgeType);
+            WedgeAutomationProfileRegistry.For(
+                job.WedgeType);
 
         var configurationPlan =
-            ResolveConfiguration(profile, job);
+            ResolveConfiguration(
+                profile,
+                job);
 
-        using var editor = new ModelEditor(swApp);
+        using var editor =
+            new ModelEditor(swApp);
 
         editor.OpenPart(
-            Path.GetFullPath(paths.PartPath));
+            Path.GetFullPath(
+                paths.PartPath));
 
         // Old configuration behavior:
         // Try to activate the requested configuration,
@@ -81,7 +98,8 @@ public sealed class ModelAutomationOrchestrator
             editor.Save();
             editor.Close();
 
-            return Path.GetFullPath(paths.PartPath);
+            return Path.GetFullPath(
+                paths.PartPath);
         }
 
         ct.ThrowIfCancellationRequested();
@@ -104,20 +122,23 @@ public sealed class ModelAutomationOrchestrator
 
         editor.RebuildOnce();
 
-        // Post-rebuild reconciliation.
+        // ------------------------------------------------------------
+        // POST-REBUILD RECONCILIATION
+        // ------------------------------------------------------------
         //
-        // SolidWorks can auto-suppress an overlay cut/reference feature as
-        // a side effect of suppressing another feature family (for example,
-        // a hole/combine family), even when the cut is not truly dependent
-        // on that family. The rebuild above can re-trigger exactly that.
+        // Some feature families still need their normal post-rebuild
+        // suppressions reasserted for every drawing type.
         //
-        // IMPORTANT:
-        // This reconciliation must run for EVERY configuration that the
-        // toggle plan touched, not only for the final active one. Running
-        // it for a single configuration leaves every other configuration
-        // in whatever state the rebuild produced (usually the template
-        // default), which is why only one of right_view / left_view ever
-        // looked correct.
+        // The special OverlayCutFeatureFinalizer, however, is ONLY
+        // allowed to run for:
+        //
+        //      FG  + Overlay
+        //      PGB + Overlay
+        //
+        // Production and Customer models must never pass through the
+        // overlay cut finalizer. Their cut/reference features are handled
+        // as part of their normal feature plan instead.
+        //
         FinalizeConfigurations(
             editor,
             profile,
@@ -133,7 +154,8 @@ public sealed class ModelAutomationOrchestrator
             "[ModelAutomationOrchestrator] " +
             $"Completed model automation -> {paths.PartPath}");
 
-        return Path.GetFullPath(paths.PartPath);
+        return Path.GetFullPath(
+            paths.PartPath);
     }
 
     /// <summary>
@@ -149,16 +171,21 @@ public sealed class ModelAutomationOrchestrator
         try
         {
             return Task.FromResult(
-                Run(job, swApp, ct));
+                Run(
+                    job,
+                    swApp,
+                    ct));
         }
         catch (OperationCanceledException)
             when (ct.IsCancellationRequested)
         {
-            return Task.FromCanceled<string>(ct);
+            return Task.FromCanceled<string>(
+                ct);
         }
         catch (Exception ex)
         {
-            return Task.FromException<string>(ex);
+            return Task.FromException<string>(
+                ex);
         }
     }
 
@@ -217,6 +244,32 @@ public sealed class ModelAutomationOrchestrator
         };
     }
 
+    // ================================================================
+    // OVERLAY CUT FINALIZER GATE
+    // ================================================================
+
+    /// <summary>
+    /// The OverlayCutFeatureFinalizer is ONLY valid for Overlay drawings
+    /// belonging to FG or PGB.
+    ///
+    /// Production and Customer drawings must use their complete normal
+    /// feature plan without splitting overlay cut/reference names out.
+    /// </summary>
+    private static bool ShouldUseOverlayCutFinalizer(
+        ModelAutomationContext context)
+    {
+        return
+            context.DrawingType == DrawingType.Overlay &&
+            (
+                context.Subclass == WedgeSubclass.FG ||
+                context.Subclass == WedgeSubclass.PGB
+            );
+    }
+
+    // ================================================================
+    // FEATURE TOGGLES
+    // ================================================================
+
     private static void ApplyFeatureToggles(
         ModelEditor editor,
         WedgeAutomationProfile profile,
@@ -226,28 +279,33 @@ public sealed class ModelAutomationOrchestrator
         switch (configurationPlan.ToggleMode)
         {
             case ToggleApplicationMode.ActiveConfiguration:
+
                 ApplyFeaturePlan(
                     editor,
                     profile,
                     context,
                     configurationPlan.ConfigurationName,
                     ruleProfile: null,
-                    swInConfigurationOpts_e.swThisConfiguration);
+                    swInConfigurationOpts_e
+                        .swThisConfiguration);
 
                 return;
 
             case ToggleApplicationMode.AllConfigurations:
+
                 ApplyFeaturePlan(
                     editor,
                     profile,
                     context,
                     configurationPlan.ConfigurationName,
                     ruleProfile: null,
-                    swInConfigurationOpts_e.swAllConfiguration);
+                    swInConfigurationOpts_e
+                        .swAllConfiguration);
 
                 return;
 
             case ToggleApplicationMode.ExplicitSteps:
+
                 foreach (
                     var step in
                     configurationPlan.ToggleSteps ??
@@ -284,6 +342,7 @@ public sealed class ModelAutomationOrchestrator
                 return;
 
             default:
+
                 throw new ArgumentOutOfRangeException(
                     nameof(configurationPlan.ToggleMode),
                     configurationPlan.ToggleMode,
@@ -306,33 +365,70 @@ public sealed class ModelAutomationOrchestrator
                 configurationName,
                 ruleProfile);
 
+        // ============================================================
+        // PRODUCTION / CUSTOMER
+        // ============================================================
+        //
+        // DO NOT call OverlayCutFeatureFinalizer.Split() here.
+        //
+        // Production and Customer must apply their COMPLETE feature
+        // plan normally. This includes any cut/reference features that
+        // their wedge rules want suppressed or unsuppressed.
+        //
+        // If we called Split() here and simply skipped ApplyLast(),
+        // those cut/reference features would disappear from the normal
+        // plan and would never be applied.
+        //
+        if (!ShouldUseOverlayCutFinalizer(context))
+        {
+            var result =
+                editor.ApplyFeatureToggles(
+                    featurePlan.Suppress,
+                    featurePlan.Unsuppress,
+                    scope);
+
+            if (!result.IsSuccess)
+            {
+                Logger.Warn(
+                    "[ModelAutomationOrchestrator] " +
+                    "Feature plan completed with " +
+                    $"missing={result.Missing.Count}, " +
+                    $"failed={result.Failed.Count}, " +
+                    $"config={configurationName}.");
+            }
+
+            return;
+        }
+
+        // ============================================================
+        // FG / PGB OVERLAY ONLY
+        // ============================================================
+        //
+        // Overlay cut/reference features are separated from the normal
+        // feature pass so they can be reapplied LAST.
+        //
         var split =
             OverlayCutFeatureFinalizer.Split(
                 featurePlan);
 
-        // Apply every normal feature first. Overlay cut/reference features
-        // are deliberately excluded from this pass.
-        var result =
+        // Apply normal feature families first.
+        var normalResult =
             editor.ApplyFeatureToggles(
                 split.NormalPlan.Suppress,
                 split.NormalPlan.Unsuppress,
                 scope);
 
-        if (!result.IsSuccess)
+        if (!normalResult.IsSuccess)
         {
             Logger.Warn(
                 "[ModelAutomationOrchestrator] " +
-                "Normal feature plan completed with " +
-                $"missing={result.Missing.Count}, " +
-                $"failed={result.Failed.Count}, " +
+                "Normal overlay feature plan completed with " +
+                $"missing={normalResult.Missing.Count}, " +
+                $"failed={normalResult.Failed.Count}, " +
                 $"config={configurationName}.");
         }
 
-        // IMPORTANT:
-        // Apply the overlay cut/reference state after every other feature
-        // toggle. In the finalizer, OFF cuts are suppressed first and ON
-        // cuts are unsuppressed last, matching the manual SolidWorks
-        // workaround used when another suppression auto-suppresses a cut.
+        // Overlay cut/reference state is deliberately applied last.
         OverlayCutFeatureFinalizer.ApplyLast(
             editor,
             split.FinalCutPlan,
@@ -340,6 +436,10 @@ public sealed class ModelAutomationOrchestrator
             configurationName,
             phase: "feature-plan");
     }
+
+    // ================================================================
+    // EQUATIONS / TOLERANCES
+    // ================================================================
 
     private void ApplyEquationsAndTolerances(
         ModelEditor editor,
@@ -394,7 +494,8 @@ public sealed class ModelAutomationOrchestrator
         ModelAutomationContext context)
     {
         var equationPlan =
-            profile.EquationPlanner.Build(context);
+            profile.EquationPlanner.Build(
+                context);
 
         var result =
             _dimensionApplier.Apply(
@@ -417,12 +518,15 @@ public sealed class ModelAutomationOrchestrator
 
         if (tolerancePlan.Count > 0)
         {
-            new ToleranceApplier(editor.Model)
-                .Apply(tolerancePlan);
+            new ToleranceApplier(
+                    editor.Model)
+                .Apply(
+                    tolerancePlan);
         }
 
         var toleranceKeys =
-            GetLengthToleranceKeys(context.Wedge!);
+            GetLengthToleranceKeys(
+                context.Wedge!);
 
         if (toleranceKeys.Count > 0)
         {
@@ -440,13 +544,19 @@ public sealed class ModelAutomationOrchestrator
             return Array.Empty<DimensionKey>();
 
         return wedge.Dimensions
-            .Where(kvp => kvp.Value is not null)
+            .Where(
+                kvp =>
+                    kvp.Value is not null)
             .Where(
                 kvp =>
                     kvp.Value.Nominal.Unit ==
                     UnitKind.Millimeter)
-            .Where(kvp => !kvp.Value.Tol.IsZero)
-            .Select(kvp => kvp.Key)
+            .Where(
+                kvp =>
+                    !kvp.Value.Tol.IsZero)
+            .Select(
+                kvp =>
+                    kvp.Key)
             .Distinct()
             .ToArray();
     }
@@ -456,14 +566,14 @@ public sealed class ModelAutomationOrchestrator
     // ================================================================
 
     /// <summary>
-    /// Runs the post-rebuild reconciliation for every configuration the
-    /// toggle plan touched.
+    /// Runs post-rebuild reconciliation for every configuration touched
+    /// by the configuration plan.
     ///
-    /// For explicit-step profiles this means each step configuration gets
-    /// its own rule plan rebuilt and its own overlay cut/reference state
-    /// reasserted. The final active configuration is processed last so the
-    /// part is left on it, and so the very last feature operation in the
-    /// whole run is still an overlay cut unsuppression.
+    /// Normal PostRebuildSuppressions are still allowed for every drawing
+    /// type.
+    ///
+    /// OverlayCutFeatureFinalizer is ONLY invoked for FG/PGB Overlay.
+    /// Production and Customer drawings never enter that finalizer.
     /// </summary>
     private static void FinalizeConfigurations(
         ModelEditor editor,
@@ -477,9 +587,11 @@ public sealed class ModelAutomationOrchestrator
 
         foreach (var target in targets)
         {
-            // This pass is configuration-specific. If SolidWorks refuses
-            // the switch, keep the previous behavior and skip the optional
-            // reconciliation rather than editing the wrong configuration.
+            // This pass is configuration-specific.
+            //
+            // If SolidWorks refuses the switch, skip the optional
+            // reconciliation instead of accidentally modifying the
+            // wrong configuration.
             if (!editor.ActivateConfiguration(
                     target.ConfigurationName))
             {
@@ -499,16 +611,34 @@ public sealed class ModelAutomationOrchestrator
                     target.ConfigurationName,
                     target.RuleProfile);
 
+            // --------------------------------------------------------
+            // NORMAL POST-REBUILD SUPPRESSIONS
+            //
+            // These remain valid for Overlay, Production and Customer.
+            // --------------------------------------------------------
             EnforcePostRebuildSuppressions(
                 editor,
                 profile,
                 target.ConfigurationName,
                 plan);
 
-            ReapplyFinalOverlayCutState(
-                editor,
-                target.ConfigurationName,
-                plan);
+            // --------------------------------------------------------
+            // OVERLAY CUT FINALIZER
+            //
+            // FG Overlay  -> YES
+            // PGB Overlay -> YES
+            //
+            // Production  -> NO
+            // Customer    -> NO
+            // --------------------------------------------------------
+            if (ShouldUseOverlayCutFinalizer(
+                    context))
+            {
+                ReapplyFinalOverlayCutState(
+                    editor,
+                    target.ConfigurationName,
+                    plan);
+            }
         }
     }
 
@@ -520,10 +650,12 @@ public sealed class ModelAutomationOrchestrator
     /// (keeping the last rule profile declared for each one). All modes
     /// end with the final active configuration.
     /// </summary>
-    private static List<FinalizationTarget> ResolveFinalizationTargets(
-        ConfigurationPlan configurationPlan)
+    private static List<FinalizationTarget>
+        ResolveFinalizationTargets(
+            ConfigurationPlan configurationPlan)
     {
-        var targets = new List<FinalizationTarget>();
+        var targets =
+            new List<FinalizationTarget>();
 
         if (configurationPlan.ToggleMode ==
             ToggleApplicationMode.ExplicitSteps)
@@ -541,18 +673,20 @@ public sealed class ModelAutomationOrchestrator
 
                 var existingIndex =
                     targets.FindIndex(
-                        target => string.Equals(
-                            target.ConfigurationName,
-                            step.ConfigurationName,
-                            StringComparison.OrdinalIgnoreCase));
+                        target =>
+                            string.Equals(
+                                target.ConfigurationName,
+                                step.ConfigurationName,
+                                StringComparison
+                                    .OrdinalIgnoreCase));
 
                 if (existingIndex >= 0)
                 {
-                    // The last step declared for a configuration wins,
-                    // exactly like the previous LastOrDefault lookup.
+                    // Last step declared for the configuration wins.
                     targets[existingIndex] =
                         new FinalizationTarget(
-                            targets[existingIndex].ConfigurationName,
+                            targets[existingIndex]
+                                .ConfigurationName,
                             step.FeatureRuleProfile);
 
                     continue;
@@ -567,19 +701,25 @@ public sealed class ModelAutomationOrchestrator
 
         var finalIndex =
             targets.FindIndex(
-                target => string.Equals(
-                    target.ConfigurationName,
-                    configurationPlan.ConfigurationName,
-                    StringComparison.OrdinalIgnoreCase));
+                target =>
+                    string.Equals(
+                        target.ConfigurationName,
+                        configurationPlan
+                            .ConfigurationName,
+                        StringComparison
+                            .OrdinalIgnoreCase));
 
         if (finalIndex >= 0)
         {
-            // Move the final active configuration to the end so the part
-            // is left on it and its cut state is written last.
-            var finalTarget = targets[finalIndex];
+            // Move final active configuration to the end.
+            var finalTarget =
+                targets[finalIndex];
 
-            targets.RemoveAt(finalIndex);
-            targets.Add(finalTarget);
+            targets.RemoveAt(
+                finalIndex);
+
+            targets.Add(
+                finalTarget);
 
             return targets;
         }
@@ -619,8 +759,11 @@ public sealed class ModelAutomationOrchestrator
 
         Logger.Info(
             "[ModelAutomationOrchestrator] " +
-            $"Post-rebuild suppressions -> config={configurationName}, " +
-            string.Join(", ", suppress));
+            $"Post-rebuild suppressions -> " +
+            $"config={configurationName}, " +
+            string.Join(
+                ", ",
+                suppress));
 
         editor.ApplyFeatureToggles(
             suppress,
@@ -629,28 +772,42 @@ public sealed class ModelAutomationOrchestrator
                 .swThisConfiguration);
     }
 
+    /// <summary>
+    /// Reapplies only the overlay cut/reference portion of the feature plan.
+    ///
+    /// IMPORTANT:
+    /// The caller is responsible for ensuring that this method is invoked
+    /// only for an FG/PGB Overlay model.
+    /// </summary>
     private static void ReapplyFinalOverlayCutState(
         ModelEditor editor,
         string configurationName,
         ModelRuleRunner.FeaturePlan plan)
     {
         var finalCutPlan =
-            OverlayCutFeatureFinalizer.ExtractFinalCutPlan(
-                plan);
+            OverlayCutFeatureFinalizer
+                .ExtractFinalCutPlan(
+                    plan);
 
         OverlayCutFeatureFinalizer.ApplyLast(
             editor,
             finalCutPlan,
-            swInConfigurationOpts_e.swThisConfiguration,
+            swInConfigurationOpts_e
+                .swThisConfiguration,
             configurationName,
             phase: "post-rebuild-final");
     }
 
-    private static ModelRuleRunner.FeaturePlan BuildFeaturePlanFor(
-        WedgeAutomationProfile profile,
-        ModelAutomationContext context,
-        string configurationName,
-        string? ruleProfile)
+    // ================================================================
+    // FEATURE PLAN BUILD
+    // ================================================================
+
+    private static ModelRuleRunner.FeaturePlan
+        BuildFeaturePlanFor(
+            WedgeAutomationProfile profile,
+            ModelAutomationContext context,
+            string configurationName,
+            string? ruleProfile)
     {
         var ruleContext =
             new FeatureRuleContext(
@@ -665,12 +822,17 @@ public sealed class ModelAutomationOrchestrator
             ruleContext);
     }
 
+    // ================================================================
+    // VALIDATION
+    // ================================================================
+
     private static void ValidateInputs(
         ModelJobRequest job)
     {
         if (string.IsNullOrWhiteSpace(
                 job.PartTemplatePath) ||
-            !File.Exists(job.PartTemplatePath))
+            !File.Exists(
+                job.PartTemplatePath))
         {
             throw new FileNotFoundException(
                 $"Part template not found: " +
@@ -680,7 +842,8 @@ public sealed class ModelAutomationOrchestrator
 
         if (string.IsNullOrWhiteSpace(
                 job.EquationTemplatePath) ||
-            !File.Exists(job.EquationTemplatePath))
+            !File.Exists(
+                job.EquationTemplatePath))
         {
             throw new FileNotFoundException(
                 $"Equation template not found: " +
@@ -688,6 +851,10 @@ public sealed class ModelAutomationOrchestrator
                 job.EquationTemplatePath);
         }
     }
+
+    // ================================================================
+    // TEMPLATE PREPARATION
+    // ================================================================
 
     private static void PrepareTemplates(
         ModelJobRequest job,
@@ -704,13 +871,16 @@ public sealed class ModelAutomationOrchestrator
             overwrite: true);
 
         var attributes =
-            File.GetAttributes(paths.EquationsPath);
+            File.GetAttributes(
+                paths.EquationsPath);
 
-        if ((attributes & FileAttributes.ReadOnly) != 0)
+        if ((attributes &
+             FileAttributes.ReadOnly) != 0)
         {
             File.SetAttributes(
                 paths.EquationsPath,
-                attributes & ~FileAttributes.ReadOnly);
+                attributes &
+                ~FileAttributes.ReadOnly);
         }
     }
 

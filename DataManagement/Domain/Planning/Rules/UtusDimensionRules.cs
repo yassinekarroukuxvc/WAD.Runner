@@ -284,8 +284,8 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "BR", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 3);
         PlaceDim(ctx, diag, outList, "BF", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + FR + FD / 2 * scv, bandMidY - 6);
         PlaceDim(ctx, diag, outList, "F", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + FR * scv + F / 2 * scv, bandMidY - 9);
-        PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + T * scv,
-            bandMidY - 10 + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
+        PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + T * scv + 10,
+            bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
 
         PlaceDim(ctx, diag, outList, "CBRL", Section, DimAxis.Horizontal, 180, bandMidY - 6);
 

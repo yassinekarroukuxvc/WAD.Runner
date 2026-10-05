@@ -41,11 +41,21 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         Detail: "Drawing View1",
         Section: "Drawing View2");
 
-    private static readonly IReadOnlySet<string> FgDrawingTableKeys = Keys(
-        "TD", "TDF", "W", "VW", "VR", "TL",
-        "B", "GD", "GO", "CL", "CD","T", "FL", "C",
-        "NR", "BR", "FR", "H","F", "BF", "Y",
-        "G", "CGR", "CGD", "VBL","FD");
+    private static readonly IReadOnlySet<string> FgProductionDrawingTableKeys = Keys(
+        "TD", "TDF", "TL", "W",
+        "VW", "VR", "VRR",
+        "B", "GD", "GR", "GO", "CL", "CD",
+        "T", "FL", "C", "NR", "BR", "FR",
+        "H", "Y", "HH", "HW", "SW",
+        "F", "BF", "FD",
+        "G", "CGR", "CGD",
+        "VBL", "VBLR",
+        "CBRD", "CBRL");
+
+    private static readonly IReadOnlySet<string> FgCustomerDrawingTableKeys = Keys(
+        "FL", "F", "FR", "BR", "W", "T",
+        "C", "GD", "B", "FA", "GA",
+        "BA", "TL", "TDF", "TD", "ISA");
 
     private static readonly IReadOnlySet<string> FgOverlayTableKeys = Keys(
         "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL",
@@ -194,10 +204,10 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         => (subclass, drawingType) switch
         {
             (WedgeSubclass.FG, DrawingType.Production) =>
-                FgDrawingTableKeys,
+                FgProductionDrawingTableKeys,
 
             (WedgeSubclass.FG, DrawingType.Customer) =>
-                FgDrawingTableKeys,
+                FgCustomerDrawingTableKeys,
 
             (WedgeSubclass.FG, DrawingType.Overlay) =>
                 FgOverlayTableKeys,

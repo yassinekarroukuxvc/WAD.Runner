@@ -118,7 +118,7 @@ public sealed class MToleranceRules : IToleranceRuleSet
         var rightTarget =
             shank == MShankType.Std
                 ? "std_ref_point_right@std_ref_point_right"
-                : "rev_ref_point_right@rev_ref_point_right";
+                : "rev_ref_point_right @rev_ref_point_right";
 
         var leftTarget =
             shank == MShankType.Std
