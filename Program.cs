@@ -468,7 +468,7 @@ switch (cmd)
                             Path.Combine("Resources", "Templates", "4516", "4516_drawing_rev2.SLDPRT.SLDDRW"),
                     };
 
-                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "4516", "equations.txt");
+                    equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "4516", "equations2.txt");
                     break;
 
                 case WedgeType.ABT:
@@ -766,7 +766,7 @@ switch (cmd)
 
                 case WedgeType._4516:
                     partTemplatePath = Path.Combine("Resources", "Templates", "4516", "4516_part_rev2.SLDPRT");
-                    equationTemplatePath = Path.Combine("Resources", "Templates", "4516", "equations.txt");
+                    equationTemplatePath = Path.Combine("Resources", "Templates", "4516", "equations2.txt");
                     break;
 
                 case WedgeType.ABT:

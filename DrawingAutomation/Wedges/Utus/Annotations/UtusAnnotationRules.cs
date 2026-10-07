@@ -92,40 +92,25 @@ public abstract class UtusAnnotationRuleCatalogBase : AnnotationRuleCatalogBase
 
             Keep($"{idPrefix}-DETAIL-W", Detail, $"W_NOM@{AnnotationRightPlan}", Always(), "UTUS FG Detail always keeps W."),
             Keep($"{idPrefix}-DETAIL-ISA", Detail, $"ISA@{AnnotationRightPlan}", Always(), "UTUS FG Detail always keeps ISA."),
-            Keep($"{idPrefix}-DETAIL-W2", Detail, $"W2@{AnnotationRightPlan}", Always(), "UTUS FG Detail keeps W2."),
             Keep($"{idPrefix}-DETAIL-VW", Detail, $"VW@{AnnotationRightPlan}", DimPositive("VW"), "UTUS FG Detail keeps VW when VW is positive."),
             Keep($"{idPrefix}-DETAIL-VRA", Detail, $"VRA@{AnnotationRightPlan}", DimPositive("VR"), "UTUS FG Detail keeps VRA when VR is positive."),
             Keep($"{idPrefix}-DETAIL-VG-B", Detail, $"B_NOM@{AnnotationRightPlan}", isVgFoot, "UTUS FG Detail keeps B for VG."),
             Keep($"{idPrefix}-DETAIL-VG-GA", Detail, $"GA@{AnnotationRightPlan}", isVgFoot, "UTUS FG Detail keeps GA for VG."),
-            Keep($"{idPrefix}-DETAIL-VG-GD", Detail, $"GD@{AnnotationRightPlan}", isVgFoot, "UTUS FG Detail keeps GD for VG."),
-            Keep($"{idPrefix}-DETAIL-G-GD", Detail, $"GD_G@{AnnotationRightPlan}", isGFoot, "UTUS FG Detail keeps GD_G for G."),
             Keep($"{idPrefix}-DETAIL-G-GO", Detail, $"GO@{AnnotationRightPlan}", isGFoot, "UTUS FG Detail keeps GO for G."),
-            Keep($"{idPrefix}-DETAIL-C-CL", Detail, $"CL@{AnnotationRightPlan}", isCFoot, "UTUS FG Detail keeps CL for C/C-with-CBR."),
             Keep($"{idPrefix}-DETAIL-C-CD", Detail, $"CD_NOM@{AnnotationRightPlan}", isCFoot, "UTUS FG Detail keeps CD for C/C-with-CBR."),
 
-            Keep($"{idPrefix}-SECTION-STD-FL", Section, $"FL@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps FL."),
             Keep($"{idPrefix}-SECTION-STD-T", Section, $"T@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps T."),
-            Keep($"{idPrefix}-SECTION-STD-RA", Section, $"RA@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps RA."),
             Keep($"{idPrefix}-SECTION-STD-RA2", Section, $"RA2@{AnnotationStdFrontPlan}", All(isStd, hasRa2), "UTUS FG STD Section keeps RA2 when RA2 is positive."),
-            Keep($"{idPrefix}-SECTION-STD-CA", Section, $"CA@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps CA."),
-            Keep($"{idPrefix}-SECTION-STD-FD", Section, $"FD@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps FD."),
-            Keep($"{idPrefix}-SECTION-STD-ERL", Section, $"ERL@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps ERL."),
             Keep($"{idPrefix}-SECTION-STD-FNA", Section, $"FNA@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps FNA."),
-            //Keep($"{idPrefix}-SECTION-STD-HA", Section, $"HA@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps HA."),
+            //Keep($"{idPrefix}-SECTION-STD-HA", Section, $"D1@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps HA."),
             Keep($"{idPrefix}-SECTION-STD-H", Section, $"H@{AnnotationStdFrontPlan}", All(isStd, isStdHole), "UTUS FG STD Section keeps H for a standard hole."),
             Keep($"{idPrefix}-SECTION-STD-HH", Section, $"HH@{AnnotationStdFrontPlan}", All(isStd, isOvalHole), "UTUS FG STD Section keeps HH for an oval hole."),
             Keep($"{idPrefix}-SECTION-STD-ST", Section, $"ST@{AnnotationStdFrontPlan}", All(isStd, isSlot), "UTUS FG STD Section keeps ST for a slot."),
             Keep($"{idPrefix}-SECTION-STD-FR", Section, $"FR@{AnnotationStdFrontPlan}", All(isStd, froDiffersFromFr), "UTUS FG STD Section keeps FR only when FRO differs from FR."),
             Keep($"{idPrefix}-SECTION-STD-BR", Section, $"BR@{AnnotationStdFrontPlan}", All(isStd, noCbr), "UTUS FG STD Section keeps BR only when CBRL/CBRD do not define CBR."),
-            Keep($"{idPrefix}-SECTION-STD-FRO", Section, $"FRO@{AnnotationStdFrontPlan}", isStd, "UTUS FG STD Section keeps FRO."),
 
-            Keep($"{idPrefix}-SECTION-REV-FL", Section, $"FL@{AnnotationRevFrontPlan}", isRev, "UTUS FG REV Section keeps FL."),
             Keep($"{idPrefix}-SECTION-REV-T", Section, $"T@{AnnotationRevFrontPlan}", isRev, "UTUS FG REV Section keeps T."),
-            Keep($"{idPrefix}-SECTION-REV-RA", Section, $"RA@{AnnotationRevFrontPlan}", isRev, "UTUS FG REV Section keeps RA."),
             Keep($"{idPrefix}-SECTION-REV-RA2", Section, $"RA2@{AnnotationRevFrontPlan}", All(isRev, hasRa2), "UTUS FG REV Section keeps RA2 when RA2 is positive."),
-            Keep($"{idPrefix}-SECTION-REV-CA", Section, $"CA@{AnnotationRevFrontPlan}", isRev, "UTUS FG REV Section keeps CA."),
-            Keep($"{idPrefix}-SECTION-REV-FD", Section, $"D1@{AnnotationRevFrontPlan}", isRev, "UTUS FG REV Section keeps FD."),
-            Keep($"{idPrefix}-SECTION-REV-ERL", Section, $"ERL@{AnnotationRevFrontPlan}", isRev, "UTUS FG REV Section keeps ERL."),
             Keep($"{idPrefix}-SECTION-REV-FNA", Section, $"FNA@{AnnotationRevFrontPlan}", isRev, "UTUS FG REV Section keeps FNA."),
             //Keep($"{idPrefix}-SECTION-REV-HA", Section, $"HA@{AnnotationRevFrontPlan}", isRev, "UTUS FG REV Section keeps HA."),
             Keep($"{idPrefix}-SECTION-REV-H", Section, $"H@{AnnotationRevFrontPlan}", All(isRev, isStdHole), "UTUS FG REV Section keeps H for a standard hole."),
@@ -133,21 +118,42 @@ public abstract class UtusAnnotationRuleCatalogBase : AnnotationRuleCatalogBase
             Keep($"{idPrefix}-SECTION-REV-ST", Section, $"ST@{AnnotationRevFrontPlan}", All(isRev, isSlot), "UTUS FG REV Section keeps ST for a slot."),
             Keep($"{idPrefix}-SECTION-REV-FR", Section, $"fr@{AnnotationRevFrontPlan}", All(isRev, froDiffersFromFr), "UTUS FG REV Section keeps FR only when FRO differs from FR."),
             Keep($"{idPrefix}-SECTION-REV-BR", Section, $"BR@{AnnotationRevFrontPlan}", All(isRev, noCbr), "UTUS FG REV Section keeps BR only when CBRL/CBRD do not define CBR."),
-            Keep($"{idPrefix}-SECTION-REV-FRO", Section, $"FRO@{AnnotationRevFrontPlan}", isRev, "UTUS FG REV Section keeps FRO.")
         };
 
         if (!includeProductionOnlyRules)
             return rules;
 
+        // FG Production-only dimensions:
+        // W2, GD, CL, FL, RA, CA, FD, ERL and FRO are intentionally
+        // excluded from Customer drawings and retained only in Production.
+        //rules.Add(Keep($"{idPrefix}-DETAIL-PROD-W2", Detail, $"W2@{AnnotationRightPlan}", Always(), "UTUS FG Production Detail keeps W2."));
+        rules.Add(Keep($"{idPrefix}-DETAIL-PROD-VG-GD", Detail, $"GD@{AnnotationRightPlan}", isVgFoot, "UTUS FG Production Detail keeps GD for VG."));
+        rules.Add(Keep($"{idPrefix}-DETAIL-PROD-G-GD", Detail, $"GD_G@{AnnotationRightPlan}", isGFoot, "UTUS FG Production Detail keeps GD_G for G."));
+        rules.Add(Keep($"{idPrefix}-DETAIL-PROD-C-CL", Detail, $"CL@{AnnotationRightPlan}", isCFoot, "UTUS FG Production Detail keeps CL for C/C-with-CBR."));
+
+        rules.Add(Keep($"{idPrefix}-SECTION-PROD-STD-FL", Section, $"FL@{AnnotationStdFrontPlan}", isStd, "UTUS FG Production STD Section keeps FL."));
+        rules.Add(Keep($"{idPrefix}-SECTION-PROD-STD-RA", Section, $"RA@{AnnotationStdFrontPlan}", isStd, "UTUS FG Production STD Section keeps RA."));
+        //rules.Add(Keep($"{idPrefix}-SECTION-PROD-STD-CA", Section, $"CA@{AnnotationStdFrontPlan}", isStd, "UTUS FG Production STD Section keeps CA."));
+        rules.Add(Keep($"{idPrefix}-SECTION-PROD-STD-FD", Section, $"FD@{AnnotationStdFrontPlan}", isStd, "UTUS FG Production STD Section keeps FD."));
+        //rules.Add(Keep($"{idPrefix}-SECTION-PROD-STD-ERL", Section, $"ERL@{AnnotationStdFrontPlan}", isStd, "UTUS FG Production STD Section keeps ERL."));
+        rules.Add(Keep($"{idPrefix}-SECTION-PROD-STD-FRO", Section, $"FRO@{AnnotationStdFrontPlan}", isStd, "UTUS FG Production STD Section keeps FRO."));
+
+        rules.Add(Keep($"{idPrefix}-SECTION-PROD-REV-FL", Section, $"FL@{AnnotationRevFrontPlan}", isRev, "UTUS FG Production REV Section keeps FL."));
+        rules.Add(Keep($"{idPrefix}-SECTION-PROD-REV-RA", Section, $"RA@{AnnotationRevFrontPlan}", isRev, "UTUS FG Production REV Section keeps RA."));
+        //rules.Add(Keep($"{idPrefix}-SECTION-PROD-REV-CA", Section, $"CA@{AnnotationRevFrontPlan}", isRev, "UTUS FG Production REV Section keeps CA."));
+        rules.Add(Keep($"{idPrefix}-SECTION-PROD-REV-FD", Section, $"D1@{AnnotationRevFrontPlan}", isRev, "UTUS FG Production REV Section keeps FD."));
+        //rules.Add(Keep($"{idPrefix}-SECTION-PROD-REV-ERL", Section, $"ERL@{AnnotationRevFrontPlan}", isRev, "UTUS FG Production REV Section keeps ERL."));
+        rules.Add(Keep($"{idPrefix}-SECTION-PROD-REV-FRO", Section, $"FRO@{AnnotationRevFrontPlan}", isRev, "UTUS FG Production REV Section keeps FRO."));
+
         rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-STD-BF", Section, $"BF@{AnnotationFrontPlan}", new[] { $"BF@{AnnotationStdFrontPlan}" }, isStd, "UTUS FG Production STD Section keeps BF."));
         rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-STD-F", Section, $"F@{AnnotationFrontPlan}", new[] { $"F@{AnnotationStdFrontPlan}" }, isStd, "UTUS FG Production STD Section keeps F."));
         rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-STD-Y", Section, $"Y@{AnnotationFrontPlan}", new[] { $"Y@{AnnotationStdFrontPlan}" }, isStd, "UTUS FG Production STD Section keeps Y."));
-        rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-STD-CBRL", Section, $"CBRL@{AnnotationFrontPlan}", new[] { $"CBRL@{AnnotationStdFrontPlan}" }, isStd, "UTUS FG Production STD Section keeps CBRL."));
+        //rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-STD-CBRL", Section, $"CBRL@{AnnotationFrontPlan}", new[] { $"CBRL@{AnnotationStdFrontPlan}" }, isStd, "UTUS FG Production STD Section keeps CBRL."));
         rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-STD-CBRA", Section, $"CBRA@{AnnotationFrontPlan}", new[] { $"CBRA@{AnnotationStdFrontPlan}" }, isStd, "UTUS FG Production STD Section keeps CBRA."));
         rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-REV-BF", Section, $"BF@{AnnotationRevPlan}", new[] { $"BF@{AnnotationRevFrontPlan}" }, isRev, "UTUS FG Production REV Section keeps BF."));
         rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-REV-F", Section, $"F@{AnnotationRevPlan}", new[] { $"F@{AnnotationRevFrontPlan}" }, isRev, "UTUS FG Production REV Section keeps F."));
         rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-REV-Y", Section, $"Y@{AnnotationRevPlan}", new[] { $"Y@{AnnotationRevFrontPlan}" }, isRev, "UTUS FG Production REV Section keeps Y."));
-        rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-REV-CBRL", Section, $"CBRL@{AnnotationRevPlan}", new[] { $"CBRL@{AnnotationRevFrontPlan}" }, isRev, "UTUS FG Production REV Section keeps CBRL."));
+        //rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-REV-CBRL", Section, $"CBRL@{AnnotationRevPlan}", new[] { $"CBRL@{AnnotationRevFrontPlan}" }, isRev, "UTUS FG Production REV Section keeps CBRL."));
         rules.Add(KeepWithAliases($"{idPrefix}-SECTION-PROD-REV-CBRA", Section, $"CBRA@{AnnotationRevPlan}", new[] { $"CBRA@{AnnotationRevFrontPlan}" }, isRev, "UTUS FG Production REV Section keeps CBRA."));
 
         return rules;

@@ -126,12 +126,14 @@
               },
               "Detail": {
                 "Params": {
-                  "breakline_gap_mm": 50
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 60.0
                 },
                 "PositionMm": [
-                  150,
+                  130,
                   200
-                ]
+                ],
+                "Scale": 100.0
               },
               "Section": {
                 "Params": {
@@ -140,7 +142,8 @@
                 "PositionMm": [
                   220,
                   200
-                ]
+                ],
+                "Scale": 100.0
               }
             },
             "Tables": {
@@ -185,21 +188,25 @@
               },
               "Detail": {
                 "Params": {
-                  "breakline_gap_mm": 50
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 60.0
                 },
                 "PositionMm": [
-                  150,
+                  130,
                   200
-                ]
+                ],
+                "Scale": 100.0
               },
               "Section": {
                 "Params": {
-                  "breakline_gap_mm": 50
+                  "breakline_gap_mm": 50,
+                  "detail_inset_mm": 60.0
                 },
                 "PositionMm": [
                   220,
                   200
-                ]
+                ],
+                "Scale": 100.0
               }
             },
             "Tables": {
@@ -301,10 +308,10 @@
                   100,
                   170
                 ],
-                "Scale": 50.0,
+                "Scale": 100.0,
                 "Params": {
                   "breakline_gap_mm": 50,
-                  "detail_inset_mm": 90.0
+                  "detail_inset_mm": 60.0
                 }
               },
               "Section": {
@@ -312,10 +319,10 @@
                   220,
                   170
                 ],
-                "Scale": 50.0,
+                "Scale": 100.0,
                 "Params": {
                   "breakline_gap_mm": 50,
-                  "detail_inset_mm": 90.0
+                  "detail_inset_mm": 60.0
                 }
               },
               "Top": {
@@ -535,10 +542,10 @@
                   100,
                   170
                 ],
-                "Scale": 50.0,
+                "Scale": 100.0,
                 "Params": {
                   "breakline_gap_mm": 50,
-                  "detail_inset_mm": 90.0
+                  "detail_inset_mm": 60.0
                 }
               },
               "Section": {
@@ -546,10 +553,10 @@
                   220,
                   170
                 ],
-                "Scale": 50.0,
+                "Scale": 100.0,
                 "Params": {
                   "breakline_gap_mm": 50,
-                  "detail_inset_mm": 90.0
+                  "detail_inset_mm": 60.0
                 }
               },
               "Top": {

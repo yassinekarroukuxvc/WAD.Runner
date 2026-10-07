@@ -24,7 +24,7 @@ internal static class UtusDimensionRules
         var dims = new List<DimensionSpec>();
 
         //var TL = LayoutMath.Dmm(ctx, "TL");
-        var TL = 20.0; 
+        var TL = 20.0;
         var TD = LayoutMath.Dmm(ctx, "TD");
 
         if (TL <= 0) diag.Suspicious("PLN003", "TL <= 0 detected.");
@@ -139,7 +139,7 @@ internal static class UtusDimensionRules
         var CR = LayoutMath.Dmm(ctx, "CR");
         var VRR = LayoutMath.Dmm(ctx, "VRR");
 
-        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0] + 5, D[1]);
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0] + 5, bandMidY + 85);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
             D[0], bandMidY + (VR + VRR) * dsv);
@@ -166,7 +166,7 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "GD", Detail, DimAxis.Vertical,
             D[0] + (W / 2.0 * dsv) + 10.0, bandMidY + dsv * GD / 2.0);
 
-        // TODO: set final COB annotation positions.
+        // TODO: set final UTUS annotation positions.
         PlaceDim(ctx, diag, outList, "GD_G", Detail, DimAxis.Vertical, D[0] + (W / 2.0 * dsv) + 10.0, bandMidY + dsv * GD / 2.0);
         PlaceDim(ctx, diag, outList, "GO", Detail, DimAxis.Horizontal, D[0] + 20, bandMidY - 2);
         PlaceDim(ctx, diag, outList, "CL", Detail, DimAxis.Horizontal, D[0], bandMidY - 18);
@@ -238,7 +238,7 @@ internal static class UtusDimensionRules
         PlaceDim(ctx, diag, outList, "ERL", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + FL * scv + ERL / 2 * scv, bandMidY - 21);
 
-        // TODO: set final COB REV FD annotation position.
+        // TODO: set final UTUS REV FD annotation position.
         PlaceDim(ctx, diag, outList, "D1", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2.0) * scv + (FD / 2.0) * scv, bandMidY - 18.0);
 
         PlaceDim(ctx, diag, outList, "FD", Section, DimAxis.Horizontal,
@@ -254,7 +254,7 @@ internal static class UtusDimensionRules
             Sec[0] - (TDF / 2) * scv + T * scv,
             bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
 
-        // TODO: set final COB feed-hole annotation positions.
+        // TODO: set final UTUS feed-hole annotation positions.
         PlaceDim(ctx, diag, outList, "HH", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + T * scv,
             bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)));
         PlaceDim(ctx, diag, outList, "ST", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + T * scv,
@@ -278,7 +278,7 @@ internal static class UtusDimensionRules
             Sec[0] - (TDF / 2) * scv + T * scv + 20,
             bandMidY + (((T - FD) * scv) * Math.Tan((RA + RA2) * (Math.PI / 180.0))) / 2);
 
-        // TODO: set final COB annotation positions.
+        // TODO: set final UTUS annotation positions.
         PlaceDim(ctx, diag, outList, "FR", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv - 10, bandMidY - 3);
         PlaceDim(ctx, diag, outList, "fr", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv - 10, bandMidY - 3);
         PlaceDim(ctx, diag, outList, "BR", Section, DimAxis.Horizontal, Sec[0] - (TDF / 2) * scv + FL * scv + 10, bandMidY - 3);
@@ -427,7 +427,7 @@ internal static class UtusDimensionRules
         double x,
         double y)
     {
-        // (0,0) is intentionally used as a placeholder for COB annotations whose
+        // (0,0) is intentionally used as a placeholder for UTUS annotations whose
         // final position has not been assigned yet. Do not clamp placeholders.
         if (x == 0.0 && y == 0.0)
             return new[] { 0.0, 0.0 };

@@ -67,7 +67,14 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
         var facts = context.Facts
             ?? new WedgeFacts(wedge, context.Subclass);
 
-        var shankStyle = ResolveShankStyle(facts);
+        var shankPropertyName =
+            context.Subclass == WedgeSubclass.PGB
+                ? "PGB-Type"
+                : "Wed-Type";
+
+        var shankStyle = ResolveShankStyle(
+            facts,
+            context.Subclass);
 
         var dimensions =
             new Dictionary<DimensionKey, DomDim>(
@@ -81,7 +88,7 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
 
         Logger.Info(
             "[CkvdEquationPlanner] CKVD shank style resolved " +
-            $"from {facts.EffectivePropertyName("Wed-Type")}: {shankStyle}.");
+            $"from {shankPropertyName}: {shankStyle}.");
 
         AddCalculatedProjectionIfMissing(
             builder,
@@ -143,33 +150,61 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
         WedgeFacts facts,
         WedgeSubclass subclass)
     {
-        var hasOverlayVrFamily = HasAnyPositiveNominal(
-            facts,
-            "VR",
-            "VRR",
-            "VW");
+        var vrPositive =
+            facts.HasPositive("VR");
+
+        var vwPositive =
+            facts.HasPositive("VW");
+
+        var hasVrAndVw =
+            vrPositive &&
+            vwPositive;
+
+        var hasNeitherVrNorVw =
+            !vrPositive &&
+            !vwPositive;
 
         var overlayVwCase = ResolveOverlayVwCase(
             facts,
-            hasOverlayVrFamily);
+            hasVrAndVw);
 
         if (subclass == WedgeSubclass.PGB)
         {
-            if (!hasOverlayVrFamily)
+            /*
+             * CKVD PGB overlay:
+             *
+             * VR = 0 and VW = 0:
+             *   W  -> W_MIN
+             *   FL -> FL_MIN
+             *
+             * VR > 0 and VW > 0:
+             *   FL  -> FL_MIN
+             *   VW  -> VW_MAX
+             *   VR  -> VR_MAX
+             *   VRA -> VRA_MAX
+             *
+             *   VW = W:
+             *     W -> W_MIN
+             *
+             *   VW > W:
+             *     W   -> W_MAX
+             *     ISA -> ISA_MAX
+             */
+            if (hasNeitherVrNorVw)
             {
                 AddLengthBoundEquation(
                     builder,
                     facts,
                     "W",
-                    useMaximum: true);
+                    useMaximum: false);
 
                 AddLengthBoundEquation(
                     builder,
                     facts,
                     "FL",
-                    useMaximum: true);
+                    useMaximum: false);
             }
-            else
+            else if (hasVrAndVw)
             {
                 AddLengthBoundEquation(
                     builder,
@@ -181,37 +216,68 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
                     builder,
                     facts);
 
-                if (overlayVwCase == OverlayVwCase.Case2)
+                if (overlayVwCase == OverlayVwCase.Case1)
+                {
+                    AddLengthBoundEquation(
+                        builder,
+                        facts,
+                        "W",
+                        useMaximum: false);
+                }
+                else if (overlayVwCase == OverlayVwCase.Case2)
                 {
                     AddCase2MaximumEquations(
                         builder,
                         facts);
                 }
             }
+            else
+            {
+                Logger.Warn(
+                    "[CkvdEquationPlanner] CKVD PGB overlay has only one " +
+                    $"of VR/VW positive (VR>0={vrPositive}, VW>0={vwPositive}). " +
+                    "No VR/VW-dependent PGB overlay override is defined for " +
+                    "this combination; nominal equations remain in effect.");
+            }
         }
         else
         {
-            if (!hasOverlayVrFamily)
-            {
-                AddLengthBoundEquation(
-                    builder,
-                    facts,
-                    "B",
-                    useMaximum: false);
+            /*
+             * CKVD FG overlay:
+             *   B  -> B_MIN
+             *   GA -> GA_MIN
+             *   GD -> GD_MIN
+             *
+             * The three overrides above are unconditional.
+             *
+             * VR > 0 and VW > 0:
+             *   VW  -> VW_MAX
+             *   VR  -> VR_MAX
+             *   VRA -> VRA_MAX
+             *
+             * VR > 0 and VW > 0 and VW > W:
+             *   W   -> W_MAX
+             *   ISA -> ISA_MAX
+             */
+            AddLengthBoundEquation(
+                builder,
+                facts,
+                "B",
+                useMaximum: false);
 
-                AddAngleBoundEquation(
-                    builder,
-                    facts,
-                    "GA",
-                    useMaximum: false);
+            AddAngleBoundEquation(
+                builder,
+                facts,
+                "GA",
+                useMaximum: false);
 
-                AddLengthBoundEquation(
-                    builder,
-                    facts,
-                    "GD",
-                    useMaximum: false);
-            }
-            else
+            AddLengthBoundEquation(
+                builder,
+                facts,
+                "GD",
+                useMaximum: false);
+
+            if (hasVrAndVw)
             {
                 AddVrFamilyMaximumEquations(
                     builder,
@@ -229,7 +295,8 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
         Logger.Info(
             "[CkvdEquationPlanner] Overlay dimension overrides -> " +
             $"subclass={subclass}, " +
-            $"VR/VRR/VW present={hasOverlayVrFamily}, " +
+            $"VR>0={vrPositive}, " +
+            $"VW>0={vwPositive}, " +
             $"VW case={overlayVwCase}.");
     }
 
@@ -350,24 +417,11 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
             $"value={selectedDegrees} deg.");
     }
 
-    private static bool HasAnyPositiveNominal(
-        WedgeFacts facts,
-        params string[] dimensionKeys)
-    {
-        foreach (var key in dimensionKeys)
-        {
-            if (facts.HasPositive(key))
-                return true;
-        }
-
-        return false;
-    }
-
     private static OverlayVwCase ResolveOverlayVwCase(
         WedgeFacts facts,
-        bool hasOverlayVrFamily)
+        bool hasVrAndVw)
     {
-        if (!hasOverlayVrFamily ||
+        if (!hasVrAndVw ||
             !facts.TryGetLengthMm(
                 "VW",
                 out var vwMillimeters) ||
@@ -410,18 +464,35 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
     }
 
     private static CkvdShankStyle ResolveShankStyle(
-        WedgeFacts facts)
+        WedgeFacts facts,
+        WedgeSubclass subclass)
     {
         if (facts is null)
             throw new ArgumentNullException(nameof(facts));
 
-        var raw = facts.NormalizedSubclassPropertyToken(
-            "PGB-Type",
+        string propertyName;
+        string? raw;
+
+        if (subclass == WedgeSubclass.PGB)
+        {
+            propertyName = "PGB-Type";
+
+            raw = facts.NormalizedSubclassPropertyToken(
+                "PGB-Type",
+                "PGB_Type",
+                "PGB Type");
+        }
+        else
+        {
+            propertyName = "Wed-Type";
+
+            raw = facts.NormalizedSubclassPropertyToken(
                 "Wed-Type",
-            "Wed_Type",
-            "Wed Type",
-            "Shank_Type",
-            "shank_type");
+                "Wed_Type",
+                "Wed Type",
+                "Shank_Type",
+                "shank_type");
+        }
 
         if (string.Equals(
                 raw,
@@ -440,7 +511,7 @@ public sealed class CkvdEquationPlanner : StandardEquationPlanner
         }
 
         throw new InvalidOperationException(
-            $"Cannot resolve the CKVD shank style from '{facts.EffectivePropertyName("Wed-Type")}'. " +
+            $"Cannot resolve the CKVD shank style for {subclass} from '{propertyName}'. " +
             "Expected 'LW_STYLE_A_CKVD' or 'LW_STYLE_B_CKVD', " +
             $"but received '{(string.IsNullOrWhiteSpace(raw) ? "<missing>" : raw)}'.");
     }

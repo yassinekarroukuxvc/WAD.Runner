@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Core;
+using WAD.Runner.ModelAutomation.Equations;
 using WAD.Runner.ModelAutomation.Tolerances;
 
 namespace WAD.Runner.ModelAutomation.Rules._4516;
@@ -18,11 +19,6 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
         if (wedge is null)
             throw new ArgumentNullException(nameof(wedge));
 
-        /*
-         * The 4516 tolerance rules currently apply only to Overlay.
-         * Production and Customer drawings receive no tolerance
-         * updates from this rule set.
-         */
         if (drawingType != DrawingType.Overlay)
         {
             Logger.Info(
@@ -38,33 +34,10 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
         var updates =
             new List<ToleranceUpdate>();
 
-        AddOverlayToleranceRules(
+        AddOverlayCutReferencePointUpdates(
             updates,
-            facts,
-            subclass);
+            facts);
 
-        Logger.Info(
-            $"[_4516ToleranceRules] Planned updates={updates.Count} " +
-            $"(Subclass={subclass}, DrawingType={drawingType}).");
-
-        return updates.Count == 0
-            ? TolerancePlan.Empty
-            : new TolerancePlan(updates);
-    }
-
-    // ================================================================
-    // OVERLAY RULES
-    // ================================================================
-
-    private static void AddOverlayToleranceRules(
-        List<ToleranceUpdate> updates,
-        WedgeFacts facts,
-        WedgeSubclass subclass)
-    {
-        /*
-         * The VR/VW overlay family is considered active only when
-         * both VR and VW have positive nominal values.
-         */
         var hasVrVw =
             HasAllPositiveNominal(
                 facts,
@@ -76,38 +49,86 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
                 facts,
                 hasVrVw);
 
-        /*
-         * FL is routed to the SLB sketch when VBL > 0.
-         * Missing, zero or negative VBL uses the normal FL sketch.
-         */
-        var hasSlb =
-            facts.HasPositive("VBL");
-
         if (subclass == WedgeSubclass.PGB)
         {
             AddPgbOverlayTolerances(
                 updates,
                 facts,
-                hasSlb,
                 hasVrVw,
                 overlayVwCase);
         }
-        else
+        else if (subclass == WedgeSubclass.FG)
         {
             AddFgOverlayTolerances(
                 updates,
                 facts,
-                hasSlb,
                 hasVrVw,
                 overlayVwCase);
         }
 
         Logger.Info(
-            "[_4516ToleranceRules] Overlay tolerance selection -> " +
-            $"subclass={subclass}, " +
-            $"VBL present={hasSlb}, " +
-            $"VR/VW present={hasVrVw}, " +
-            $"VW case={overlayVwCase}.");
+            $"[_4516ToleranceRules] Planned updates={updates.Count} " +
+            $"(Subclass={subclass}, DrawingType={drawingType}, " +
+            $"VR/VW={hasVrVw}, VW case={overlayVwCase}).");
+
+        return updates.Count == 0
+            ? TolerancePlan.Empty
+            : new TolerancePlan(updates);
+    }
+
+    // ================================================================
+    // OVERLAY CUT REFERENCE POINTS
+    // ================================================================
+
+    private static void AddOverlayCutReferencePointUpdates(
+        List<ToleranceUpdate> updates,
+        WedgeFacts facts)
+    {
+        // EquationGeometry uses FL as the 4516 magnification source.
+        var magnification =
+            EquationGeometry.OverlayMagnification(
+                facts,
+                WedgeType._4516);
+
+        var scale =
+            EquationGeometry.OverlayScaleDecimal(
+                magnification);
+
+        // Same right/left cut positioning logic as COB.
+        var rightCutMm =
+            EquationGeometry.RefPointOverlayCutMm(
+                facts,
+                scale,
+                WedgeType._4516);
+
+        var leftCutMm =
+            38.1m / (decimal)scale;
+
+        const string rightTarget =
+            "ref_point_right@ref_point_right";
+
+        const string leftTarget =
+            "ref_point_left@ref_point_left";
+
+        updates.Add(
+            new ToleranceUpdate(
+                rightTarget,
+                rightCutMm,
+                ToleranceUnit.LengthMm));
+
+        updates.Add(
+            new ToleranceUpdate(
+                leftTarget,
+                leftCutMm,
+                ToleranceUnit.LengthMm));
+
+        Logger.Info(
+            "[_4516ToleranceRules] Overlay cut reference points -> " +
+            $"VR present={facts.HasPositive("VR")}, " +
+            $"magnification={magnification}, " +
+            $"scale={scale}, " +
+            $"rightCut={rightCutMm} mm -> {rightTarget}, " +
+            $"leftCut={leftCutMm} mm -> {leftTarget}.");
     }
 
     // ================================================================
@@ -117,76 +138,53 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
     private static void AddPgbOverlayTolerances(
         List<ToleranceUpdate> updates,
         WedgeFacts facts,
-        bool hasSlb,
         bool hasVrVw,
         OverlayVwCase overlayVwCase)
     {
-        /*
-         * Common PGB overlay tolerance values.
-         */
+        var hasPositiveC =
+            facts.HasPositive("C");
+
         AddLengthMinimum(
             updates,
             facts,
-            dimensionKey: "W",
-            target: "W_MIN@w_pgb_overlay_sketch");
+            "W",
+            "W_MIN@w_case1_overlay_sketch ");
 
-        if (hasSlb)
+        if (hasPositiveC)
         {
+            AddAdjustedTMinimum(
+                updates,
+                facts,
+                "T_MIN@fl_case1_overlay_sketch",
+                applyCBackAngleAdjustment: true);
+
+            AddLengthMaximum(
+                updates,
+                facts,
+                "C",
+                "C_MAX@fl_case1_overlay_sketch");
+
             AddLengthMinimum(
                 updates,
                 facts,
-                dimensionKey: "FL",
-                target: "FL_MIN@slb_pgb_overlay_sketch");
+                "FL",
+                "FL_MIN@fl_case1_overlay_sketch");
         }
         else
         {
-            AddLengthMinimum(
+            AddAdjustedTMinimum(
                 updates,
                 facts,
-                dimensionKey: "FL",
-                target: "FL_MIN@fl_pgb_overlay_sketch");
+                "T_MIN@fl_case2_overlay_sketch",
+                applyCBackAngleAdjustment: false);
         }
 
-        AddLengthMinimum(
-            updates,
-            facts,
-            dimensionKey: "T",
-            target: "T_MIN@fl_pgb_overlay_sketch");
-
-        AddLengthMaximum(
-            updates,
-            facts,
-            dimensionKey: "C",
-            target: "C_MAX@fl_pgb_overlay_sketch");
-
-        if (!hasVrVw)
-            return;
-
-        switch (overlayVwCase)
+        if (hasVrVw)
         {
-            case OverlayVwCase.Case1:
-                AddVwCaseTolerances(
-                    updates,
-                    facts,
-                    sketchName:
-                        "vw_case1_pgb_overlay_sketch",
-                    includeIsa: false);
-
-                break;
-
-            case OverlayVwCase.Case2:
-                AddVwCaseTolerances(
-                    updates,
-                    facts,
-                    sketchName:
-                        "vw_case2_pgb_overlay_sketch",
-                    includeIsa: true);
-
-                break;
-
-            case OverlayVwCase.None:
-            default:
-                break;
+            AddVwCaseTolerances(
+                updates,
+                facts,
+                overlayVwCase);
         }
     }
 
@@ -197,82 +195,46 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
     private static void AddFgOverlayTolerances(
         List<ToleranceUpdate> updates,
         WedgeFacts facts,
-        bool hasSlb,
         bool hasVrVw,
         OverlayVwCase overlayVwCase)
     {
-        /*
-         * Common FG overlay tolerance values.
-         */
         AddLengthMinimum(
             updates,
             facts,
-            dimensionKey: "W",
-            target: "W_MIN@w_fg_overlay_sketch");
+            "W",
+            "W_MIN@w_case2_overlay_sketch");
 
         AddLengthMaximum(
             updates,
             facts,
-            dimensionKey: "W",
-            target: "W_MAX@w_fg_overlay_sketch");
+            "W",
+            "W_MAX@w_case2_overlay_sketch");
 
-        if (hasSlb)
-        {
-            AddLengthMinimum(
-                updates,
-                facts,
-                dimensionKey: "FL",
-                target: "FL_MIN@slb_fg_overlay_sketch");
-        }
-        else
-        {
-            AddLengthMinimum(
-                updates,
-                facts,
-                dimensionKey: "FL",
-                target: "FL_MIN@fl_fg_overlay_sketch");
-        }
-
-        AddLengthMinimum(
+        // FG always uses: T_MIN = T_MIN + C_MAX * tan(BA)
+        AddAdjustedTMinimum(
             updates,
             facts,
-            dimensionKey: "T",
-            target: "T_MIN@fl_fg_overlay_sketch");
+            "T_MIN@fl_case1_overlay_sketch",
+            applyCBackAngleAdjustment: true);
 
         AddLengthMaximum(
             updates,
             facts,
-            dimensionKey: "C",
-            target: "C_MAX@fl_fg_overlay_sketch");
+            "C",
+            "C_MAX@fl_case1_overlay_sketch");
+
+        AddLengthMinimum(
+            updates,
+            facts,
+            "FL",
+            "FL_MIN@fl_case1_overlay_sketch");
 
         if (hasVrVw)
         {
-            switch (overlayVwCase)
-            {
-                case OverlayVwCase.Case1:
-                    AddVwCaseTolerances(
-                        updates,
-                        facts,
-                        sketchName:
-                            "vw_case1_fg_overlay_sketch",
-                        includeIsa: false);
-
-                    break;
-
-                case OverlayVwCase.Case2:
-                    AddVwCaseTolerances(
-                        updates,
-                        facts,
-                        sketchName:
-                            "vw_case2_fg_overlay_sketch",
-                        includeIsa: true);
-
-                    break;
-
-                case OverlayVwCase.None:
-                default:
-                    break;
-            }
+            AddVwCaseTolerances(
+                updates,
+                facts,
+                overlayVwCase);
         }
 
         AddFgFootOptionTolerances(
@@ -281,45 +243,70 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
     }
 
     // ================================================================
-    // VR / VW CASE TOLERANCES
+    // VW CASE TOLERANCES
     // ================================================================
 
     private static void AddVwCaseTolerances(
         List<ToleranceUpdate> updates,
         WedgeFacts facts,
-        string sketchName,
-        bool includeIsa)
+        OverlayVwCase overlayVwCase)
     {
-        AddLengthMinimum(
-            updates,
-            facts,
-            dimensionKey: "VW",
-            target: $"VW_MIN@{sketchName}");
+        switch (overlayVwCase)
+        {
+            case OverlayVwCase.Case1:
+                AddLengthMinimum(
+                    updates,
+                    facts,
+                    "VW",
+                    "VW_MIN@vw_case1_overlay_sketch");
 
-        /*
-         * The 4516 equation override uses VR_MIN.
-         * The corresponding overlay sketch tolerance uses VR_MAX.
-         */
-        AddLengthMaximum(
-            updates,
-            facts,
-            dimensionKey: "VR",
-            target: $"VR_MAX@{sketchName}");
+                AddLengthMaximum(
+                    updates,
+                    facts,
+                    "VR",
+                    "VR_MAX@vw_case1_overlay_sketch");
 
-        AddAngleMinimum(
-            updates,
-            facts,
-            dimensionKey: "VRA",
-            target: $"VRA_MIN@{sketchName}");
+                // D4 is the VRA tolerance dimension in case 1.
+                AddAngleMinimum(
+                    updates,
+                    facts,
+                    "VRA",
+                    "D4@vw_case1_overlay_sketch");
 
-        if (!includeIsa)
-            return;
+                break;
 
-        AddAngleMinimum(
-            updates,
-            facts,
-            dimensionKey: "ISA",
-            target: $"ISA_MIN@{sketchName}");
+            case OverlayVwCase.Case2:
+                AddLengthMinimum(
+                    updates,
+                    facts,
+                    "VW",
+                    "VW_MIN@vw_case2_overlay_sketch");
+
+                AddLengthMinimum(
+                    updates,
+                    facts,
+                    "W",
+                    "W_MIN@vw_case2_overlay_sketch");
+
+                AddLengthMaximum(
+                    updates,
+                    facts,
+                    "VR",
+                    "VR_MAX@vw_case2_overlay_sketch");
+
+                // D1 is the VRA tolerance dimension in case 2.
+                AddAngleMinimum(
+                    updates,
+                    facts,
+                    "VRA",
+                    "D1@vw_case2_overlay_sketch");
+
+                break;
+
+            case OverlayVwCase.None:
+            default:
+                break;
+        }
     }
 
     // ================================================================
@@ -355,23 +342,20 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
                 AddLengthMaximum(
                     updates,
                     facts,
-                    dimensionKey: "B",
-                    target:
-                        "B_MAX@vg_fg_overlay_sketch");
+                    "B",
+                    "B_MAX@vg_fg_overlay_sketch");
 
                 AddLengthMaximum(
                     updates,
                     facts,
-                    dimensionKey: "GD",
-                    target:
-                        "GD_MAX@vg_fg_overlay_sketch");
+                    "GD",
+                    "GD_MAX@vg_fg_overlay_sketch");
 
                 AddAngleMaximum(
                     updates,
                     facts,
-                    dimensionKey: "GA",
-                    target:
-                        "GA_MAX@vg_fg_overlay_sketch");
+                    "GA",
+                    "GA_MAX@vg_fg_overlay_sketch");
 
                 break;
 
@@ -380,16 +364,14 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
                 AddLengthMaximum(
                     updates,
                     facts,
-                    dimensionKey: "CL",
-                    target:
-                        "CL_MAX@c_fg_overlay_sketch");
+                    "CL",
+                    "CL_MAX@c_fg_overlay_sketch");
 
                 AddLengthMaximum(
                     updates,
                     facts,
-                    dimensionKey: "CD",
-                    target:
-                        "CD_MAX@c_fg_overlay_sketch");
+                    "CD",
+                    "CD_MAX@c_fg_overlay_sketch");
 
                 break;
 
@@ -397,26 +379,23 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
                 AddLengthMaximum(
                     updates,
                     facts,
-                    dimensionKey: "GD",
-                    target:
-                        "GD_MAX@g_fg_overlay_sketch");
+                    "GD",
+                    "GD_MAX@g_fg_overlay_sketch");
 
+                // Intentional target name from the new 4516 model specification.
                 AddLengthMaximum(
                     updates,
                     facts,
-                    dimensionKey: "GO",
-                    target:
-                        "GO_MAX@g_fg_overlay_sketch");
+                    "GO",
+                    "GO_MAX@c_fg_overlay_sketch");
 
                 break;
 
-            case FootOptionType.Flat:
+            case FootOptionType.Cg:
             case FootOptionType.Cc:
+            case FootOptionType.Flat:
             default:
-                /*
-                 * No 4516 overlay tolerance targets were specified
-                 * for flat or CC foot options.
-                 */
+                // No overlay tolerance targets were specified for CG, CC or F.
                 break;
         }
 
@@ -427,43 +406,123 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
             $"resolved={footOption}.");
     }
 
+    // ================================================================
+    // ADJUSTED T MINIMUM
+    // ================================================================
+
+    private static void AddAdjustedTMinimum(
+        List<ToleranceUpdate> updates,
+        WedgeFacts facts,
+        string target,
+        bool applyCBackAngleAdjustment)
+    {
+        if (!facts.TryGetLengthBoundsMm(
+                "T",
+                out var tMinimumMm,
+                out _))
+        {
+            LogMissingBound(
+                "T",
+                target,
+                "length minimum");
+
+            return;
+        }
+
+        var finalTMinimumMm =
+            tMinimumMm;
+
+        if (applyCBackAngleAdjustment)
+        {
+            if (!facts.TryGetLengthBoundsMm(
+                    "C",
+                    out _,
+                    out var cMaximumMm))
+            {
+                Logger.Warn(
+                    "[_4516ToleranceRules] Cannot apply T_MIN + C_MAX * tan(BA) " +
+                    $"for '{target}' because C_MAX is unavailable. Using T_MIN only.");
+            }
+            else if (!facts.TryGetAngleDeg(
+                         "BA",
+                         out var baDegrees))
+            {
+                Logger.Warn(
+                    "[_4516ToleranceRules] Cannot apply T_MIN + C_MAX * tan(BA) " +
+                    $"for '{target}' because BA is unavailable. Using T_MIN only.");
+            }
+            else
+            {
+                var radians =
+                    (double)baDegrees * Math.PI / 180.0;
+
+                var tangent =
+                    Math.Tan(radians);
+
+                if (!double.IsFinite(tangent))
+                {
+                    Logger.Warn(
+                        "[_4516ToleranceRules] Cannot apply T_MIN + C_MAX * tan(BA) " +
+                        $"for '{target}' because tan(BA) is not finite. Using T_MIN only.");
+                }
+                else
+                {
+                    finalTMinimumMm =
+                        tMinimumMm +
+                        cMaximumMm * (decimal)tangent;
+                }
+            }
+        }
+
+        updates.Add(
+            new ToleranceUpdate(
+                target,
+                finalTMinimumMm,
+                ToleranceUnit.LengthMm));
+
+        Logger.Info(
+            "[_4516ToleranceRules] T minimum -> " +
+            $"target={target}, base={tMinimumMm} mm, " +
+            $"adjusted={finalTMinimumMm} mm, " +
+            $"apply C/BA adjustment={applyCBackAngleAdjustment}.");
+    }
+
+    // ================================================================
+    // FOOT OPTION RESOLUTION
+    // ================================================================
+
     private static FootOptionType ResolveFootOption(
         WedgeFacts facts,
         string normalizedFootOption)
     {
-        switch (normalizedFootOption)
+        return normalizedFootOption switch
         {
-            case "LW_VG":
-            case "SW_VG":
-                return FootOptionType.Vg;
+            "LW_VG" or "SW_VG" or "VG" =>
+                FootOptionType.Vg,
 
-            case "LW_C":
-            case "SW_C":
-                return HasAllPositiveNominal(
+            "LW_C" or "SW_C" or "C" =>
+                HasAllPositiveNominal(
                     facts,
                     "CBRL",
                     "CBRD")
                         ? FootOptionType.CWithCbr
-                        : FootOptionType.C;
+                        : FootOptionType.C,
 
-            case "LW_G":
-            case "SW_G":
-                return FootOptionType.G;
+            "LW_G" or "SW_G" or "G" =>
+                FootOptionType.G,
 
-            case "LW_CC":
-            case "SW_CC":
-                return FootOptionType.Cc;
+            "LW_CG" or "SW_CG" or "CG" =>
+                FootOptionType.Cg,
 
-            case "LW_FLAT":
-            case "SW_FLAT":
-                return FootOptionType.Flat;
+            "LW_CC" or "SW_CC" or "CC" =>
+                FootOptionType.Cc,
 
-            /*
-             * Empty and unknown values are treated as flat.
-             */
-            default:
-                return FootOptionType.Flat;
-        }
+            "LW_F" or "SW_F" or "F" =>
+                FootOptionType.Flat,
+
+            _ =>
+                FootOptionType.Flat
+        };
     }
 
     private static string NormalizeFootOptionToken(
@@ -729,6 +788,7 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
         C,
         CWithCbr,
         G,
+        Cg,
         Cc
     }
 

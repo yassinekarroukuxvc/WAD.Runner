@@ -317,6 +317,13 @@ public abstract class _4516AnnotationRuleCatalogBase :
                     isVgFoot,
                     "4516 FG Detail keeps GD for the VG foot option."),
 
+                Keep(
+                    $"{idPrefix}-DETAIL-VG-GR",
+                    Detail,
+                    $"GR_VG@{AnnotationRightPlan}",
+                    isVgFoot,
+                    "4516 FG Detail keeps GR for the VG foot option."),
+
                 // ====================================================
                 // DETAIL VIEW - G FOOT
                 // ====================================================
@@ -334,6 +341,13 @@ public abstract class _4516AnnotationRuleCatalogBase :
                     $"GO@{AnnotationRightPlan}",
                     isGFoot,
                     "4516 FG Detail keeps GO for the G foot option."),
+
+                Keep(
+                    $"{idPrefix}-DETAIL-G-GR",
+                    Detail,
+                    $"GR_G@{AnnotationRightPlan}",
+                    isVgFoot,
+                    "4516 FG Detail keeps GR for the G foot option."),
 
                 // ====================================================
                 // DETAIL VIEW - C / C WITH CBR

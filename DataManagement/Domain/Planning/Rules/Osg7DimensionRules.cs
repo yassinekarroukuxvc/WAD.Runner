@@ -92,7 +92,7 @@ internal static class Osg7DimensionRules
                 TL,
                 ssv);
 
-        const double detailLower = 40.0;
+        const double detailLower = 60.0;
 
         var detailBreak =
             GetBreakline(

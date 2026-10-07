@@ -22,22 +22,30 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///     Slot             -> H = ST
 ///
 /// Foot depth:
-///     VG               -> foot_depth = GD
-///     G                -> foot_depth = GD
-///     C                 -> foot_depth = CD
-///     C with CBR       -> foot_depth = CD
+///     VG               -> foot_depth = effective GD
+///     G                -> foot_depth = effective GD
+///     C                 -> foot_depth = effective CD
+///     C with CBR       -> foot_depth = effective CD
 ///                         detected when the subclass foot option (Wed-Foot_Option; FG only) is C
 ///                         and CBRL > 0 and CBRD > 0
-///     Other            -> foot_depth = 0
+///     CG / CC / F      -> foot_depth = 0
 ///
-/// SLB:
-///     VBL > 0          -> BA = 0 degrees
+/// 4516 foot profile (FG):
+///     F is read from the DB only and is NOT sent to SolidWorks.
+///     Other inputs use the effective equation value after overrides.
+///     Example: overlay FL_MAX / GD_MIN / CD_MIN are used when active.
+///     split    = (FL - F) / 2
+///     BR limit = BR * tan(45 - FTA/2) - foot_depth * tan(FTA)
+///     FRX      = min(split, FR)
+///     BRX      = min(split, BR limit)
+///     flat     = FL - FRX - BRX
 ///
-/// Overlay common overrides:
-///     W   = W_MAX
-///     FL  = FL_MAX
-///     T   = T_MAX
-///     C   = C_MIN
+///     Reject when F >= FL, BR limit <= 0, FRX <= 0, BRX <= 0,
+///     flat <= 0, or F is missing/invalid.
+///
+/// Overlay overrides:
+///     PGB: W = W_MAX; T = T_MAX; when C > 0 also FL = FL_MAX and C = C_MIN
+///     FG : FL = FL_MAX; T = T_MAX; C = C_MIN
 ///
 /// Overlay VR/VW overrides, when VR > 0 and VW > 0:
 ///     VW  = VW_MAX
@@ -52,6 +60,10 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///     C          -> CL_MIN, CD_MIN
 ///     C with CBR -> CL_MIN, CD_MIN
 ///     G          -> GD_MIN, GO_MIN
+///
+/// Special values:
+///     missing FTA -> 0 deg
+///     VRA = 90    -> 0 deg
 /// </summary>
 public sealed class _4516EquationPlanner : StandardEquationPlanner
 {
@@ -70,21 +82,18 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
     private const string FunnelGapEquationName =
         "funnel_gap";
 
-    private const string BackAngleEquationName =
-        "BA";
+    private const string FrontProfileXEquationName =
+        "FRX";
 
-    private const string SlbDimensionName =
-        "VBL";
-
-    private const string NonStdCutEquationName =
-        "non_std_cut";
-
-    private readonly WedgeType _wedgeType;
+    private const string BackProfileXEquationName =
+        "BRX";
 
     public _4516EquationPlanner(
         WedgeType wedgeType)
     {
-        _wedgeType = wedgeType;
+        // The registry constructs this planner with WedgeType._4516.
+        // Keep the constructor signature stable for the existing registry.
+        _ = wedgeType;
     }
 
     public override EquationPlan Build(
@@ -100,15 +109,44 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         var facts = context.Facts
             ?? new WedgeFacts(wedge, context.Subclass);
 
+        /*
+         * Tracks the values that the equation updater will actually
+         * send to SolidWorks.
+         *
+         * If an overlay rule replaces FL with FL_MAX, GD with GD_MIN,
+         * CD with CD_MIN, or any other tracked formula input in the
+         * future, the 4516 foot-profile calculation reads that updated
+         * value instead of going back to the nominal DB value.
+         */
+        var effectiveValues =
+            new EffectiveEquationValues(facts);
+
         var dimensions =
             new Dictionary<DimensionKey, DomDim>(
                 wedge.Dimensions);
+
+        /*
+         * 4516 SolidWorks contract:
+         *
+         * F remains a DB input, but it is now a driven/reference
+         * dimension in the SolidWorks sketch. Do not write it to
+         * the equation file.
+         *
+         * FRX and BRX are calculated by the program for 4516 FG,
+         * so ignore any DB values for those keys as well.
+         */
+        dimensions.Remove(DimensionKey.From("F"));
+        dimensions.Remove(DimensionKey.From("FRX"));
+        dimensions.Remove(DimensionKey.From("BRX"));
 
         var builder = new EquationPlanBuilder()
             .WithDimensions(
                 dimensions,
                 EquationCatalog.DbToModelAliases)
-            .SkipProvidedZeroDimensions();
+            .SkipProvidedZeroDimensions()
+            .ZeroMissingKeys(
+                new[] { "FTA" },
+                new[] { "FTA" });
 
         builder.AddManaged(
             "TL",
@@ -123,28 +161,49 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 facts);
         }
 
-        if (context.Subclass == WedgeSubclass.FG)
-        {
-            AddFootDepthEquation(
-                builder,
-                facts);
-        }
-
         AddFunnelGapEquation(
             builder,
             facts);
-
-        // i was wrong we should not do this
-        /*ApplySlbBackAngleRule(
-            builder,
-            facts);*/
 
         if (context.DrawingType == DrawingType.Overlay)
         {
             AddOverlayDimensionOverrides(
                 builder,
                 facts,
-                context.Subclass);
+                context.Subclass,
+                effectiveValues: effectiveValues);
+        }
+
+        ApplySpecialDimensionOverrides(
+            builder,
+            facts,
+            effectiveValues: effectiveValues);
+
+        /*
+         * IMPORTANT ORDER:
+         *
+         * The foot depth and FRX/BRX calculation must happen AFTER
+         * the equation overrides above. That way the calculation uses
+         * the exact values selected for the model, for example:
+         *
+         *   FL -> FL_MAX
+         *   GD -> GD_MIN
+         *   CD -> CD_MIN
+         *
+         * When no override was applied, EffectiveEquationValues falls
+         * back to the nominal DB value.
+         */
+        if (context.Subclass == WedgeSubclass.FG)
+        {
+            AddFootDepthEquation(
+                builder,
+                facts,
+                effectiveValues: effectiveValues);
+
+            AddFootProfileEquations(
+                builder,
+                facts,
+                effectiveValues: effectiveValues);
         }
 
         AddEngravingStart(
@@ -154,11 +213,6 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         AddOverlayScale(
             builder,
             context);
-
-        AddNonStandardCutEquation(
-            builder,
-            facts,
-            context.DrawingType);
 
         return builder.Build();
     }
@@ -170,37 +224,61 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
     private static void AddOverlayDimensionOverrides(
         EquationPlanBuilder builder,
         WedgeFacts facts,
-        WedgeSubclass subclass)
+        WedgeSubclass subclass,
+        EffectiveEquationValues effectiveValues)
     {
-        /*
-         * These four overrides apply to both PGB and FG overlays.
-         */
+        var hasPositiveC =
+            facts.HasPositive("C");
+
         if (subclass == WedgeSubclass.PGB)
         {
             AddLengthBoundEquation(
                 builder,
                 facts,
                 "W",
-                useMaximum: true);
+                useMaximum: true,
+                effectiveValues: effectiveValues);
+
+            if (hasPositiveC)
+            {
+                AddLengthBoundEquation(
+                    builder,
+                    facts,
+                    dimensionKey: "FL",
+                    useMaximum: true,
+                    effectiveValues: effectiveValues);
+
+                AddLengthBoundEquation(
+                    builder,
+                    facts,
+                    dimensionKey: "C",
+                    useMaximum: false,
+                    effectiveValues: effectiveValues);
+            }
+        }
+        else if (subclass == WedgeSubclass.FG)
+        {
+            AddLengthBoundEquation(
+                builder,
+                facts,
+                dimensionKey: "FL",
+                useMaximum: true,
+                effectiveValues: effectiveValues);
+
+            AddLengthBoundEquation(
+                builder,
+                facts,
+                dimensionKey: "C",
+                useMaximum: false,
+                effectiveValues: effectiveValues);
         }
 
         AddLengthBoundEquation(
             builder,
             facts,
-            dimensionKey: "FL",
-            useMaximum: true);
-
-        AddLengthBoundEquation(
-            builder,
-            facts,
             dimensionKey: "T",
-            useMaximum: true);
-
-        AddLengthBoundEquation(
-            builder,
-            facts,
-            dimensionKey: "C",
-            useMaximum: false);
+            useMaximum: true,
+            effectiveValues: effectiveValues);
 
         /*
          * The VR overlay family is active only when both VR and VW
@@ -221,7 +299,8 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         {
             AddVrVwOverlayOverrides(
                 builder,
-                facts);
+                facts,
+                effectiveValues: effectiveValues);
 
             if (overlayVwCase == OverlayVwCase.Case2)
             {
@@ -229,7 +308,8 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                     builder,
                     facts,
                     dimensionKey: "ISA",
-                    useMaximum: true);
+                    useMaximum: true,
+                    effectiveValues: effectiveValues);
             }
         }
 
@@ -240,7 +320,8 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         {
             AddFgFootOverlayOverrides(
                 builder,
-                facts);
+                facts,
+                effectiveValues: effectiveValues);
         }
 
         var footLog =
@@ -253,6 +334,7 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         Logger.Info(
             "[_4516EquationPlanner] Overlay dimension overrides -> " +
             $"subclass={subclass}, " +
+            $"C>0={hasPositiveC}, " +
             $"VR/VW present={hasVrVw}, " +
             $"VW case={overlayVwCase}, " +
             $"foot option={footLog}.");
@@ -260,13 +342,15 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
 
     private static void AddVrVwOverlayOverrides(
         EquationPlanBuilder builder,
-        WedgeFacts facts)
+        WedgeFacts facts,
+        EffectiveEquationValues effectiveValues)
     {
         AddLengthBoundEquation(
             builder,
             facts,
             dimensionKey: "VW",
-            useMaximum: true);
+            useMaximum: true,
+            effectiveValues: effectiveValues);
 
         /*
          * Unlike CKVD, 4516 uses VR_MIN.
@@ -275,18 +359,21 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
             builder,
             facts,
             dimensionKey: "VR",
-            useMaximum: false);
+            useMaximum: false,
+            effectiveValues: effectiveValues);
 
         AddAngleBoundEquation(
             builder,
             facts,
             dimensionKey: "VRA",
-            useMaximum: true);
+            useMaximum: true,
+            effectiveValues: effectiveValues);
     }
 
     private static void AddFgFootOverlayOverrides(
         EquationPlanBuilder builder,
-        WedgeFacts facts)
+        WedgeFacts facts,
+        EffectiveEquationValues effectiveValues)
     {
         var normalizedFootOption =
             ResolveNormalizedFootOption(
@@ -304,19 +391,22 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                     builder,
                     facts,
                     dimensionKey: "B",
-                    useMaximum: false);
+                    useMaximum: false,
+                    effectiveValues: effectiveValues);
 
                 AddLengthBoundEquation(
                     builder,
                     facts,
                     dimensionKey: "GD",
-                    useMaximum: false);
+                    useMaximum: false,
+                    effectiveValues: effectiveValues);
 
                 AddAngleBoundEquation(
                     builder,
                     facts,
                     dimensionKey: "GA",
-                    useMaximum: false);
+                    useMaximum: false,
+                    effectiveValues: effectiveValues);
 
                 break;
 
@@ -326,13 +416,15 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                     builder,
                     facts,
                     dimensionKey: "CL",
-                    useMaximum: false);
+                    useMaximum: false,
+                    effectiveValues: effectiveValues);
 
                 AddLengthBoundEquation(
                     builder,
                     facts,
                     dimensionKey: "CD",
-                    useMaximum: false);
+                    useMaximum: false,
+                    effectiveValues: effectiveValues);
 
                 break;
 
@@ -341,20 +433,23 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                     builder,
                     facts,
                     dimensionKey: "GD",
-                    useMaximum: false);
+                    useMaximum: false,
+                    effectiveValues: effectiveValues);
 
                 AddLengthBoundEquation(
                     builder,
                     facts,
                     dimensionKey: "GO",
-                    useMaximum: false);
+                    useMaximum: false,
+                    effectiveValues: effectiveValues);
 
                 break;
 
             /*
              * No additional overlay dimension overrides were
-             * specified for CC or flat feet.
+             * specified for CG, CC or F.
              */
+            case FootKind.CG:
             case FootKind.CC:
             case FootKind.FlatOrUnknown:
             default:
@@ -367,11 +462,41 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
             $"resolved={footKind}.");
     }
 
+    private static void ApplySpecialDimensionOverrides(
+        EquationPlanBuilder builder,
+        WedgeFacts facts,
+        EffectiveEquationValues effectiveValues)
+    {
+        // 4516 database convention: VRA=90 means the model equation must use 0 deg.
+        if (facts.TryGetAngleDeg(
+                "VRA",
+                out var vraDegrees) &&
+            decimal.Abs(vraDegrees - 90m) <=
+            WedgeFacts.DefaultPositiveEpsilon)
+        {
+            builder.AddManaged(
+                "VRA",
+                EquationFormatting.Line(
+                    "VRA",
+                    0m,
+                    "deg"));
+
+            effectiveValues.SetAngleDeg(
+                "VRA",
+                0m,
+                "special VRA=90 -> 0 override");
+
+            Logger.Info(
+                "[_4516EquationPlanner] VRA database value is 90 deg -> model VRA set to 0 deg.");
+        }
+    }
+
     private static void AddLengthBoundEquation(
         EquationPlanBuilder builder,
         WedgeFacts facts,
         string dimensionKey,
-        bool useMaximum)
+        bool useMaximum,
+        EffectiveEquationValues? effectiveValues = null)
     {
         if (!facts.TryGetLengthBoundsMm(
                 dimensionKey,
@@ -399,6 +524,11 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 dimensionKey,
                 selectedMillimeters));
 
+        effectiveValues?.SetLengthMm(
+            dimensionKey,
+            selectedMillimeters,
+            useMaximum ? "MAX overlay override" : "MIN overlay override");
+
         Logger.Info(
             "[_4516EquationPlanner] Overlay length bound -> " +
             $"{dimensionKey}=" +
@@ -410,7 +540,8 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         EquationPlanBuilder builder,
         WedgeFacts facts,
         string dimensionKey,
-        bool useMaximum)
+        bool useMaximum,
+        EffectiveEquationValues? effectiveValues = null)
     {
         if (!facts.TryGetAngleBoundsDeg(
                 dimensionKey,
@@ -438,6 +569,11 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 dimensionKey,
                 selectedDegrees,
                 "deg"));
+
+        effectiveValues?.SetAngleDeg(
+            dimensionKey,
+            selectedDegrees,
+            useMaximum ? "MAX overlay override" : "MIN overlay override");
 
         Logger.Info(
             "[_4516EquationPlanner] Overlay angle bound -> " +
@@ -695,7 +831,8 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
 
     private static void AddFootDepthEquation(
         EquationPlanBuilder builder,
-        WedgeFacts facts)
+        WedgeFacts facts,
+        EffectiveEquationValues effectiveValues)
     {
         var footOption =
             ResolveNormalizedFootOption(
@@ -706,48 +843,13 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 facts,
                 footOption);
 
-        decimal footDepthMm;
-        string sourceDescription;
-
-        switch (footKind)
-        {
-            case FootKind.Vg:
-            case FootKind.G:
-                footDepthMm =
-                    RequireFootDepthSource(
-                        facts,
-                        sourceDimension: "GD",
-                        footOption);
-
-                sourceDescription =
-                    "GD";
-
-                break;
-
-            case FootKind.C:
-            case FootKind.CC:
-            case FootKind.CWithCbr:
-                footDepthMm =
-                    RequireFootDepthSource(
-                        facts,
-                        sourceDimension: "CD",
-                        footOption);
-
-                sourceDescription =
-                    "CD";
-
-                break;
-
-            case FootKind.FlatOrUnknown:
-            default:
-                footDepthMm =
-                    0m;
-
-                sourceDescription =
-                    "0";
-
-                break;
-        }
+        var footDepthMm =
+            ResolveEffectiveFootDepthMm(
+                facts,
+                effectiveValues,
+                footKind,
+                footOption,
+                out var sourceDescription);
 
         builder.AddManaged(
             FootDepthEquationName,
@@ -761,6 +863,230 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
             $"foot kind={footKind}, " +
             $"source={sourceDescription}, " +
             $"foot_depth={footDepthMm} mm.");
+    }
+
+    private static decimal ResolveEffectiveFootDepthMm(
+        WedgeFacts facts,
+        EffectiveEquationValues effectiveValues,
+        FootKind footKind,
+        string footOption,
+        out string sourceDescription)
+    {
+        switch (footKind)
+        {
+            case FootKind.Vg:
+            case FootKind.G:
+                return RequireEffectiveFootDepthSource(
+                    facts,
+                    effectiveValues,
+                    sourceDimension: "GD",
+                    footOption,
+                    out sourceDescription);
+
+            case FootKind.C:
+            case FootKind.CWithCbr:
+                return RequireEffectiveFootDepthSource(
+                    facts,
+                    effectiveValues,
+                    sourceDimension: "CD",
+                    footOption,
+                    out sourceDescription);
+
+            case FootKind.CG:
+            case FootKind.CC:
+            case FootKind.FlatOrUnknown:
+            default:
+                sourceDescription =
+                    "0 (foot option does not use GD/CD)";
+
+                return 0m;
+        }
+    }
+
+    private static decimal RequireEffectiveFootDepthSource(
+        WedgeFacts facts,
+        EffectiveEquationValues effectiveValues,
+        string sourceDimension,
+        string footOption,
+        out string sourceDescription)
+    {
+        if (!effectiveValues.TryGetLengthMm(
+                sourceDimension,
+                out var valueMm,
+                out var source))
+        {
+            throw new InvalidOperationException(
+                "Cannot calculate 4516 foot_depth. " +
+                $"{facts.EffectivePropertyName("Wed-Foot_Option")} '{DisplayToken(footOption)}' " +
+                $"requires dimension '{sourceDimension}', " +
+                "but that dimension is missing or is not a " +
+                "millimeter dimension.");
+        }
+
+        if (valueMm < 0m)
+        {
+            throw new InvalidOperationException(
+                "Cannot calculate 4516 foot_depth. " +
+                $"Effective dimension '{sourceDimension}' has an invalid " +
+                $"negative value: {valueMm} mm.");
+        }
+
+        sourceDescription =
+            $"{sourceDimension} ({source})";
+
+        return valueMm;
+    }
+
+    // ================================================================
+    // 4516 FOOT PROFILE (FRX / BRX)
+    // ================================================================
+
+    private static void AddFootProfileEquations(
+        EquationPlanBuilder builder,
+        WedgeFacts facts,
+        EffectiveEquationValues effectiveValues)
+    {
+        var flMm =
+            RequireEffectiveFootProfileLength(
+                effectiveValues,
+                "FL",
+                out var flSource);
+
+        /*
+         * F is intentionally different from the other inputs:
+         * it is always the DB/reference value and is NEVER sent to
+         * SolidWorks. Therefore an equation override cannot replace F.
+         */
+        if (!facts.TryGetLengthMm(
+                "F",
+                out var fMm))
+        {
+            throw RejectFootProfile(
+                "F is missing or invalid in the database. " +
+                "The 4516 tool must be skipped until SPT confirms the rule.");
+        }
+
+        var frMm =
+            RequireEffectiveFootProfileLength(
+                effectiveValues,
+                "FR",
+                out var frSource);
+
+        var brMm =
+            RequireEffectiveFootProfileLength(
+                effectiveValues,
+                "BR",
+                out var brSource);
+
+        /*
+         * Preserve the existing 4516 convention:
+         * missing FTA -> 0 degrees.
+         *
+         * If a future equation rule overrides FTA before this point,
+         * the effective angle is used automatically.
+         */
+        decimal ftaDeg;
+        string ftaSource;
+
+        if (!effectiveValues.TryGetAngleDeg(
+                "FTA",
+                out ftaDeg,
+                out ftaSource))
+        {
+            ftaDeg = 0m;
+            ftaSource = "missing -> 0 deg";
+        }
+
+        var footOption =
+            ResolveNormalizedFootOption(
+                facts);
+
+        var footKind =
+            ResolveFootKind(
+                facts,
+                footOption);
+
+        var footDepthMm =
+            ResolveEffectiveFootDepthMm(
+                facts,
+                effectiveValues,
+                footKind,
+                footOption,
+                out var footDepthSource);
+
+        if (!EquationGeometry.TryCalculate4516FootProfile(
+                flMm,
+                fMm,
+                footDepthMm,
+                frMm,
+                brMm,
+                ftaDeg,
+                out var frxMm,
+                out var brxMm,
+                out var flatMm,
+                out var splitMm,
+                out var brLimitMm,
+                out var error))
+        {
+            throw RejectFootProfile(
+                error);
+        }
+
+        builder.AddManaged(
+            FrontProfileXEquationName,
+            EquationFormatting.LengthLineFromMillimeters(
+                FrontProfileXEquationName,
+                frxMm));
+
+        builder.AddManaged(
+            BackProfileXEquationName,
+            EquationFormatting.LengthLineFromMillimeters(
+                BackProfileXEquationName,
+                brxMm));
+
+        Logger.Info(
+            "[_4516EquationPlanner] Foot profile calculated from EFFECTIVE equation values -> " +
+            $"FL={flMm} mm ({flSource}), " +
+            $"F(DB/reference only)={fMm} mm, " +
+            $"foot_depth={footDepthMm} mm ({footDepthSource}), " +
+            $"FR={frMm} mm ({frSource}), " +
+            $"BR={brMm} mm ({brSource}), " +
+            $"FTA={ftaDeg} deg ({ftaSource}), " +
+            $"Split={splitMm} mm, " +
+            $"BR limit={brLimitMm} mm, " +
+            $"FRX={frxMm} mm, " +
+            $"BRX={brxMm} mm, " +
+            $"Flat={flatMm} mm. " +
+            "F was not sent to SolidWorks.");
+    }
+
+    private static decimal RequireEffectiveFootProfileLength(
+        EffectiveEquationValues effectiveValues,
+        string dimensionKey,
+        out string source)
+    {
+        if (!effectiveValues.TryGetLengthMm(
+                dimensionKey,
+                out var valueMm,
+                out source))
+        {
+            throw RejectFootProfile(
+                $"Dimension '{dimensionKey}' is missing or is not a millimeter dimension.");
+        }
+
+        return valueMm;
+    }
+
+    private static InvalidOperationException RejectFootProfile(
+        string reason)
+    {
+        Logger.Warn(
+            "[_4516EquationPlanner] 4516 foot profile rejected -> " +
+            reason);
+
+        return new InvalidOperationException(
+            "Cannot generate 4516 tool. " +
+            reason);
     }
 
     private static string ResolveNormalizedFootOption(
@@ -784,60 +1110,34 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         WedgeFacts facts,
         string normalizedFootOption)
     {
-        switch (normalizedFootOption)
+        return normalizedFootOption switch
         {
-            case "LW_VG":
-            case "SW_VG":
-                return FootKind.Vg;
+            "LW_VG" or "SW_VG" or "VG" =>
+                FootKind.Vg,
 
-            case "LW_G":
-            case "SW_G":
-                return FootKind.G;
+            "LW_G" or "SW_G" or "G" =>
+                FootKind.G,
 
-            case "LW_C":
-            case "SW_C":
-                return HasAllPositiveNominal(
+            "LW_C" or "SW_C" or "C" =>
+                HasAllPositiveNominal(
                     facts,
                     "CBRL",
                     "CBRD")
                         ? FootKind.CWithCbr
-                        : FootKind.C;
+                        : FootKind.C,
 
-            case "LW_CC":
-            case "SW_CC":
-                return FootKind.CC;
+            "LW_CG" or "SW_CG" or "CG" =>
+                FootKind.CG,
 
-            default:
-                return FootKind.FlatOrUnknown;
-        }
-    }
+            "LW_CC" or "SW_CC" or "CC" =>
+                FootKind.CC,
 
-    private static decimal RequireFootDepthSource(
-        WedgeFacts facts,
-        string sourceDimension,
-        string footOption)
-    {
-        if (!facts.TryGetLengthMm(
-                sourceDimension,
-                out var valueMm))
-        {
-            throw new InvalidOperationException(
-                "Cannot calculate 4516 foot_depth. " +
-                $"{facts.EffectivePropertyName("Wed-Foot_Option")} '{DisplayToken(footOption)}' " +
-                $"requires dimension '{sourceDimension}', " +
-                "but that dimension is missing or is not a " +
-                "millimeter dimension.");
-        }
+            "LW_F" or "SW_F" or "F" =>
+                FootKind.FlatOrUnknown,
 
-        if (valueMm < 0m)
-        {
-            throw new InvalidOperationException(
-                "Cannot calculate 4516 foot_depth. " +
-                $"Dimension '{sourceDimension}' has an invalid " +
-                $"negative value: {valueMm} mm.");
-        }
-
-        return valueMm;
+            _ =>
+                FootKind.FlatOrUnknown
+        };
     }
 
     // ================================================================
@@ -861,79 +1161,6 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         Logger.Info(
             "[_4516EquationPlanner] Funnel gap resolved -> " +
             $"funnel_gap={funnelGapMm} mm.");
-    }
-
-    // ================================================================
-    // SLB / BA EQUATION
-    // ================================================================
-
-    private static void ApplySlbBackAngleRule(
-        EquationPlanBuilder builder,
-        WedgeFacts facts)
-    {
-        if (!facts.TryGetLengthMm(
-                SlbDimensionName,
-                out var vblMm) ||
-            vblMm <= WedgeFacts.DefaultPositiveEpsilon)
-        {
-            Logger.Info(
-                "[_4516EquationPlanner] VBL is missing or zero. " +
-                "The database BA value remains active.");
-
-            return;
-        }
-
-        builder.AddManaged(
-            BackAngleEquationName,
-            EquationFormatting.Line(
-                BackAngleEquationName,
-                0m,
-                "deg"));
-
-        Logger.Info(
-            "[_4516EquationPlanner] SLB rule applied -> " +
-            $"VBL={vblMm} mm, BA=0 deg.");
-    }
-
-    // ================================================================
-    // NON-STANDARD CUT
-    // ================================================================
-
-    private void AddNonStandardCutEquation(
-        EquationPlanBuilder builder,
-        WedgeFacts facts,
-        DrawingType drawingType)
-    {
-        var rawCut =
-            EquationGeometry.NonStdCutRawMm(
-                facts);
-
-        var finalCut =
-            rawCut;
-
-        if (drawingType == DrawingType.Overlay)
-        {
-            var magnification =
-                EquationGeometry.OverlayMagnification(
-                    facts,
-                    _wedgeType);
-
-            var scale =
-                EquationGeometry.OverlayScaleDecimal(
-                    magnification);
-
-            finalCut =
-                EquationGeometry.OverlaySafeNonStdCutMm(
-                    rawCut,
-                    scale,
-                    _wedgeType);
-        }
-
-        builder.AddManaged(
-            NonStdCutEquationName,
-            EquationFormatting.LengthLineFromMillimeters(
-                NonStdCutEquationName,
-                finalCut));
     }
 
     // ================================================================
@@ -987,6 +1214,114 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
             : token;
     }
 
+    /// <summary>
+    /// Keeps the effective equation values selected during this planner
+    /// build. Overrides are stored here as soon as the corresponding
+    /// equation is changed; reads fall back to the nominal DB value.
+    ///
+    /// This is intentionally local to the 4516 planner. EquationPlanBuilder
+    /// remains generic and unchanged.
+    /// </summary>
+    private sealed class EffectiveEquationValues
+    {
+        private readonly WedgeFacts _facts;
+
+        private readonly Dictionary<string, EffectiveDecimalValue>
+            _lengthOverrides =
+                new(StringComparer.OrdinalIgnoreCase);
+
+        private readonly Dictionary<string, EffectiveDecimalValue>
+            _angleOverrides =
+                new(StringComparer.OrdinalIgnoreCase);
+
+        public EffectiveEquationValues(
+            WedgeFacts facts)
+        {
+            _facts = facts ??
+                throw new ArgumentNullException(nameof(facts));
+        }
+
+        public void SetLengthMm(
+            string key,
+            decimal valueMm,
+            string source)
+        {
+            _lengthOverrides[key] =
+                new EffectiveDecimalValue(
+                    valueMm,
+                    source);
+        }
+
+        public void SetAngleDeg(
+            string key,
+            decimal valueDeg,
+            string source)
+        {
+            _angleOverrides[key] =
+                new EffectiveDecimalValue(
+                    valueDeg,
+                    source);
+        }
+
+        public bool TryGetLengthMm(
+            string key,
+            out decimal valueMm,
+            out string source)
+        {
+            if (_lengthOverrides.TryGetValue(
+                    key,
+                    out var overridden))
+            {
+                valueMm = overridden.Value;
+                source = overridden.Source;
+                return true;
+            }
+
+            if (_facts.TryGetLengthMm(
+                    key,
+                    out valueMm))
+            {
+                source = "nominal DB value";
+                return true;
+            }
+
+            valueMm = 0m;
+            source = "missing";
+            return false;
+        }
+
+        public bool TryGetAngleDeg(
+            string key,
+            out decimal valueDeg,
+            out string source)
+        {
+            if (_angleOverrides.TryGetValue(
+                    key,
+                    out var overridden))
+            {
+                valueDeg = overridden.Value;
+                source = overridden.Source;
+                return true;
+            }
+
+            if (_facts.TryGetAngleDeg(
+                    key,
+                    out valueDeg))
+            {
+                source = "nominal DB value";
+                return true;
+            }
+
+            valueDeg = 0m;
+            source = "missing";
+            return false;
+        }
+    }
+
+    private readonly record struct EffectiveDecimalValue(
+        decimal Value,
+        string Source);
+
     private enum FeedHoleType
     {
         Unknown,
@@ -1001,6 +1336,7 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         C,
         CWithCbr,
         G,
+        CG,
         CC,
         Vg
     }

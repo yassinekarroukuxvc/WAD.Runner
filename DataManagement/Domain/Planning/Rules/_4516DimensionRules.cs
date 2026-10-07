@@ -74,7 +74,7 @@ internal static class _4516DimensionRules
         var LFront = TL * fsv;
         var LSide = TL * fsv;
 
-        const double detailLower = 90.0;
+        const double detailLower = 60.0;
         var detailBreak = GetBreakline(ctx, Detail, defaultMm: 50.0);
         var bandMidY = D[1] - (detailBreak + detailLower) / 2.0;
 
@@ -142,7 +142,7 @@ internal static class _4516DimensionRules
         var CD = LayoutMath.Dmm(ctx, "CD");
         var VRR = LayoutMath.Dmm(ctx, "VRR");
 
-        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0], bandMidY + 93);
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0], bandMidY + 63);
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal, D[0], bandMidY + 5.0);
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal, D[0], bandMidY - 15.0);
         PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
@@ -159,9 +159,17 @@ internal static class _4516DimensionRules
             D[0] + W / 2.0 * dsv + 10.0,
             bandMidY + dsv * GD / 2.0);
 
+        PlaceDim(ctx, diag, outList, "GR_G", Detail, DimAxis.Vertical,
+            D[0] + W / 2.0 * dsv + 10.0,
+            D[1]);
+
+        PlaceDim(ctx, diag, outList, "GR_VG", Detail, DimAxis.Vertical,
+            D[0] + W / 2.0 * dsv + 10.0,
+            D[1]);
+
         PlaceDim(ctx, diag, outList, "CD", Detail, DimAxis.Horizontal,
             D[0] + W / 2.0 * dsv + 5.0,
-            bandMidY + dsv * CD / 2.0);
+            bandMidY + dsv * CD / 2.0 - 3);
     }
 
     private static void AddSide(
@@ -262,7 +270,7 @@ internal static class _4516DimensionRules
 
         PlaceDim(ctx, diag, outList, "NR", Section, DimAxis.Horizontal,
             Sec[0] - TDF / 2.0 * scv + FL * scv + 15,
-            bandMidY + C * scv / 2.0);
+            bandMidY + C * scv / 2.0 + 2);
         /*
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
            Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + ((T - FD) * scv) * (Math.Tan(HA * (Math.PI / 180.0))));

@@ -89,6 +89,11 @@ public static class OverlayCutFeatureFinalizer
                 "left_cut_plan",
                 "left_cut_feature",
 
+                // 4516 template uses this exact legacy spelling.
+                // Keep it in the final-cut set so the left cut is reapplied
+                // after the normal feature batch, just like the other cuts.
+                "lef_cut_feature",
+
                 // --------------------------------------------------------
                 // CKVD / OSG7
                 // --------------------------------------------------------

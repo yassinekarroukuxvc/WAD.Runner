@@ -55,17 +55,27 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
         WedgeFacts facts,
         WedgeSubclass subclass)
     {
-        var style = ResolveStyle(facts);
-
-        var hasOverlayVrFamily = HasAnyPositiveNominal(
+        var style = ResolveStyle(
             facts,
-            "VR",
-            "VRR",
-            "VW");
+            subclass);
+
+        var vrPositive =
+            facts.HasPositive("VR");
+
+        var vwPositive =
+            facts.HasPositive("VW");
+
+        var hasVrAndVw =
+            vrPositive &&
+            vwPositive;
+
+        var hasNeitherVrNorVw =
+            !vrPositive &&
+            !vwPositive;
 
         var overlayVwCase = ResolveOverlayVwCase(
             facts,
-            hasOverlayVrFamily);
+            hasVrAndVw);
 
         if (subclass == WedgeSubclass.PGB)
         {
@@ -73,7 +83,8 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
                 updates,
                 facts,
                 style,
-                hasOverlayVrFamily,
+                hasVrAndVw,
+                hasNeitherVrNorVw,
                 overlayVwCase);
         }
         else
@@ -82,14 +93,14 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
                 updates,
                 facts,
                 style,
-                hasOverlayVrFamily,
+                hasVrAndVw,
                 overlayVwCase);
         }
 
         Logger.Info(
             "[CkvdToleranceRules] Overlay tolerance selection -> " +
             $"subclass={subclass}, style={style}, " +
-            $"VR/VRR/VW present={hasOverlayVrFamily}, " +
+            $"VR>0={vrPositive}, VW>0={vwPositive}, " +
             $"VW case={overlayVwCase}.");
     }
 
@@ -97,7 +108,8 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
         List<ToleranceUpdate> updates,
         WedgeFacts facts,
         CkvdStyle style,
-        bool hasOverlayVrFamily,
+        bool hasVrAndVw,
+        bool hasNeitherVrNorVw,
         OverlayVwCase overlayVwCase)
     {
         var styleFlSketch =
@@ -105,19 +117,49 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
                 ? "style_a_fl_pgb_overlay_sketch"
                 : "style_b_fl_pgb_overlay_sketch";
 
-        if (!hasOverlayVrFamily)
+        /*
+         * PGB equation/tolerance pairing:
+         *
+         * VR = 0 and VW = 0:
+         *   Equation W  = W_MIN  -> tolerance W_MAX
+         *   Equation FL = FL_MIN -> tolerance FL_MAX
+         *
+         * VR > 0 and VW > 0:
+         *   Equation FL  = FL_MIN -> tolerance FL_MAX
+         *   Equation VW  = VW_MAX -> tolerance VW_MIN
+         *   Equation VR  = VR_MAX -> tolerance VR_MIN
+         *   Equation VRA = VRA_MAX -> tolerance VRA_MIN
+         *
+         *   VW = W:
+         *     Equation W = W_MIN -> tolerance W_MAX
+         *
+         *   VW > W:
+         *     Equation W   = W_MAX   -> tolerance W_MIN
+         *     Equation ISA = ISA_MAX -> tolerance ISA_MIN
+         */
+        if (hasNeitherVrNorVw)
         {
-            AddLengthMinimum(
+            AddLengthMaximum(
                 updates,
                 facts,
                 "W",
-                "W_MIN@w_pgb_overlay_sketch");
+                "W_MAX@w_pgb_overlay_sketch");
 
-            AddLengthMinimum(
+            AddLengthMaximum(
                 updates,
                 facts,
                 "FL",
-                $"FL_MIN@{styleFlSketch}");
+                $"FL_MAX@{styleFlSketch}");
+
+            return;
+        }
+
+        if (!hasVrAndVw)
+        {
+            Logger.Warn(
+                "[CkvdToleranceRules] CKVD PGB overlay has only one " +
+                "of VR/VW positive. No VR/VW-dependent PGB tolerance " +
+                "targets are defined for this combination.");
 
             return;
         }
@@ -136,6 +178,12 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
                     facts,
                     "vw_case1_pgb_overlay_sketch",
                     includeWAndIsa: false);
+
+                AddLengthMaximum(
+                    updates,
+                    facts,
+                    "W",
+                    "W_MAX@vw_case1_pgb_overlay_sketch");
                 break;
 
             case OverlayVwCase.Case2:
@@ -152,7 +200,7 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
         List<ToleranceUpdate> updates,
         WedgeFacts facts,
         CkvdStyle style,
-        bool hasOverlayVrFamily,
+        bool hasVrAndVw,
         OverlayVwCase overlayVwCase)
     {
         var styleFlSketch =
@@ -206,7 +254,7 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
             "FL",
             $"FL_MAX@{styleFlSketch}");
 
-        if (!hasOverlayVrFamily)
+        if (!hasVrAndVw)
             return;
 
         switch (overlayVwCase)
@@ -381,15 +429,35 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
     }
 
     private static CkvdStyle ResolveStyle(
-        WedgeFacts facts)
+        WedgeFacts facts,
+        WedgeSubclass subclass)
     {
-        var raw = facts.NormalizedSubclassPropertyToken(
-            "PGB-Type",
+        if (facts is null)
+            throw new ArgumentNullException(nameof(facts));
+
+        string propertyName;
+        string? raw;
+
+        if (subclass == WedgeSubclass.PGB)
+        {
+            propertyName = "PGB-Type";
+
+            raw = facts.NormalizedSubclassPropertyToken(
+                "PGB-Type",
+                "PGB_Type",
+                "PGB Type");
+        }
+        else
+        {
+            propertyName = "Wed-Type";
+
+            raw = facts.NormalizedSubclassPropertyToken(
                 "Wed-Type",
-            "Wed_Type",
-            "Wed Type",
-            "Shank_Type",
-            "shank_type");
+                "Wed_Type",
+                "Wed Type",
+                "Shank_Type",
+                "shank_type");
+        }
 
         if (string.Equals(
                 raw,
@@ -408,29 +476,16 @@ public sealed class CkvdToleranceRules : IToleranceRuleSet
         }
 
         throw new InvalidOperationException(
-            $"Unable to resolve the CKVD shank style from {facts.EffectivePropertyName("Wed-Type")}. " +
+            $"Unable to resolve the CKVD shank style for {subclass} from '{propertyName}'. " +
             "Expected 'LW_STYLE_A_CKVD' or 'LW_STYLE_B_CKVD', " +
-            $"but received '{raw}'.");
-    }
-
-    private static bool HasAnyPositiveNominal(
-        WedgeFacts facts,
-        params string[] dimensionKeys)
-    {
-        foreach (var key in dimensionKeys)
-        {
-            if (facts.HasPositive(key))
-                return true;
-        }
-
-        return false;
+            $"but received '{(string.IsNullOrWhiteSpace(raw) ? "<missing>" : raw)}'.");
     }
 
     private static OverlayVwCase ResolveOverlayVwCase(
         WedgeFacts facts,
-        bool hasOverlayVrFamily)
+        bool hasVrAndVw)
     {
-        if (!hasOverlayVrFamily ||
+        if (!hasVrAndVw ||
             !facts.TryGetLengthMm(
                 "VW",
                 out var vwMillimeters) ||

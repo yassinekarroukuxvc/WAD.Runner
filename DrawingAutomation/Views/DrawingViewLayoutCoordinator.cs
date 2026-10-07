@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
@@ -28,10 +29,16 @@ public sealed class DrawingViewLayoutCoordinator
     private readonly ViewScaleService _scales;
     private readonly ViewGeometryService _geometry;
     private readonly BreaklineService _breaklines;
+    private readonly LayoutFitPolicy? _fitOverride;
+
+    // Resolved at the start of Apply() from the override or the
+    // per-wedge-type catalog.
+    private LayoutFitPolicy _fit = LayoutFitPolicy.Default;
 
     public DrawingViewLayoutCoordinator(
         DrawingService drawingService,
-        IDictionary<string, string>? logicalToActual = null)
+        IDictionary<string, string>? logicalToActual = null,
+        LayoutFitPolicy? fitPolicy = null)
     {
         _drawingService =
             drawingService
@@ -57,6 +64,9 @@ public sealed class DrawingViewLayoutCoordinator
             new BreaklineService(
                 drawingService,
                 logicalToActual);
+
+        _fitOverride =
+            fitPolicy;
     }
 
     public ViewLayoutResult Apply(
@@ -73,8 +83,14 @@ public sealed class DrawingViewLayoutCoordinator
         if (profile is null)
             throw new ArgumentNullException(nameof(profile));
 
+        _fit =
+            _fitOverride
+            ?? LayoutFitPolicyCatalog.For(run.WedgeType);
+
         Logger.Info(
-            "[ViewLayout] Starting layout stabilization...");
+            $"[ViewLayout] Starting layout stabilization " +
+            $"({run.WedgeType}: margin={_fit.SheetMarginMm:0.###} mm, " +
+            $"gap={_fit.ViewGapMm:0.###} mm)...");
 
         /*
          * 1. Prepare movement exactly once.
@@ -86,10 +102,9 @@ public sealed class DrawingViewLayoutCoordinator
             DrawingViewNames.LayoutOrder);
 
         /*
-         * 2. Detail and Section use their normal configured scales.
-         *
-         * This fixes the previous hidden dependency on whatever scale
-         * happened to exist in the template.
+         * 2. Detail and Section start at their configured scales.
+         * These are treated as MAXIMUM scales; they may be reduced
+         * in step 8 if they do not fit.
          */
         _scales.ApplyConfiguredScales(
             drawingData,
@@ -98,15 +113,29 @@ public sealed class DrawingViewLayoutCoordinator
         _drawingService.Rebuild();
 
         /*
-         * 3. Find the unified Front/Side/Top autoscale.
+         * 3. Place views at their configured origins BEFORE searching
+         * for the primary scale.
          *
-         * Front drives the fit calculation.
+         * Scaling happens about the view origin, so origins do not move
+         * when the scale changes. Having final origins during the search
+         * lets us measure real overlaps and sheet overflow.
+         */
+        _positions.ApplyConfiguredPositions(
+            drawingData,
+            DrawingViewNames.LayoutOrder);
+
+        _drawingService.Rebuild();
+
+        /*
+         * 4. Find the unified Front/Side/Top autoscale.
          *
-         * If Front uses a breakline, that breakline is refreshed at each
-         * candidate scale before measuring the final visible outline.
+         * A candidate is accepted only if:
+         *  - Front fits the configured height ratio, AND
+         *  - Front/Side/Top are inside the sheet, AND
+         *  - Front/Side/Top do not overlap each other.
          *
-         * CKVD Production/Customer profiles do not include Front or Side
-         * in BreaklineViews, so those breaklines are not managed here.
+         * Thick wedges (large T/TD/TDF) fail the width/overlap checks
+         * at high scales, which pushes the scale down.
          */
         var primaryScale =
             FindPrimaryScale(
@@ -115,23 +144,14 @@ public sealed class DrawingViewLayoutCoordinator
                 profile);
 
         /*
-         * 4. Establish the final unified primary scale.
+         * 5. Establish the final unified primary scale.
          */
         _scales.ApplyUnifiedScale(
             DrawingViewNames.Primary,
             primaryScale);
 
         /*
-         * 5. Recalculate every enabled breakline from FINAL scales.
-         *
-         * At this point:
-         *
-         * Front / Side / Top = final autoscale
-         * Detail / Section   = configured normal scale
-         *
-         * The active profile decides which views use breaklines.
-         * For CKVD Production/Customer, only Detail and Section are
-         * managed because the CKVD profile uses SecondaryBreaklineViews.
+         * 6. Recalculate every enabled breakline from FINAL scales.
          */
         _breaklines.ApplyEnabled(
             run.WedgeType,
@@ -142,7 +162,7 @@ public sealed class DrawingViewLayoutCoordinator
         _drawingService.Rebuild();
 
         /*
-         * 6. Apply configured positions after final scale and breakline
+         * 7. Apply configured positions after final scale and breakline
          * geometry are stable.
          *
          * PositionMm normally represents the SolidWorks view origin.
@@ -154,7 +174,7 @@ public sealed class DrawingViewLayoutCoordinator
         _drawingService.Rebuild();
 
         /*
-         * 7. CKVD Front and Side are intentionally unbroken in
+         * CKVD Front and Side are intentionally unbroken in
          * Production/Customer drawings.
          *
          * Their full visible geometry is vertically offset from the
@@ -179,6 +199,17 @@ public sealed class DrawingViewLayoutCoordinator
 
             _drawingService.Rebuild();
         }
+
+        /*
+         * 8. Detail and Section: shrink from their configured scale only
+         * as far as needed to stay inside the sheet and clear of the
+         * primary views (and of each other). Runs last so it measures the
+         * final primary geometry and positions.
+         */
+        FitSecondaryViews(
+            run,
+            drawingData,
+            profile);
 
         var finalScales =
             CaptureFinalScales(
@@ -245,6 +276,12 @@ public sealed class DrawingViewLayoutCoordinator
         ValidatePolicy(
             policy);
 
+        var primaryViews =
+            DrawingViewNames.Primary.ToArray();
+
+        var noOthers =
+            Array.Empty<string>();
+
         var candidate =
             policy.MaxScale;
 
@@ -257,25 +294,26 @@ public sealed class DrawingViewLayoutCoordinator
                     policy.MinScale);
 
             /*
-             * Only Front needs to change during candidate evaluation because
-             * Front is the view used to measure fit.
-             *
-             * Side and Top receive the chosen scale once,
-             * after the search.
+             * Front, Side and Top all take the candidate scale because
+             * overlap/sheet checks need every primary view measured at
+             * the scale being evaluated.
              */
-            _scales.ApplyScale(
-                DrawingViewNames.Front,
+            _scales.ApplyUnifiedScale(
+                primaryViews,
                 normalized);
 
-            if (profile.UsesBreakline(
-                    DrawingViewNames.Front))
+            /*
+             * Breaklines of enabled primary views are recalculated for
+             * every candidate scale, since they change the visible
+             * outline that is measured below.
+             */
+            foreach (var logicalView in primaryViews)
             {
-                /*
-                 * The active wedge module is consulted because this
-                 * breakline is recalculated for every candidate scale.
-                 */
+                if (!profile.UsesBreakline(logicalView))
+                    continue;
+
                 _breaklines.Apply(
-                    DrawingViewNames.Front,
+                    logicalView,
                     run.WedgeType,
                     run.Wedge,
                     drawingData);
@@ -283,13 +321,23 @@ public sealed class DrawingViewLayoutCoordinator
 
             /*
              * Scale and breakline mutations must be regenerated before
-             * reading the view outline.
+             * reading the view outlines.
              */
             _drawingService.Rebuild();
 
-            if (_geometry.FitsHeight(
+            var fitsHeight =
+                _geometry.FitsHeight(
                     DrawingViewNames.Front,
-                    policy))
+                    policy);
+
+            var layoutClean =
+                _geometry.IsLayoutClean(
+                    primaryViews,
+                    noOthers,
+                    _fit,
+                    out var reason);
+
+            if (fitsHeight && layoutClean)
             {
                 Logger.Info(
                     $"[ViewLayout] Autoscale accepted " +
@@ -298,6 +346,13 @@ public sealed class DrawingViewLayoutCoordinator
                 return normalized;
             }
 
+            Logger.Info(
+                $"[ViewLayout] Autoscale rejected {normalized:0.###}: " +
+                (!fitsHeight
+                    ? "Front exceeds height fill ratio"
+                    : reason) +
+                ".");
+
             candidate -=
                 policy.Step;
         }
@@ -305,10 +360,178 @@ public sealed class DrawingViewLayoutCoordinator
         Logger.Warn(
             $"[ViewLayout] No scale in range " +
             $"{policy.MinScale:0.###}..{policy.MaxScale:0.###} " +
-            "satisfied the configured fill ratio. " +
+            "satisfied height and layout constraints. " +
             $"Using MinScale={policy.MinScale:0.###}.");
 
         return policy.MinScale;
+    }
+
+    /// <summary>
+    /// Shrinks Detail/Section below their configured scale only when
+    /// they leave the sheet or overlap another view.
+    /// </summary>
+    private void FitSecondaryViews(
+        DrawingRun run,
+        DrawingData drawingData,
+        DrawingProfile profile)
+    {
+        var primaryViews =
+            DrawingViewNames.Primary.ToArray();
+
+        var secondaryViews =
+            DrawingViewNames.FixedScale
+                .Where(name => _geometry.GetRect(name) is not null)
+                .ToArray();
+
+        if (secondaryViews.Length == 0)
+            return;
+
+        var configured =
+            new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
+
+        var current =
+            new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
+
+        foreach (var logicalView in secondaryViews)
+        {
+            if (!_scales.TryGetCurrentScale(
+                    logicalView,
+                    out var scale))
+            {
+                continue;
+            }
+
+            configured[logicalView] = scale;
+            current[logicalView] = scale;
+        }
+
+        var tracked =
+            secondaryViews
+                .Where(current.ContainsKey)
+                .ToArray();
+
+        /*
+         * Phase 1: each secondary view against the sheet and the
+         * primary views.
+         */
+        foreach (var logicalView in tracked)
+        {
+            var guard = 0;
+
+            while (guard++ < _fit.MaxSecondaryIterations &&
+                   !_geometry.IsLayoutClean(
+                       new[] { logicalView },
+                       primaryViews,
+                       _fit,
+                       out _))
+            {
+                if (!StepDownSecondary(
+                        logicalView,
+                        current,
+                        run,
+                        drawingData,
+                        profile))
+                {
+                    Logger.Warn(
+                        $"[ViewLayout] '{logicalView}' still does not fit " +
+                        $"at scale {current[logicalView]:0.###} " +
+                        "(minimum reached).");
+
+                    break;
+                }
+            }
+        }
+
+        /*
+         * Phase 2: resolve Detail <-> Section overlap by shrinking the
+         * view that is furthest above its configured scale.
+         */
+        if (tracked.Length > 1)
+        {
+            var guard = 0;
+
+            while (guard++ < _fit.MaxSecondaryIterations &&
+                   !_geometry.IsLayoutClean(
+                       tracked,
+                       Array.Empty<string>(),
+                       _fit,
+                       out _))
+            {
+                var candidates =
+                    tracked
+                        .Where(name =>
+                            current[name] - _fit.SecondaryScaleStep >=
+                            _fit.SecondaryMinScale - 1e-9)
+                        .OrderByDescending(name =>
+                            current[name] / configured[name])
+                        .ToArray();
+
+                if (candidates.Length == 0)
+                {
+                    Logger.Warn(
+                        "[ViewLayout] Secondary views still overlap " +
+                        "at minimum scale.");
+
+                    break;
+                }
+
+                StepDownSecondary(
+                    candidates[0],
+                    current,
+                    run,
+                    drawingData,
+                    profile);
+            }
+        }
+
+        foreach (var logicalView in tracked)
+        {
+            if (Math.Abs(current[logicalView] - configured[logicalView]) > 1e-9)
+            {
+                Logger.Info(
+                    $"[ViewLayout] '{logicalView}' reduced from " +
+                    $"{configured[logicalView]:0.###} to " +
+                    $"{current[logicalView]:0.###} to fit the sheet.");
+            }
+        }
+    }
+
+    private bool StepDownSecondary(
+        string logicalView,
+        IDictionary<string, double> current,
+        DrawingRun run,
+        DrawingData drawingData,
+        DrawingProfile profile)
+    {
+        var next =
+            current[logicalView] - _fit.SecondaryScaleStep;
+
+        if (next < _fit.SecondaryMinScale - 1e-9)
+            return false;
+
+        if (!_scales.ApplyScale(
+                logicalView,
+                next))
+        {
+            return false;
+        }
+
+        current[logicalView] = next;
+
+        if (profile.UsesBreakline(logicalView))
+        {
+            _breaklines.Apply(
+                logicalView,
+                run.WedgeType,
+                run.Wedge,
+                drawingData);
+        }
+
+        _drawingService.Rebuild();
+
+        return true;
     }
 
     private static bool RequiresCkvdPrimaryVisibleCenterCorrection(

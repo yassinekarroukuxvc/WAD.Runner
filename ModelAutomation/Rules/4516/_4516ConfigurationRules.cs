@@ -2,12 +2,15 @@
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
-using WAD.Runner.ModelAutomation.Core;
 
 namespace WAD.Runner.ModelAutomation.Rules._4516;
 
 public sealed class _4516ConfigurationRules : IModelConfigurationRules
 {
+    private const string DefaultConfiguration = "Default";
+    private const string LeftViewConfiguration = "left_view";
+    private const string RightViewConfiguration = "right_view";
+
     public ConfigurationPlan Resolve(
         WedgeSubclass subclass,
         DrawingType drawingType,
@@ -17,95 +20,40 @@ public sealed class _4516ConfigurationRules : IModelConfigurationRules
         if (drawingType != DrawingType.Overlay)
         {
             return Build(
-                "Default",
+                DefaultConfiguration,
                 explicitToggleSteps,
                 false,
                 "non-overlay");
         }
 
-        var facts =
-            wedge is null
-                ? null
-                : new WedgeFacts(wedge, subclass);
-
-        var finalConfig =
-            subclass == WedgeSubclass.PGB
-                ? ResolvePgbOverlayConfig(facts)
-                : ResolveFgOverlayConfig(facts);
-
         if (ConfigurationPlanFactory.HasExplicitSteps(
                 explicitToggleSteps))
         {
             return Build(
-                finalConfig,
+                RightViewConfiguration,
                 explicitToggleSteps,
                 true,
-                "explicit override");
+                "overlay explicit override");
         }
 
         return Build(
-            finalConfig,
+            RightViewConfiguration,
             BuildOverlaySteps(),
             true,
-            subclass == WedgeSubclass.PGB
-                ? "PGB overlay multi-config"
-                : "FG overlay multi-config");
+            "overlay left/right multi-config");
     }
 
-    private static string ResolveFgOverlayConfig(
-        WedgeFacts? facts)
-    {
-        var hasVw =
-            facts?.HasPositive("VW") == true;
-
-        var hasVr =
-            facts?.HasPositive("VR") == true ||
-            facts?.HasPositive("VRR") == true;
-
-        if (!hasVw && !hasVr)
-            return "overlay_std_cut";
-
-        if (hasVw && hasVr)
-            return "overlay_non_std_cut";
-
-        return "Default";
-    }
-
-    private static string ResolvePgbOverlayConfig(
-        WedgeFacts? facts)
-    {
-        var hasVw =
-            facts?.HasPositive("VW") == true;
-
-        var hasVr =
-            facts?.HasPositive("VR") == true ||
-            facts?.HasPositive("VRR") == true;
-
-        if (!hasVw && !hasVr)
-            return "overlay_std_cut";
-
-        if (hasVw && hasVr)
-            return "overlay_non_std_cut";
-
-        return "Default";
-    }
-
-    private static IReadOnlyList<FeatureToggleStep>
-        BuildOverlaySteps()
+    private static IReadOnlyList<FeatureToggleStep> BuildOverlaySteps()
     {
         return new[]
         {
             ConfigurationPlanFactory.Step(
-                "Default",
-                "Default"),
+                LeftViewConfiguration,
+                LeftViewConfiguration),
 
             ConfigurationPlanFactory.Step(
-                "overlay_std_cut",
-                "overlay_std_cut"),
-
-            ConfigurationPlanFactory.Step(
-                "overlay_non_std_cut",
-                "overlay_non_std_cut")
+                RightViewConfiguration,
+                RightViewConfiguration)
         };
     }
 

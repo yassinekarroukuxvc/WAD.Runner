@@ -231,7 +231,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                     Path.Combine("Resources", "Templates", "4516", "4516_drawing_rev2.SLDPRT.SLDDRW"),
                             };
 
-                            equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "4516", "equations.txt");
+                            equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "4516", "equations2.txt");
                             break;
 
                         case WedgeType.ABT:

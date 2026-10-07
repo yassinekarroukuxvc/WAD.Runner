@@ -13,19 +13,30 @@ namespace WAD.Runner.DrawingAutomation.Wedges._4516;
 
 public sealed class _4516DrawingModule : IDrawingWedgeModule
 {
+    /*
+     * Overlay candidate dimensions.
+     *
+     * This contains every FG Overlay dimension marked "X" for 4516 in
+     * Prod_style_Rev.03, plus the existing overlay/PGB keys that must remain
+     * available to the overlay pipeline.
+     *
+     * GetAllowedDimensionTableKeys(...) performs the final drawing-table
+     * filtering, so the FG table itself remains exactly Excel/X-driven.
+     */
     private static readonly IReadOnlyList<string> OverlayDimensionKeyList =
-    Array.AsReadOnly(new[]
-    {
-        "TD", "TDF", "TL", "ISA", "W",
-        "VW", "VR", "VRR", "VRA",
-        "B", "GA", "GD", "GR", "GO", "CL", "CD",
-        "BA", "T", "FL", "C", "NR", "BR", "FR",
-        "H", "HA", "FNA", "Y", "HH", "HW", "SW",
-        "F", "BF", "FD",
-        "G", "CGR", "CGD",
-        "VBL", "VBLR",
-        "CBRD", "CBRL",
-    });
+        Array.AsReadOnly(new[]
+        {
+            "B", "BA", "BF", "BR", "C", "CA", "CBL",
+            "CD", "CGD", "CGO", "CGR", "CL", "ERD", "ERL",
+            "ERW", "F", "FD", "FL", "FLC", "FLER", "FLG",
+            "FNA", "FNO", "FR", "FRO", "GA", "GD", "GD1",
+            "GO", "GR", "GR1", "H", "HA", "ID", "IDFA",
+            "IDTD", "ISA", "MB", "MO", "P", "RA", "RC",
+            "T", "T1", "TBF", "TD", "TDF", "TL", "VBL",
+            "VBLR", "W", "W2", "W2A", "Y", "VW", "VR",
+            "VRR", "VRA", "NR", "HH", "HW", "SW", "G",
+            "CBRD", "CBRL"
+        });
 
     private static readonly ViewNames ProductionCustomerViews = new(
         Front: "Drawing View2",
@@ -41,35 +52,55 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         Detail: "Drawing View1",
         Section: "Drawing View2");
 
-    private static readonly IReadOnlySet<string> FgProductionDrawingTableKeys = Keys(
-        "TD", "TDF", "TL", "W",
-        "VW", "VR", "VRR",
-        "B", "GD", "GR", "GO", "CL", "CD",
-        "T", "FL", "C", "NR", "BR", "FR",
-        "H", "Y", "HH", "HW", "SW",
-        "F", "BF", "FD",
-        "G", "CGR", "CGD",
-        "VBL", "VBLR",
-        "CBRD", "CBRL");
+    // ================================================================
+    // DIMENSION TABLE KEYS
+    // ================================================================
 
-    private static readonly IReadOnlySet<string> FgCustomerDrawingTableKeys = Keys(
-        "FL", "F", "FR", "BR", "W", "T",
-        "C", "GD", "B", "FA", "GA",
-        "BA", "TL", "TDF", "TD", "ISA");
+    // FG dimension-table content comes directly from the X marks in
+    // Prod_style_Rev.03 for Product_Type 4516.
+    private static readonly IReadOnlySet<string> FgProductionDrawingTableKeys =
+        Keys(
+            "B", "BA", "BF", "BR", "C", "CA", "CBL",
+            "CD", "CGD", "CGO", "CGR", "CL", "ERD", "ERL",
+            "ERW", "F", "FD", "FL", "FLC", "FLER", "FLG",
+            "FNA", "FNO", "FR", "FRO", "GA", "GD", "GD1",
+            "GO", "GR", "GR1", "H", "HA", "ID", "IDFA",
+            "IDTD", "ISA", "MB", "MO", "P", "RA", "RC",
+            "T", "T1", "TBF", "TD", "TDF", "TL", "VBL",
+            "VBLR", "W", "W2", "W2A", "Y");
 
-    private static readonly IReadOnlySet<string> FgOverlayTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL",
-        "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C",
-        "NR", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y",
-        "G", "CGR", "CGD", "VBL", "FD");
+    private static readonly IReadOnlySet<string> FgCustomerDrawingTableKeys =
+        Keys(
+            "B", "BA", "BF", "BR", "C", "CD", "CGD",
+            "CGO", "CGR", "CL", "F", "FL", "FNA", "FR",
+            "FRO", "GA", "GD", "GD1", "GO", "GR", "GR1",
+            "H", "HA", "ISA", "RA", "T", "T1", "TD",
+            "TDF", "TL", "VBL", "VBLR", "W", "W2", "Y");
 
-    private static readonly IReadOnlySet<string> PgbProductionTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
-        "TL", "BA", "T", "FL", "VBL");
+    private static readonly IReadOnlySet<string> FgOverlayTableKeys =
+        Keys(
+            "B", "BA", "BF", "BR", "C", "CA", "CBL",
+            "CD", "CGD", "CGO", "CGR", "CL", "ERD", "ERL",
+            "ERW", "F", "FD", "FL", "FLC", "FLER", "FLG",
+            "FNA", "FNO", "FR", "FRO", "GA", "GD", "GD1",
+            "GO", "GR", "GR1", "H", "HA", "ID", "IDFA",
+            "IDTD", "ISA", "MB", "MO", "P", "RA", "RC",
+            "T", "T1", "TBF", "TD", "TDF", "TL", "VBL",
+            "VBLR", "W", "W2", "W2A", "Y");
 
-    private static readonly IReadOnlySet<string> PgbOverlayTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
-        "TL", "BA", "T", "FL", "VBL");
+    private static readonly IReadOnlySet<string> PgbProductionTableKeys =
+        Keys(
+            "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
+            "TL", "BA", "T", "FL", "VBL");
+
+    private static readonly IReadOnlySet<string> PgbOverlayTableKeys =
+        Keys(
+            "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
+            "TL", "BA", "T", "FL", "VBL");
+
+    // ================================================================
+    // CONSTRUCTOR / PROFILES
+    // ================================================================
 
     public _4516DrawingModule()
     {
@@ -122,22 +153,43 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         });
     }
 
+    // ================================================================
+    // WEDGE
+    // ================================================================
+
     public WedgeType WedgeType =>
         global::WAD.Runner.DataManagement.Domain.Wedge.WedgeType._4516;
 
+    // ================================================================
+    // DRAWING BEHAVIOR
+    // ================================================================
+
     public DrawingWedgeBehavior Behavior { get; } = new(
-        OverlayMagnificationSourceKey: "T",
+        OverlayMagnificationSourceKey: "FL",
+
         OverlayDimensionKeys: OverlayDimensionKeyList,
-        OverlayReferencePointSketch: "ref_point_1",
+        OverlayReferencePointSketch: "ref_point_right",
+
         RepositionPrimaryOverlayViews: false,
+
         DeleteFrontOverlayViewWhenVrIsZero: true,
+
         HideVrExtremaWhenOverlayCompressed: false,
+
         BreaklineTlOverrideMm: 18.0m);
 
     public IReadOnlyList<DrawingProfile> Profiles { get; }
 
+    // ================================================================
+    // OVERLAY POSITIONING
+    // ================================================================
+
     public IOverlayViewPositioningRule OverlayPositioningRule { get; } =
         new _4516OverlayViewPositioningRule();
+
+    // ================================================================
+    // ANNOTATIONS
+    // ================================================================
 
     public IReadOnlyList<IAnnotationRuleCatalog> AnnotationCatalogs { get; } =
         Array.AsReadOnly<IAnnotationRuleCatalog>(
@@ -153,12 +205,17 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
     public IAnnotationWedgeContextResolver AnnotationContextResolver { get; } =
         new _4516AnnotationContextResolver();
 
+    // ================================================================
+    // ANNOTATION PROFILE RESOLUTION
+    // ================================================================
+
     public AnnotationCleanupProfile ResolveAnnotationProfile(
         WedgeSubclass subclass,
         DrawingType drawingType)
     {
         /*
-         * PGB Production and Customer use the same annotation rules.
+         * 4516 PGB Production and Customer use the same
+         * annotation cleanup profile.
          */
         if (subclass == WedgeSubclass.PGB)
         {
@@ -180,6 +237,10 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         };
     }
 
+    // ================================================================
+    // REFERENCED CONFIGURATION RESOLUTION
+    // ================================================================
+
     public string? ResolveReferencedConfiguration(
         string logicalView,
         WedgeSubclass subclass,
@@ -187,16 +248,37 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
         bool hasVw,
         bool hasVr)
     {
+        /*
+         * Production / Customer
+         * ---------------------
+         * Both use the normal Default model configuration.
+         */
         if (drawingType is DrawingType.Production or DrawingType.Customer)
             return "Default";
 
         if (drawingType != DrawingType.Overlay)
             return null;
 
-        return IsDetail(logicalView) && hasVw && hasVr
-            ? "overlay_non_std_cut"
-            : "overlay_std_cut";
+        if (IsView(
+                logicalView,
+                DrawingViewNames.Detail))
+        {
+            return "right_view";
+        }
+
+        if (IsView(
+                logicalView,
+                DrawingViewNames.Section))
+        {
+            return "left_view";
+        }
+
+        return "Default";
     }
+
+    // ================================================================
+    // DIMENSION TABLE FILTERING
+    // ================================================================
 
     public IReadOnlySet<string>? GetAllowedDimensionTableKeys(
         WedgeSubclass subclass,
@@ -218,14 +300,20 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
             (WedgeSubclass.PGB, DrawingType.Overlay) =>
                 PgbOverlayTableKeys,
 
-            _ => null
+            _ =>
+                null
         };
 
-    private static bool IsDetail(
-        string logicalView)
+    // ================================================================
+    // HELPERS
+    // ================================================================
+
+    private static bool IsView(
+        string logicalView,
+        string expected)
         => string.Equals(
             logicalView?.Trim(),
-            DrawingViewNames.Detail,
+            expected,
             StringComparison.OrdinalIgnoreCase);
 
     private static IReadOnlySet<string> Keys(

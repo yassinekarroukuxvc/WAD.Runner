@@ -1,13 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using WAD.Runner.Application;
+using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 
 namespace WAD.Runner.DataManagement.Domain.Validation.Rules._4516;
 
 /// <summary>
 /// Validates 4516 FG dimensions that depend on Wed-Feed_H/Slot and Wed-Foot_Option.
-/// The database fields are authoritative: no feed-hole or foot-option inference is performed.
+///
+/// The database fields are authoritative:
+/// - Feed-hole type comes from Wed-Feed_H/Slot.
+/// - Foot option comes from Wed-Foot_Option.
+/// - C with CBR is NOT a separate database foot-option token.
+///   It is C with CBRL/CBRD populated.
 /// </summary>
 internal static class Wedge4516ConditionalDimensionValidator
 {
@@ -19,13 +26,24 @@ internal static class Wedge4516ConditionalDimensionValidator
         WedgeType wedgeType,
         List<DimensionValidationIssue> issues)
     {
-        if (wedge is null) throw new ArgumentNullException(nameof(wedge));
-        if (issues is null) throw new ArgumentNullException(nameof(issues));
-        if (wedge.Subclass != WedgeSubclass.FG) return;
+        if (wedge is null)
+            throw new ArgumentNullException(nameof(wedge));
+
+        if (issues is null)
+            throw new ArgumentNullException(nameof(issues));
+
+        // These conditional rules apply only to FG.
+        if (wedge.Subclass != WedgeSubclass.FG)
+            return;
 
         ValidateFeedHoleDimensions(wedge, wedgeType, issues);
         ValidateFootOptionDimensions(wedge, wedgeType, issues);
+        ValidateFootProfileInputs(wedge, wedgeType, issues);
     }
+
+    // ============================================================
+    // Feed hole
+    // ============================================================
 
     private static void ValidateFeedHoleDimensions(
         WedgeData wedge,
@@ -47,28 +65,40 @@ internal static class Wedge4516ConditionalDimensionValidator
         switch (feedHoleType)
         {
             case "STD":
-                RequireAllPositive(wedge, wedgeType, issues,
+                RequireAllPositive(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Feed Hole Validation",
                     $"{FeedHoleProperty} = STD",
                     new[] { "H" });
                 break;
 
             case "OVAL":
-                RequireAllPositive(wedge, wedgeType, issues,
+                RequireAllPositive(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Feed Hole Validation",
                     $"{FeedHoleProperty} = Oval",
                     new[] { "HH", "HW" });
                 break;
 
             case "SLOT":
-                RequireAllPositive(wedge, wedgeType, issues,
+                RequireAllPositive(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Feed Hole Validation",
                     $"{FeedHoleProperty} = Slot",
                     new[] { "ST", "SW" });
                 break;
 
             case "":
-                AddPropertyIssue(wedge, wedgeType, issues,
+                AddPropertyIssue(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Feed Hole Validation",
                     "Feed-hole type is required",
                     FeedHoleProperty,
@@ -76,7 +106,10 @@ internal static class Wedge4516ConditionalDimensionValidator
                 break;
 
             default:
-                AddPropertyIssue(wedge, wedgeType, issues,
+                AddPropertyIssue(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Feed Hole Validation",
                     "Supported feed-hole type",
                     FeedHoleProperty,
@@ -84,6 +117,10 @@ internal static class Wedge4516ConditionalDimensionValidator
                 break;
         }
     }
+
+    // ============================================================
+    // Foot option
+    // ============================================================
 
     private static void ValidateFootOptionDimensions(
         WedgeData wedge,
@@ -103,62 +140,160 @@ internal static class Wedge4516ConditionalDimensionValidator
 
         switch (footOption)
         {
-            case "LW_VG" or "SW_VG":
-                RequireAllPositive(wedge, wedgeType, issues,
+            // ----------------------------------------------------
+            // VG
+            // ----------------------------------------------------
+            case "VG":
+            case "LW_VG":
+            case "SW_VG":
+                RequireAllPositive(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Foot Option Validation",
                     $"{FootOptionProperty} = {footOption}",
                     new[] { "GA", "B", "GD" });
                 break;
 
-            case "LW_C" or "SW_C":
-                RequireAllPositive(wedge, wedgeType, issues,
+            // ----------------------------------------------------
+            // C / C with CBR
+            //
+            // C with CBR is still stored as C.
+            //
+            // C:
+            //   CL > 0
+            //   CD > 0
+            //
+            // C with CBR:
+            //   CL > 0
+            //   CD > 0
+            //   CBRL > 0
+            //   CBRD > 0
+            //
+            // If neither CBR dimension exists, this is normal C.
+            // If either one exists, both are required.
+            // ----------------------------------------------------
+            case "C":
+            case "LW_C":
+            case "SW_C":
+                RequireAllPositive(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Foot Option Validation",
                     $"{FootOptionProperty} = {footOption}",
                     new[] { "CL", "CD" });
 
-                ValidateCbrDimensions(wedge, wedgeType, issues);
+                ValidateCFootCbrDimensions(
+                    wedge,
+                    wedgeType,
+                    issues);
                 break;
 
-            case "LW_G" or "SW_G":
-                RequireAllPositive(wedge, wedgeType, issues,
+            // ----------------------------------------------------
+            // G
+            // ----------------------------------------------------
+            case "G":
+            case "LW_G":
+            case "SW_G":
+                RequireAllPositive(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Foot Option Validation",
                     $"{FootOptionProperty} = {footOption}",
                     new[] { "GO", "GD" });
                 break;
 
-            case "LW_CC" or "SW_CC":
-                RequireAllPositive(wedge, wedgeType, issues,
+            // ----------------------------------------------------
+            // CG
+            //
+            // This is the rule that previously lived under CC.
+            // ----------------------------------------------------
+            case "CG":
+            case "LW_CG":
+            case "SW_CG":
+                RequireAllPositive(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Foot Option Validation",
                     $"{FootOptionProperty} = {footOption}",
                     new[] { "G", "CGR", "CGD" });
                 break;
 
-            case "LW_FLAT" or "SW_FLAT":
-                RequireAllPositive(wedge, wedgeType, issues,
-                    "4516 Foot Option Validation",
-                    $"{FootOptionProperty} = {footOption}",
-                    new[] { "W" });
+            // ----------------------------------------------------
+            // F
+            //
+            // F replaces the old FLAT option.
+            // There are currently no additional conditional
+            // dimensions to validate here.
+            // ----------------------------------------------------
+            case "F":
+            case "LW_F":
+            case "SW_F":
                 break;
 
+            // ----------------------------------------------------
+            // CC
+            //
+            // CC is valid only when BOTH CBR dimensions exist.
+            // ----------------------------------------------------
+            case "CC":
+            case "LW_CC":
+            case "SW_CC":
+                RequireAllPositive(
+                    wedge,
+                    wedgeType,
+                    issues,
+                    "4516 Foot Option Validation",
+                    $"{FootOptionProperty} = {footOption}",
+                    new[] { "CBRL", "CBRD" });
+                break;
+
+            // ----------------------------------------------------
+            // Missing foot option
+            // ----------------------------------------------------
             case "":
-                AddPropertyIssue(wedge, wedgeType, issues,
+                AddPropertyIssue(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Foot Option Validation",
                     "Foot option is required",
                     FootOptionProperty,
-                    "field is empty. Expected LW/SW VG, C, G, CC or FLAT.");
+                    "field is empty. Expected VG, C, G, CG, F or CC.");
                 break;
 
+            // ----------------------------------------------------
+            // Unsupported foot option
+            // ----------------------------------------------------
             default:
-                AddPropertyIssue(wedge, wedgeType, issues,
+                AddPropertyIssue(
+                    wedge,
+                    wedgeType,
+                    issues,
                     "4516 Foot Option Validation",
                     "Supported foot option",
                     FootOptionProperty,
-                    $"unsupported value '{raw}'. Expected LW_VG/SW_VG, LW_C/SW_C, LW_G/SW_G, LW_CC/SW_CC or LW_FLAT/SW_FLAT.");
+                    $"unsupported value '{raw}'. " +
+                    "Expected VG, C, G, CG, F or CC " +
+                    "(LW_... / SW_... variants are also supported).");
                 break;
         }
     }
 
-    private static void ValidateCbrDimensions(
+    /// <summary>
+    /// Determines whether a C foot is actually C-with-CBR.
+    ///
+    /// C-with-CBR is not represented by another foot-option token.
+    /// It is identified from CBRL/CBRD.
+    ///
+    /// - CBRL <= 0 and CBRD <= 0 => normal C
+    /// - Either one > 0            => both must be > 0
+    /// - Both > 0                  => valid C with CBR
+    /// </summary>
+    private static void ValidateCFootCbrDimensions(
         WedgeData wedge,
         WedgeType wedgeType,
         List<DimensionValidationIssue> issues)
@@ -166,29 +301,201 @@ internal static class Wedge4516ConditionalDimensionValidator
         var hasCbrl = WedgeDimensionAccess.IsPositive(wedge, "CBRL");
         var hasCbrd = WedgeDimensionAccess.IsPositive(wedge, "CBRD");
 
-        if (!hasCbrl && !hasCbrd) return;
+        // Neither CBR dimension is active:
+        // this is simply a normal C foot.
+        if (!hasCbrl && !hasCbrd)
+            return;
 
-        RequireAllPositive(wedge, wedgeType, issues,
+        // If one is populated, both are mandatory.
+        RequireAllPositive(
+            wedge,
+            wedgeType,
+            issues,
             "4516 CBR Validation",
             "C foot with CBR",
             new[] { "CBRL", "CBRD" });
     }
 
+    // ============================================================
+    // 4516 foot-profile inputs
+    // ============================================================
+
+    private static void ValidateFootProfileInputs(
+        WedgeData wedge,
+        WedgeType wedgeType,
+        List<DimensionValidationIssue> issues)
+    {
+        /*
+         * IMPORTANT:
+         *
+         * Do not validate the final FRX/BRX geometry here.
+         *
+         * This validator does not know the drawing type and therefore
+         * cannot know the effective equation values. For an overlay the
+         * equation planner may replace, for example:
+         *
+         *     FL -> FL_MAX
+         *     GD -> GD_MIN
+         *     CD -> CD_MIN
+         *
+         * The authoritative geometry validation is therefore performed
+         * inside _4516EquationPlanner AFTER all equation overrides have
+         * been applied to the effective-value tracker and BEFORE FRX/BRX
+         * are written to the SolidWorks equation file.
+         *
+         * Here we only validate that the DB/reference inputs required to
+         * perform that later calculation are available in the expected
+         * units. F is allowed to be zero; it is a calculation/reference
+         * input and is not sent to SolidWorks.
+         */
+        RequireFootProfileLengthInput(
+            wedge,
+            wedgeType,
+            issues,
+            "FL",
+            "FL is required for the 4516 FRX/BRX calculation.");
+
+        RequireFootProfileLengthInput(
+            wedge,
+            wedgeType,
+            issues,
+            "F",
+            "F is required in the database for the 4516 FRX/BRX calculation. " +
+            "F is a reference/calculation input and is not sent to SolidWorks.");
+
+        RequireFootProfileLengthInput(
+            wedge,
+            wedgeType,
+            issues,
+            "FR",
+            "FR is required for the 4516 FRX calculation.");
+
+        RequireFootProfileLengthInput(
+            wedge,
+            wedgeType,
+            issues,
+            "BR",
+            "BR is required for the 4516 BRX calculation.");
+
+        /*
+         * Preserve the current 4516 convention:
+         * missing FTA is allowed and the equation planner uses 0 deg.
+         */
+    }
+
+    private static void RequireFootProfileLengthInput(
+        WedgeData wedge,
+        WedgeType wedgeType,
+        List<DimensionValidationIssue> issues,
+        string dimensionKey,
+        string message)
+    {
+        if (TryGetNominalLengthMm(
+                wedge,
+                dimensionKey,
+                out _))
+        {
+            return;
+        }
+
+        AddFootProfileIssue(
+            wedge,
+            wedgeType,
+            issues,
+            dimensionKey,
+            message);
+    }
+
+    private static bool TryGetNominalLengthMm(
+        WedgeData wedge,
+        string dimensionKey,
+        out decimal millimeters)
+    {
+        millimeters = 0m;
+
+        if (!WedgeDimensionAccess.TryGetDimension(
+                wedge,
+                dimensionKey,
+                out var dimension) ||
+            dimension is null ||
+            dimension.Nominal.Unit != UnitKind.Millimeter)
+        {
+            return false;
+        }
+
+        millimeters =
+            dimension.Nominal.AsMm();
+
+        return true;
+    }
+
+    private static void AddFootProfileIssue(
+        WedgeData wedge,
+        WedgeType wedgeType,
+        List<DimensionValidationIssue> issues,
+        string dimensionKey,
+        string message)
+    {
+        Logger.Warn(
+            "[4516 Foot Profile Validation] Rejected -> " +
+            $"article={wedge.ArticleNumber}, " +
+            $"dimension={dimensionKey}, " +
+            $"reason={message}");
+
+        issues.Add(
+            new DimensionValidationIssue(
+                wedge.ArticleNumber,
+                wedgeType,
+                "4516 Foot Profile Validation",
+                "FRX / BRX calculation inputs",
+                dimensionKey,
+                message));
+    }
+
+    // ============================================================
+    // Normalization
+    // ============================================================
+
     private static string NormalizeFeedHoleToken(string? raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+            return string.Empty;
 
-        var token = WedgePropertyAccessor.NormalizeDbToken(raw).Trim().ToUpperInvariant();
-        if (token.StartsWith("STD", StringComparison.OrdinalIgnoreCase) ||
-            token.StartsWith("STANDARD", StringComparison.OrdinalIgnoreCase)) return "STD";
-        if (token.StartsWith("OVAL", StringComparison.OrdinalIgnoreCase)) return "OVAL";
-        if (token.StartsWith("SLOT", StringComparison.OrdinalIgnoreCase)) return "SLOT";
+        var token = WedgePropertyAccessor.NormalizeDbToken(raw)
+            .Trim()
+            .ToUpperInvariant();
+
+        if (token.StartsWith(
+                "STD",
+                StringComparison.OrdinalIgnoreCase) ||
+            token.StartsWith(
+                "STANDARD",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "STD";
+        }
+
+        if (token.StartsWith(
+                "OVAL",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "OVAL";
+        }
+
+        if (token.StartsWith(
+                "SLOT",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "SLOT";
+        }
+
         return token;
     }
 
     private static string NormalizeFootOptionToken(string? raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+            return string.Empty;
 
         var token = WedgePropertyAccessor.NormalizeDbToken(raw)
             .Trim()
@@ -198,10 +505,19 @@ internal static class Wedge4516ConditionalDimensionValidator
             .ToUpperInvariant();
 
         while (token.Contains("__", StringComparison.Ordinal))
-            token = token.Replace("__", "_", StringComparison.Ordinal);
+        {
+            token = token.Replace(
+                "__",
+                "_",
+                StringComparison.Ordinal);
+        }
 
         return token;
     }
+
+    // ============================================================
+    // Validation helpers
+    // ============================================================
 
     private static void RequireAllPositive(
         WedgeData wedge,
@@ -213,15 +529,24 @@ internal static class Wedge4516ConditionalDimensionValidator
     {
         foreach (var dimensionKey in dimensions)
         {
-            if (WedgeDimensionAccess.IsPositive(wedge, dimensionKey)) continue;
+            if (WedgeDimensionAccess.IsPositive(
+                    wedge,
+                    dimensionKey))
+            {
+                continue;
+            }
 
-            issues.Add(new DimensionValidationIssue(
-                wedge.ArticleNumber,
-                wedgeType,
-                requirementType,
-                ruleName,
-                dimensionKey,
-                BuildMissingOrInvalidMessage(wedge, dimensionKey, ruleName)));
+            issues.Add(
+                new DimensionValidationIssue(
+                    wedge.ArticleNumber,
+                    wedgeType,
+                    requirementType,
+                    ruleName,
+                    dimensionKey,
+                    BuildMissingOrInvalidMessage(
+                        wedge,
+                        dimensionKey,
+                        ruleName)));
         }
     }
 
@@ -230,13 +555,20 @@ internal static class Wedge4516ConditionalDimensionValidator
         string dimensionKey,
         string ruleName)
     {
-        if (!WedgeDimensionAccess.TryGetDimension(wedge, dimensionKey, out var dimension) ||
+        if (!WedgeDimensionAccess.TryGetDimension(
+                wedge,
+                dimensionKey,
+                out var dimension) ||
             dimension is null)
         {
-            return $"missing; '{dimensionKey}' must be present and > 0 because [{ruleName}] is selected.";
+            return
+                $"missing; '{dimensionKey}' must be present and > 0 " +
+                $"because [{ruleName}] is selected.";
         }
 
-        return $"invalid ({dimensionKey}={dimension.Nominal.Value}); '{dimensionKey}' must be > 0 because [{ruleName}] is selected.";
+        return
+            $"invalid ({dimensionKey}={dimension.Nominal.Value}); " +
+            $"'{dimensionKey}' must be > 0 because [{ruleName}] is selected.";
     }
 
     private static void AddPropertyIssue(
@@ -248,12 +580,13 @@ internal static class Wedge4516ConditionalDimensionValidator
         string propertyName,
         string message)
     {
-        issues.Add(new DimensionValidationIssue(
-            wedge.ArticleNumber,
-            wedgeType,
-            requirementType,
-            ruleName,
-            propertyName,
-            message));
+        issues.Add(
+            new DimensionValidationIssue(
+                wedge.ArticleNumber,
+                wedgeType,
+                requirementType,
+                ruleName,
+                propertyName,
+                message));
     }
 }

@@ -59,6 +59,138 @@ internal static class EquationGeometry
         return (decimal)gap;
     }
 
+    /// <summary>
+    /// Calculates the 4516 FG foot-profile values requested by the
+    /// SolidWorks model.
+    ///
+    /// All length inputs/outputs are millimeters. FTA is degrees.
+    ///
+    /// The caller is responsible for supplying the EFFECTIVE values
+    /// that will be sent to SolidWorks after equation overrides.
+    ///
+    /// For 4516 overlays this means, for example, FL_MAX, GD_MIN or
+    /// CD_MIN must be used when those overrides are active. F remains
+    /// the DB/reference input because F itself is never sent to SolidWorks.
+    ///
+    /// Designer rule:
+    ///     Split    = (FL - F) / 2
+    ///     BR limit = BR * tan(45 - FTA/2) - foot_depth * tan(FTA)
+    ///     FRX      = min(Split, FR)
+    ///     BRX      = min(Split, BR limit)
+    ///     Flat     = FL - FRX - BRX
+    ///
+    /// Invalid when:
+    ///     F >= FL
+    ///     BR limit <= 0
+    ///     FRX <= 0
+    ///     BRX <= 0
+    ///     Flat <= 0
+    /// </summary>
+    public static bool TryCalculate4516FootProfile(
+        decimal flMm,
+        decimal fMm,
+        decimal footDepthMm,
+        decimal frMm,
+        decimal brMm,
+        decimal ftaDeg,
+        out decimal frxMm,
+        out decimal brxMm,
+        out decimal flatMm,
+        out decimal splitMm,
+        out decimal brLimitMm,
+        out string error)
+    {
+        frxMm = 0m;
+        brxMm = 0m;
+        flatMm = 0m;
+        splitMm = 0m;
+        brLimitMm = 0m;
+        error = string.Empty;
+
+        if (fMm >= flMm)
+        {
+            error =
+                "F must be smaller than FL. " +
+                $"F={fMm} mm, FL={flMm} mm.";
+
+            return false;
+        }
+
+        splitMm =
+            (flMm - fMm) / 2m;
+
+        var ftaRadians =
+            DegToRad((double)ftaDeg);
+
+        var brLimitAngleRadians =
+            DegToRad(
+                45.0 -
+                ((double)ftaDeg / 2.0));
+
+        var brLimitDouble =
+            ((double)brMm * Math.Tan(brLimitAngleRadians)) -
+            ((double)footDepthMm * Math.Tan(ftaRadians));
+
+        if (!double.IsFinite(brLimitDouble) ||
+            brLimitDouble > (double)decimal.MaxValue ||
+            brLimitDouble < (double)decimal.MinValue)
+        {
+            error =
+                "BR limit calculation produced an invalid value. " +
+                $"BR={brMm} mm, foot_depth={footDepthMm} mm, " +
+                $"FTA={ftaDeg} deg.";
+
+            return false;
+        }
+
+        brLimitMm =
+            (decimal)brLimitDouble;
+
+        if (brLimitMm <= 0m)
+        {
+            error =
+                "BR limit <= 0 (FTA too steep for this foot depth / BR). " +
+                $"BR limit={brLimitMm} mm, " +
+                $"BR={brMm} mm, " +
+                $"foot_depth={footDepthMm} mm, " +
+                $"FTA={ftaDeg} deg.";
+
+            return false;
+        }
+
+        frxMm =
+            Math.Min(
+                splitMm,
+                frMm);
+
+        brxMm =
+            Math.Min(
+                splitMm,
+                brLimitMm);
+
+        flatMm =
+            flMm -
+            frxMm -
+            brxMm;
+
+        if (frxMm <= 0m ||
+            brxMm <= 0m ||
+            flatMm <= 0m)
+        {
+            error =
+                "Invalid 4516 foot-profile geometry. " +
+                $"FRX={frxMm} mm, " +
+                $"BRX={brxMm} mm, " +
+                $"Flat={flatMm} mm, " +
+                $"Split={splitMm} mm, " +
+                $"BR limit={brLimitMm} mm.";
+
+            return false;
+        }
+
+        return true;
+    }
+
     public static decimal NonStdCutRawMm(WedgeFacts facts)
     {
         var vr = facts.TryGetMaxLikeMm("VR_MAX", "VR", out var vrMax) ? vrMax : 0m;
@@ -69,7 +201,9 @@ internal static class EquationGeometry
 
     public static double OverlayMagnification(WedgeFacts facts, WedgeType wedgeType)
     {
-        var source = wedgeType is WedgeType.CKVD or WedgeType.OSG7 ? "FL" : "T";
+        var source = wedgeType is WedgeType.CKVD or WedgeType.OSG7 or WedgeType._4516
+            ? "FL"
+            : "T";
         if (!facts.TryGetLengthMm(source, out var value) || value <= 0m)
         {
             Logger.Warn($"[EquationGeometry] Overlay magnification source '{source}' missing/invalid for {wedgeType}. Using 100.");

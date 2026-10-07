@@ -139,7 +139,7 @@ internal static class CobDimensionRules
         var CR = LayoutMath.Dmm(ctx, "CR");
         var VRR = LayoutMath.Dmm(ctx, "VRR");
 
-        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0] + 5, D[1]);
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0] + 5, bandMidY + 85);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
             D[0], bandMidY + (VR + VRR) * dsv);

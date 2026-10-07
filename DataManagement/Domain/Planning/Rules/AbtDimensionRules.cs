@@ -74,7 +74,7 @@ internal static class AbtDimensionRules
         var LFront = TL * fsv;
         var LSide = TL * fsv;
 
-        const double detailLower = 90.0;
+        const double detailLower = 60.0;
         var detailBreak = GetBreakline(ctx, Detail, defaultMm: 50.0);
         var bandMidY = D[1] - (detailBreak + detailLower) / 2.0;
 

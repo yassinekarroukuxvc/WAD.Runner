@@ -33,15 +33,16 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     private const string BaSketch =
         "ba_sketch";
 
-    private const string NotchFeature =
-        "notch_feature";
-
-    private const string NothSketch =
-        "noth_sketch";
-
     // ================================================================
     // CONDITIONAL MAIN FEATURES
     // ================================================================
+
+    private const string NotchFeature =
+        "notch_feature";
+
+    // NOTE: the SolidWorks sketch is intentionally named "noth_sketch".
+    private const string NothSketch =
+        "noth_sketch";
 
     private const string VrFeature =
         "vr_feature";
@@ -54,6 +55,18 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
     private const string SlbSketch =
         "slb_sketch";
+
+    private const string W2Feature =
+        "w2_feature";
+
+    private const string W2Sketch =
+        "w2_sketch";
+
+    private const string ErwFeature =
+        "erw_feature";
+
+    private const string ErwSketch =
+        "erw_sketch";
 
     // ================================================================
     // FEED-HOLE FEATURES
@@ -114,119 +127,117 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     // FOOT-OPTION FEATURES
     // ================================================================
 
-    private const string VgFeature =
-        "vg_feature";
+    // VG
+    private const string VgFrBrFeature =
+        "vg_fr_br_feature";
+
+    private const string VgFrBrSketch =
+        "vg_fr_br_sketch";
 
     private const string VgSketch =
         "vg_sketch";
 
-    private const string VgFrFeature =
-        "vg_fr_feature";
+    private const string VgFrBrCutFeature =
+        "vg_fr_br_cut_feature";
 
-    private const string VgBrFeature =
-        "vg_br_feature";
+    // C
+    private const string CFrBrFeature =
+        "c_fr_br_feature";
 
-    private const string CFeature =
-        "c_feature";
+    private const string CFrBrSketch =
+        "c_fr_br_sketch";
 
     private const string CSketch =
         "c_sketch";
 
-    private const string CFrFeature =
-        "c_fr_feature";
+    private const string CFrBrCutFeature =
+        "c_fr_br_cut_feature";
 
-    private const string CBrFeature =
-        "c_br_feature";
+    // C with CBR
+    private const string CFrCbrFeature =
+        "c_fr_cbr_feature";
 
-    private const string CCbrFeature =
-        "c_cbr_feature";
+    private const string CFrCbrSketch =
+        "c_fr_cbr_sketch";
 
-    private const string GFeature =
-        "g_feature";
+    private const string CFrCbrCutFeature =
+        "c_fr_cbr_cut_feature";
+
+    // G
+    private const string GFrBrFeature =
+        "g_fr_br_feature";
+
+    private const string GFrBrSketch =
+        "g_fr_br_sketch";
 
     private const string GSketch =
-        "Sketch21";
+        "g_sketch";
 
-    private const string GFrFeature =
-        "g_fr_feature";
+    private const string GFrBrCutFeature =
+        "g_fr_br_cut_feature";
 
-    private const string GBrFeature =
-        "g_br_feature";
+    // CG / CC
+    private const string CgFeature =
+        "cg_feature";
 
-    private const string CcFeature =
-        "cc_feature";
-
+    // NOTE: the sketch under cg_feature is intentionally called cc_sketch.
     private const string CcSketch =
         "cc_sketch";
 
-    private const string FlatBrFeature =
-        "flat_br_feature";
+    // F / flat geometry
+    private const string FlatFrBrFeature =
+        "flat_fr_br_feature";
 
-    private const string FlatFrFeature =
-        "flat_fr_feature";
+    private const string FlatFrBrSketch =
+        "flat_fr_br_sketch";
 
     // ================================================================
     // OVERLAY CUT FEATURES
     // ================================================================
 
-    private const string RefPoint1 =
-        "ref_point_1";
+    private const string RefPointRight =
+        "ref_point_right";
 
-    private const string RefPoint2 =
-        "ref_point_2";
+    private const string RightCutFeature =
+        "right_cut_feature";
 
-    private const string RefPointNonStdCut =
-        "ref_point_non_std_cut";
+    private const string RefPointLeft =
+        "ref_point_left";
 
-    private const string CutPlanFeature =
-        "cut_plan_feature";
+    private const string LeftCutFeature =
+        "lef_cut_feature";
 
-    private const string CutFeature =
-        "cut_feature";
+    // These are the child sketches used by the overlay cut features.
+    private const string RightCutSketch =
+        "Sketch1";
 
-    private const string NonStdCutPlanFeature =
-        "non_std_cut_plan_feature";
-
-    private const string NonStdCutFeature =
-        "non_std_cut_feature";
+    private const string LeftCutSketch =
+        "Sketch2";
 
     // ================================================================
-    // PGB OVERLAY SKETCHES
+    // OVERLAY SKETCHES
     // ================================================================
 
-    private const string WPgbOverlaySketch =
-        "w_pgb_overlay_sketch";
+    private const string WCase1OverlaySketch =
+        "w_case1_overlay_sketch";
 
-    private const string FlPgbOverlaySketch =
-        "fl_pgb_overlay_sketch";
+    private const string WCase2OverlaySketch =
+        "w_case2_overlay_sketch";
 
-    private const string SlbPgbOverlaySketch =
-        "slb_pgb_overlay_sketch";
+    private const string FlCase1OverlaySketch =
+        "fl_case1_overlay_sketch";
 
-    private const string VwCase1PgbOverlaySketch =
-        "vw_case1_pgb_overlay_sketch";
+    private const string FlCase2OverlaySketch =
+        "fl_case2_overlay_sketch";
 
-    private const string VwCase2PgbOverlaySketch =
-        "vw_case2_pgb_overlay_sketch";
+    private const string SlbOverlaySketch =
+        "slb_overlay_sketch";
 
-    // ================================================================
-    // FG OVERLAY SKETCHES
-    // ================================================================
+    private const string VwCase1OverlaySketch =
+        "vw_case1_overlay_sketch";
 
-    private const string WFgOverlaySketch =
-        "w_fg_overlay_sketch";
-
-    private const string FlFgOverlaySketch =
-        "fl_fg_overlay_sketch";
-
-    private const string SlbFgOverlaySketch =
-        "slb_fg_overlay_sketch";
-
-    private const string VwCase1FgOverlaySketch =
-        "vw_case1_fg_overlay_sketch";
-
-    private const string VwCase2FgOverlaySketch =
-        "vw_case2_fg_overlay_sketch";
+    private const string VwCase2OverlaySketch =
+        "vw_case2_overlay_sketch";
 
     private const string VgFgOverlaySketch =
         "vg_fg_overlay_sketch";
@@ -248,7 +259,11 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         IsaFeature,
         IsaSketch,
         BaFeature,
-        BaSketch,
+        BaSketch
+    };
+
+    private static readonly string[] NotchFeatureNames =
+    {
         NotchFeature,
         NothSketch
     };
@@ -263,6 +278,18 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     {
         SlbFeature,
         SlbSketch
+    };
+
+    private static readonly string[] W2FeatureNames =
+    {
+        W2Feature,
+        W2Sketch
+    };
+
+    private static readonly string[] ErwFeatureNames =
+    {
+        ErwFeature,
+        ErwSketch
     };
 
     private static readonly string[] StdFeedHoleNames =
@@ -319,115 +346,94 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
     private static readonly string[] VgFootNames =
     {
-        VgFeature,
+        VgFrBrFeature,
+        VgFrBrSketch,
         VgSketch,
-        VgFrFeature,
-        VgBrFeature
+        VgFrBrCutFeature
     };
 
     private static readonly string[] CFootNames =
     {
-        CFeature,
+        CFrBrFeature,
+        CFrBrSketch,
         CSketch,
-        CFrFeature,
-        CBrFeature
+        CFrBrCutFeature
+    };
+
+    private static readonly string[] CCbrFootNames =
+    {
+        CFrCbrFeature,
+        CFrCbrSketch,
+        CSketch,
+        CFrCbrCutFeature
     };
 
     private static readonly string[] GFootNames =
     {
-        GFeature,
+        GFrBrFeature,
+        GFrBrSketch,
         GSketch,
-        GFrFeature,
-        GBrFeature
+        GFrBrCutFeature
     };
 
-    private static readonly string[] CcFootNames =
+    private static readonly string[] CgFootNames =
     {
-        CcFeature,
+        CgFeature,
         CcSketch
     };
 
     private static readonly string[] FlatFootNames =
     {
-        FlatBrFeature,
-        FlatFrFeature
+        FlatFrBrFeature,
+        FlatFrBrSketch
     };
 
     private static readonly string[] FootOptionManagedNames =
     {
-        VgFeature,
+        VgFrBrFeature,
+        VgFrBrSketch,
         VgSketch,
-        VgFrFeature,
-        VgBrFeature,
+        VgFrBrCutFeature,
 
-        CFeature,
+        CFrBrFeature,
+        CFrBrSketch,
         CSketch,
-        CFrFeature,
-        CBrFeature,
-        CCbrFeature,
+        CFrBrCutFeature,
 
-        GFeature,
+        CFrCbrFeature,
+        CFrCbrSketch,
+        CFrCbrCutFeature,
+
+        GFrBrFeature,
+        GFrBrSketch,
         GSketch,
-        GFrFeature,
-        GBrFeature,
+        GFrBrCutFeature,
 
-        CcFeature,
+        CgFeature,
         CcSketch,
 
-        FlatBrFeature,
-        FlatFrFeature
+        FlatFrBrFeature,
+        FlatFrBrSketch
     };
 
-    private static readonly string[] OverlayReferenceNames =
+    private static readonly string[] RightOverlayCutNames =
     {
-        RefPoint1,
-        RefPoint2,
-        RefPointNonStdCut
+        RefPointRight,
+        RightCutFeature,
+        RightCutSketch
     };
 
-    private static readonly string[] StandardCutNames =
+    private static readonly string[] LeftOverlayCutNames =
     {
-        CutPlanFeature,
-        CutFeature
+        RefPointLeft,
+        LeftCutFeature,
+        LeftCutSketch
     };
 
-    private static readonly string[] NonStandardCutNames =
+    private static readonly string[] VwCaseOverlaySketches =
     {
-        NonStdCutPlanFeature,
-        NonStdCutFeature
-    };
-
-    private static readonly string[] PgbOverlayManagedNames =
-    {
-        WPgbOverlaySketch,
-        FlPgbOverlaySketch,
-        SlbPgbOverlaySketch,
-        VwCase1PgbOverlaySketch,
-        VwCase2PgbOverlaySketch
-    };
-
-    private static readonly string[] FgOverlayManagedNames =
-    {
-        WFgOverlaySketch,
-        FlFgOverlaySketch,
-        SlbFgOverlaySketch,
-        VwCase1FgOverlaySketch,
-        VwCase2FgOverlaySketch,
-        VgFgOverlaySketch,
-        CFgOverlaySketch,
-        GFgOverlaySketch
-    };
-
-    private static readonly string[] PgbVwCaseOverlaySketches =
-    {
-        VwCase1PgbOverlaySketch,
-        VwCase2PgbOverlaySketch
-    };
-
-    private static readonly string[] FgVwCaseOverlaySketches =
-    {
-        VwCase1FgOverlaySketch,
-        VwCase2FgOverlaySketch
+        VwCase1OverlaySketch,
+        VwCase2OverlaySketch
     };
 
     private static readonly string[] FgFootOverlaySketches =
@@ -437,28 +443,35 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         GFgOverlaySketch
     };
 
+    private static readonly string[] OverlaySketchManagedNames =
+    {
+        WCase1OverlaySketch,
+        WCase2OverlaySketch,
+        FlCase1OverlaySketch,
+        FlCase2OverlaySketch,
+        SlbOverlaySketch,
+        VwCase1OverlaySketch,
+        VwCase2OverlaySketch,
+        VgFgOverlaySketch,
+        CFgOverlaySketch,
+        GFgOverlaySketch
+    };
+
     private static readonly string[] OverlayManagedNames =
     {
-        RefPoint1,
-        RefPoint2,
-        RefPointNonStdCut,
-
-        CutPlanFeature,
-        CutFeature,
-        NonStdCutPlanFeature,
-        NonStdCutFeature,
-
-        WPgbOverlaySketch,
-        FlPgbOverlaySketch,
-        SlbPgbOverlaySketch,
-        VwCase1PgbOverlaySketch,
-        VwCase2PgbOverlaySketch,
-
-        WFgOverlaySketch,
-        FlFgOverlaySketch,
-        SlbFgOverlaySketch,
-        VwCase1FgOverlaySketch,
-        VwCase2FgOverlaySketch,
+        RefPointRight,
+        RightCutFeature,
+        RightCutSketch,
+        RefPointLeft,
+        LeftCutFeature,
+        LeftCutSketch,
+        WCase1OverlaySketch,
+        WCase2OverlaySketch,
+        FlCase1OverlaySketch,
+        FlCase2OverlaySketch,
+        SlbOverlaySketch,
+        VwCase1OverlaySketch,
+        VwCase2OverlaySketch,
         VgFgOverlaySketch,
         CFgOverlaySketch,
         GFgOverlaySketch
@@ -518,11 +531,34 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 "VBL",
                 "VBLR");
 
+        // The overlay SLB sketch follows VBL only.
+        var hasOverlaySlb =
+            facts.HasPositive("VBL");
+
+        // W2 applies to both FG and PGB.
+        var hasW2 =
+            facts.HasPositive("W2");
+
+        // C drives the PGB notch and the PGB FL overlay case.
+        var hasPositiveC =
+            facts.HasPositive("C");
+
+        // FG ERW requires the full ERW dimension family.
+        var hasFgErw =
+            context.Subclass == WedgeSubclass.FG &&
+            HasAllPositiveNominal(
+                facts,
+                "ERD",
+                "ERL",
+                "FLER",
+                "CA",
+                "ERW");
+
+        // Overlay VW case logic is active only when BOTH VR and VW are present.
         var hasOverlayVrFamily =
-            HasAnyPositiveNominal(
+            HasAllPositiveNominal(
                 facts,
                 "VR",
-                "VRR",
                 "VW");
 
         var overlayVwCase =
@@ -561,12 +597,18 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         var plan =
             new FeaturePlanBuilder()
                 .Know(AlwaysOnNames)
+                .Know(NotchFeatureNames)
                 .Know(VrFeatureNames)
                 .Know(SlbFeatureNames)
+                .Know(W2FeatureNames)
+                .Know(ErwFeatureNames)
                 .Know(FeedHoleManagedNames)
                 .Know(FootOptionManagedNames)
                 .Know(OverlayManagedNames)
                 .Activate(AlwaysOnNames)
+                .Deactivate(NotchFeatureNames)
+                .Deactivate(W2FeatureNames)
+                .Deactivate(ErwFeatureNames)
                 .ForceSuppress(
                     SwNames.EngravingFeature,
                     SwNames.EngravingSketch);
@@ -583,6 +625,29 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 SlbFeatureNames);
         }
 
+        // FG keeps the previous always-on notch behavior.
+        // PGB now activates notch only when C > 0.
+        if (context.Subclass == WedgeSubclass.FG ||
+            (context.Subclass == WedgeSubclass.PGB && hasPositiveC))
+        {
+            plan.Activate(
+                NotchFeatureNames);
+        }
+
+        // W2 applies to both subclasses.
+        if (hasW2)
+        {
+            plan.Activate(
+                W2FeatureNames);
+        }
+
+        // ERW applies to FG only and requires all five dimensions.
+        if (hasFgErw)
+        {
+            plan.Activate(
+                ErwFeatureNames);
+        }
+
         ApplySubclassFeatureRules(
             plan,
             context.Subclass,
@@ -596,9 +661,10 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 plan,
                 context,
                 footOption,
-                hasSlb,
+                hasOverlaySlb,
                 hasOverlayVrFamily,
-                overlayVwCase);
+                overlayVwCase,
+                hasPositiveC);
         }
         else
         {
@@ -618,6 +684,10 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
             $"footOption={footOption}, " +
             $"complete VR family={hasCompleteVrFamily}, " +
             $"SLB={hasSlb}, " +
+            $"overlay SLB={hasOverlaySlb}, " +
+            $"W2={hasW2}, " +
+            $"C>0={hasPositiveC}, " +
+            $"FG ERW={hasFgErw}, " +
             $"CBR={hasCbr}, " +
             $"overlay VR family={hasOverlayVrFamily}, " +
             $"overlay VW case={overlayVwCase}.");
@@ -794,23 +864,15 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 break;
 
             case FootOptionType.C:
+                // Normal C geometry is always active for C.
                 plan.Activate(
                     CFootNames);
 
-                /*
-                 * C with CBR is not a separate foot option.
-                 *
-                 * If the selected foot is C and both CBRL and CBRD
-                 * are positive, activate the CBR feature instead of
-                 * the normal C back-radius feature.
-                 */
+                // C with CBR adds the CBR branch when both CBR values are > 0.
                 if (hasCbr)
                 {
                     plan.Activate(
-                        CCbrFeature);
-
-                    plan.Deactivate(
-                        CBrFeature);
+                        CCbrFootNames);
                 }
 
                 break;
@@ -821,14 +883,34 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
                 break;
 
-            case FootOptionType.Cc:
+            case FootOptionType.Cg:
                 plan.Activate(
-                    CcFootNames);
+                    CgFootNames);
+
+                break;
+
+            case FootOptionType.Cc:
+                // CC is valid only with both CBR dimensions.
+                if (hasCbr)
+                {
+                    plan.Activate(
+                        CCbrFootNames);
+
+                    plan.Activate(
+                        CgFootNames);
+                }
+                else
+                {
+                    Logger.Warn(
+                        "[_4516FeatureRules] CC selected without both CBRL and CBRD > 0. " +
+                        "CC geometry remains suppressed; validation should reject this input.");
+                }
 
                 break;
 
             case FootOptionType.Flat:
             default:
+                // Empty, unsupported, F, LW_F and SW_F all use flat geometry.
                 plan.Activate(
                     FlatFootNames);
 
@@ -870,14 +952,19 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
             "G" =>
                 FootOptionType.G,
 
+            "LW_CG" or
+            "SW_CG" or
+            "CG" =>
+                FootOptionType.Cg,
+
             "LW_CC" or
             "SW_CC" or
             "CC" =>
                 FootOptionType.Cc,
 
-            "LW_FLAT" or
-            "SW_FLAT" or
-            "FLAT" =>
+            "LW_F" or
+            "SW_F" or
+            "F" =>
                 FootOptionType.Flat,
 
             _ =>
@@ -921,118 +1008,97 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         FeaturePlanBuilder plan,
         FeatureRuleContext context,
         FootOptionType footOption,
-        bool hasSlb,
+        bool hasOverlaySlb,
         bool hasOverlayVrFamily,
-        OverlayVwCase overlayVwCase)
+        OverlayVwCase overlayVwCase,
+        bool hasPositiveC)
     {
         plan.Deactivate(
             OverlayManagedNames);
 
-        plan.Activate(
-            OverlayReferenceNames);
-
-        ApplyOverlayCutRules(
+        ApplyOverlayCutViewRule(
             plan,
-            context);
+            context.TargetConfigurationName);
 
         ApplyOverlaySketchRules(
             plan,
             context.Subclass,
             footOption,
-            hasSlb,
+            hasOverlaySlb,
             hasOverlayVrFamily,
-            overlayVwCase);
+            overlayVwCase,
+            hasPositiveC);
     }
 
     // ================================================================
     // OVERLAY CUT RULES
     // ================================================================
 
-    private static void ApplyOverlayCutRules(
+    private static void ApplyOverlayCutViewRule(
         FeaturePlanBuilder plan,
-        FeatureRuleContext context)
+        string? configurationName)
     {
-        var mode =
-            ResolveOverlayCutMode(
-                context);
+        var overlayView =
+            ResolveOverlayViewConfiguration(
+                configurationName);
 
-        plan.Deactivate(
-            StandardCutNames);
-
-        plan.Deactivate(
-            NonStandardCutNames);
-
-        if (mode == OverlayCutMode.NonStandard)
+        switch (overlayView)
         {
-            plan.Activate(
-                NonStandardCutNames);
+            case OverlayViewConfiguration.Left:
+                plan.Activate(
+                    LeftOverlayCutNames);
+
+                plan.ForceSuppress(
+                    RightOverlayCutNames);
+                break;
+
+            case OverlayViewConfiguration.Right:
+                plan.Activate(
+                    RightOverlayCutNames);
+
+                plan.ForceSuppress(
+                    LeftOverlayCutNames);
+                break;
+
+            default:
+                plan.ForceSuppress(
+                    LeftOverlayCutNames);
+
+                plan.ForceSuppress(
+                    RightOverlayCutNames);
+                break;
         }
-        else
-        {
-            plan.Activate(
-                StandardCutNames);
-        }
+
+        var activeCutSketch =
+            overlayView switch
+            {
+                OverlayViewConfiguration.Right => RightCutSketch,
+                OverlayViewConfiguration.Left => LeftCutSketch,
+                _ => "(none)"
+            };
 
         Logger.Info(
             "[_4516FeatureRules] Overlay cut selection -> " +
-            $"mode={mode}, " +
-            $"config={context.TargetConfigurationName}, " +
-            $"profile={context.FeatureRuleProfile ?? "(none)"}.");
+            $"view={overlayView}, " +
+            $"config={configurationName ?? "(none)"}, " +
+            $"cutSketch={activeCutSketch}.");
     }
 
-    private static OverlayCutMode ResolveOverlayCutMode(
-        FeatureRuleContext context)
+    private static OverlayViewConfiguration ResolveOverlayViewConfiguration(
+        string? configurationName)
     {
-        var token =
-            string.IsNullOrWhiteSpace(
-                context.FeatureRuleProfile)
-                ? context.TargetConfigurationName
-                : context.FeatureRuleProfile;
-
-        var normalized =
-            (token ?? string.Empty)
-                .Trim()
-                .Replace('-', '_')
-                .Replace(' ', '_')
-                .ToLowerInvariant();
-
-        return normalized switch
+        return NormalizeFootOptionToken(
+            configurationName) switch
         {
-            "overlay_non_std_cut" =>
-                OverlayCutMode.NonStandard,
+            "LEFT_VIEW" =>
+                OverlayViewConfiguration.Left,
 
-            OverlayCutProfiles.NonStandardCut =>
-                OverlayCutMode.NonStandard,
-
-            "overlay_std_cut" =>
-                OverlayCutMode.Standard,
-
-            "overlay" =>
-                OverlayCutMode.Standard,
-
-            "default" =>
-                OverlayCutMode.Standard,
-
-            OverlayCutProfiles.DefaultConfiguration =>
-                OverlayCutMode.Standard,
-
-            OverlayCutProfiles.StandardCut =>
-                OverlayCutMode.Standard,
+            "RIGHT_VIEW" =>
+                OverlayViewConfiguration.Right,
 
             _ =>
-                ResolveUnknownOverlayCutMode(
-                    normalized)
+                OverlayViewConfiguration.None
         };
-    }
-
-    private static OverlayCutMode ResolveUnknownOverlayCutMode(
-        string normalizedProfile)
-    {
-        Logger.Warn(
-            "[_4516FeatureRules] Unknown overlay configuration/profile " +
-            $"'{normalizedProfile}'. Using the standard cut features.");
-
-        return OverlayCutMode.Standard;
     }
 
     // ================================================================
@@ -1043,87 +1109,61 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         FeaturePlanBuilder plan,
         WedgeSubclass subclass,
         FootOptionType footOption,
-        bool hasSlb,
+        bool hasOverlaySlb,
         bool hasOverlayVrFamily,
-        OverlayVwCase overlayVwCase)
+        OverlayVwCase overlayVwCase,
+        bool hasPositiveC)
     {
+        plan.Deactivate(
+            OverlaySketchManagedNames);
+
         if (subclass == WedgeSubclass.PGB)
         {
-            plan.ForceSuppress(
-                FgOverlayManagedNames);
-
-            plan.Deactivate(
-                PgbOverlayManagedNames);
-
-            /*
-             * When VR/VW exists, the VW case overlay sketch replaces
-             * the standalone W overlay sketch.
-             */
-            if (hasOverlayVrFamily)
-            {
-                plan.ForceSuppress(
-                    WPgbOverlaySketch);
-            }
-            else
-            {
-                plan.Activate(
-                    WPgbOverlaySketch);
-            }
-
+            // PGB always uses W case 1.
             plan.Activate(
-                FlPgbOverlaySketch);
+                WCase1OverlaySketch);
 
-            if (hasSlb)
+            // PGB FL selection is driven by C.
+            plan.Activate(
+                hasPositiveC
+                    ? FlCase1OverlaySketch
+                    : FlCase2OverlaySketch);
+
+            if (hasOverlaySlb)
             {
                 plan.Activate(
-                    SlbPgbOverlaySketch);
+                    SlbOverlaySketch);
             }
 
-            ActivatePgbVwCaseSketch(
+            ActivateVwCaseSketch(
                 plan,
+                hasOverlayVrFamily,
                 overlayVwCase);
 
             Logger.Info(
-                "[_4516FeatureRules] PGB overlay -> " +
-                $"W overlay={!hasOverlayVrFamily}, " +
-                $"VR/VW family={hasOverlayVrFamily}, " +
-                "all FG overlay sketches suppressed.");
+                "[_4516FeatureRules] PGB overlay sketches -> " +
+                $"W={WCase1OverlaySketch}, " +
+                $"FL={(hasPositiveC ? FlCase1OverlaySketch : FlCase2OverlaySketch)}, " +
+                $"SLB={hasOverlaySlb}, " +
+                $"VR/VW={hasOverlayVrFamily}, case={overlayVwCase}.");
 
             return;
         }
 
-        plan.ForceSuppress(
-            PgbOverlayManagedNames);
-
-        plan.Deactivate(
-            FgOverlayManagedNames);
-
-        /*
-         * When VR/VW exists, the VW case overlay sketch replaces
-         * the standalone W overlay sketch.
-         */
-        if (hasOverlayVrFamily)
-        {
-            plan.ForceSuppress(
-                WFgOverlaySketch);
-        }
-        else
-        {
-            plan.Activate(
-                WFgOverlaySketch);
-        }
-
+        // FG always uses W case 2 and FL case 1.
         plan.Activate(
-            FlFgOverlaySketch);
+            WCase2OverlaySketch,
+            FlCase1OverlaySketch);
 
-        if (hasSlb)
+        if (hasOverlaySlb)
         {
             plan.Activate(
-                SlbFgOverlaySketch);
+                SlbOverlaySketch);
         }
 
-        ActivateFgVwCaseSketch(
+        ActivateVwCaseSketch(
             plan,
+            hasOverlayVrFamily,
             overlayVwCase);
 
         ActivateFgFootOverlaySketch(
@@ -1131,44 +1171,32 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
             footOption);
 
         Logger.Info(
-            "[_4516FeatureRules] FG overlay -> " +
-            $"W overlay={!hasOverlayVrFamily}, " +
-            $"VR/VW family={hasOverlayVrFamily}, " +
-            "all PGB overlay sketches suppressed.");
+            "[_4516FeatureRules] FG overlay sketches -> " +
+            $"W={WCase2OverlaySketch}, FL={FlCase1OverlaySketch}, " +
+            $"SLB={hasOverlaySlb}, " +
+            $"VR/VW={hasOverlayVrFamily}, case={overlayVwCase}, " +
+            $"foot={footOption}.");
     }
 
-    private static void ActivatePgbVwCaseSketch(
+    private static void ActivateVwCaseSketch(
         FeaturePlanBuilder plan,
+        bool hasOverlayVrFamily,
         OverlayVwCase overlayVwCase)
     {
         plan.Deactivate(
-            PgbVwCaseOverlaySketches);
+            VwCaseOverlaySketches);
 
-        if (overlayVwCase == OverlayVwCase.None)
+        if (!hasOverlayVrFamily ||
+            overlayVwCase == OverlayVwCase.None)
+        {
             return;
+        }
 
         plan.ActivateOnly(
             overlayVwCase == OverlayVwCase.Case1
-                ? VwCase1PgbOverlaySketch
-                : VwCase2PgbOverlaySketch,
-            PgbVwCaseOverlaySketches);
-    }
-
-    private static void ActivateFgVwCaseSketch(
-        FeaturePlanBuilder plan,
-        OverlayVwCase overlayVwCase)
-    {
-        plan.Deactivate(
-            FgVwCaseOverlaySketches);
-
-        if (overlayVwCase == OverlayVwCase.None)
-            return;
-
-        plan.ActivateOnly(
-            overlayVwCase == OverlayVwCase.Case1
-                ? VwCase1FgOverlaySketch
-                : VwCase2FgOverlaySketch,
-            FgVwCaseOverlaySketches);
+                ? VwCase1OverlaySketch
+                : VwCase2OverlaySketch,
+            VwCaseOverlaySketches);
     }
 
     private static void ActivateFgFootOverlaySketch(
@@ -1184,10 +1212,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 FootOptionType.Vg =>
                     VgFgOverlaySketch,
 
-                /*
-                 * Normal C and C with CBR use the same
-                 * C overlay sketch.
-                 */
+                // Normal C and C-with-CBR share the C overlay sketch.
                 FootOptionType.C =>
                     CFgOverlaySketch,
 
@@ -1277,18 +1302,6 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         return true;
     }
 
-    private static bool HasAnyPositiveNominal(
-        WedgeFacts facts,
-        params string[] dimensionKeys)
-    {
-        foreach (var key in dimensionKeys)
-        {
-            if (facts.HasPositive(key))
-                return true;
-        }
-
-        return false;
-    }
 
     // ================================================================
     // TOKEN HELPERS
@@ -1334,13 +1347,15 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         Vg,
         C,
         G,
+        Cg,
         Cc
     }
 
-    private enum OverlayCutMode
+    private enum OverlayViewConfiguration
     {
-        Standard,
-        NonStandard
+        None,
+        Left,
+        Right
     }
 
     private enum OverlayVwCase

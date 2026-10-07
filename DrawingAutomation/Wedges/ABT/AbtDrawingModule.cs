@@ -13,11 +13,27 @@ namespace WAD.Runner.DrawingAutomation.Wedges.ABT;
 
 public sealed class AbtDrawingModule : IDrawingWedgeModule
 {
+    /*
+     * Overlay candidate dimensions.
+     *
+     * This contains every FG Overlay dimension marked "X" for ABT in
+     * Prod_style_Rev.03, plus the existing overlay/PGB keys that must remain
+     * available to the overlay pipeline.
+     *
+     * The final FG table content is controlled by FgOverlayTableKeys.
+     */
     private static readonly IReadOnlyList<string> OverlayDimensionKeyList =
         Array.AsReadOnly(new[]
         {
-            "TD", "TDF", "W", "ISA", "VW", "VR", "VRR", "VRA", "TL", "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C",
-            "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y", "G", "CGR", "CGD", "VBL", "VBLR", "RA", "RA2"
+            "B", "BA", "BF", "BR", "CA", "CBL", "CBRA",
+            "CBRD", "CBRL", "CD", "CGD", "CGO", "CGR", "CL",
+            "ERD", "ERL", "ERW", "F", "FA", "FD", "FL",
+            "FLC", "FLER", "FLG", "FNA", "FNH", "FNO", "FR",
+            "FRO", "FX", "GA", "GD", "GO", "GR", "H",
+            "HA", "ISA", "MB", "MFL", "MI", "MTA", "RA",
+            "RC", "T", "T1", "TD", "TDF", "TL", "VBL",
+            "VBLR", "VFL", "VFLR", "VR", "VRA", "VRR", "VW",
+            "W", "Y", "C", "HH", "G", "RA2"
         });
 
     private static readonly ViewNames ProductionCustomerViews = new(
@@ -34,17 +50,44 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
         Detail: "Drawing View1",
         Section: "Drawing View2");
 
-    private static readonly IReadOnlySet<string> FgDrawingTableKeys = Keys(
-        "TD", "TDF", "W", "VW", "VR","TL", "B", "FD", "GD", "GO", "CL", "CD", "T", "FL", "C", "HH", "BR", "FR", "H","F", "BF", "Y", "G", "CGR", "CGD", "VBL", "RA2");
+    // Customer and Production MUST be separate for ABT: the Excel X marks differ.
+    private static readonly IReadOnlySet<string> FgCustomerDrawingTableKeys = Keys(
+        "B", "BA", "BF", "BR", "CD", "CGD", "CGO",
+        "CGR", "CL", "F", "FA", "FD", "FL", "FNA",
+        "FR", "GA", "GD", "GO", "GR", "H", "HA",
+        "ISA", "RA", "T", "T1", "TD", "TDF", "TL",
+        "VBL", "VBLR", "VFL", "VFLR", "VR", "VRA", "VRR",
+        "VW", "W", "Y");
+
+    private static readonly IReadOnlySet<string> FgProductionDrawingTableKeys = Keys(
+        "B", "BA", "BF", "BR", "CA", "CBL", "CBRA",
+        "CBRD", "CBRL", "CD", "CGD", "CGO", "CGR", "CL",
+        "ERD", "ERL", "ERW", "F", "FA", "FD", "FL",
+        "FLC", "FLER", "FLG", "FNA", "FNH", "FNO", "FR",
+        "FRO", "FX", "GA", "GD", "GO", "GR", "H",
+        "HA", "ISA", "MB", "MFL", "MI", "MTA", "RA",
+        "RC", "T", "T1", "TD", "TDF", "TL", "VBL",
+        "VBLR", "VFL", "VFLR", "VR", "VRA", "VRR", "VW",
+        "W", "Y");
 
     private static readonly IReadOnlySet<string> FgOverlayTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "B", "GA", "GD", "GO", "CL", "CD", "BA", "T", "FL", "C", "HH", "BR", "FR", "H", "HA", "FNA", "F", "BF", "Y", "G", "CGR", "CGD", "VBL", "RA", "RA2");
+        "B", "BA", "BF", "BR", "CA", "CBL", "CBRA",
+        "CBRD", "CBRL", "CD", "CGD", "CGO", "CGR", "CL",
+        "ERD", "ERL", "ERW", "F", "FA", "FD", "FL",
+        "FLC", "FLER", "FLG", "FNA", "FNH", "FNO", "FR",
+        "FRO", "FX", "GA", "GD", "GO", "GR", "H",
+        "HA", "ISA", "MB", "MFL", "MI", "MTA", "RA",
+        "RC", "T", "T1", "TD", "TDF", "TL", "VBL",
+        "VBLR", "VFL", "VFLR", "VR", "VRA", "VRR", "VW",
+        "W", "Y");
 
     private static readonly IReadOnlySet<string> PgbProductionTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "BA", "T", "FL", "VBL");
+        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
+        "TL", "BA", "T", "FL", "VBL");
 
     private static readonly IReadOnlySet<string> PgbOverlayTableKeys = Keys(
-        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA", "TL", "BA", "T", "FL", "VBL");
+        "TD", "TDF", "W", "ISA", "VW", "VR", "VRA",
+        "TL", "BA", "T", "FL", "VBL");
 
     public AbtDrawingModule()
     {
@@ -59,7 +102,8 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
         });
     }
 
-    public WedgeType WedgeType => global::WAD.Runner.DataManagement.Domain.Wedge.WedgeType.ABT;
+    public WedgeType WedgeType =>
+        global::WAD.Runner.DataManagement.Domain.Wedge.WedgeType.ABT;
 
     public DrawingWedgeBehavior Behavior { get; } = new(
         OverlayMagnificationSourceKey: "T",
@@ -72,21 +116,26 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
 
     public IReadOnlyList<DrawingProfile> Profiles { get; }
 
-    public IOverlayViewPositioningRule OverlayPositioningRule { get; } = new AbtOverlayViewPositioningRule();
+    public IOverlayViewPositioningRule OverlayPositioningRule { get; } =
+        new AbtOverlayViewPositioningRule();
 
     public IReadOnlyList<IAnnotationRuleCatalog> AnnotationCatalogs { get; } =
-        Array.AsReadOnly<IAnnotationRuleCatalog>(new IAnnotationRuleCatalog[]
-        {
-            new AbtFgProductionAnnotationRules(),
-            new AbtFgCustomerAnnotationRules(),
-            new AbtFgOverlayAnnotationRules(),
-            new AbtPgbProductionAnnotationRules(),
-            new AbtPgbOverlayAnnotationRules()
-        });
+        Array.AsReadOnly<IAnnotationRuleCatalog>(
+            new IAnnotationRuleCatalog[]
+            {
+                new AbtFgProductionAnnotationRules(),
+                new AbtFgCustomerAnnotationRules(),
+                new AbtFgOverlayAnnotationRules(),
+                new AbtPgbProductionAnnotationRules(),
+                new AbtPgbOverlayAnnotationRules()
+            });
 
-    public IAnnotationWedgeContextResolver AnnotationContextResolver { get; } = new AbtAnnotationContextResolver();
+    public IAnnotationWedgeContextResolver AnnotationContextResolver { get; } =
+        new AbtAnnotationContextResolver();
 
-    public AnnotationCleanupProfile ResolveAnnotationProfile(WedgeSubclass subclass, DrawingType drawingType)
+    public AnnotationCleanupProfile ResolveAnnotationProfile(
+        WedgeSubclass subclass,
+        DrawingType drawingType)
     {
         if (subclass == WedgeSubclass.PGB)
         {
@@ -97,9 +146,14 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
 
         return drawingType switch
         {
-            DrawingType.Overlay => AnnotationCleanupProfile.AbtFgOverlay,
-            DrawingType.Customer => AnnotationCleanupProfile.AbtFgCustomer,
-            _ => AnnotationCleanupProfile.AbtFgProduction
+            DrawingType.Overlay =>
+                AnnotationCleanupProfile.AbtFgOverlay,
+
+            DrawingType.Customer =>
+                AnnotationCleanupProfile.AbtFgCustomer,
+
+            _ =>
+                AnnotationCleanupProfile.AbtFgProduction
         };
     }
 
@@ -125,21 +179,43 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
         return "Default";
     }
 
-    public IReadOnlySet<string>? GetAllowedDimensionTableKeys(WedgeSubclass subclass, DrawingType drawingType)
+    public IReadOnlySet<string>? GetAllowedDimensionTableKeys(
+        WedgeSubclass subclass,
+        DrawingType drawingType)
         => (subclass, drawingType) switch
         {
-            (WedgeSubclass.FG, DrawingType.Production) => FgDrawingTableKeys,
-            (WedgeSubclass.FG, DrawingType.Customer) => FgDrawingTableKeys,
-            (WedgeSubclass.FG, DrawingType.Overlay) => FgOverlayTableKeys,
-            (WedgeSubclass.PGB, DrawingType.Production) => PgbProductionTableKeys,
-            (WedgeSubclass.PGB, DrawingType.Customer) => PgbProductionTableKeys,
-            (WedgeSubclass.PGB, DrawingType.Overlay) => PgbOverlayTableKeys,
+            (WedgeSubclass.FG, DrawingType.Production) =>
+                FgProductionDrawingTableKeys,
+
+            (WedgeSubclass.FG, DrawingType.Customer) =>
+                FgCustomerDrawingTableKeys,
+
+            (WedgeSubclass.FG, DrawingType.Overlay) =>
+                FgOverlayTableKeys,
+
+            (WedgeSubclass.PGB, DrawingType.Production) =>
+                PgbProductionTableKeys,
+
+            (WedgeSubclass.PGB, DrawingType.Customer) =>
+                PgbProductionTableKeys,
+
+            (WedgeSubclass.PGB, DrawingType.Overlay) =>
+                PgbOverlayTableKeys,
+
             _ => null
         };
 
-    private static bool IsView(string logicalView, string expected)
-        => string.Equals(logicalView?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
+    private static bool IsView(
+        string logicalView,
+        string expected)
+        => string.Equals(
+            logicalView?.Trim(),
+            expected,
+            StringComparison.OrdinalIgnoreCase);
 
-    private static IReadOnlySet<string> Keys(params string[] values)
-        => new HashSet<string>(values, StringComparer.OrdinalIgnoreCase);
+    private static IReadOnlySet<string> Keys(
+        params string[] values)
+        => new HashSet<string>(
+            values,
+            StringComparer.OrdinalIgnoreCase);
 }

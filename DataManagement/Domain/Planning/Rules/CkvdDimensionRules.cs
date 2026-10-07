@@ -70,7 +70,7 @@ internal static class CkvdDimensionRules
         //var L_side = LayoutMath.WedgeLength(ctx, TL, ssv);
         var L_front = TL * fsv;
         var L_side = TL * scv;
-        const double detailLower = 40.0;
+        const double detailLower = 60.0;
         var detailBreak = GetBreakline(ctx, Detail, defaultMm: 50.0);
         var bandMidY = D[1] - (detailBreak + detailLower) / 2.0;
 

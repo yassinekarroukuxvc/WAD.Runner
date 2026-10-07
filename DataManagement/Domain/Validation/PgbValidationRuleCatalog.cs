@@ -55,7 +55,7 @@ internal static class PgbValidationRuleCatalog
         "W",
         "ISA",
         "FL",
-        "RA",
+        //"RA",
         "BA"
     };
 
