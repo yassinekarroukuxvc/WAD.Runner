@@ -17,7 +17,6 @@ using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Execution;
 
 using WAD.Runner.Solidworks.Adapters;
-using WAD.Runner.SolidWorks.Adapters;
 
 using WAD.Runner.ModelAutomation.Common;
 using WAD.Runner.ModelAutomation.Execution;
@@ -47,6 +46,12 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
     {
         _logger = logger;
         _services = services;
+    }
+
+    private bool SolidWorksVisible()
+    {
+        var cfg = _services.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
+        return cfg?["Runner:SolidWorks:Visible"] is not { } raw || !bool.TryParse(raw, out var v) || v;
     }
 
     public string Execute(JobInfo job, Action<ProgressUpdate> report)
@@ -87,7 +92,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
             var getWedge = sp.GetRequiredService<GetWedgeData>();
             var getDrawing = sp.GetRequiredService<GetDrawingData>();
             var modelOrchestrator = sp.GetRequiredService<ModelAutomationOrchestrator>();
-            var sessFactory = sp.GetRequiredService<ISwSessionFactory>();
+            var sessions = _services.GetRequiredService<SolidWorksSessionManager>();
 
             var validatedWedges = LoadAndValidateWedges(
                 job,
@@ -96,8 +101,13 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                 getWedge,
                 report);
 
-            CleanupSolidWorksBeforeJob(job, report);
-            solidWorksTouched = true;
+            // A kept-alive session is managed by SolidWorksSessionManager; killing SolidWorks around
+            // the job would throw it away. Previous behaviour (KeepSessionBetweenJobs=false): kill.
+            if (!sessions.KeepsSessionAlive)
+            {
+                CleanupSolidWorksBeforeJob(job, report);
+                solidWorksTouched = true;
+            }
 
             const int StepsPerRun = 3;
             var totalRuns = payload.ArticleNumbers.Count * drawingTypeNames.Count;
@@ -133,250 +143,13 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                                                 .GetAwaiter()
                                                 .GetResult();
 
-                    string templatePartPath;
-                    string templateDrawingPath;
-                    string equationTemplatePathForModelPhase;
+                    if (!WedgeTemplateCatalog.TryGetForDrawing(wedgeType, dtype, out var templates, out var templateDrawingPath))
+                        throw new WedgeTypeResolutionException(
+                            $"No automation template is configured for wedge type '{wedgeType}' ({dtype}). " +
+                            "Automation was not started.");
 
-                    switch (wedgeType)
-                    {
-                        case WedgeType.COB:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "COB", "COB_rev2", "COB_part_rev1.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "COB", "COB_rev2", "COB_overlay_rev1.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "COB", "COB_rev2", "COB_drawing_rev1.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "COB", "COB_rev2", "equations.txt");
-                            break;
-
-                        case WedgeType.UTUS:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "UT-US", "UTUS_rev2", "UTUS_part_rev1.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "UT-US", "UTUS_rev2", "UTUS_overlay_rev1.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "UT-US", "UTUS_rev2", "UTUS_drawing_rev1.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "UT-US", "UTUS_rev2", "equations.txt");
-                            break;
-
-                        case WedgeType.FP:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "FP", "FP_rev2", "FP_part_rev1.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "FP", "FP_rev2", "FP_overlay_rev1.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "FP", "FP_rev2", "FP_drawing_rev1.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "FP", "FP_rev2", "equations.txt");
-                            break;
-
-                        case WedgeType.OSG7:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "OSG7", "Working Version",
-                                "OSG7.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "OSG7", "Working Version",
-                                        "OSG7_overlay.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "OSG7", "Working Version",
-                                        "OSG7.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "OSG7", "Working Version",
-                                "equations.txt");
-                            break;
-
-                        case WedgeType._4516:
-                            templatePartPath = Path.Combine("Resources", "Templates", "4516", "4516_part_rev2.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine("Resources", "Templates", "4516", "4516_overlay_rev2.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine("Resources", "Templates", "4516", "4516_drawing_rev2.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine("Resources", "Templates", "4516", "equations2.txt");
-                            break;
-
-                        case WedgeType.ABT:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "ABT", "ABT_rev1",
-                                "ABT_part_rev1.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "ABT", "ABT_rev1",
-                                        "ABT_overlay_rev1.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "ABT", "ABT_rev1",
-                                        "ABT_drawing_rev1.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "ABT", "ABT_rev1",
-                                "equations.txt");
-                            break;
-
-                        case WedgeType.AB16:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "AB16", "AB16_rev1",
-                                "AB16_part_rev1.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "AB16", "AB16_rev1",
-                                        "AB16_overlay_rev2.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "AB16", "AB16_rev1",
-                                        "AB16_drawing_rev2.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "AB16", "AB16_rev1",
-                                "equations.txt");
-                            break;
-
-                        case WedgeType._45CK:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "45CK", "45CK_rev1",
-                                "CK45_part_rev1.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "45CK", "45CK_rev1",
-                                        "CK45_overlay_rev2.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "45CK", "45CK_rev1",
-                                        "CK45_drawing_rev2.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "45CK", "45CK_rev1",
-                                "equations.txt");
-                            break;
-
-                        case WedgeType.M:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "M", "M_rev1",
-                                "M_part_rev1.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "M", "M_rev1",
-                                        "M_overlay_rev2.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "M", "M_rev1",
-                                        "M_drawing_rev2.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "M", "M_rev1",
-                                "equations.txt");
-                            break;
-
-                        case WedgeType._1001:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "1001",
-                                "1001A_part_rev1.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "1001",
-                                        "1001A_overlay_rev2.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "1001",
-                                        "1001A_drawing_rev2.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "1001",
-                                "equations.txt");
-                            break;
-
-                        case WedgeType.CKVD:
-                            templatePartPath = Path.Combine(
-                                "Resources", "Templates", "CKVD", "CKVD_rev2",
-                                "ckvd_part_rev2.SLDPRT");
-
-                            templateDrawingPath = dtype switch
-                            {
-                                DrawingType.Overlay =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "CKVD", "CKVD_rev2",
-                                        "ckvd_overlay_rev2.SLDDRW"),
-
-                                DrawingType.Production or DrawingType.Customer or _ =>
-                                    Path.Combine(
-                                        "Resources", "Templates", "CKVD", "CKVD_rev2",
-                                        "ckvd_drawing_rev2.SLDPRT.SLDDRW"),
-                            };
-
-                            equationTemplatePathForModelPhase = Path.Combine(
-                                "Resources", "Templates", "CKVD", "CKVD_rev2",
-                                "equations.txt");
-                            break;
-
-                        default:
-                            throw new WedgeTypeResolutionException(
-                                $"No automation template is configured for wedge type '{wedgeType}'. " +
-                                "Automation was not started.");
-                    }
+                    var templatePartPath = templates.PartPath;
+                    var equationTemplatePathForModelPhase = templates.EquationsPath;
 
                     var plan = PathPlanner.Build(
                         article: article,
@@ -406,126 +179,64 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
 
                     report(Progress(++doneSteps, totalSteps, $"Running model phase for {article} ({dtype})…"));
 
-                    string? modelResultPath;
-                    using (var swModel = sessFactory.Create(visible: true))
-                    {
-                        var jobReq = new ModelJobRequest
+                    sessions.RunJob(
+                        $"Job {job.Id} {article} {dtype}",
+                        SolidWorksVisible(),
+                        keepAliveAllowed: true,
+                        modelPhase: app =>
                         {
-                            ArticleNumber = article,
-                            Subclass = subclass,
-                            DrawingType = dtype,
-                            OutputRoot = outputRootBase,
+                            var jobReq = new ModelJobRequest
+                            {
+                                ArticleNumber = article,
+                                Subclass = subclass,
+                                DrawingType = dtype,
+                                OutputRoot = outputRootBase,
 
-                            PartTemplatePath = templatePartPath,
-                            EquationTemplatePath = equationTemplatePathForModelPhase,
+                                PartTemplatePath = templatePartPath,
+                                EquationTemplatePath = equationTemplatePathForModelPhase,
 
-                            FileBase = plan.FileBase,
+                                FileBase = plan.FileBase,
 
-                            WedgeData = wedgeData,
-                            WedgeType = wedgeType
-                        };
+                                WedgeData = wedgeData,
+                                WedgeType = wedgeType
+                            };
 
-                        modelResultPath = modelOrchestrator.RunAsync(jobReq, swModel.App, CancellationToken.None)
-                                                          .GetAwaiter()
-                                                          .GetResult();
-                    }
-
-                    report(Progress(++doneSteps, totalSteps, $"Running drawing phase for {article} ({dtype})…"));
-
-                    using (var swDraw = sessFactory.Create(visible: true))
-                    {
-                        Func<object?> runModelAutomation = () => modelResultPath;
-
-                        switch (subclass)
+                            return modelOrchestrator.RunAsync(jobReq, app, CancellationToken.None)
+                                                    .GetAwaiter()
+                                                    .GetResult();
+                        },
+                        drawingPhase: (app, modelResultPath) =>
                         {
-                            case WedgeSubclass.PGB:
-                                switch (dtype)
-                                {
-                                    case DrawingType.Customer:
-                                        _logger.LogInformation(
-                                            "Job {JobId}: PGB Customer → FG Customer executor (temporary).",
-                                            job.Id);
+                            report(Progress(++doneSteps, totalSteps, $"Running drawing phase for {article} ({dtype})…"));
 
-                                        DrawingAutomationExecutor.RunProduction(
-                                            swDraw.App,
-                                            run,
-                                            drawingData,
-                                            runModelAutomation);
-                                        break;
+                            Func<object?> runModelAutomation = () => modelResultPath;
 
-                                    case DrawingType.Overlay:
-                                        _logger.LogInformation(
-                                            "Job {JobId}: PGB Overlay → PGB Overlay executor.",
-                                            job.Id);
+                            var executor = dtype == DrawingType.Overlay ? "Overlay" : "Production";
+                            _logger.LogInformation(
+                                "Job {JobId}: {Subclass} {Type} → {Executor} executor.",
+                                job.Id,
+                                subclass,
+                                dtype,
+                                executor);
 
-                                        DrawingAutomationExecutor.RunOverlay(
-                                            swDraw.App,
-                                            run,
-                                            drawingData,
-                                            runModelAutomation,
-                                            null);
-                                        break;
-
-                                    case DrawingType.Production:
-                                    default:
-                                        _logger.LogInformation(
-                                            "Job {JobId}: PGB Production → PGB Production executor.",
-                                            job.Id);
-
-                                        DrawingAutomationExecutor.RunProduction(
-                                            swDraw.App,
-                                            run,
-                                            drawingData,
-                                            runModelAutomation);
-                                        break;
-                                }
-                                break;
-
-                            case WedgeSubclass.FG:
-                            default:
-                                switch (dtype)
-                                {
-                                    case DrawingType.Customer:
-                                        _logger.LogInformation(
-                                            "Job {JobId}: FG Customer → FG Customer executor.",
-                                            job.Id);
-
-                                        DrawingAutomationExecutor.RunProduction(
-                                            swDraw.App,
-                                            run,
-                                            drawingData,
-                                            runModelAutomation);
-                                        break;
-
-                                    case DrawingType.Overlay:
-                                        _logger.LogInformation(
-                                            "Job {JobId}: FG Overlay → FG Overlay executor.",
-                                            job.Id);
-
-                                        DrawingAutomationExecutor.RunOverlay(
-                                            swDraw.App,
-                                            run,
-                                            drawingData,
-                                            runModelAutomation,
-                                            null);
-                                        break;
-
-                                    case DrawingType.Production:
-                                    default:
-                                        _logger.LogInformation(
-                                            "Job {JobId}: FG Production → FG Production executor.",
-                                            job.Id);
-
-                                        DrawingAutomationExecutor.RunProduction(
-                                            swDraw.App,
-                                            run,
-                                            drawingData,
-                                            runModelAutomation);
-                                        break;
-                                }
-                                break;
-                        }
-                    }
+                            if (dtype == DrawingType.Overlay)
+                            {
+                                DrawingAutomationExecutor.RunOverlay(
+                                    app,
+                                    run,
+                                    drawingData,
+                                    runModelAutomation,
+                                    plannedOverlayDimensions: null);
+                            }
+                            else
+                            {
+                                DrawingAutomationExecutor.RunProduction(
+                                    app,
+                                    run,
+                                    drawingData,
+                                    runModelAutomation);
+                            }
+                        });
 
                     lastResultPdf = run.OutputPdfPath;
 

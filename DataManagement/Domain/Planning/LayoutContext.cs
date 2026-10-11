@@ -12,14 +12,17 @@ public sealed class LayoutContext
 
     public WedgeData Wedge { get; }
     public DrawingData Drawing { get; }
+    public IReadOnlyDictionary<string, double> RetainedHeightsMm { get; }
 
     public LayoutContext(
         WedgeData wedge,
         DrawingData drawing,
-        IReadOnlyDictionary<string, double>? runtimeViewScales = null)
+        IReadOnlyDictionary<string, double>? runtimeViewScales = null,
+        IReadOnlyDictionary<string, double>? retainedHeightsMm = null)
     {
         Wedge = wedge ?? throw new ArgumentNullException(nameof(wedge));
         Drawing = drawing ?? throw new ArgumentNullException(nameof(drawing));
+        RetainedHeightsMm = retainedHeightsMm ?? new Dictionary<string, double>();
 
         _runtimeViewScales =
             runtimeViewScales

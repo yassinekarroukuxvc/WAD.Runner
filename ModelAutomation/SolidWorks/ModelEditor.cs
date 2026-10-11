@@ -234,6 +234,20 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
                 equationManager.FilePath =
                     equationFilePath;
 
+                // UpdateValuesFromExternalEquationFile() only works on a linked
+                // equation set; on an unlinked template it returns true but changes
+                // nothing. Saving a template from SolidWorks can drop the link, so
+                // always (re)link to the generated file.
+                if (!equationManager.LinkToFile)
+                {
+                    Logger.Warn(
+                        "[ModelEditor] Equations were not linked to an external file; " +
+                        "linking to the generated equation file.");
+
+                    equationManager.LinkToFile =
+                        true;
+                }
+
                 var updated =
                     equationManager
                         .UpdateValuesFromExternalEquationFile();
@@ -279,6 +293,61 @@ namespace WAD.Runner.ModelAutomation.SolidWorks
             Logger.Info(
                 "[ModelEditor] " +
                 $"Engraving Set2 result: {result}");
+        }
+
+        /// <summary>
+        /// Sets the character height of every text in a feature sketch (edits the sketch, then
+        /// closes it). Returns the number of texts changed.
+        /// </summary>
+        public int SetSketchTextHeight(string sketchFeatureName, double heightMeters, string? textOverride = null)
+        {
+            if (((PartDoc)Model).FeatureByName(sketchFeatureName) is not Feature feature ||
+                feature.GetSpecificFeature2() is not Sketch sketch)
+            {
+                Logger.Warn($"[ModelEditor] Sketch '{sketchFeatureName}' not found; text height not set.");
+                return 0;
+            }
+
+            var changed = 0;
+            Model.ClearSelection2(true);
+            if (!feature.Select2(false, 0))
+            {
+                Logger.Warn($"[ModelEditor] Could not select sketch '{sketchFeatureName}'.");
+                return 0;
+            }
+
+            Model.EditSketch();
+            try
+            {
+                if (sketch.GetSketchTextSegments() is object[] texts)
+                {
+                    foreach (var item in texts)
+                    {
+                        if (item is not SketchText text)
+                            continue;
+                        // Changing the format freezes a linked text at its current value, and setting the
+                        // text resets the format: set the (linked) text first, then the height.
+                        if (textOverride is not null)
+                            text.Text = textOverride;
+                        if (text.GetTextFormat() is not TextFormat format)
+                            continue;
+                        format.CharHeight = heightMeters;
+                        if (text.SetTextFormat(false, format))
+                            changed++;
+                    }
+                }
+            }
+            finally
+            {
+                Model.SketchManager.InsertSketch(true);
+                Model.ClearSelection2(true);
+            }
+
+            var shown = sketch.GetSketchTextSegments() is object[] after && after.Length > 0 && after[0] is SketchText first
+                ? $"{first.Text}' height {((first.GetTextFormat() as TextFormat)?.CharHeight ?? 0) * 1000:0.###} mm"
+                : "?'";
+            Logger.Info($"[ModelEditor] Sketch '{sketchFeatureName}': {changed} text(s) set to {heightMeters * 1000:0.###} mm, text '{shown}.");
+            return changed;
         }
 
         public FeatureToggleBatch.ToggleResult

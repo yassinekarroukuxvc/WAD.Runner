@@ -42,8 +42,16 @@ public static class Logger
         Write(message, ConsoleColor.Blue);
     }
 
+    private static long _lastActivityTicks = DateTime.UtcNow.Ticks;
+
+    /// <summary>Time of the last log line; the SolidWorks stall watchdog uses it as a progress signal.</summary>
+    public static DateTime LastActivityUtc => new(Interlocked.Read(ref _lastActivityTicks), DateTimeKind.Utc);
+
+    public static void MarkActivity() => Interlocked.Exchange(ref _lastActivityTicks, DateTime.UtcNow.Ticks);
+
     private static void Write(string message, ConsoleColor color)
     {
+        MarkActivity();
         var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         Console.ForegroundColor = color;
         Console.WriteLine($"[{timestamp}] {message}");

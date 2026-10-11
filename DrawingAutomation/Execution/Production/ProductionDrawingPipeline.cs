@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Config;
 using WAD.Runner.DrawingAutomation;
 using WAD.Runner.DrawingAutomation.Common;
 using WAD.Runner.DrawingAutomation.Core;
@@ -12,7 +13,8 @@ using WAD.Runner.DrawingAutomation.Rules.Annotation;
 using WAD.Runner.DrawingAutomation.SolidWorks;
 using WAD.Runner.DrawingAutomation.Tables;
 using WAD.Runner.DrawingAutomation.Views;
-
+using WAD.Runner.DrawingAutomation.Wedges;
+using WAD.Runner.DrawingAutomation.Profiles;
 namespace WAD.Runner.DrawingAutomation.Execution.Production;
 
 public sealed class ProductionDrawingPipeline : IDrawingPipeline
@@ -79,7 +81,8 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
                 DrawingDimensionPlanner.Plan(
                     context.Run,
                     context.DrawingData,
-                    viewLayout.FinalScales);
+                    viewLayout.FinalScales,
+                    viewLayout.RetainedHeightsMm);
 
             DrawingAnnotationCleanupStep.Run(
                 state.DrawingService,
@@ -93,10 +96,16 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
                 context.DrawingData,
                 planned.AnnotationPlans);
 
+            DecorateDrawing(
+                state,
+                context.Run,
+                context.DrawingData);
+
             ApplyMetadata(
                 state.DrawingService,
                 context.DrawingData,
-                context.Run.Wedge);
+                context.Run.Wedge,
+                viewLayout.FinalScales);
 
             DrawingTableStep.Run(
                 context.SwApp,
@@ -225,10 +234,43 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
         }
     }
 
+    private static void DecorateDrawing(
+        PreparedProductionDrawing state,
+        DrawingRun run,
+        DrawingData drawingData)
+    {
+        if (!WedgeEnhancementPolicy.FilletCenterMarks(run.WedgeType))
+            return;
+
+        var decorate = DrawingWedgeModuleRegistry.Get(run.WedgeType).Behavior.DecorateProductionDrawing;
+        if (state.DrawingService.Drawing is not global::SolidWorks.Interop.sldworks.DrawingDoc drawing)
+            return;
+
+        try
+        {
+            if (decorate is null)
+            {
+                state.ViewNames.TryGetValue(DrawingViewNames.Section, out var actualSectionName);
+                FilletCenterMarkRule.Apply(drawing, run.Wedge, drawingData, actualSectionName);
+            }
+            else
+            {
+                decorate(drawing, run.Wedge, drawingData);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(
+                $"[Drawing/4b] Wedge drawing marks failed, continuing: " +
+                $"{ex.Message}");
+        }
+    }
+
     private static void ApplyMetadata(
         DrawingService drawingService,
         DrawingData drawingData,
-        WAD.Runner.DataManagement.Domain.Wedge.WedgeData wedge)
+        WAD.Runner.DataManagement.Domain.Wedge.WedgeData wedge,
+        IReadOnlyDictionary<string, double> finalScales)
     {
         Logger.Info(
             "[Drawing/5] Apply drawing metadata...");
@@ -238,7 +280,8 @@ public sealed class ProductionDrawingPipeline : IDrawingPipeline
             MetadataApplier.Apply(
                 drawingService,
                 drawingData,
-                wedge);
+                wedge,
+                finalScales);
 
             drawingService.Rebuild();
         }

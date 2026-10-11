@@ -27,7 +27,6 @@ using WAD.Runner.DataManagement.Infrastructure.Sqlite;
 using WAD.Runner.DataManagement.Infrastructure.Transport;
 using WAD.Runner.DataManagement.Domain.Validation;
 
-using WAD.Runner.SolidWorks.Adapters;
 using WAD.Runner.Solidworks.Adapters;
 
 namespace WAD.Runner.Api;
@@ -37,7 +36,7 @@ public sealed class RunnerOptions
     public string? Urls { get; set; }
 
     [Required]
-    public string ApiKey { get; set; } = "dev-key-change-me";
+    public string ApiKey { get; set; } = "";  // set Runner:ApiKey in appsettings (required)
 
     public int QueueCapacity { get; set; } = 64;
 }
@@ -149,17 +148,20 @@ public sealed class StaWorkerService : BackgroundService
     private readonly Channel<JobRequest> _queue;
     private readonly JobStore _store;
     private readonly IAutomationExecutor _executor;
+    private readonly SolidWorksSessionManager _sessions;
 
     public StaWorkerService(
         ILogger<StaWorkerService> logger,
         Channel<JobRequest> queue,
         JobStore store,
-        IAutomationExecutor executor)
+        IAutomationExecutor executor,
+        SolidWorksSessionManager sessions)
     {
         _logger = logger;
         _queue = queue;
         _store = store;
         _executor = executor;
+        _sessions = sessions;
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -265,6 +267,11 @@ public sealed class StaWorkerService : BackgroundService
         {
             _logger.LogError(ex, "Unexpected error in STA loop.");
         }
+        finally
+        {
+            // A session kept alive between jobs is closed on this (its own STA) thread.
+            _sessions.DropSession();
+        }
     }
 }
 
@@ -365,7 +372,7 @@ public static class ApiHost
             );
         }
 
-        var drawingCfgPath = builder.Configuration["DrawingConfig:Path"] ?? "Infrastructure/Config/drawing_config.json";
+        var drawingCfgPath = builder.Configuration["DrawingConfig:Path"] ?? "Resources/Config/drawing_config.json";
         builder.Services.AddSingleton<IDrawingDataSource>(_ => new JsonDrawingDataSource(drawingCfgPath));
 
         builder.Services.AddTransient<GetWedgeData>();
@@ -374,11 +381,18 @@ public static class ApiHost
         builder.Services.AddTransient<PlanDrawing>();
 
         builder.Services.AddSingleton<ISwSessionFactory, SwServiceFactory>();
+        builder.Services.AddSingleton<SolidWorksSessionManager>(sp => new SolidWorksSessionManager(
+            sp.GetRequiredService<ISwSessionFactory>(), sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>()));
 
         builder.Services.AddSingleton<IAutomationExecutor, SolidWorksAutomationExecutor>();
         builder.Services.AddHostedService<StaWorkerService>();
 
         var app = builder.Build();
+
+        // The web page (wwwroot/index.html) holds no secrets and is served without the key;
+        // every API call it makes still sends X-Api-Key through the check below.
+        app.UseDefaultFiles();
+        app.UseStaticFiles();
 
         app.Use(async (ctx, next) =>
         {

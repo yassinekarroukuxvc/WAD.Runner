@@ -560,7 +560,8 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                 facts,
                 "VR",
                 "VW",
-                "VRR");
+                "VRR",
+                "VRA");
 
         /*
          * Used specifically for the overlay W suppression.

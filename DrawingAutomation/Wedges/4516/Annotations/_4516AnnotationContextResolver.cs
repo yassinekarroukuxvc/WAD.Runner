@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 
+using WAD.Runner.DataManagement.Domain.Dimensions;
+using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Domain;
 using WAD.Runner.DrawingAutomation.Rules.AnnotationCleanup.Resolution;
@@ -80,7 +82,11 @@ public sealed class _4516AnnotationContextResolver :
                         // PGB has no feed hole.
                         Pair(
                             AnnotationTraitNames.FeedHoleType,
-                            _4516AnnotationFeedHoleTypes.Unknown)
+                            _4516AnnotationFeedHoleTypes.Unknown),
+
+                        Pair(
+                            _4516AnnotationVrAngle.TraitName,
+                            ResolveVrAngleToken(wedge))
                     }),
 
             Sketches =
@@ -140,7 +146,11 @@ public sealed class _4516AnnotationContextResolver :
 
                         Pair(
                             AnnotationTraitNames.FeedHoleType,
-                            feedHoleToken)
+                            feedHoleToken),
+
+                        Pair(
+                            _4516AnnotationVrAngle.TraitName,
+                            ResolveVrAngleToken(wedge))
                     }),
 
             Sketches =
@@ -289,6 +299,27 @@ public sealed class _4516AnnotationContextResolver :
         }
 
         return _4516AnnotationFeedHoleTypes.Unknown;
+    }
+
+    // ================================================================
+    // VR ANGLE
+    // ================================================================
+
+    /// <summary>
+    /// VRA is drawn only for a real VR angle. Missing, zero and the 4516 database
+    /// convention VRA=90 (the model uses 0 deg) all mean "no angle".
+    /// </summary>
+    private static string ResolveVrAngleToken(
+        WedgeData wedge)
+    {
+        var vra = wedge.TryGet(DimensionKey.From("VRA"));
+        if (vra is null || vra.Nominal.Unit != UnitKind.Degree)
+            return _4516AnnotationVrAngle.None;
+
+        var degrees = vra.Nominal.Value;
+        return degrees <= 0.0001m || decimal.Abs(degrees - 90m) <= 0.0001m
+            ? _4516AnnotationVrAngle.None
+            : _4516AnnotationVrAngle.Angled;
     }
 
     // ================================================================

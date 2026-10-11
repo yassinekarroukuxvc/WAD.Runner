@@ -109,8 +109,8 @@ namespace WAD.Runner.DrawingAutomation.Views
 
                     try
                     {
-
-
+                        if (!p.CenterText && target.HasNumericValue)
+                            target.DisplayDimension.CenterText = false;
                         bool movedTextPoint = TrySetDisplayDimensionTextPoint(target.DisplayDimension, x_m, y_m, 0.0);
 
 
@@ -121,7 +121,7 @@ namespace WAD.Runner.DrawingAutomation.Views
                         try
                         {
                             if (target.HasNumericValue)
-                                target.DisplayDimension.CenterText = true;
+                                target.DisplayDimension.CenterText = p.CenterText;
                         }
                         catch (Exception exCenter)
                         {
@@ -156,6 +156,7 @@ namespace WAD.Runner.DrawingAutomation.Views
             public DimensionKey Key { get; init; } = DimensionKey.From("TL");
             public double[] PositionMm { get; init; } = new[] { 0.0, 0.0 };
             public Quantity Nominal { get; init; } = Quantity.MmOf(0m);
+            public bool CenterText { get; init; } = true;
 
             public static Plan From(dynamic d) => new()
             {

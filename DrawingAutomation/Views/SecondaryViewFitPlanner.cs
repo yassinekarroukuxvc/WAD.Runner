@@ -95,49 +95,10 @@ internal static class SecondaryViewFitPlanner
     }
 
     /// <summary>
-    /// The strict left boundary for ALL secondary view outlines is the
-    /// rightmost PRIMARY view edge + the required inter-view gap.
-    ///
-    /// Front/Side/Top stay wherever the primary layout put them; this
-    /// method only READS their rectangles. Never move a secondary view to
-    /// satisfy this boundary: it must be satisfied by scale reduction alone.
-    /// </summary>
-    internal static double GetRequiredSecondaryMinX(
-        ViewRect usableSheet,
-        IReadOnlyList<ViewRect> primaryRects,
-        double gapMeters)
-    {
-        if (usableSheet is null)
-            throw new ArgumentNullException(nameof(usableSheet));
-        if (primaryRects is null)
-            throw new ArgumentNullException(nameof(primaryRects));
-        if (!double.IsFinite(gapMeters) || gapMeters < 0.0)
-            throw new ArgumentOutOfRangeException(nameof(gapMeters));
-
-        var requiredMinX = usableSheet.MinX;
-
-        foreach (var primary in primaryRects)
-        {
-            if (primary is null)
-                throw new InvalidOperationException(
-                    "Cannot determine right-side boundary: primary outline missing.");
-
-            requiredMinX = Math.Max(
-                requiredMinX,
-                primary.MaxX + gapMeters);
-        }
-
-        return requiredMinX;
-    }
-
-    /// <summary>
-    /// A valid secondary outline is COMPLETELY to the right of ALL primary
-    /// outlines, inside the horizontal sheet limits, clear of actual primary
-    /// rectangles, and compliant with optional explicit size/height caps.
-    /// Its vertical position can extend beyond the sheet by default.
-    ///
-    /// In particular, vertical separation does NOT exempt a secondary
-    /// from the strict "right of Front/Side/Top" requirement.
+    /// The ONLY hard geometric constraints are sheet X bounds, optional sheet
+    /// Y bounds, optional user-explicit size caps, and ACTUAL rectangular
+    /// collision with a primary view. There is deliberately NO "right of
+    /// primary views" region constraint.
     /// </summary>
     internal static bool IsIndividuallyValid(
         ViewRect rect,
@@ -146,14 +107,6 @@ internal static class SecondaryViewFitPlanner
         double gapMeters,
         SecondaryFitPolicy policy)
     {
-        var minSecondaryX = GetRequiredSecondaryMinX(
-            usableSheet, primaryRects, gapMeters);
-
-        // Hard rule: even a vertically separated Detail/Section must NOT
-        // extend left into the primary views' horizontal range.
-        if (rect.MinX < minSecondaryX - GeometryEpsilon)
-            return false;
-
         if (rect.MinX < usableSheet.MinX - GeometryEpsilon ||
             rect.MaxX > usableSheet.MaxX + GeometryEpsilon)
             return false;
@@ -163,19 +116,17 @@ internal static class SecondaryViewFitPlanner
              rect.MaxY > usableSheet.MaxY + GeometryEpsilon))
             return false;
 
-        // With a nondefault size cap, compare width to the usable RIGHT
-        // region (not to the whole sheet). With the default cap 1.0,
-        // only the actual right-side and sheet-X boundaries apply.
+        // Default MaxWidthFraction=1.0 adds NO constraint beyond sheet X.
+        // Unlike the old algorithm this measures fraction of the whole sheet,
+        // not the region to the right of the primary views.
         if (policy.MaxWidthFraction < 1.0 &&
-            rect.Width > (usableSheet.MaxX - minSecondaryX) *
-                         policy.MaxWidthFraction + GeometryEpsilon)
+            rect.Width > usableSheet.Width * policy.MaxWidthFraction + GeometryEpsilon)
             return false;
 
         if (policy.MaxHeightFraction is double heightFraction &&
             rect.Height > usableSheet.Height * heightFraction + GeometryEpsilon)
             return false;
 
-        // Defensive collision check against actual primary geometry.
         foreach (var primary in primaryRects)
         {
             if (rect.Inflate(gapMeters).Overlaps(primary))
@@ -194,29 +145,14 @@ internal static class SecondaryViewFitPlanner
         out string reason)
     {
         reason = string.Empty;
-        var rightBoundary = GetRequiredSecondaryMinX(
-            usableSheet, primaryRects, gapMeters);
 
         foreach (var entry in secondaryRects)
         {
-            var rect = entry.Value;
-
-            if (rect.MinX < rightBoundary - GeometryEpsilon)
-            {
-                reason = $"'{entry.Key}' left edge at " +
-                         $"{rect.MinX * 1000.0:0.###} mm is left of the " +
-                         $"required secondary boundary " +
-                         $"{rightBoundary * 1000.0:0.###} mm " +
-                         "(rightmost Front/Side/Top + gap)";
-                return false;
-            }
-
             if (!IsIndividuallyValid(
-                    rect, usableSheet, primaryRects, gapMeters, policy))
+                    entry.Value, usableSheet, primaryRects, gapMeters, policy))
             {
-                reason = $"'{entry.Key}' exceeds the horizontal sheet " +
-                         "limits, an explicit secondary size cap, or " +
-                         "overlaps a primary view";
+                reason = $"'{entry.Key}' exceeds a horizontal sheet limit, " +
+                         "an explicit size cap, or overlaps a primary view";
                 return false;
             }
         }

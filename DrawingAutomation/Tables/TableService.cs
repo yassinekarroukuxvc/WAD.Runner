@@ -7,7 +7,9 @@ using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
 using WAD.Runner.Application;
+using WAD.Runner.DrawingAutomation.Common;
 using WAD.Runner.DataManagement.Domain.Wedge;
+using WAD.Runner.DataManagement.Domain.Config;
 using WAD.Runner.DataManagement.Domain.Drawing;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Units;
@@ -23,13 +25,16 @@ namespace WAD.Runner.DrawingAutomation.Tables
         private const double Eps = 1e-6;
 
         // Row heights (mm)
-        private const double DimTableRowHeightMm = 4.0;
+        private const double DimTableRowHeightMm = 2.8;
         private const double HowToOrderRowHeightMm = 3.048;
         private const double OverlayRowHeightMm = 2.5;
 
         // Font sizes (points — converted via PointsToMeters for SW)
-        private const double DimTableFontSizePt = 6.0;
+        private const double DimTableFontSizePt = 5.0;
         private const double HowToOrderFontSizePt = 6.0;
+        // Measured on 4516 drawings: 6 pt bold text takes about 1.52 mm per character.
+        private const double HowToOrderCharWidthRatio = 0.72;
+        private const double HowToOrderPaddingMm = 3.0;
         private const double OverlayFontSizePt = 4.0;
 
         // Extra vertical gap between estimated table bottom and anchor (m)
@@ -113,6 +118,10 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 return false;
             }
 
+            if (WedgeEnhancementPolicy.SplitDimensionTables(wedgeType) &&
+                (DrawingWedgeModuleRegistry.Get(wedgeType).Behavior.UseSplitDimensionTables?.Invoke(wedge, draw) ?? true))
+                return CreateSplitDimensionTables(wedge, rows, cfg.PositionMm);
+
             var configWidthM = ResolveWidthM(cfg, fallbackM: 0.14);
             var contentWidthM = EstimateMonospaceWidthM(rows, header,
                 fontSizeM: PointsToMeters(DimTableFontSizePt),
@@ -148,14 +157,64 @@ namespace WAD.Runner.DrawingAutomation.Tables
             }
 
             SetTableFontSize(table, DimTableFontSizePt);
-            TryApplyTypeface(table, "Monospac821 BT");
+            TryApplyTypeface(table, DrawingTextStyle.Typeface, DrawingTextStyle.Bold);
             SetAllRowHeights(table, DimTableRowHeightMm, includeTitle: true);
             TrimTrailingEmptyRows(table);
+
+            // SolidWorks may draw rows taller than requested (minimum height for the font), so the
+            // estimated anchor can push the bottom rows off the sheet. Re-anchor on the real height
+            // so the table bottom always sits at the configured position.
+            KeepBottomAt(table, posM.x, posM.y + TableAnchorGapM, anchorY);
 
             Logger.Success(
                 $"[Tables] '{tableId}' inserted successfully -> " +
                 $"wedge={wedgeType}, subclass={wedge.Subclass}, drawingType={draw.DrawingType}, dataRows={rows.Count}.");
 
+            return true;
+        }
+
+        private bool CreateSplitDimensionTables(WedgeData wedge, IReadOnlyList<string> selectedRows, double[] positionMm)
+        {
+            var split = (selectedRows.Count + 1) / 2;
+            var left = selectedRows.Take(split).ToArray();
+            var right = selectedRows.Skip(split).ToArray();
+            // Both halves share one width, fitted to the longest row of either.
+            var widthM = SplitDimensionTableWidthM(selectedRows);
+            var firstCreated = CreateDimensionTableHalf(left, positionMm, widthM);
+            if (!firstCreated || right.Length == 0) return firstCreated;
+            // Keep the second table above the title block and align its header with the first.
+            var secondPosition = new[] { positionMm[0] + widthM * 1000.0 + 4.0, positionMm[1] + (left.Length - right.Length) * 3.5 };
+            return CreateDimensionTableHalf(right, secondPosition, widthM);
+        }
+
+        // Tight to the longest "KEY=nominal ±tol [mm ±tol]" row on one line: 6 pt text measures
+        // about 1.31 mm per character (ratio 0.62); 3 mm covers the cell margins.
+        private static double SplitDimensionTableWidthM(IReadOnlyList<string> rows)
+            => EstimateMonospaceWidthM(rows, "DIMENSIONS", PointsToMeters(6.0),
+                charWidthRatio: 0.62, paddingMm: 3.0);
+
+        private bool CreateDimensionTableHalf(IReadOnlyList<string> selectedRows, double[] positionMm, double widthM)
+        {
+            var position = ToMeters(positionMm);
+            var anchorY = position.y + (selectedRows.Count + 1) * 0.0035 + TableAnchorGapM;
+            var table = _drawing.InsertTableAnnotation2(false, position.x, anchorY, 1, "",
+                selectedRows.Count + 1, 1) as TableAnnotation;
+            if (table is null) return false;
+            table.TitleVisible = false;
+            table.SetColumnWidth(0, widthM, (int)swTableRowColSizeChangeBehavior_e.swTableRowColChange_TableSizeCanChange);
+            table.set_Text(0, 0, "DIMENSIONS");
+            for (var row = 0; row < selectedRows.Count; row++)
+            {
+                table.set_Text(row + 1, 0, selectedRows[row]);
+                table.CellTextHorizontalJustification[row + 1, 0] = (int)swTextJustification_e.swTextJustificationLeft;
+            }
+            SetTableFontSize(table, 6.0);
+            TryApplyTypeface(table, DrawingTextStyle.Typeface, DrawingTextStyle.Bold);
+            SetAllRowHeights(table, 3.5, includeTitle: true);
+            table.BorderLineWeight = (int)swLineWeights_e.swLW_THIN;
+            table.GridLineWeight = (int)swLineWeights_e.swLW_NONE;
+            KeepBottomAt(table, position.x, position.y + TableAnchorGapM, anchorY);
+            Logger.Success($"[Tables] Split dimension table inserted -> dataRows={selectedRows.Count}, width={widthM * 1000.0:0.##} mm, font=6 pt.");
             return true;
         }
 
@@ -218,11 +277,12 @@ namespace WAD.Runner.DrawingAutomation.Tables
             }
 
             SetTableFontSize(table, OverlayFontSizePt);
-            TryApplyTypeface(table, "Monospac821 BT");
+            TryApplyTypeface(table, DrawingTextStyle.Typeface, DrawingTextStyle.Bold);
             SetAllRowHeights(table, OverlayRowHeightMm, includeTitle: true);
             SetTableLayer(table, "annotation");
             HideAllTableBorders(table);
             TrimTrailingEmptyRows(table);
+            AlignRowGapsWithSheetLines(table, xMm, yMm, widthMm);
 
             Logger.Success(
                 $"[Tables/Overlay] Overlay dimension table inserted successfully -> dataRows={rows.Count}.");
@@ -239,15 +299,34 @@ namespace WAD.Runner.DrawingAutomation.Tables
             if (!TryGetCfg(draw, tableId, out var cfg)) return false;
 
             var description = TryGetArticleDescription(wedge);
+
+            // "right_edge_mm": size the table to the description on one line and keep its right
+            // edge there (PositionMm[1] stays the top). Lines wrap only past max_width_mm.
+            var rightAnchored = cfg.Params.TryGetValue("right_edge_mm", out var rightEdgeMm) && rightEdgeMm > 0;
+            var maxWidthMm = cfg.Params.TryGetValue("max_width_mm", out var maxMm) && maxMm > 0 ? maxMm : 150.0;
+            var charWidthMm = PointsToMeters(HowToOrderFontSizePt) * HowToOrderCharWidthRatio * 1000.0;
+            var lineLength = rightAnchored
+                ? Math.Max(20, (int)((maxWidthMm - HowToOrderPaddingMm) / charWidthMm))
+                : 56;
+
             var items = !string.IsNullOrWhiteSpace(description)
-                ? WrapDescription(description, preferredLineLength: 56)
+                ? WrapDescription(description, preferredLineLength: lineLength)
                 : ReadLinesFromMetadata(draw, "HowToOrderInfo");
 
             if (items.Count == 0) return false;
 
             var posM = ToMeters(cfg.PositionMm);
-            var table = CreateOneColumnTable(posM.x, posM.y, items.Count + 1, "HowToOrder", ResolveWidthM(cfg, fallbackM: 0.08));
+            var widthM = ResolveWidthM(cfg, fallbackM: 0.08);
+            if (rightAnchored)
+            {
+                widthM = EstimateMonospaceWidthM(items, headerText, PointsToMeters(HowToOrderFontSizePt),
+                    charWidthRatio: HowToOrderCharWidthRatio, paddingMm: HowToOrderPaddingMm);
+                posM = (rightEdgeMm / 1000.0 - widthM, posM.y);
+            }
+
+            var table = CreateOneColumnTable(posM.x, posM.y, items.Count + 1, "HowToOrder", widthM);
             if (table is null) return false;
+            table.TitleVisible = false;
 
             table.set_Text(0, 0, headerText);
             table.CellTextHorizontalJustification[0, 0] = (int)swTextJustification_e.swTextJustificationLeft;
@@ -259,9 +338,10 @@ namespace WAD.Runner.DrawingAutomation.Tables
             }
 
             SetTableFontSize(table, HowToOrderFontSizePt);
-            TryApplyTypeface(table, "Monospac821 BT");
+            TryApplyTypeface(table, DrawingTextStyle.Typeface, DrawingTextStyle.Bold);
             SetAllRowHeights(table, HowToOrderRowHeightMm, includeTitle: true);
-            TrimTrailingEmptyRows(table);
+            table.BorderLineWeight = (int)swLineWeights_e.swLW_THIN;
+            table.GridLineWeight = (int)swLineWeights_e.swLW_THIN;
 
             return true;
         }
@@ -378,6 +458,56 @@ namespace WAD.Runner.DrawingAutomation.Tables
             }
         }
 
+        /// <summary>
+        /// Moves a top-anchored, borderless table by at most half a row so that a visible horizontal
+        /// sheet-format line crossing it (e.g. the overlay's centerline) runs between two rows
+        /// instead of through a row's text. Uses the rows' actual heights: SolidWorks enlarges
+        /// rows beyond the requested height to fit the font.
+        /// </summary>
+        private void AlignRowGapsWithSheetLines(TableAnnotation table, double xMm, double topMm, double widthMm)
+        {
+            var boundariesMm = new List<double> { topMm };
+            for (int r = 0; r < table.RowCount; r++)
+                if (!table.RowHidden[r]) boundariesMm.Add(boundariesMm[^1] - table.GetRowHeight(r) * 1000.0);
+            double bottomMm = boundariesMm[^1];
+
+            var crossingsMm = new List<double>();
+            var layers = (LayerMgr)_model.GetLayerManager();
+            _drawing.EditTemplate();
+            try
+            {
+                var segments = ((Sheet)_drawing.GetCurrentSheet()).GetTemplateSketch()?.GetSketchSegments() as object[];
+                foreach (var line in (segments ?? Array.Empty<object>()).OfType<SketchLine>())
+                {
+                    var layerName = ((SketchSegment)line).Layer;
+                    if (!string.IsNullOrEmpty(layerName) && layers.GetLayer(layerName) is Layer { Visible: false }) continue;
+                    var a = (SketchPoint)line.GetStartPoint2();
+                    var b = (SketchPoint)line.GetEndPoint2();
+                    double yLineMm = a.Y * 1000.0;
+                    if (Math.Abs(a.Y - b.Y) > 1e-7 || yLineMm >= topMm || yLineMm <= bottomMm) continue;
+                    if (Math.Max(a.X, b.X) * 1000.0 <= xMm || Math.Min(a.X, b.X) * 1000.0 >= xMm + widthMm) continue;
+                    crossingsMm.Add(yLineMm);
+                }
+            }
+            finally { _drawing.EditSheet(); }
+
+            if (crossingsMm.Count == 0) return;
+            if (crossingsMm.Distinct().Count() > 1)
+                Logger.Warn($"[Tables/Overlay] {crossingsMm.Distinct().Count()} sheet lines cross the dimension table; aligning the gap with the topmost only.");
+
+            double lineMm = crossingsMm.Max();
+            double nearest = boundariesMm.OrderBy(y => Math.Abs(y - lineMm)).First();
+            double shiftMm = lineMm - nearest;
+            if (Math.Abs(shiftMm) < 1e-3) return;
+
+            var annotation = (Annotation)table.GetAnnotation();
+            var position = (double[])annotation.GetPosition();
+            if (!annotation.SetPosition2(position[0], position[1] + shiftMm / 1000.0, 0))
+                throw new InvalidOperationException("Cannot move the overlay dimension table off the sheet line.");
+            Logger.Info(FormattableString.Invariant(
+                $"[Tables/Overlay] Moved the dimension table {shiftMm:+0.###;-0.###} mm so the sheet line at y={lineMm:0.###} mm runs between two rows."));
+        }
+
         // -------------------------------------------------------------------------
         // Row height
         // -------------------------------------------------------------------------
@@ -437,7 +567,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
         }
 
         // Typeface only — never touches CharHeight to avoid double-scaling
-        private void TryApplyTypeface(TableAnnotation table, string typeface)
+        private void TryApplyTypeface(TableAnnotation table, string typeface, bool bold = false)
         {
             try
             {
@@ -445,6 +575,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
                 if (tf != null)
                 {
                     tf.TypeFaceName = typeface;
+                    tf.Bold = bold;
                     table.SetTextFormat(false, tf);
                     table.SetTextFormat(true, tf);
                 }
@@ -455,6 +586,7 @@ namespace WAD.Runner.DrawingAutomation.Tables
                         var cellTf = table.GetCellTextFormat(r, c) as TextFormat;
                         if (cellTf == null) continue;
                         cellTf.TypeFaceName = typeface;
+                        cellTf.Bold = bold;
                         // false = don't use document format
                         table.SetCellTextFormat(r, c, false, cellTf);
                     }
@@ -469,6 +601,35 @@ namespace WAD.Runner.DrawingAutomation.Tables
         // -------------------------------------------------------------------------
         // Table height / width estimation
         // -------------------------------------------------------------------------
+
+        private void KeepBottomAt(TableAnnotation table, double xM, double bottomYM, double currentTopYM)
+        {
+            try
+            {
+                double actualHeightM = 0.0;
+                for (int r = 0; r < table.RowCount; r++)
+                    actualHeightM += Math.Max(0.0, table.GetRowHeight(r));
+
+                if (actualHeightM <= Eps)
+                    return;
+
+                double topYM = bottomYM + actualHeightM;
+                if (Math.Abs(topYM - currentTopYM) <= 0.0002)
+                    return;
+
+                if (table.GetAnnotation() is Annotation ann && ann.SetPosition2(xM, topYM, 0.0))
+                {
+                    Logger.Info(
+                        $"[Tables] Re-anchored on measured height {actualHeightM * 1000.0:0.##} mm -> " +
+                        $"top y={topYM * 1000.0:0.##} mm (estimated top was {currentTopYM * 1000.0:0.##} mm).");
+                    _model?.GraphicsRedraw2();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[Tables] Could not re-anchor table on its measured height: {ex.Message}");
+            }
+        }
 
         private static double EstimateTableHeightM(int dataRowCount, double rowHeightMm, bool includeTitle)
         {

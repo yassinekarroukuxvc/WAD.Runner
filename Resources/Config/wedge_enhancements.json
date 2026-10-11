@@ -1,0 +1,69 @@
+{
+  "Defaults": {
+    "SplitDimensionTables": false,
+    "FilletCenterMarks": false,
+    "Engraving": false
+  },
+  "Wedges": {
+    "CKVD": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "COB": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "UTUS": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "OSG7": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "FP": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "_4516": {
+      "SplitDimensionTables": true,
+      "FilletCenterMarks": true,
+      "Engraving": true
+    },
+    "ABT": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "AB16": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "_45CK": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "M": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "_1001": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    },
+    "VM": {
+      "SplitDimensionTables": false,
+      "FilletCenterMarks": false,
+      "Engraving": false
+    }
+  }
+}

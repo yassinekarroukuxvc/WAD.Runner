@@ -11,6 +11,7 @@ using SolidWorks.Interop.swconst;
 using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Dimensions;
 using WAD.Runner.DataManagement.Domain.Drawing;
+using WAD.Runner.DataManagement.Domain.Config;
 using WAD.Runner.DataManagement.Domain.Units;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Common;
@@ -110,6 +111,27 @@ public sealed class ModelAutomationOrchestrator
             context,
             configurationPlan);
 
+        // The template engraving text is linked to the part property "Engraving".
+        // Apply to any selected wedge, but never assume all templates contain the sketch.
+        var allowEngraving = WedgeEnhancementPolicy.Engraving(job.WedgeType);
+        var engravingTextForJob = job.DrawingType != DrawingType.Overlay && allowEngraving
+            ? WedgeEngraving.Resolve(job.WedgeData)
+            : null;
+        if (engravingTextForJob is not null)
+            editor.SetEngraving(engravingTextForJob);
+
+        // The 4516 rules own this family already. Other wedges can opt in when their
+        // templates actually include both conventional engraving features.
+        if (job.WedgeType != WedgeType._4516 && editor.Model is PartDoc part &&
+            part.FeatureByName("engraving_feature") is not null &&
+            part.FeatureByName("engraving_sketch") is not null)
+        {
+            var names = new[] { "engraving_sketch", "engraving_feature" };
+            editor.ApplyFeatureToggles(
+                engravingTextForJob is null ? names : null,
+                engravingTextForJob is not null ? names : null);
+        }
+
         ct.ThrowIfCancellationRequested();
 
         ApplyEquationsAndTolerances(
@@ -121,6 +143,20 @@ public sealed class ModelAutomationOrchestrator
         ct.ThrowIfCancellationRequested();
 
         editor.RebuildOnce();
+
+        // 4516 engraving font, set after the equations (X1/X2/X3) and the rebuild, when the linked
+        // text shows the database value: changing the font freezes the text at what it shows.
+        if (job.WedgeType == WedgeType._4516 &&
+            allowEngraving &&
+            job.DrawingType != WAD.Runner.DataManagement.Domain.Wedge.DrawingType.Overlay &&
+            WedgeEngraving.Resolve(job.WedgeData) is { } engravingText)
+        {
+            var box = WAD.Runner.ModelAutomation.Rules._4516._4516EngravingLayout.Compute(job.WedgeData!, engravingText);
+            editor.SetSketchTextHeight(
+                WAD.Runner.ModelAutomation.Rules._4516._4516EngravingLayout.SketchName,
+                box.CharHeightMm / 1000.0);
+            editor.RebuildOnce();
+        }
 
         // ------------------------------------------------------------
         // POST-REBUILD RECONCILIATION

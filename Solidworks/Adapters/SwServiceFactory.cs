@@ -8,7 +8,7 @@ using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 using WAD.Runner.Solidworks.Adapters;
 
-namespace WAD.Runner.SolidWorks.Adapters;
+namespace WAD.Runner.Solidworks.Adapters;
 public sealed class SwServiceFactory : ISwSessionFactory
 {
     private readonly ILogger<SwSession> _sessLog;

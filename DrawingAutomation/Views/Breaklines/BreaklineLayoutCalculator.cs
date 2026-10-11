@@ -56,9 +56,11 @@ public sealed class BreaklineLayoutCalculator
         }
 
         var facts = new DrawingWedgeFacts(wedge);
-        var tlMm = behavior.BreaklineTlOverrideMm.HasValue
-            ? (double)behavior.BreaklineTlOverrideMm.Value
-            : facts.GetLengthMmOrNaN("TL");
+        var tlMm = behavior.ResolveBreaklineTlMm is { } resolveTl
+            ? resolveTl(wedge)
+            : behavior.BreaklineTlOverrideMm.HasValue
+                ? (double)behavior.BreaklineTlOverrideMm.Value
+                : facts.GetLengthMmOrNaN("TL");
 
         if (!double.IsFinite(tlMm) || tlMm <= 0.0)
         {

@@ -266,7 +266,8 @@ public sealed class AnnotationDiffService
                 _dimensionToActual.TryGetValue(
                     dimensionName,
                     out var sameName) &&
-                sameName.Count == 1)
+                sameName.Count == 1 &&
+                !AnnotationNameIdentity.IsSketchDimensionStandInForModel(expected, sameName[0]))
             {
                 return sameName;
             }

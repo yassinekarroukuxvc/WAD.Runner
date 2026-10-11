@@ -297,6 +297,55 @@ public sealed class ViewGeometryService
     }
 
     /// <summary>
+    /// Box of the edges the view actually displays (after breaks), from GetPolylines7, or null.
+    /// GetOutline of a broken view still spans the unbroken geometry, so it can be much wider
+    /// than what is drawn. Coordinates are as returned by SolidWorks (checked against the outline
+    /// by the caller).
+    /// </summary>
+    public ViewRect? GetVisibleGeometryRect(
+        string logicalView)
+    {
+        var view =
+            FindView(
+                logicalView);
+
+        if (view is null)
+            return null;
+
+        try
+        {
+            if (view.GetPolylines7(1, out var raw) is not object[] edges || raw is not double[] data)
+                return null;
+
+            double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+            var offset = 0;
+            for (var i = 0; i < edges.Length; i++)
+            {
+                if (offset + 2 > data.Length) return null;
+                int type = (int)data[offset++], geometrySize = (int)data[offset++];
+                if (type != 0) offset += geometrySize;
+                if (offset + 7 > data.Length) return null;
+                var points = (int)data[offset + 6];
+                offset += 7;
+                if (points < 0 || offset + points * 3 > data.Length) return null;
+                for (var p = 0; p < points; p++, offset += 3)
+                {
+                    minX = Math.Min(minX, data[offset]);
+                    minY = Math.Min(minY, data[offset + 1]);
+                    maxX = Math.Max(maxX, data[offset]);
+                    maxY = Math.Max(maxY, data[offset + 1]);
+                }
+            }
+
+            return minX <= maxX && minY <= maxY ? new ViewRect(minX, minY, maxX, maxY) : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Sheet area (meters) minus a uniform margin, or null if the
     /// sheet size cannot be read.
     /// </summary>

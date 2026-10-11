@@ -208,10 +208,17 @@ public sealed class OverlayDrawingPipeline : IDrawingPipeline
                 overlayMagnification,
                 overlayCalibrationUm);
 
+            OverlayLineFormatService.Apply(drawingService, behavior.OverlayFormattedSketchSuffix,
+                behavior.OverlayLineFormatProfilePath);
+
+            var layoutProfile = behavior.OverlayLineFormatProfilePath;
             OverlayTiffExporter.ExportOverlayTiff(
                 context.SwApp,
                 drawingService,
-                run);
+                run,
+                afterTextStyle: string.IsNullOrEmpty(layoutProfile)
+                    ? null
+                    : ds => OverlayReferenceLayoutService.Apply(ds, layoutProfile));
         }
         finally
         {

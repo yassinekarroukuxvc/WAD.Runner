@@ -12,7 +12,6 @@ using WAD.Runner.ModelAutomation.Rules.AB16;
 using WAD.Runner.ModelAutomation.Rules.ABT;
 using WAD.Runner.ModelAutomation.Rules.CKVD;
 using WAD.Runner.ModelAutomation.Rules.COB;
-using WAD.Runner.ModelAutomation.Rules.CobLike;
 using WAD.Runner.ModelAutomation.Rules.FP;
 using WAD.Runner.ModelAutomation.Rules.M;
 using WAD.Runner.ModelAutomation.Rules.OSG7;
@@ -224,21 +223,6 @@ public static class WedgeAutomationProfileRegistry
 
         return profiles;
     }
-
-    private static WedgeAutomationProfile CreateCobLikeProfile(
-        WedgeType wedgeType,
-        string name,
-        IModelConfigurationRules configurationRules,
-        IFeatureRuleSet featureRules,
-        IToleranceRuleSet toleranceRules)
-        => new(
-            wedgeType,
-            name,
-            configurationRules,
-            featureRules,
-            new CobLikeEquationPlanner(wedgeType),
-            toleranceRules,
-            CobLikePostRebuildSuppressions.All);
 
     private static void Add(
         IDictionary<WedgeType, WedgeAutomationProfile> profiles,

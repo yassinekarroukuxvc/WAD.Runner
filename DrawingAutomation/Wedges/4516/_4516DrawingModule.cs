@@ -176,7 +176,16 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
 
         HideVrExtremaWhenOverlayCompressed: false,
 
-        BreaklineTlOverrideMm: 18.0m);
+        BreaklineTlOverrideMm: 12.0m,
+        ResolveBreaklineTlMm: wedge => global::WAD.Runner.DataManagement.Domain.Planning.Rules._4516DisplayLength.TlMm(wedge),
+        RefineBreakline: _4516SectionBreaklineRule.Refine,
+        ResolveSecondaryRightMarginMm: (wedge, drawing) =>
+            wedge.Subclass == WedgeSubclass.FG && drawing.DrawingType is DrawingType.Production or DrawingType.Customer ? 18.0 : 0.0,
+        UseSplitDimensionTables: (wedge, drawing) =>
+            wedge.Subclass == WedgeSubclass.FG && drawing.DrawingType is DrawingType.Production or DrawingType.Customer,
+        OverlayFormattedSketchSuffix: "_overlay_sketch",
+        OverlayLineFormatProfilePath: "Resources/Config/overlay_4516_line_formats.json",
+        DecorateProductionDrawing: _4516FilletCenterMarkRule.Apply);
 
     public IReadOnlyList<DrawingProfile> Profiles { get; }
 

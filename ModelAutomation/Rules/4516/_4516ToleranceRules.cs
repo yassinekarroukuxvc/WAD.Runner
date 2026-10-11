@@ -80,6 +80,8 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
     // OVERLAY CUT REFERENCE POINTS
     // ================================================================
 
+    private const decimal VrRightCutPaperInch = 2.9m;
+
     private static void AddOverlayCutReferencePointUpdates(
         List<ToleranceUpdate> updates,
         WedgeFacts facts)
@@ -100,6 +102,12 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
                 facts,
                 scale,
                 WedgeType._4516);
+
+        // VR: the right view shows more of the shank. The cut point sits on the right border
+        // (DetailXIn 6.285 in) and the foot must stay right of the sheet center (3.19 in), which
+        // leaves 3.095 in; 2.9 in keeps a small margin from the center line.
+        if (facts.HasPositive("VR"))
+            rightCutMm = VrRightCutPaperInch * 25.4m / (decimal)scale;
 
         var leftCutMm =
             58m / (decimal)scale;
@@ -382,12 +390,15 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
                     "GD",
                     "GD_MAX@g_fg_overlay_sketch");
 
-                // Intentional target name from the new 4516 model specification.
-                AddLengthMaximum(
-                    updates,
-                    facts,
-                    "GO",
-                    "GO_MAX@c_fg_overlay_sketch");
+                // GO is the diameter of the G groove: derive its maximum from the radius,
+                // independently of the optional/stale GO database value.
+                if (!facts.TryGetLengthBoundsMm("GR", out _, out var maximumRadiusMm) || maximumRadiusMm <= 0)
+                    throw new InvalidOperationException("4516 G overlay requires a positive GR maximum to calculate GO_MAX.");
+
+                var maximumOpeningMm = 2m * maximumRadiusMm;
+                updates.Add(new ToleranceUpdate(
+                    "GO_MAX@g_fg_overlay_sketch", maximumOpeningMm, ToleranceUnit.LengthMm));
+                Logger.Info($"[_4516ToleranceRules] G groove GO_MAX = 2 * GR_MAX -> {maximumOpeningMm} mm (GR_MAX={maximumRadiusMm} mm).");
 
                 break;
 

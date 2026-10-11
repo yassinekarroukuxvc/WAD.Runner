@@ -4,6 +4,7 @@ using WAD.Runner.Application;
 using WAD.Runner.DataManagement.Domain.Wedge;
 using WAD.Runner.ModelAutomation.Common;
 using WAD.Runner.ModelAutomation.Core;
+using WAD.Runner.DataManagement.Domain.Config;
 using WAD.Runner.ModelAutomation.Execution;
 using WAD.Runner.ModelAutomation.Rules.Common;
 
@@ -46,6 +47,12 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
     private const string VrFeature =
         "vr_feature";
+
+    private static readonly string[] EngravingFeatureNames =
+    {
+        "engraving_sketch",
+        "engraving_feature"
+    };
 
     private const string VrSketch =
         "vr_sketch";
@@ -613,9 +620,15 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
                 .Deactivate(NotchFeatureNames)
                 .Deactivate(W2FeatureNames)
                 .Deactivate(ErwFeatureNames)
-                .ForceSuppress(
-                    SwNames.EngravingFeature,
-                    SwNames.EngravingSketch);
+                .Know(EngravingFeatureNames);
+
+        // Engraving (template engraving_sketch text linked to the "Engraving" property): only with a
+        // database engraving text, and not on the overlay.
+        if (!isOverlay && WedgeEnhancementPolicy.Engraving(WedgeType._4516) &&
+            WAD.Runner.ModelAutomation.Common.WedgeEngraving.Resolve(facts.Wedge) is not null)
+            plan.Activate(EngravingFeatureNames);
+        else
+            plan.Deactivate(EngravingFeatureNames);
 
         if (hasCompleteVrFamily)
         {
@@ -1147,15 +1160,14 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
         if (subclass == WedgeSubclass.PGB)
         {
-            // PGB always uses W case 1.
-            plan.Activate(
-                WCase1OverlaySketch);
+            // PGB uses W case 1; with VR the VW/VR case sketch replaces the W sketch.
+            if (!hasOverlayVrFamily)
+                plan.Activate(
+                    WCase1OverlaySketch);
 
-            // PGB FL selection is driven by C.
-            plan.Activate(
-                hasPositiveC
-                    ? FlCase1OverlaySketch
-                    : FlCase2OverlaySketch);
+            // SLB supplies its own profile; neither FL case should be shown with it.
+            if (!hasOverlaySlb)
+                plan.Activate(hasPositiveC ? FlCase1OverlaySketch : FlCase2OverlaySketch);
 
             if (hasOverlaySlb)
             {
@@ -1170,18 +1182,20 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
             Logger.Info(
                 "[_4516FeatureRules] PGB overlay sketches -> " +
-                $"W={WCase1OverlaySketch}, " +
-                $"FL={(hasPositiveC ? FlCase1OverlaySketch : FlCase2OverlaySketch)}, " +
+                $"W={(hasOverlayVrFamily ? "none (VR)" : WCase1OverlaySketch)}, " +
+                $"FL={(hasOverlaySlb ? "none (SLB)" : hasPositiveC ? FlCase1OverlaySketch : FlCase2OverlaySketch)}, " +
                 $"SLB={hasOverlaySlb}, " +
                 $"VR/VW={hasOverlayVrFamily}, case={overlayVwCase}.");
 
             return;
         }
 
-        // FG always uses W case 2 and FL case 1.
-        plan.Activate(
-            WCase2OverlaySketch,
-            FlCase1OverlaySketch);
+        // FG uses W case 2 (off with VR: the VW/VR case sketch replaces it); SLB replaces the FL
+        // overlay sketches.
+        if (!hasOverlayVrFamily)
+            plan.Activate(WCase2OverlaySketch);
+        if (!hasOverlaySlb)
+            plan.Activate(FlCase1OverlaySketch);
 
         if (hasOverlaySlb)
         {
@@ -1200,7 +1214,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
 
         Logger.Info(
             "[_4516FeatureRules] FG overlay sketches -> " +
-            $"W={WCase2OverlaySketch}, FL={FlCase1OverlaySketch}, " +
+            $"W={(hasOverlayVrFamily ? "none (VR)" : WCase2OverlaySketch)}, FL={(hasOverlaySlb ? "none (SLB)" : FlCase1OverlaySketch)}, " +
             $"SLB={hasOverlaySlb}, " +
             $"VR/VW={hasOverlayVrFamily}, case={overlayVwCase}, " +
             $"foot={footOption}.");

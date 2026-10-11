@@ -23,7 +23,15 @@ namespace WAD.Runner.DrawingAutomation.Metadata
     {
 
 
-        public static void Apply(DrawingService ds, DrawingData drawing, WedgeData wedge)
+        /// <param name="finalScales">
+        /// Runtime view scales after layout/autoscale. When given, the title-block scale uses
+        /// these instead of the configured scales.
+        /// </param>
+        public static void Apply(
+            DrawingService ds,
+            DrawingData drawing,
+            WedgeData wedge,
+            IReadOnlyDictionary<string, double>? finalScales = null)
         {
             if (ds is null) throw new ArgumentNullException(nameof(ds));
             if (drawing is null) throw new ArgumentNullException(nameof(drawing));
@@ -36,12 +44,61 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             ApplySummaryInfo(model, drawing, wedge);
 
 
-            var props = BuildTitleBlockProps(drawing, wedge);
+            var props = BuildTitleBlockProps(drawing, wedge, finalScales);
             ApplyCustomProperties(model, props);
 
             ApplyDrawingTypeMetadata(
                 model,
                 drawing.DrawingType);
+            ApplyCopyMarkers(model, drawing.DrawingType);
+        }
+
+        private static void ApplyCopyMarkers(ModelDoc2 model, DrawingType drawingType)
+        {
+            if (model is not DrawingDoc document) return;
+            var view = document.IGetFirstView();
+            while (view is not null)
+            {
+                if (view.GetNotes() is object[] notes)
+                {
+                    var copyLabels = notes.OfType<Note>()
+                        .Where(n => (n.GetText() ?? "").Contains("COPY", StringComparison.OrdinalIgnoreCase))
+                        .ToArray();
+                    foreach (var note in notes.OfType<Note>())
+                    {
+                        if ((note.GetText() ?? "").Trim() != "**") continue;
+                        var position = (note.GetAnnotation() as Annotation)?.GetPosition() as double[];
+                        if (position is null) continue;
+                        foreach (var label in copyLabels)
+                        {
+                            var labelPosition = (label.GetAnnotation() as Annotation)?.GetPosition() as double[];
+                            if (labelPosition is null || Math.Abs(position[1] - labelPosition[1]) > 0.002) continue;
+                            var text = label.GetText() ?? "";
+                            if (text.Contains("PRODUCTION", StringComparison.OrdinalIgnoreCase))
+                                note.SetText(drawingType == DrawingType.Production ? "**" : "");
+                            else if (text.Contains("CUSTOMER", StringComparison.OrdinalIgnoreCase))
+                                note.SetText(drawingType == DrawingType.Customer ? "**" : "");
+                        }
+                    }
+                }
+                if (view.GetTableAnnotations() is object[] tables)
+                {
+                    foreach (var item in tables)
+                    {
+                        if (item is not TableAnnotation table) continue;
+                        for (var row = 0; row < table.RowCount; row++)
+                        {
+                            var label = table.get_Text(row, 0)?.Trim();
+                            if (table.ColumnCount < 2) continue;
+                            if (string.Equals(label, "PRODUCTION COPY", StringComparison.OrdinalIgnoreCase))
+                                table.set_Text(row, 1, drawingType == DrawingType.Production ? "**" : "");
+                            else if (string.Equals(label, "CUSTOMER COPY", StringComparison.OrdinalIgnoreCase))
+                                table.set_Text(row, 1, drawingType == DrawingType.Customer ? "**" : "");
+                        }
+                    }
+                }
+                view = view.IGetNextView();
+            }
         }
 
 
@@ -108,12 +165,15 @@ namespace WAD.Runner.DrawingAutomation.Metadata
         }
 
 
-        private static IReadOnlyDictionary<string, string> BuildTitleBlockProps(DrawingData drawing, WedgeData wedge)
+        private static IReadOnlyDictionary<string, string> BuildTitleBlockProps(
+            DrawingData drawing,
+            WedgeData wedge,
+            IReadOnlyDictionary<string, double>? finalScales = null)
         {
             var md = drawing.Metadata ?? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             var wdp = wedge.Properties ?? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
-            string scaleToken = BuildScaleToken(drawing);
+            string scaleToken = BuildScaleToken(drawing, finalScales);
             var today = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -145,7 +205,8 @@ namespace WAD.Runner.DrawingAutomation.Metadata
             var wdp = wedge.Properties ?? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
             var overlayTitle = BuildTitle(md, drawing);
-            var generationDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            // Same format as the AutoCAD overlay description block (e.g. 01-MAY-17).
+            var generationDate = DateTime.Now.ToString("dd-MMM-yy", CultureInfo.InvariantCulture).ToUpperInvariant();
             var overlayDrawingNumber = BuildOverlayDrawingNumber(overlayTitle);
 
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -214,18 +275,28 @@ namespace WAD.Runner.DrawingAutomation.Metadata
                 : $"{baseTitle}-DW";
         }
 
-        private static string BuildScaleToken(DrawingData drawing)
+        private static string BuildScaleToken(
+            DrawingData drawing,
+            IReadOnlyDictionary<string, double>? finalScales)
         {
             string fmt(double s) => s == 0 ? "1" : s.ToString("0.###", CultureInfo.InvariantCulture);
 
-            drawing.Views.TryGetValue("Front", out ViewConfig? vFront);
-            drawing.Views.TryGetValue("Side", out ViewConfig? vSide);
-            drawing.Views.TryGetValue("Top", out ViewConfig? vTop);
-
             var parts = new List<string>();
-            if (vFront != null) parts.Add(fmt(vFront.Scale));
-            if (vSide != null) parts.Add(fmt(vSide.Scale));
-            if (vTop != null) parts.Add(fmt(vTop.Scale));
+            foreach (var view in new[] { "Front", "Side", "Top" })
+            {
+                // Prefer the scale the view actually ended up with (autoscale may change it).
+                if (finalScales is not null
+                    && finalScales.TryGetValue(view, out var runtimeScale)
+                    && double.IsFinite(runtimeScale)
+                    && runtimeScale > 0.0)
+                {
+                    parts.Add(fmt(runtimeScale));
+                }
+                else if (drawing.Views.TryGetValue(view, out ViewConfig? configured) && configured != null)
+                {
+                    parts.Add(fmt(configured.Scale));
+                }
+            }
 
             return parts.Count > 0 ? string.Join(";", parts) : string.Empty;
         }

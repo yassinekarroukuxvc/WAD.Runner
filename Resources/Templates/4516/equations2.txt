@@ -24,7 +24,7 @@
 "CD"= 0.0007
 "CD@annotation_right_plan"="CD"
 "GO"=0.0034171
-"GO@annotation_right_plan"="GO"
+"GR_G@annotation_right_plan"="GR"
 "GR"=0.00425855
 "GD_G@annotation_right_plan"="GD"
 "FL"=0.00850394

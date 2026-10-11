@@ -22,3 +22,10 @@ public static class _4516AnnotationFeedHoleTypes
     public const string Slot = "SLOT";
     public const string Unknown = "UNKNOWN";
 }
+
+public static class _4516AnnotationVrAngle
+{
+    public const string TraitName = "VrAngle";
+    public const string None = "NONE";
+    public const string Angled = "ANGLED";
+}

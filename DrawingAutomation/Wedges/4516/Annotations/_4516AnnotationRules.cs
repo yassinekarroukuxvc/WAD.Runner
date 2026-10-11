@@ -47,8 +47,8 @@ public abstract class _4516AnnotationRuleCatalogBase :
                 $"{idPrefix}-SIDE-BA",
                 Side,
                 $"D1@{AnnotationFrontPlan}",
-                Always(),
-                "4516 PGB Side keeps D1, which represents BA."),
+                Not(hasSlb),
+                "4516 PGB Side keeps BA only without SLB; otherwise BA_VBL is used."),
 
             Keep(
                 $"{idPrefix}-SIDE-VBL",
@@ -134,8 +134,8 @@ public abstract class _4516AnnotationRuleCatalogBase :
                 $"{idPrefix}-DETAIL-VRA",
                 Detail,
                 $"VRA@{AnnotationRightPlan}",
-                DimPositive("VR"),
-                "4516 PGB Detail keeps VRA when VR is positive."),
+                All(DimPositive("VR"), TraitIs(_4516AnnotationVrAngle.TraitName, _4516AnnotationVrAngle.Angled)),
+                "4516 PGB Detail keeps VRA when VR is positive and VRA is a real angle (not 0 or 90)."),
 
             // ========================================================
             // SECTION VIEW
@@ -201,8 +201,8 @@ public abstract class _4516AnnotationRuleCatalogBase :
                     $"{idPrefix}-SIDE-BA",
                     Side,
                     $"D1@{AnnotationFrontPlan}",
-                    Always(),
-                    "4516 FG Side keeps D1, which represents BA."),
+                    Not(hasSlb),
+                    "4516 FG Side keeps BA only without SLB; otherwise BA_VBL is used."),
 
                 Keep(
                     $"{idPrefix}-SIDE-VBL",
@@ -289,8 +289,8 @@ public abstract class _4516AnnotationRuleCatalogBase :
                     $"{idPrefix}-DETAIL-VRA",
                     Detail,
                     $"VRA@{AnnotationRightPlan}",
-                    DimPositive("VR"),
-                    "4516 FG Detail keeps VRA when VR is positive."),
+                    All(DimPositive("VR"), TraitIs(_4516AnnotationVrAngle.TraitName, _4516AnnotationVrAngle.Angled)),
+                    "4516 FG Detail keeps VRA when VR is positive and VRA is a real angle (not 0 or 90)."),
 
                 // ====================================================
                 // DETAIL VIEW - VG FOOT
@@ -346,7 +346,7 @@ public abstract class _4516AnnotationRuleCatalogBase :
                     $"{idPrefix}-DETAIL-G-GR",
                     Detail,
                     $"GR_G@{AnnotationRightPlan}",
-                    isVgFoot,
+                    isGFoot,
                     "4516 FG Detail keeps GR for the G foot option."),
 
                 // ====================================================
@@ -461,13 +461,7 @@ public abstract class _4516AnnotationRuleCatalogBase :
                 Always(),
                 "4516 FG Production Section keeps F."));
 
-        rules.Add(
-            Keep(
-                $"{idPrefix}-SECTION-Y",
-                Section,
-                $"Y@{AnnotationFrontPlan}",
-                Always(),
-                "4516 FG Production Section keeps Y."));
+        // Y is not drawn on the FG Production section (as on Customer); it stays in the table.
 
         rules.Add(
             Keep(

@@ -36,6 +36,7 @@ public sealed class DimensionSpec : IAnnotationSpec
     public DimStyle Style { get; init; } = DimStyle.None;
     public int Z { get; init; } = 10;
     public string? TextOverride { get; init; }
+    public bool CenterText { get; init; } = true;
 }
 
 public sealed class NoteSpec : IAnnotationSpec

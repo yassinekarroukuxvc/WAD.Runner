@@ -41,6 +41,15 @@ public static class AnnotationNameIdentity
         return (at < 0 ? compact : compact[..at]).ToUpperInvariant();
     }
 
+    /// <summary>
+    /// True when a rule for a model dimension ("F@annotation_front_plan") would be satisfied only
+    /// by a drawing-sketch dimension that merely shares the short name ("F"). Sketch dimensions are
+    /// fixed to the template and do not follow the model, scale or breaklines, so they must never
+    /// stand in for a model dimension (neither to be kept nor to be protected by the safety audit).
+    /// </summary>
+    public static bool IsSketchDimensionStandInForModel(string? expected, string? actual)
+        => expected is not null && actual is not null && expected.Contains('@') && !actual.Contains('@');
+
     public static bool AreEquivalent(string? left, string? right)
         => string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
 

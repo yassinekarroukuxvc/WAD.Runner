@@ -161,7 +161,8 @@ public sealed class AnnotationCleanupExecutor
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return sameDimension.Count == 1
+        return sameDimension.Count == 1 &&
+               !AnnotationNameIdentity.IsSketchDimensionStandInForModel(expected, sameDimension[0])
             ? sameDimension
             : Array.Empty<string>();
     }

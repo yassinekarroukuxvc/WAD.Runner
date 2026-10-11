@@ -202,13 +202,14 @@ internal static class Wedge4516ConditionalDimensionValidator
             case "G":
             case "LW_G":
             case "SW_G":
+                // The G groove is driven by GD + GR; SolidWorks computes GO from them.
                 RequireAllPositive(
                     wedge,
                     wedgeType,
                     issues,
                     "4516 Foot Option Validation",
                     $"{FootOptionProperty} = {footOption}",
-                    new[] { "GO", "GD" });
+                    new[] { "GR", "GD" });
                 break;
 
             // ----------------------------------------------------

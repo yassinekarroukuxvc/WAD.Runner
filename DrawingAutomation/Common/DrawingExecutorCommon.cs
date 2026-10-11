@@ -78,6 +78,9 @@ namespace WAD.Runner.DrawingAutomation.Common
 
             try
             {
+                DrawingLineWeights.ApplyPrintStandard(ds.Model as ModelDoc2);
+                DrawingTextStyle.ApplyToAnnotations(ds.Model as ModelDoc2);
+
                 ds.Save();
 
                 if (!string.IsNullOrWhiteSpace(pdfOutputPath))
@@ -424,12 +427,14 @@ namespace WAD.Runner.DrawingAutomation.Common
             string outputFullPath,
             int dpi,
             bool monochrome = false,
-            int supersample = 2)
+            int supersample = 2,
+            int? outputWidth = null,
+            int? outputHeight = null)
         {
             if (monochrome || supersample <= 1)
                 return SaveCurrentSheetAsTiffUseSheetSize(swApp, ds, outputFullPath, dpi, monochrome);
 
-            return SaveCurrentSheetAsTiffSupersampled(swApp, ds, outputFullPath, dpi, supersample);
+            return SaveCurrentSheetAsTiffSupersampled(swApp, ds, outputFullPath, dpi, supersample, outputWidth, outputHeight);
         }
 
         private static bool SaveCurrentSheetAsTiffSupersampled(
@@ -437,7 +442,9 @@ namespace WAD.Runner.DrawingAutomation.Common
             DrawingService ds,
             string outputFullPath,
             int targetDpi,
-            int factor)
+            int factor,
+            int? outputWidth,
+            int? outputHeight)
         {
             string? tempPath = null;
             try
@@ -453,8 +460,10 @@ namespace WAD.Runner.DrawingAutomation.Common
                 var sheet = (Sheet)drw.GetCurrentSheet();
                 double w_m = 0, h_m = 0;
                 sheet.GetSize(ref w_m, ref h_m);
-                int targetW = (int)Math.Round(w_m / 0.0254 * targetDpi);
-                int targetH = (int)Math.Round(h_m / 0.0254 * targetDpi);
+                int targetW = outputWidth ?? (int)Math.Round(w_m / 0.0254 * targetDpi);
+                int targetH = outputHeight ?? (int)Math.Round(h_m / 0.0254 * targetDpi);
+                if (targetW <= 0 || targetH <= 0 || Math.Abs(w_m / h_m - (double)targetW / targetH) > 0.001)
+                    throw new InvalidOperationException("TIFF output dimensions must be positive and preserve the sheet aspect ratio.");
 
                 var dir = Path.GetDirectoryName(outputFullPath) ?? Path.GetTempPath();
                 tempPath = Path.Combine(dir, $".hires.{Guid.NewGuid():N}.tif");
@@ -466,6 +475,9 @@ namespace WAD.Runner.DrawingAutomation.Common
                     return false;
 
                 DownsampleTiff(tempPath, outputFullPath, targetW, targetH, targetDpi);
+                using (var exported = new System.Drawing.Bitmap(outputFullPath))
+                    if (exported.Width != targetW || exported.Height != targetH)
+                        throw new InvalidOperationException("TIFF export dimensions do not match the required output size.");
 
                 Logger.Success($"[TIFF] Saved (supersampled {factor}x): {outputFullPath}");
                 return true;

@@ -367,6 +367,11 @@ internal static class WedgeDimensionValidationRuleCatalog
                     "BA",
                     "FL"),
 
+            // 4516 allows RA = 0°, so RA is not required to be > 0.
+            OptionalStandalone =
+                Slots(
+                    "RA"),
+
             ConditionalAndGroups =
                 new[]
                 {

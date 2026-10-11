@@ -15,7 +15,8 @@ public static class DrawingDimensionPlanner
     public static PlannedDrawingDimensions Plan(
         DrawingRun run,
         WAD.Runner.DataManagement.Domain.Drawing.DrawingData drawingData,
-        IReadOnlyDictionary<string, double>? runtimeViewScales = null)
+        IReadOnlyDictionary<string, double>? runtimeViewScales = null,
+        IReadOnlyDictionary<string, double>? retainedHeightsMm = null)
     {
         if (run is null) throw new ArgumentNullException(nameof(run));
         if (drawingData is null) throw new ArgumentNullException(nameof(drawingData));
@@ -23,7 +24,8 @@ public static class DrawingDimensionPlanner
         var context = new LayoutContext(
             run.Wedge,
             drawingData,
-            runtimeViewScales);
+            runtimeViewScales,
+            retainedHeightsMm);
         var diagnostics = new PlannerDiagnostics();
         var dimensions = DimensionRules.Build(context, diagnostics, run.WedgeType).ToList();
 
@@ -33,7 +35,8 @@ public static class DrawingDimensionPlanner
             View = d.View,
             Key = d.Key,
             PositionMm = d.PositionMm,
-            Nominal = d.Nominal
+            Nominal = d.Nominal,
+            CenterText = d.CenterText
         }).ToList();
 
         Logger.Info($"[DrawingPlan] Planned {plans.Count} annotation positions for {run.WedgeType}/{drawingData.DrawingType}.");

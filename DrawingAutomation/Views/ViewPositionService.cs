@@ -159,6 +159,26 @@ public sealed class ViewPositionService
         }
     }
 
+    /// <summary>
+    /// Moves a view by a sheet offset (meters) and returns its new position, or null.
+    /// </summary>
+    public double[]? MoveBy(
+        string logicalView,
+        double dxMeters,
+        double dyMeters)
+    {
+        var view =
+            FindView(
+                logicalView);
+
+        if (view is null || view.Position is not double[] current || current.Length < 2)
+            return null;
+
+        var moved = new[] { current[0] + dxMeters, current[1] + dyMeters };
+        view.Position = moved;
+        return moved;
+    }
+
     public void ApplyConfiguredPositions(
         DrawingData drawingData,
         IEnumerable<string> logicalViews)

@@ -28,7 +28,7 @@ namespace WAD.Runner.ModelAutomation.Equations;
 /// When VR > 0 and VW > 0:
 ///     VW    = VW_MAX
 ///     VR    = VR_MIN
-///     VRA   = nominal database value (never overridden to MIN/MAX)
+///     VRA   = VRA_MAX when VR/VW are active
 ///
 /// Case 1:
 ///     VW = W
@@ -238,6 +238,12 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
             facts,
             dimensionKey: "VR",
             useMaximum: false);
+
+        AddAngleBoundEquation(
+            builder,
+            facts,
+            dimensionKey: "VRA",
+            useMaximum: true);
     }
 
     private static void AddFgFootOverlayOverrides(

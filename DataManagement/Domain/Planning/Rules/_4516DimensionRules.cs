@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using WAD.Runner.DataManagement.Domain.Dimensions;
@@ -25,7 +25,7 @@ internal static class _4516DimensionRules
         var dims = new List<DimensionSpec>();
 
         //var TL = LayoutMath.Dmm(ctx, "TL");
-        var TL = 18.0;
+        var TL = _4516DisplayLength.TlMm(ctx.Wedge);
         var TD = LayoutMath.Dmm(ctx, "TD");
 
         if (TL <= 0)
@@ -68,21 +68,23 @@ internal static class _4516DimensionRules
         var scv = LayoutMath.Scale(ctx, Section);
 
         //var TL = LayoutMath.Dmm(ctx, "TL");
-        var TL = 18.0;
+        var TL = _4516DisplayLength.TlMm(ctx.Wedge);
         var TD = LayoutMath.Dmm(ctx, "TD");
 
         var LFront = TL * fsv;
         var LSide = TL * fsv;
 
-        const double detailLower = 60.0;
+        var detailLower = ctx.RetainedHeightsMm.TryGetValue(Detail, out var detailHeight) ? detailHeight : 60.0;
         var detailBreak = GetBreakline(ctx, Detail, defaultMm: 50.0);
         var bandMidY = D[1] - (detailBreak + detailLower) / 2.0;
 
         AddFront(ctx, diag, outList, F, fsv, TL, TD, LFront);
         AddTop(ctx, diag, outList, T, tsv, TD);
-        AddDetail(ctx, diag, outList, D, dsv, bandMidY);
+        AddDetail(ctx, diag, outList, D, dsv, bandMidY, detailLower);
         AddSide(ctx, diag, outList, S, ssv, TD, LSide);
-        AddSection(ctx, diag, outList, Sec, scv, bandMidY);
+        var sectionHeight = ctx.RetainedHeightsMm.TryGetValue(Section, out var retainedHeight) ? retainedHeight : 60.0;
+        var sectionBaseline = Sec[1] - (GetBreakline(ctx, Section, 50.0) + sectionHeight) / 2.0;
+        AddSection(ctx, diag, outList, Sec, scv, sectionBaseline);
     }
 
     private static void AddFront(
@@ -95,19 +97,29 @@ internal static class _4516DimensionRules
         double TD,
         double LFront)
     {
+        // The model origin is above the visible top by half the shank diameter.
+        // The template's shank grows upward with the display TL while the view origin stays near the
+        // foot; the layout moves the view down by the extra length, so the top is (TL - 12) x scale
+        // above where it would be for the 12 mm model.
+        var extraFront = (TL - _4516DisplayLength.BaseTlMm) * fsv;
+        var centerY = F[1] + extraFront - fsv * TD / 2.0 - LFront / 2.0;
         PlaceDim(ctx, diag, outList, "TL", Front, DimAxis.Horizontal,
-            F[0] - fsv * TD / 2.0 - 13.5,
-            F[1]);
+            Math.Max(10.0, F[0] - fsv * TD / 2.0 - 13.5),
+            centerY, centerText: false);
 
         PlaceDim(ctx, diag, outList, "D1", Front, DimAxis.Horizontal,
-            F[0] - fsv * TD / 2.0 - 13.5,
-            F[1]);
+            Math.Max(10.0, F[0] - fsv * TD / 2.0 - 13.5),
+            centerY, centerText: false);
 
+        // VR runs from the bottom of the tool up to VR max: text on the right of the view,
+        // halfway up that span (clamped to the displayed tool length).
         var VR = LayoutMath.Dmm(ctx, "VR");
+        var bottomY = F[1] + extraFront - fsv * TD / 2.0 - LFront;
+        var vrSpan = Math.Min(Math.Max(VR * fsv, 0.0), LFront);
 
         PlaceDim(ctx, diag, outList, "VR", Front, DimAxis.Horizontal,
-            F[0] - fsv * TD / 2.0 - 2.0,
-            F[1] - LFront / 2.0 + VR / 2.0 * fsv);
+            F[0] + fsv * TD / 2.0 + 4.0,
+            bottomY + vrSpan / 2.0, centerText: false);
     }
 
     private static void AddTop(
@@ -133,7 +145,8 @@ internal static class _4516DimensionRules
         List<DimensionSpec> outList,
         double[] D,
         double dsv,
-        double bandMidY)
+        double bandMidY,
+        double retainedHeight)
     {
         var W = LayoutMath.Dmm(ctx, "W");
         var GD = LayoutMath.Dmm(ctx, "GD");
@@ -142,30 +155,40 @@ internal static class _4516DimensionRules
         var CD = LayoutMath.Dmm(ctx, "CD");
         var VRR = LayoutMath.Dmm(ctx, "VRR");
 
-        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0], bandMidY + 63);
-        PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal, D[0], bandMidY + 5.0);
-        PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal, D[0], bandMidY - 15.0);
+        // Clear of the break-line symbol at the top of the foot view.
+        // ISA above the top of the kept part (retained height above the foot); 72 mm at the usual 60.
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0], bandMidY + retainedHeight + 12.0);
+        // VRA sits at the top, directly under ISA.
+        PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal, D[0], bandMidY + retainedHeight + 4.0);
+        // B, GA and W form a centered stack with equal 6 mm spacing.
+        PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal, D[0], bandMidY - 9.0, centerText: false);
         PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
-        PlaceDim(ctx, diag, outList, "GO", Detail, DimAxis.Horizontal, D[0] - 5, bandMidY - 3.0);
+        // GO is narrower than its text: place the text outside the extension lines, left of the
+        // foot (GD sits on the right), so it does not sit on the slot and W.
+        PlaceDim(ctx, diag, outList, "GO", Detail, DimAxis.Horizontal,
+            D[0] - W / 2.0 * dsv - 6.0,
+            bandMidY - 3.0);
         PlaceDim(ctx, diag, outList, "CL", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
-        PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal, D[0], bandMidY - 6.0);
-        PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal, D[0], bandMidY - 9.0);
+        PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal, D[0], bandMidY - 15.0);
+        PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal, D[0], bandMidY - 21.0);
 
+        // GD is shorter than its text: put the text above the extension lines instead of between
+        // the arrows.
         PlaceDim(ctx, diag, outList, "GD", Detail, DimAxis.Vertical,
             D[0] + W / 2.0 * dsv + 10.0,
-            bandMidY + dsv * GD / 2.0);
+            bandMidY + dsv * GD + 4.0);
 
         PlaceDim(ctx, diag, outList, "GD_G", Detail, DimAxis.Vertical,
             D[0] + W / 2.0 * dsv + 10.0,
-            bandMidY + dsv * GD / 2.0);
+            bandMidY + dsv * GD + 4.0);
 
         PlaceDim(ctx, diag, outList, "GR_G", Detail, DimAxis.Vertical,
-            D[0] + W / 2.0 * dsv + 10.0,
-            bandMidY + dsv * GD + 10);
+            D[0] - W / 2.0 * dsv - 10.0,
+            bandMidY + dsv * GD + 10, centerText: false);
 
         PlaceDim(ctx, diag, outList, "GR_VG", Detail, DimAxis.Vertical,
-            D[0] + W / 2.0 * dsv + 10.0,
-            bandMidY + dsv * GD + 10);
+            D[0] - W / 2.0 * dsv - 10.0,
+            bandMidY + dsv * GD + 10, centerText: false);
 
         PlaceDim(ctx, diag, outList, "CD", Detail, DimAxis.Horizontal,
             D[0] + W / 2.0 * dsv + 5.0,
@@ -182,14 +205,30 @@ internal static class _4516DimensionRules
         double LSide)
     {
         var VBL = LayoutMath.Dmm(ctx, "VBL");
+        var TLside = _4516DisplayLength.TlMm(ctx.Wedge);
+        var topY = S[1] + (TLside - _4516DisplayLength.BaseTlMm) * ssv - ssv * TD / 2.0;
+        var bottomY = topY - LSide;
+        var vblSpan = Math.Min(Math.Max(VBL * ssv, 0.0), LSide);
 
-        PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
-        PlaceDim(ctx, diag, outList, "D1", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
-        PlaceDim(ctx, diag, outList, "BA_VBL", Side, DimAxis.Horizontal, S[0] + 5.0, S[1]);
+        // The angle text sits level with the visible top of the tool, just right of the slanted
+        // arm (which leaves the vertical edge at the bottom, or at the top of VBL with SLB), so it
+        // clears the view outline and the arc arrows.
+        double AngleX(string key, double rise)
+        {
+            var deg = LayoutMath.Ddeg(ctx, key);
+            if (deg <= 0) deg = LayoutMath.Ddeg(ctx, "BA");
+            if (deg <= 0 || deg >= 45) deg = 10.0;
+            return S[0] + rise * Math.Tan(deg * Math.PI / 180.0) + 4.5;
+        }
+
+        PlaceDim(ctx, diag, outList, "BA", Side, DimAxis.Horizontal, AngleX("BA", LSide), topY, centerText: false);
+        PlaceDim(ctx, diag, outList, "D1", Side, DimAxis.Horizontal, AngleX("BA", LSide), topY, centerText: false);
+        PlaceDim(ctx, diag, outList, "BA_VBL", Side, DimAxis.Horizontal, AngleX("BA_VBL", LSide - vblSpan), topY, centerText: false);
 
         PlaceDim(ctx, diag, outList, "VBL", Side, DimAxis.Horizontal,
             S[0] + ssv * TD / 2.0 + 4.0,
-            S[1] - LSide / 2.0 + VBL / 2.0 * ssv);
+            bottomY + vblSpan / 2.0,
+            centerText: false);
     }
 
     private static void AddSection(
@@ -212,37 +251,42 @@ internal static class _4516DimensionRules
         var ERL = LayoutMath.Dmm(ctx, "ERL");
         var C = LayoutMath.Dmm(ctx, "C");
         var BF = LayoutMath.Dmm(ctx, "BF");
+        // The guarded full-thickness model has a hole exit at the section's upper-right corner.
+        var fgProductionCustomer = (ctx.Drawing.DrawingType is DrawingType.Production or DrawingType.Customer) &&
+            ctx.Wedge.Subclass == WedgeSubclass.FG;
+        var noChamfer = fgProductionCustomer && TDF > 0 && T >= TDF;
 
         var HA = LayoutMath.Ddeg(ctx, "HA");
         var RA = LayoutMath.Ddeg(ctx, "RA");
         var RA2 = LayoutMath.Ddeg(ctx, "RA2");
 
+        // Bottom stack (closest to the part first): G/F, BF, FL, T - 3 mm apart.
         PlaceDim(ctx, diag, outList, "T", Section, DimAxis.Horizontal,
             Sec[0] - TDF / 2.0 * scv + T / 2.0 * scv,
-            bandMidY - 21.0);
+            bandMidY - 14.0);
 
         PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal,
             Sec[0] - TDF / 2.0 * scv + FL / 2.0 * scv,
-            bandMidY - 18.0);
+            bandMidY - 11.0);
 
         PlaceDim(ctx, diag, outList, "BF", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + FR * scv + BF / 2 * scv, bandMidY - 15);
+            Sec[0] - (TDF / 2) * scv + FR * scv + BF / 2 * scv, bandMidY - 8);
 
         PlaceDim(ctx, diag, outList, "F", Section, DimAxis.Horizontal,
             Sec[0] - TDF / 2.0 * scv + FR * scv + F / 2.0 * scv,
-            bandMidY - 12.0);
+            bandMidY - 5.0);
 
         PlaceDim(ctx, diag, outList, "G", Section, DimAxis.Horizontal,
             Sec[0] - TDF / 2.0 * scv + G / 2.0 * scv,
-            bandMidY - 9.0);
+            bandMidY - 5.0);
 
         PlaceDim(ctx, diag, outList, "FR", Section, DimAxis.Horizontal,
             Sec[0] - TDF / 2.0 * scv - 10.0,
-            bandMidY - 3.0);
+            bandMidY + (fgProductionCustomer ? -2.0 : -3.0), centerText: !fgProductionCustomer);
 
         PlaceDim(ctx, diag, outList, "BR", Section, DimAxis.Horizontal,
-            Sec[0] - TDF / 2.0 * scv + FL * scv + 10.0,
-            bandMidY - 3.0);
+            Sec[0] - TDF / 2.0 * scv + FL * scv + (fgProductionCustomer ? 14.0 : 10.0),
+            bandMidY + (fgProductionCustomer ? -2.0 : -3.0), centerText: !fgProductionCustomer);
         /*They said to remove it
         PlaceDim(ctx, diag, outList, "CGR", Section, DimAxis.Horizontal,
            Sec[0] - TDF / 2.0 * scv - 10.0,
@@ -254,12 +298,12 @@ internal static class _4516DimensionRules
             Sec[0] - TDF / 2.0 * scv + FL * scv + 10.0,
             bandMidY - 6.0);
         */
-        /*
+
+        // FG production/customer: place Y beside FR, 3 mm lower, with text centering disabled.
         PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv + 15, bandMidY + (C * scv) + 10);
-        */
-        PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal,
-           Sec[0] - (TDF / 2) * scv + T * scv - 10, bandMidY + ((T - FL) * scv - 10) * (Math.Tan(HA * (Math.PI / 180.0))));
+            fgProductionCustomer ? Sec[0] - TDF / 2.0 * scv - 18.0 : Sec[0] - TDF / 2.0 * scv + T * scv + 2.0,
+            fgProductionCustomer ? bandMidY - 5.0 : bandMidY + C * scv + 6.0,
+            centerText: !fgProductionCustomer);
 
         /*They said to remove it
         PlaceDim(ctx, diag, outList, "CGD", Section, DimAxis.Horizontal,
@@ -268,26 +312,61 @@ internal static class _4516DimensionRules
         */
 
         PlaceDim(ctx, diag, outList, "C", Section, DimAxis.Horizontal,
-            Sec[0] - TDF / 2.0 * scv + T * scv + 10.0,
-            bandMidY + C * scv / 2.0);
+            Sec[0] - TDF / 2.0 * scv + T * scv + (fgProductionCustomer ? 8.0 : 10.0),
+            bandMidY + C * scv / 2.0, centerText: !fgProductionCustomer);
 
-        PlaceDim(ctx, diag, outList, "NR", Section, DimAxis.Horizontal,
-            Sec[0] - TDF / 2.0 * scv + FL * scv + 15,
-            bandMidY + 5);
-        
-        PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
-           Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + ((T - FL) * scv) * (Math.Tan(HA * (Math.PI / 180.0))));
-        
+
         /*
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
-           Sec[0] - (TDF / 2) * scv + T * scv + 10, bandMidY + (C * scv) + 5);
+           Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + ((T - FD) * scv) * (Math.Tan(HA * (Math.PI / 180.0))));
         */
-        PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv + 25, bandMidY + ((T - FL) * scv) * (Math.Tan(HA * (Math.PI / 180.0))) + 10);
 
+        // On the middle of the hole axis: the axis starts at the BR corner (x = FL) and runs at
+        // HA; the visible hole is centred about C + H/2 above the bottom face.
+        var H = LayoutMath.Dmm(ctx, "H");
+        var holeMidRise = C + H / 2.0;
+        var holeMidRun = holeMidRise / Math.Tan((HA > 0 ? HA : 45.0) * (Math.PI / 180.0));
+        // FG production/customer: FNA text 7 mm above the hole exit on the T face (the hole axis
+        // starts at the BR corner, x = FL, and rises at HA), which keeps it inside its arc. A fixed
+        // height above C fell outside the arc on thick sections, and SolidWorks then moved the
+        // text out with a leader past the border. Same height as before on the usual parts.
+        var holeExitRise = Math.Max(0.0, T - FL) * scv * Math.Tan((HA > 0 ? HA : 45.0) * (Math.PI / 180.0));
+        var fnaY = fgProductionCustomer
+            ? bandMidY + Math.Max(C * scv + 5.0, holeExitRise + 7.0)
+            : bandMidY + C * scv + 27.0;
+
+        // FG production/customer: H text in line with the FR text, at the FNA height. SolidWorks
+        // puts the diameter text about 17.5 mm left of its position point (the end of its leader
+        // shelf), while the FR text sits on its point, so H's point is offset to line the texts up.
+        PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
+           fgProductionCustomer ? Sec[0] - TDF / 2.0 * scv - 10.0 + 17.5 : Sec[0] - (TDF / 2) * scv + (FL + holeMidRun) * scv,
+           fgProductionCustomer ? fnaY : bandMidY + holeMidRise * scv,
+           centerText: !fgProductionCustomer && !noChamfer);
+
+        // FG production/customer: NR in the FR/H column, halfway between FR and H.
+        PlaceDim(ctx, diag, outList, "NR", Section, DimAxis.Horizontal,
+            fgProductionCustomer ? Sec[0] - TDF / 2.0 * scv - 10.0 : Sec[0] - TDF / 2.0 * scv + FL * scv + 15.0,
+            fgProductionCustomer ? (bandMidY - 2.0 + fnaY) / 2.0 : bandMidY + 5.0, centerText: !fgProductionCustomer);
+
+        // Anchored to the T/C corner rather than (T - FD)·tan(HA): FD is optional for 4516, and
+        // without it the text (and therefore the arc radius) ended up so high that the arc ran
+        // off the right edge of the sheet.
+        PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
+            Sec[0] - (TDF / 2) * scv + T * scv + (fgProductionCustomer ? 18.0 : 20.0),
+            fnaY);
+
+        // HA (D5). SolidWorks sets the arc radius from the text position, and text outside the
+        // angle gets a leader. FG production/customer: keep the text on the angle's bisector
+        // (vertex at the BR corner on the bottom line, where the hole axis starts) and move it
+        // out until it is level with the upper part of the C step, next to the C dimension.
+        var haDeg = HA > 0 ? HA : 45.0;
+        var haRise = Math.Max(5.0, C * scv - 5.0);
+        var haHalf = haDeg / 2.0 * (Math.PI / 180.0);
         PlaceDim(ctx, diag, outList, "D5", Section, DimAxis.Horizontal,
-            Sec[0] - TDF / 2.0 * scv + T * scv + 20.0,
-            bandMidY + 10.0);
+            fgProductionCustomer
+                ? Sec[0] - TDF / 2.0 * scv + FL * scv + haRise / Math.Tan(haHalf)
+                : Sec[0] - TDF / 2.0 * scv + T * scv + 20.0,
+            bandMidY + (fgProductionCustomer ? haRise : 10.0), centerText: !fgProductionCustomer);
 
     }
 
@@ -360,7 +439,8 @@ internal static class _4516DimensionRules
         string view,
         DimAxis axis,
         double x,
-        double y)
+        double y,
+        bool centerText = true)
     {
         if (!ctx.Drawing.Views.ContainsKey(view))
         {
@@ -380,6 +460,7 @@ internal static class _4516DimensionRules
                 View = view,
                 Key = new DimensionKey(key),
                 PositionMm = position,
+                CenterText = centerText,
                 Axis = axis,
                 Nominal = Quantity.MmOf(0.01m),
                 Tol = default,
@@ -404,6 +485,7 @@ internal static class _4516DimensionRules
             View = view,
             Key = dimension.Key,
             PositionMm = position,
+            CenterText = centerText,
             Axis = axis,
             Nominal = dimension.Nominal,
             Tol = dimension.Tol,

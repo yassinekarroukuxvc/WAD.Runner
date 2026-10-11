@@ -154,11 +154,27 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 new[] { "FTA" },
                 new[] { "FTA" });
 
+        // Display length (not the DB TL): see _4516DisplayLength (12 mm, longer for a large TD).
         builder.AddManaged(
             "TL",
             EquationFormatting.LengthLineFromMillimeters(
                 "TL",
-                18.0));
+                WAD.Runner.DataManagement.Domain.Planning.Rules._4516DisplayLength.TlMm(
+                    facts.TryGetLengthMm("TD", out var tdMm) ? (double)tdMm : 0.0)));
+
+        // Engraving box fitted to the straight shank of the display model (Production/Customer).
+        if (context.DrawingType != DrawingType.Overlay &&
+            WAD.Runner.ModelAutomation.Common.WedgeEngraving.Resolve(facts.Wedge) is { } engraving)
+        {
+            var box = WAD.Runner.ModelAutomation.Rules._4516._4516EngravingLayout.Compute(facts.Wedge, engraving);
+            builder.AddManaged("X1@engraving_sketch", EquationFormatting.LengthLineFromMillimeters("X1@engraving_sketch", box.X1Mm));
+            builder.AddManaged("X2@engraving_sketch", EquationFormatting.LengthLineFromMillimeters("X2@engraving_sketch", box.X2Mm));
+            builder.AddManaged("X3@engraving_sketch", EquationFormatting.LengthLineFromMillimeters("X3@engraving_sketch", box.X3Mm));
+            Logger.Info(
+                $"[_4516EquationPlanner] Engraving '{engraving}': display TL={box.DisplayTlMm:0.###} mm, taper={box.TaperMm:0.###} mm, " +
+                $"flat face={box.FaceWidthMm:0.###} mm, X1={box.X1Mm:0.###} mm, X2={box.X2Mm:0.###} mm, " +
+                $"X3={box.X3Mm:0.###} mm, font={box.CharHeightMm:0.###} mm.");
+        }
 
         if (context.Subclass == WedgeSubclass.FG)
         {
@@ -184,6 +200,16 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
             builder,
             facts,
             effectiveValues: effectiveValues);
+
+        // After every GD override (nominal or overlay MIN), before foot depth uses GD.
+        ApplyGrooveWallGuard(
+            builder,
+            facts,
+            effectiveValues);
+
+        ApplyThicknessGuard(
+            builder,
+            effectiveValues);
 
         /*
          * IMPORTANT ORDER:
@@ -221,6 +247,104 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
             context);
 
         return builder.Build();
+    }
+
+    // ================================================================
+    // G / VG GROOVE WALL GUARD
+    // ================================================================
+
+    /*
+     * The G groove sketch (annotation_right_plan) is two vertical walls
+     * tangent to a half-circle of radius GR, so wall length = GD - GR and
+     * GO = 2 x GR. With GD <= GR the walls would be zero/negative length
+     * and the sketch cannot solve (the part then keeps template geometry).
+     *
+     * The VG groove solves with GD below or above GR, but not with GD
+     * exactly equal to GR: the overlay GD_MIN of 3112869 / 3116297
+     * (0.038 - 0.003 = GR 0.035 mm) left the right view mis-solved.
+     *
+     * Workaround until the template has an arc-only groove variant:
+     * drive GD = GR + 1 um so the walls exist (VG: only when GD is within
+     * 1 um of GR). 1 um is far below the GD tolerance; the dimension table
+     * still shows the database GD.
+     */
+    private const decimal GrooveMinimumWallMm = 0.001m;
+
+    private static void ApplyGrooveWallGuard(
+        EquationPlanBuilder builder,
+        WedgeFacts facts,
+        EffectiveEquationValues effectiveValues)
+    {
+        var footKind = ResolveFootKind(facts, ResolveNormalizedFootOption(facts));
+        if (footKind is not (FootKind.G or FootKind.Vg))
+            return;
+
+        if (!effectiveValues.TryGetLengthMm("GD", out var gdMm, out var gdSource) ||
+            !effectiveValues.TryGetLengthMm("GR", out var grMm, out _) ||
+            gdMm <= 0m || grMm <= 0m)
+        {
+            return;
+        }
+
+        if (footKind == FootKind.G ? gdMm - grMm >= GrooveMinimumWallMm : Math.Abs(gdMm - grMm) >= GrooveMinimumWallMm)
+            return;
+
+        var modelGdMm = grMm + GrooveMinimumWallMm;
+
+        builder.AddManaged(
+            "GD",
+            EquationFormatting.LengthLineFromMillimeters(
+                "GD",
+                modelGdMm));
+
+        effectiveValues.SetLengthMm(
+            "GD",
+            modelGdMm,
+            $"groove wall guard (GD {gdSource} {gdMm} mm <= GR {grMm} mm)");
+
+        Logger.Warn(
+            "[_4516EquationPlanner] " + footKind + " groove: GD=" + gdMm + " mm (" + gdSource + ") is not deeper than GR=" + grMm +
+            " mm; the sketch needs straight walls, so the model uses GD=" + modelGdMm + " mm.");
+    }
+
+    /*
+     * The front profile sketch (annotation_front_plan) cannot solve when the
+     * foot thickness T reaches the flat diameter TDF (T = TDF leaves no
+     * material step). Same approach as the groove guard: the model uses
+     * T = TDF - 1 um; the dimension table still shows the database T.
+     */
+    private const decimal ThicknessMinimumStepMm = 0.001m;
+
+    private static void ApplyThicknessGuard(
+        EquationPlanBuilder builder,
+        EffectiveEquationValues effectiveValues)
+    {
+        if (!effectiveValues.TryGetLengthMm("T", out var tMm, out var tSource) ||
+            !effectiveValues.TryGetLengthMm("TDF", out var tdfMm, out _) ||
+            tMm <= 0m || tdfMm <= 0m)
+        {
+            return;
+        }
+
+        if (tdfMm - tMm >= ThicknessMinimumStepMm)
+            return;
+
+        var modelTMm = tdfMm - ThicknessMinimumStepMm;
+
+        builder.AddManaged(
+            "T",
+            EquationFormatting.LengthLineFromMillimeters(
+                "T",
+                modelTMm));
+
+        effectiveValues.SetLengthMm(
+            "T",
+            modelTMm,
+            $"thickness guard (T {tSource} {tMm} mm >= TDF {tdfMm} mm)");
+
+        Logger.Warn(
+            "[_4516EquationPlanner] T=" + tMm + " mm (" + tSource + ") is not smaller than TDF=" + tdfMm +
+            " mm; the front profile needs a step, so the model uses T=" + modelTMm + " mm.");
     }
 
     // ================================================================
@@ -445,9 +569,12 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 AddLengthBoundEquation(
                     builder,
                     facts,
-                    dimensionKey: "GO",
+                    dimensionKey: "GR",
                     useMaximum: false,
                     effectiveValues: effectiveValues);
+
+                // The G opening is always the radius diameter, including the overlay minimum.
+                builder.AddManaged("GO", "\"GO\" = 2 * \"GR\"");
 
                 break;
 

@@ -19,6 +19,7 @@ public sealed class BreaklineService
     private readonly DrawingDoc _drawing;
     private readonly IDictionary<string, string> _logicalToActual;
     private readonly BreaklineLayoutCalculator _calculator = new();
+    public Dictionary<string, double> RetainedHeightsMm { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public BreaklineService(
         DrawingService drawingService,
@@ -66,6 +67,9 @@ public sealed class BreaklineService
             return false;
         }
 
+        if (behavior.RefineBreakline is { } refine)
+            layout = refine(_drawing, view, logicalView, wedge, drawingData, layout);
+
         var breakline = GetSingleBreakline(view, logicalView);
         if (breakline is null)
             return false;
@@ -82,6 +86,7 @@ public sealed class BreaklineService
                 return false;
             }
 
+            RetainedHeightsMm[logicalView] = (layout.LowerPosition + layout.UpperPosition) * 1000.0;
             Logger.Success(
                 $"[Breaklines] '{logicalView}' -> " +
                 $"lower={layout.LowerPosition:F6}, " +
