@@ -28,7 +28,7 @@ namespace WAD.Runner.ModelAutomation.Equations;
 /// When VR > 0 and VW > 0:
 ///     VW    = VW_MAX
 ///     VR    = VR_MIN
-///     VRA   = VRA_MAX
+///     VRA   = nominal database value (never overridden to MIN/MAX)
 ///
 /// Case 1:
 ///     VW = W
@@ -41,6 +41,8 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///     LW_VG / SW_VG -> foot_depth = GD
 ///     LW_G / SW_G   -> foot_depth = GD
 ///     LW_C / SW_C   -> foot_depth = CD
+///     LW_CG / SW_CG -> prefer CD, otherwise GD, otherwise 0
+///     LW_CC / SW_CC -> prefer CD, otherwise GD, otherwise 0
 ///     Other FG foot options -> foot_depth = 0
 ///
 /// C with CBR is not a separate foot-option token.
@@ -236,12 +238,6 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
             facts,
             dimensionKey: "VR",
             useMaximum: false);
-
-        AddAngleBoundEquation(
-            builder,
-            facts,
-            dimensionKey: "VRA",
-            useMaximum: true);
     }
 
     private static void AddFgFootOverlayOverrides(
@@ -311,6 +307,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
 
                 break;
 
+            case FootKind.Cg:
             case FootKind.CC:
             case FootKind.Unknown:
             default:
@@ -502,7 +499,14 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
 
                 break;
 
+            case FootKind.Cg:
             case FootKind.CC:
+                (footDepthMm, sourceDescription) =
+                    ResolveCgCcFootDepth(
+                        facts);
+
+                break;
+
             case FootKind.Unknown:
             default:
                 footDepthMm =
@@ -526,6 +530,41 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
             $"foot kind={footKind}, " +
             $"source={sourceDescription}, " +
             $"foot_depth={footDepthMm} mm.");
+    }
+
+    private static (decimal ValueMm, string SourceDescription) ResolveCgCcFootDepth(
+        WedgeFacts facts)
+    {
+        /*
+         * CG / CC foot depth priority:
+         *
+         * 1) Positive CD wins when it is available.
+         * 2) Otherwise use positive GD.
+         * 3) If neither CD nor GD is positive, use 0.
+         *
+         * This intentionally does not throw when both dimensions are
+         * missing/zero because CC currently has no required-dimension
+         * validation and CG is allowed to resolve from either depth.
+         */
+        var hasCd =
+            facts.TryGetLengthMm(
+                "CD",
+                out var cdMm) &&
+            cdMm > WedgeFacts.DefaultPositiveEpsilon;
+
+        var hasGd =
+            facts.TryGetLengthMm(
+                "GD",
+                out var gdMm) &&
+            gdMm > WedgeFacts.DefaultPositiveEpsilon;
+
+        if (hasCd)
+            return (cdMm, "CD");
+
+        if (hasGd)
+            return (gdMm, "GD");
+
+        return (0m, "0 (CD/GD missing or zero)");
     }
 
     private static decimal RequireFootDepthSource(
@@ -602,21 +641,30 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         return normalizedFootOption switch
         {
             "LW_C" or
-            "SW_C" =>
+            "SW_C" or
+            "C" =>
                 facts.HasPositive("CBRL") && facts.HasPositive("CBRD")
                     ? FootKind.CWithCbr
                     : FootKind.C,
 
             "LW_VG" or
-            "SW_VG" =>
+            "SW_VG" or
+            "VG" =>
                 FootKind.Vg,
 
             "LW_G" or
-            "SW_G" =>
+            "SW_G" or
+            "G" =>
                 FootKind.G,
 
+            "LW_CG" or
+            "SW_CG" or
+            "CG" =>
+                FootKind.Cg,
+
             "LW_CC" or
-            "SW_CC" =>
+            "SW_CC" or
+            "CC" =>
                 FootKind.CC,
 
             _ =>
@@ -725,6 +773,7 @@ public sealed class AbtEquationPlanner : StandardEquationPlanner
         C,
         CWithCbr,
         G,
+        Cg,
         CC,
         Vg
     }

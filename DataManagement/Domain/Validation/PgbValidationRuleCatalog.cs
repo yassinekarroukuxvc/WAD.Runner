@@ -59,6 +59,17 @@ internal static class PgbValidationRuleCatalog
         "BA"
     };
 
+    private static readonly string[] _4516Dimensions =
+    {
+        "TL",
+        "TD",
+        "TDF",
+        "W",
+        "ISA",
+        "T",
+        "BA"
+    };
+
     private static readonly string[] VmDimensions =
     {
         "TL",
@@ -117,7 +128,7 @@ internal static class PgbValidationRuleCatalog
                     SwTypeRule),
 
             WedgeType._4516 =>
-                Rules(StandardDimensions),
+                Rules(_4516Dimensions),
 
             WedgeType._1001 =>
                 Rules(

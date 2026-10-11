@@ -60,14 +60,14 @@ public sealed class _4516DrawingModule : IDrawingWedgeModule
     // Prod_style_Rev.03 for Product_Type 4516.
     private static readonly IReadOnlySet<string> FgProductionDrawingTableKeys =
         Keys(
-            "B", "BA", "BF", "BR", "C", "CA", "CBL",
+            "B", "BF", "BR", "C", "CBL",
             "CD", "CGD", "CGO", "CGR", "CL", "ERD", "ERL",
             "ERW", "F", "FD", "FL", "FLC", "FLER", "FLG",
-            "FNA", "FNO", "FR", "FRO", "GA", "GD", "GD1",
-            "GO", "GR", "GR1", "H", "HA", "ID", "IDFA",
-            "IDTD", "ISA", "MB", "MO", "P", "RA", "RC",
+            "FNO", "FR", "FRO", "GD", "GD1",
+            "GO", "GR", "GR1", "H", "ID",
+            "IDTD", "MB", "MO", "P", "RC",
             "T", "T1", "TBF", "TD", "TDF", "TL", "VBL",
-            "VBLR", "W", "W2", "W2A", "Y");
+            "VBLR", "W", "W2", "Y");
 
     private static readonly IReadOnlySet<string> FgCustomerDrawingTableKeys =
         Keys(

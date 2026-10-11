@@ -91,15 +91,18 @@ public sealed class FpFeatureRules : IFeatureRuleSet
             "std_g_br_feature",
             "std_g_round_br_feature"
         },
+        ReferencePoints: new[]
+        {
+            "std_ref_point_left",
+            "std_ref_point_right"
+        },
         RightCut: new[]
         {
-            "std_ref_point_right",
             "std_right_cut_plan",
             "std_right_cut"
         },
         LeftCut: new[]
         {
-            "std_ref_point_left",
             "std_left_cut_plan",
             "std_left_cut"
         },
@@ -207,15 +210,18 @@ public sealed class FpFeatureRules : IFeatureRuleSet
             "rev_g_br_feature",
             "rev_g_round_br_feature"
         },
+        ReferencePoints: new[]
+        {
+            "rev_ref_point_left",
+            "rev_ref_point_right"
+        },
         RightCut: new[]
         {
-            "rev_ref_point_right",
             "rev_right_cut_plan",
             "rev_right_cut"
         },
         LeftCut: new[]
         {
-            "rev_ref_point_left",
             "rev_left_cut_plan",
             "rev_left_cut"
         },
@@ -621,6 +627,10 @@ public sealed class FpFeatureRules : IFeatureRuleSet
         plan.Deactivate(
             OverlayManaged(family));
 
+        ApplyOverlayReferencePointRule(
+            plan,
+            family);
+
         ApplyOverlayCutRule(
             plan,
             context,
@@ -751,6 +761,21 @@ public sealed class FpFeatureRules : IFeatureRuleSet
             family.VwCases);
     }
 
+    private static void ApplyOverlayReferencePointRule(
+        FeaturePlanBuilder plan,
+        FeatureFamily family)
+    {
+        /*
+         * Overlay reference points depend only on the selected shank family.
+         *
+         * They are intentionally NOT tied to right_view / left_view.
+         * Both reference points remain unsuppressed for the active shank
+         * in every overlay configuration.
+         */
+        plan.Activate(
+            family.ReferencePoints);
+    }
+
     private static void ApplyOverlayCutRule(
         FeaturePlanBuilder plan,
         FeatureRuleContext context,
@@ -787,8 +812,8 @@ public sealed class FpFeatureRules : IFeatureRuleSet
 
                 Logger.Warn(
                     "[UtusFeatureRules] Overlay configuration is neither " +
-                    "'right_view' nor 'left_view'. Both cut/reference " +
-                    $"families were suppressed. Received '{context.TargetConfigurationName}'.");
+                    "'right_view' nor 'left_view'. Both cut families " +
+                    $"were suppressed; overlay reference points remain active. Received '{context.TargetConfigurationName}'.");
                 break;
         }
     }
@@ -1079,7 +1104,8 @@ public sealed class FpFeatureRules : IFeatureRuleSet
 
     private static string[] OverlayManaged(
         FeatureFamily family)
-        => family.RightCut
+        => family.ReferencePoints
+            .Concat(family.RightCut)
             .Concat(family.LeftCut)
             .Concat(
                 new[]
@@ -1123,6 +1149,7 @@ public sealed class FpFeatureRules : IFeatureRuleSet
         string CRoundBr,
         string[] Vg,
         string[] G,
+        string[] ReferencePoints,
         string[] RightCut,
         string[] LeftCut,
         string WPgbOverlay,

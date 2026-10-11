@@ -60,23 +60,21 @@ public sealed class AbtDrawingModule : IDrawingWedgeModule
         "VW", "W", "Y");
 
     private static readonly IReadOnlySet<string> FgProductionDrawingTableKeys = Keys(
-        "B", "BA", "BF", "BR", "CA", "CBL", "CBRA",
+        "B","BF", "BR","CBL",
         "CBRD", "CBRL", "CD", "CGD", "CGO", "CGR", "CL",
-        "ERD", "ERL", "ERW", "F", "FA", "FD", "FL",
-        "FLC", "FLER", "FLG", "FNA", "FNH", "FNO", "FR",
-        "FRO", "FX", "GA", "GD", "GO", "GR", "H",
-        "HA", "ISA", "MB", "MFL", "MI", "MTA", "RA",
+        "ERD", "ERL", "ERW", "F", "FD", "FL",
+        "FLC", "FLER", "FLG", "FNO", "FR",
+        "FRO", "FX", "GD", "GO", "GR", "H",
         "RC", "T", "T1", "TD", "TDF", "TL", "VBL",
-        "VBLR", "VFL", "VFLR", "VR", "VRA", "VRR", "VW",
+        "VBLR", "VFL", "VFLR", "VR", "VRR", "VW",
         "W", "Y");
 
     private static readonly IReadOnlySet<string> FgOverlayTableKeys = Keys(
-        "B", "BA", "BF", "BR", "CA", "CBL", "CBRA",
+        "B", "BF", "BR", "CBL", 
         "CBRD", "CBRL", "CD", "CGD", "CGO", "CGR", "CL",
-        "ERD", "ERL", "ERW", "F", "FA", "FD", "FL",
-        "FLC", "FLER", "FLG", "FNA", "FNH", "FNO", "FR",
-        "FRO", "FX", "GA", "GD", "GO", "GR", "H",
-        "HA", "ISA", "MB", "MFL", "MI", "MTA", "RA",
+        "ERD", "ERL", "ERW", "F","FD", "FL",
+        "FLC", "FLER", "FLG", "FNO", "FR",
+        "FRO", "FX", "GD", "GO", "GR", "H",
         "RC", "T", "T1", "TD", "TDF", "TL", "VBL",
         "VBLR", "VFL", "VFLR", "VR", "VRA", "VRR", "VW",
         "W", "Y");

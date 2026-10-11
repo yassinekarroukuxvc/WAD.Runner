@@ -41,14 +41,17 @@ namespace WAD.Runner.ModelAutomation.Rules.ABT;
 ///           C+CBR is inferred when CBRL > 0 and CBRD > 0.
 ///     VG -> VG family.
 ///     G  -> G family.
-///     CC -> no ABT foot features were specified.
+///     CG -> CG family.
+///     CC -> C + CG families together.
 ///
 /// C foot:
 ///     std_round_br / rev_round_br are suppressed for every C foot,
 ///     including C with CBR.
 ///
 /// Overlay:
-///     Activates the selected shank cut/reference family.
+///     Keeps both reference points active for the selected shank,
+///     regardless of left_view/right_view.
+///     Only the actual cut plan/cut is configuration-dependent.
 ///     PGB and FG use different W overlay sketches.
 ///
 ///     When VR/VW data is present, the standalone W overlay sketch
@@ -178,6 +181,12 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         "std_g_fr_feature", "std_g_br_feature"
     };
 
+    private static readonly string[] StdCgFootNames =
+    {
+        "std_cg_feature",
+        "std_cg_sketch"
+    };
+
     private static readonly string[] StdFootManagedNames =
     {
         "std_c_feature",
@@ -196,23 +205,30 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         "std_g_feature",
         "std_g_sketch",
         "std_g_fr_feature",
-        "std_g_br_feature"
+        "std_g_br_feature",
+
+        "std_cg_feature",
+        "std_cg_sketch"
     };
 
     // ================================================================
     // STD SHANK - OVERLAY
     // ================================================================
 
+    private static readonly string[] StdOverlayReferencePointNames =
+    {
+        "std_ref_point_left",
+        "std_ref_point_right"
+    };
+
     private static readonly string[] StdRightOverlayCutNames =
     {
-        "std_ref_point_right",
         "std_right_cut_plan",
         "std_right_cut"
     };
 
     private static readonly string[] StdLeftOverlayCutNames =
     {
-        "std_ref_point_left",
         "std_left_cut_plan",
         "std_left_cut"
     };
@@ -389,6 +405,11 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         "rev_g_fr_feature", "rev_g_br_feature"
     };
 
+    private static readonly string[] RevCgFootNames =
+    {
+        "rev_cg_feature"
+    };
+
     private static readonly string[] RevFootManagedNames =
     {
         "rev_c_feature",
@@ -407,23 +428,29 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         "rev_g_feature",
         "rev_g_sketch",
         "rev_g_fr_feature",
-        "rev_g_br_feature"
+        "rev_g_br_feature",
+
+        "rev_cg_feature"
     };
 
     // ================================================================
     // REV SHANK - OVERLAY
     // ================================================================
 
+    private static readonly string[] RevOverlayReferencePointNames =
+    {
+        "rev_ref_point_left",
+        "rev_ref_point_right"
+    };
+
     private static readonly string[] RevRightOverlayCutNames =
     {
-        "rev_ref_point_right",
         "rev_right_cut_plan",
         "rev_right_cut"
     };
 
     private static readonly string[] RevLeftOverlayCutNames =
     {
-        "rev_ref_point_left",
         "rev_left_cut_plan",
         "rev_left_cut"
     };
@@ -533,8 +560,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                 facts,
                 "VR",
                 "VW",
-                "VRR",
-                "VRA");
+                "VRR");
 
         /*
          * Used specifically for the overlay W suppression.
@@ -1076,16 +1102,35 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                     StdGFootNames);
                 break;
 
+            case FootOptionType.Cg:
+                plan.Activate(
+                    StdCgFootNames);
+                break;
+
             case FootOptionType.Cc:
+                /*
+                 * CC is built by combining the C and CG geometry.
+                 * Apply the normal C rules, then activate the CG family too.
+                 */
+                plan.ForceSuppress(
+                    "std_round_br");
+
+                ApplyStdCFootRules(
+                    plan,
+                    facts,
+                    allowCbr: false);
+
+                plan.Activate(
+                    StdCgFootNames);
+
                 Logger.Info(
-                    "[AbtFeatureRules] STD LW_CC -> no ABT foot " +
-                    "features were specified, so all STD foot features remain suppressed.");
+                    "[AbtFeatureRules] STD CC foot -> C + CG feature families active.");
                 break;
 
             default:
                 throw new InvalidOperationException(
                     "Unable to resolve the ABT foot option for an FG wedge. " +
-                    "Expected LW_C, LW_VG, LW_G or LW_CC.");
+                    "Expected C, VG, G, CG or CC.");
         }
     }
 
@@ -1122,28 +1167,49 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
                     RevGFootNames);
                 break;
 
+            case FootOptionType.Cg:
+                plan.Activate(
+                    RevCgFootNames);
+                break;
+
             case FootOptionType.Cc:
+                /*
+                 * CC is built by combining the C and CG geometry.
+                 * Apply the normal C rules, then activate the CG family too.
+                 */
+                plan.ForceSuppress(
+                    "rev_round_br");
+
+                ApplyRevCFootRules(
+                    plan,
+                    facts,
+                    allowCbr: false);
+
+                plan.Activate(
+                    RevCgFootNames);
+
                 Logger.Info(
-                    "[AbtFeatureRules] REV LW_CC -> no ABT foot " +
-                    "features were specified, so all REV foot features remain suppressed.");
+                    "[AbtFeatureRules] REV CC foot -> C + CG feature families active.");
                 break;
 
             default:
                 throw new InvalidOperationException(
                     "Unable to resolve the ABT foot option for an FG wedge. " +
-                    "Expected LW_C, LW_VG, LW_G or LW_CC.");
+                    "Expected C, VG, G, CG or CC.");
         }
     }
 
     private static void ApplyStdCFootRules(
         FeaturePlanBuilder plan,
-        WedgeFacts facts)
+        WedgeFacts facts,
+        bool allowCbr = true)
     {
         var froEqualsFr =
             ResolveFroEqualsFr(
                 facts);
 
         var hasCbr =
+            allowCbr &&
             ResolveHasCbr(
                 facts);
 
@@ -1202,13 +1268,15 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
 
     private static void ApplyRevCFootRules(
         FeaturePlanBuilder plan,
-        WedgeFacts facts)
+        WedgeFacts facts,
+        bool allowCbr = true)
     {
         var froEqualsFr =
             ResolveFroEqualsFr(
                 facts);
 
         var hasCbr =
+            allowCbr &&
             ResolveHasCbr(
                 facts);
 
@@ -1364,6 +1432,11 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
             "G" =>
                 FootOptionType.G,
 
+            "LW_CG" or
+            "SW_CG" or
+            "CG" =>
+                FootOptionType.Cg,
+
             "LW_CC" or
             "SW_CC" or
             "CC" =>
@@ -1389,6 +1462,11 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
     {
         plan.Deactivate(
             StdOverlayManagedNames);
+
+        ApplyOverlayReferencePointRule(
+            plan,
+            StdOverlayReferencePointNames,
+            "STD");
 
         ApplyOverlayCutViewRule(
             plan,
@@ -1437,6 +1515,11 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         plan.Deactivate(
             RevOverlayManagedNames);
 
+        ApplyOverlayReferencePointRule(
+            plan,
+            RevOverlayReferencePointNames,
+            "REV");
+
         ApplyOverlayCutViewRule(
             plan,
             context,
@@ -1471,6 +1554,30 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
     // ================================================================
     // COMMON OVERLAY RULES
     // ================================================================
+
+    private static void ApplyOverlayReferencePointRule(
+        FeaturePlanBuilder plan,
+        string[] referencePointNames,
+        string shankName)
+    {
+        /*
+         * Reference points are selected by SHANK TYPE only.
+         *
+         * They are intentionally independent of the overlay view
+         * configuration. For the active shank, both left and right
+         * reference points remain active in both left_view and
+         * right_view.
+         *
+         * The opposite shank is already force-suppressed by the
+         * shank-selection logic.
+         */
+        plan.Activate(
+            referencePointNames);
+
+        Logger.Info(
+            "[AbtFeatureRules] Overlay reference points -> " +
+            $"shank={shankName}, left/right reference points active.");
+    }
 
     private static void ApplyOverlayCutViewRule(
         FeaturePlanBuilder plan,
@@ -1948,6 +2055,7 @@ public sealed class AbtFeatureRules : IFeatureRuleSet
         C,
         Vg,
         G,
+        Cg,
         Cc
     }
 

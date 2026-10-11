@@ -333,9 +333,8 @@ internal static class WedgeDimensionValidationRuleCatalog
                 new[]
                 {
                     Group(
-                        "VR, VRA, VW, VRR",
+                        "VR, VW, VRR",
                         Slot("VR"),
-                        Slot("VRA"),
                         Slot("VW"),
                         Slot("VRR")),
 
@@ -365,7 +364,6 @@ internal static class WedgeDimensionValidationRuleCatalog
                     "W",
                     "ISA",
                     "T",
-                    "RA",
                     "BA",
                     "FL"),
 

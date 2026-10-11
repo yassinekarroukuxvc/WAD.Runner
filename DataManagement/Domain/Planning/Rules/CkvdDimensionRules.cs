@@ -78,7 +78,7 @@ internal static class CkvdDimensionRules
         AddTop(ctx, diag, outList, T, tsv, TD);
         AddDetail(ctx, diag, outList, D, dsv, bandMidY);
         AddSide(ctx, diag, outList, S, ssv, TD, L_side);
-        AddSection(ctx, diag, outList, Sec, scv);
+        AddSection(ctx, diag, outList, Sec, scv,bandMidY);
     }
 
     private static void AddFront(
@@ -152,11 +152,11 @@ internal static class CkvdDimensionRules
 
         PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal,
             D[0] + 3.5,
-            D[1]);
+            bandMidY + 63);
 
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal,
             D[0],
-            D[1] + 5);
+            bandMidY + 66);
 
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal,
             D[0],
@@ -240,7 +240,8 @@ internal static class CkvdDimensionRules
         PlannerDiagnostics diag,
         List<DimensionSpec> outList,
         double[] Sec,
-        double scv)
+        double scv,
+        double bandMidY)
     {
         var FL = LayoutMath.Dmm(ctx, "FL");
         var TDF = LayoutMath.Dmm(ctx, "TDF");
@@ -258,27 +259,27 @@ internal static class CkvdDimensionRules
 
         PlaceDim(ctx, diag, outList, "F", Section, DimAxis.Horizontal,
             Sec[0],
-            Sec[1] - 60.0);
+            bandMidY - 15);
 
         PlaceDim(ctx, diag, outList, "FL", Section, DimAxis.Horizontal,
             Sec[0],
-            Sec[1] - 65.0);
+            bandMidY - 18);
 
         PlaceDim(ctx, diag, outList, "BR", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + (X * scv) - 10,
-            Sec[1] - 40.0);
+            bandMidY + 5);
 
         PlaceDim(ctx, diag, outList, "FR", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + (X * scv) + (FL * scv) + 10,
-            Sec[1] - 40.0);
+            bandMidY + 5);
 
         PlaceDim(ctx, diag, outList, "BRX", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + (X * scv) + BRX / 2 * scv,
-            Sec[1] - 55.0);
+            bandMidY - 10);
 
         PlaceDim(ctx, diag, outList, "FRX", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + (X * scv) + (FL * scv) - FRX / 2 * scv ,
-            Sec[1] - 55.0);
+            bandMidY - 10);
     }
 
     private static void AddOverlayBaseline(

@@ -15,6 +15,12 @@ namespace WAD.Runner.DataManagement.Domain.Validation.Rules._4516;
 /// - Foot option comes from Wed-Foot_Option.
 /// - C with CBR is NOT a separate database foot-option token.
 ///   It is C with CBRL/CBRD populated.
+///
+/// APT-approved 4516 foot-profile rule:
+/// - Positive nominal DB FRX and BRX values take priority independently.
+/// - A missing, invalid or non-positive FRX/BRX uses formula fallback.
+/// - Formula inputs are required only if a fallback is needed.
+/// - The equation planner validates final geometry after drawing overrides.
 /// </summary>
 internal static class Wedge4516ConditionalDimensionValidator
 {
@@ -326,61 +332,78 @@ internal static class Wedge4516ConditionalDimensionValidator
         List<DimensionValidationIssue> issues)
     {
         /*
-         * IMPORTANT:
+         * APT-approved DB-first logic (same as _4516EquationPlanner):
          *
-         * Do not validate the final FRX/BRX geometry here.
+         * - Use a positive FRX nominal DB value when available.
+         * - Use a positive BRX nominal DB value when available.
+         * - Calculate whichever is missing, invalid or <= 0.
          *
-         * This validator does not know the drawing type and therefore
-         * cannot know the effective equation values. For an overlay the
-         * equation planner may replace, for example:
+         * FL must always be available because the equation planner checks
+         * the final flat: FL - FRX - BRX > 0, even when both are from DB.
          *
-         *     FL -> FL_MAX
-         *     GD -> GD_MIN
-         *     CD -> CD_MIN
+         * When BOTH DB values are positive, F, FR and BR are not needed.
+         * When EITHER value needs fallback, the current shared geometry
+         * calculator requires F, FR and BR to calculate the candidate pair.
+         * The planner then uses DB values in preference to those results.
          *
-         * The authoritative geometry validation is therefore performed
-         * inside _4516EquationPlanner AFTER all equation overrides have
-         * been applied to the effective-value tracker and BEFORE FRX/BRX
-         * are written to the SolidWorks equation file.
+         * No final geometric check is performed here: this validator has
+         * no drawing type and cannot account for effective overlay values
+         * such as FL_MAX, GD_MIN and CD_MIN. The equation planner makes
+         * that check after it applies all overrides.
          *
-         * Here we only validate that the DB/reference inputs required to
-         * perform that later calculation are available in the expected
-         * units. F is allowed to be zero; it is a calculation/reference
-         * input and is not sent to SolidWorks.
+         * F may be zero, remains DB/reference only and is never sent to
+         * SolidWorks. Missing FTA is allowed (planner defaults to 0 deg).
          */
         RequireFootProfileLengthInput(
             wedge,
             wedgeType,
             issues,
             "FL",
-            "FL is required for the 4516 FRX/BRX calculation.");
+            "FL is required to validate the final 4516 foot flat " +
+            "(FL - FRX - BRX), including when both values come from the database.");
 
+        var hasDatabaseFrx =
+            TryGetNominalLengthMm(wedge, "FRX", out var databaseFrxMm) &&
+            databaseFrxMm > 0m;
+
+        var hasDatabaseBrx =
+            TryGetNominalLengthMm(wedge, "BRX", out var databaseBrxMm) &&
+            databaseBrxMm > 0m;
+
+        Logger.Info(
+            "[4516 Foot Profile Validation] FRX/BRX source selection -> " +
+            $"article={wedge.ArticleNumber}, " +
+            $"FRX={(hasDatabaseFrx ? "positive DB value" : "formula fallback")}, " +
+            $"BRX={(hasDatabaseBrx ? "positive DB value" : "formula fallback")}.");
+
+        // Both DB values are valid: calculation-only inputs are optional.
+        if (hasDatabaseFrx && hasDatabaseBrx)
+            return;
+
+        // At least one dimension needs the APT-approved formula.
+        // Keep requirements aligned with TryCalculate4516FootProfile,
+        // which currently calculates FRX and BRX together.
         RequireFootProfileLengthInput(
             wedge,
             wedgeType,
             issues,
             "F",
-            "F is required in the database for the 4516 FRX/BRX calculation. " +
-            "F is a reference/calculation input and is not sent to SolidWorks.");
+            "F is required for the 4516 FRX/BRX formula fallback. " +
+            "F is a database/reference value and is not sent to SolidWorks.");
 
         RequireFootProfileLengthInput(
             wedge,
             wedgeType,
             issues,
             "FR",
-            "FR is required for the 4516 FRX calculation.");
+            "FR is required by the 4516 FRX/BRX formula fallback.");
 
         RequireFootProfileLengthInput(
             wedge,
             wedgeType,
             issues,
             "BR",
-            "BR is required for the 4516 BRX calculation.");
-
-        /*
-         * Preserve the current 4516 convention:
-         * missing FTA is allowed and the equation planner uses 0 deg.
-         */
+            "BR is required by the 4516 FRX/BRX formula fallback.");
     }
 
     private static void RequireFootProfileLengthInput(
@@ -447,7 +470,7 @@ internal static class Wedge4516ConditionalDimensionValidator
                 wedge.ArticleNumber,
                 wedgeType,
                 "4516 Foot Profile Validation",
-                "FRX / BRX calculation inputs",
+                "FRX / BRX geometry and fallback inputs",
                 dimensionKey,
                 message));
     }

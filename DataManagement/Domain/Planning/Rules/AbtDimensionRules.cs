@@ -139,7 +139,7 @@ internal static class AbtDimensionRules
         var CD = LayoutMath.Dmm(ctx, "CD");
         var VRR = LayoutMath.Dmm(ctx, "VRR");
 
-        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0] + 5, D[1]);
+        PlaceDim(ctx, diag, outList, "ISA", Detail, DimAxis.Horizontal, D[0] + 5, bandMidY + 65);
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal, D[0], bandMidY + 5.0);
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal, D[0], bandMidY - 15.0);
         PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
@@ -258,8 +258,8 @@ internal static class AbtDimensionRules
         PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv + 25,
             bandMidY + ((T - FD) * scv) * Math.Tan(HA * (Math.PI / 180.0)) + 10);
-
-        PlaceDim(ctx, diag, outList, "HA", Section, DimAxis.Horizontal,
+        //for HA
+        PlaceDim(ctx, diag, outList, "D1", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv + 20, bandMidY + 10);
 
         PlaceDim(ctx, diag, outList, "RA2", Section, DimAxis.Horizontal,

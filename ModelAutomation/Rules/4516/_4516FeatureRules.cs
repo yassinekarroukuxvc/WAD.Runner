@@ -416,16 +416,20 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         FlatFrBrSketch
     };
 
-    private static readonly string[] RightOverlayCutNames =
+    private static readonly string[] OverlayReferencePointNames =
     {
         RefPointRight,
+        RefPointLeft
+    };
+
+    private static readonly string[] RightOverlayCutNames =
+    {
         RightCutFeature,
         RightCutSketch
     };
 
     private static readonly string[] LeftOverlayCutNames =
     {
-        RefPointLeft,
         LeftCutFeature,
         LeftCutSketch
     };
@@ -1016,6 +1020,9 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         plan.Deactivate(
             OverlayManagedNames);
 
+        ApplyOverlayReferencePointRule(
+            plan);
+
         ApplyOverlayCutViewRule(
             plan,
             context.TargetConfigurationName);
@@ -1033,6 +1040,27 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     // ================================================================
     // OVERLAY CUT RULES
     // ================================================================
+
+    private static void ApplyOverlayReferencePointRule(
+        FeaturePlanBuilder plan)
+    {
+        /*
+         * 4516 has a single shank family.
+         *
+         * Overlay reference points are shank-dependent, not
+         * configuration-dependent. Therefore both reference points
+         * must remain active for both left_view and right_view.
+         *
+         * Only the actual cut feature/sketch is selected by the
+         * overlay configuration.
+         */
+        plan.Activate(
+            OverlayReferencePointNames);
+
+        Logger.Info(
+            "[_4516FeatureRules] Overlay reference points -> " +
+            "both left and right reference points active.");
+    }
 
     private static void ApplyOverlayCutViewRule(
         FeaturePlanBuilder plan,

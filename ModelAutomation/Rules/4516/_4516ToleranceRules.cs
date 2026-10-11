@@ -102,7 +102,7 @@ public sealed class _4516ToleranceRules : IToleranceRuleSet
                 WedgeType._4516);
 
         var leftCutMm =
-            38.1m / (decimal)scale;
+            58m / (decimal)scale;
 
         const string rightTarget =
             "ref_point_right@ref_point_right";

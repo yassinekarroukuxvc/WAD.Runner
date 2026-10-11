@@ -17,6 +17,11 @@ namespace WAD.Runner.ModelAutomation.Rules.COB;
 ///     No VR/VW family -> use the subclass-specific W overlay sketch.
 ///     VR/VW family    -> suppress both W overlay sketches and use
 ///                        the appropriate VW case overlay sketch.
+///
+/// Overlay reference-point behavior:
+///     The selected shank family's left and right overlay reference points
+///     are both kept unsuppressed for every overlay configuration.
+///     Only the actual cut plans/cuts are configuration-dependent.
 /// </summary>
 public sealed class CobFeatureRules : IFeatureRuleSet
 {
@@ -102,15 +107,18 @@ public sealed class CobFeatureRules : IFeatureRuleSet
             "std_g_br_feature",
             "std_g_round_br_feature"
         },
-        RightCut: new[]
+        ReferencePoints: new[]
         {
             "std_ref_point_right",
+            "std_ref_point_left"
+        },
+        RightCut: new[]
+        {
             "std_right_cut_plan",
             "std_right_cut"
         },
         LeftCut: new[]
         {
-            "std_ref_point_left",
             "std_left_cut_plan",
             "std_left_cut"
         },
@@ -218,15 +226,18 @@ public sealed class CobFeatureRules : IFeatureRuleSet
             "rev_g_br_feature",
             "rev_g_round_br_feature"
         },
-        RightCut: new[]
+        ReferencePoints: new[]
         {
             "rev_ref_point_right",
+            "rev_ref_point_left"
+        },
+        RightCut: new[]
+        {
             "rev_right_cut_plan",
             "rev_right_cut"
         },
         LeftCut: new[]
         {
-            "rev_ref_point_left",
             "rev_left_cut_plan",
             "rev_left_cut"
         },
@@ -632,6 +643,10 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         plan.Deactivate(
             OverlayManaged(family));
 
+        ApplyOverlayReferencePointRule(
+            plan,
+            family);
+
         ApplyOverlayCutRule(
             plan,
             context,
@@ -762,6 +777,30 @@ public sealed class CobFeatureRules : IFeatureRuleSet
             family.VwCases);
     }
 
+    private static void ApplyOverlayReferencePointRule(
+        FeaturePlanBuilder plan,
+        FeatureFamily family)
+    {
+        /*
+         * Overlay reference points belong to the selected shank family,
+         * not to the target configuration.
+         *
+         * Example:
+         *   REV shank + left_view  -> both rev_ref_point_left and
+         *                            rev_ref_point_right stay unsuppressed.
+         *   REV shank + right_view -> both stay unsuppressed as well.
+         *
+         * The configuration only decides which cut plan/cut is active.
+         */
+        plan.Activate(
+            family.ReferencePoints);
+
+        Logger.Info(
+            "[CobFeatureRules] Overlay reference points -> " +
+            "both left/right reference points activated for the selected " +
+            "shank family; independent of target configuration.");
+    }
+
     private static void ApplyOverlayCutRule(
         FeaturePlanBuilder plan,
         FeatureRuleContext context,
@@ -798,8 +837,9 @@ public sealed class CobFeatureRules : IFeatureRuleSet
 
                 Logger.Warn(
                     "[CobFeatureRules] Overlay configuration is neither " +
-                    "'right_view' nor 'left_view'. Both cut/reference " +
-                    $"families were suppressed. Received '{context.TargetConfigurationName}'.");
+                    "'right_view' nor 'left_view'. Both cut families were " +
+                    "suppressed; the selected shank reference points remain " +
+                    $"active. Received '{context.TargetConfigurationName}'.");
                 break;
         }
     }
@@ -1090,7 +1130,8 @@ public sealed class CobFeatureRules : IFeatureRuleSet
 
     private static string[] OverlayManaged(
         FeatureFamily family)
-        => family.RightCut
+        => family.ReferencePoints
+            .Concat(family.RightCut)
             .Concat(family.LeftCut)
             .Concat(
                 new[]
@@ -1134,6 +1175,7 @@ public sealed class CobFeatureRules : IFeatureRuleSet
         string CRoundBr,
         string[] Vg,
         string[] G,
+        string[] ReferencePoints,
         string[] RightCut,
         string[] LeftCut,
         string WPgbOverlay,

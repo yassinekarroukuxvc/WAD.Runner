@@ -474,7 +474,7 @@ public abstract class _4516AnnotationRuleCatalogBase :
                 $"{idPrefix}-SECTION-G",
                 Section,
                 $"G@{AnnotationFrontPlan}",
-                Always(),
+                DimPositive("G"),
                 "4516 FG Production Section keeps G."));
 
 

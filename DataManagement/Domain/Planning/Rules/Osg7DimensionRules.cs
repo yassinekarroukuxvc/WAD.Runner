@@ -143,7 +143,8 @@ internal static class Osg7DimensionRules
             diag,
             outList,
             Sec,
-            scv);
+            scv,
+            bandMidY);
     }
 
     private static void AddFront(
@@ -228,7 +229,7 @@ internal static class Osg7DimensionRules
             Detail,
             DimAxis.Horizontal,
             D[0] - 3.5,
-            D[1]);
+            bandMidY + 66);
 
         PlaceDim(
             ctx,
@@ -238,7 +239,7 @@ internal static class Osg7DimensionRules
             Detail,
             DimAxis.Horizontal,
             D[0] + 10,
-            D[1]);
+            bandMidY + 63);
 
         PlaceDim(
             ctx,
@@ -373,7 +374,8 @@ internal static class Osg7DimensionRules
         PlannerDiagnostics diag,
         List<DimensionSpec> outList,
         double[] Sec,
-        double scv)
+        double scv,
+        double bandMidY)
     {
         var FL = LayoutMath.Dmm(ctx, "FL");
         var TDF = LayoutMath.Dmm(ctx, "TDF");
@@ -398,7 +400,7 @@ internal static class Osg7DimensionRules
             Section,
             DimAxis.Horizontal,
             Sec[0],
-            Sec[1] - 60.0);
+            bandMidY - 15);
 
         PlaceDim(
             ctx,
@@ -408,7 +410,7 @@ internal static class Osg7DimensionRules
             Section,
             DimAxis.Horizontal,
             Sec[0],
-            Sec[1] - 65.0);
+            bandMidY - 18);
 
         PlaceDim(
             ctx,
@@ -418,7 +420,7 @@ internal static class Osg7DimensionRules
             Section,
             DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + (FX * scv) - 10,
-            Sec[1] - 40.0);
+            bandMidY + 5);
 
         PlaceDim(
             ctx,
@@ -431,7 +433,7 @@ internal static class Osg7DimensionRules
             (FX * scv) +
             (FL * scv) +
             10,
-            Sec[1] - 40.0);
+            bandMidY + 5);
 
         PlaceDim(
             ctx,
@@ -443,7 +445,7 @@ internal static class Osg7DimensionRules
             Sec[0] - (TDF / 2) * scv +
             (FX * scv) +
             (FL * scv) - (BRX / 2 * scv),
-            Sec[1] - 55.0);
+            bandMidY - 10);
 
         PlaceDim(
             ctx,
@@ -455,7 +457,7 @@ internal static class Osg7DimensionRules
             Sec[0] - (TDF / 2) * scv +
             (FX * scv) +
             (FRX / 2 * scv),
-            Sec[1] - 55.0);
+            bandMidY - 10);
     }
 
     private static void AddOverlayBaseline(

@@ -471,6 +471,7 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
                     break;
                 }
 
+            case FootOptionType.Cg:
             case FootOptionType.Cc:
             case FootOptionType.Flat:
             default:
@@ -593,7 +594,7 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
     {
         return normalizedFootOption switch
         {
-            "LW_VG" or "SW_VG" =>
+            "LW_VG" or "SW_VG" or "VG" =>
                 FootOptionType.Vg,
 
             "LW_C" or "SW_C" or "C" =>
@@ -602,10 +603,13 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
                     ? FootOptionType.CWithCbr
                     : FootOptionType.C,
 
-            "LW_G" or "SW_G" =>
+            "LW_G" or "SW_G" or "G" =>
                 FootOptionType.G,
 
-            "LW_CC" or "SW_CC" =>
+            "LW_CG" or "SW_CG" or "CG" =>
+                FootOptionType.Cg,
+
+            "LW_CC" or "SW_CC" or "CC" =>
                 FootOptionType.Cc,
 
             "LW_FLAT" or "SW_FLAT" =>
@@ -833,6 +837,7 @@ public sealed class AbtToleranceRules : IToleranceRuleSet
         C,
         CWithCbr,
         G,
+        Cg,
         Cc
     }
 

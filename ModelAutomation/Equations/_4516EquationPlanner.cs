@@ -31,17 +31,22 @@ namespace WAD.Runner.ModelAutomation.Equations;
 ///     CG / CC / F      -> foot_depth = 0
 ///
 /// 4516 foot profile (FG):
-///     F is read from the DB only and is NOT sent to SolidWorks.
-///     Other inputs use the effective equation value after overrides.
-///     Example: overlay FL_MAX / GD_MIN / CD_MIN are used when active.
+///     A positive FRX/BRX nominal value from the DB takes priority
+///     independently for each dimension.
+///     For a missing/invalid/non-positive value, calculate that dimension
+///     using the existing foot-profile formula.
+///     F is read from the DB only for formula fallback; it is NOT sent
+///     to SolidWorks. Formula inputs use effective values after overrides
+///     (e.g. overlay FL_MAX / GD_MIN / CD_MIN).
 ///     split    = (FL - F) / 2
 ///     BR limit = BR * tan(45 - FTA/2) - foot_depth * tan(FTA)
-///     FRX      = min(split, FR)
-///     BRX      = min(split, BR limit)
-///     flat     = FL - FRX - BRX
+///     FRX      = min(split, FR)       (only if no positive DB FRX)
+///     BRX      = min(split, BR limit) (only if no positive DB BRX)
+///     flat     = FL - final FRX - final BRX
 ///
-///     Reject when F >= FL, BR limit <= 0, FRX <= 0, BRX <= 0,
-///     flat <= 0, or F is missing/invalid.
+///     When both DB values exist, no formula inputs are required.
+///     When a fallback is needed, retain the geometry formula checks.
+///     Always reject non-positive final FRX/BRX or flat <= 0.
 ///
 /// Overlay overrides:
 ///     PGB: W = W_MAX; T = T_MAX; when C > 0 also FL = FL_MAX and C = C_MIN
@@ -128,12 +133,13 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
         /*
          * 4516 SolidWorks contract:
          *
-         * F remains a DB input, but it is now a driven/reference
-         * dimension in the SolidWorks sketch. Do not write it to
-         * the equation file.
+         * F remains a DB/reference-only input and is never written
+         * to the equation file.
          *
-         * FRX and BRX are calculated by the program for 4516 FG,
-         * so ignore any DB values for those keys as well.
+         * FRX and BRX are always written as managed FG equations,
+         * selecting positive DB values first and computing missing
+         * values only when necessary. Remove their raw entries to
+         * prevent conflicting equations in the plan.
          */
         dimensions.Remove(DimensionKey.From("F"));
         dimensions.Remove(DimensionKey.From("FRX"));
@@ -952,84 +958,156 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 "FL",
                 out var flSource);
 
-        /*
-         * F is intentionally different from the other inputs:
-         * it is always the DB/reference value and is NEVER sent to
-         * SolidWorks. Therefore an equation override cannot replace F.
-         */
-        if (!facts.TryGetLengthMm(
-                "F",
-                out var fMm))
+        // Read the original nominal DB dimensions, not an overlay bound.
+        // Each available positive value takes priority independently.
+        var hasDbFrx =
+            TryGetPositiveDatabaseFootProfileLength(
+                facts,
+                FrontProfileXEquationName,
+                out var dbFrxMm);
+
+        var hasDbBrx =
+            TryGetPositiveDatabaseFootProfileLength(
+                facts,
+                BackProfileXEquationName,
+                out var dbBrxMm);
+
+        decimal frxMm;
+        decimal brxMm;
+        string frxSource;
+        string brxSource;
+
+        if (hasDbFrx && hasDbBrx)
         {
-            throw RejectFootProfile(
-                "F is missing or invalid in the database. " +
-                "The 4516 tool must be skipped until SPT confirms the rule.");
+            // Both dimensions were provided: do NOT require F, FR, BR
+            // or FTA just to run a calculation whose results are unused.
+            frxMm = dbFrxMm;
+            brxMm = dbBrxMm;
+            frxSource = "positive nominal DB value";
+            brxSource = "positive nominal DB value";
+        }
+        else
+        {
+            /*
+             * At least one dimension needs the original 4516 formula.
+             * Keep using EquationGeometry so the calculation and its
+             * validation stay consistent with the existing implementation.
+             *
+             * F is the original DB/reference value and is NEVER sent
+             * to SolidWorks or replaced with an overlay override.
+             */
+            if (!facts.TryGetLengthMm(
+                    "F",
+                    out var fMm))
+            {
+                throw RejectFootProfile(
+                    "F is missing or invalid in the database, and " +
+                    "FRX/BRX formula fallback is required.");
+            }
+
+            var frMm =
+                RequireEffectiveFootProfileLength(
+                    effectiveValues,
+                    "FR",
+                    out var frSource);
+
+            var brMm =
+                RequireEffectiveFootProfileLength(
+                    effectiveValues,
+                    "BR",
+                    out var brSource);
+
+            // Preserve the original convention: missing FTA -> 0 deg.
+            decimal ftaDeg;
+            string ftaSource;
+
+            if (!effectiveValues.TryGetAngleDeg(
+                    "FTA",
+                    out ftaDeg,
+                    out ftaSource))
+            {
+                ftaDeg = 0m;
+                ftaSource = "missing -> 0 deg";
+            }
+
+            var footOption =
+                ResolveNormalizedFootOption(
+                    facts);
+
+            var footKind =
+                ResolveFootKind(
+                    facts,
+                    footOption);
+
+            var footDepthMm =
+                ResolveEffectiveFootDepthMm(
+                    facts,
+                    effectiveValues,
+                    footKind,
+                    footOption,
+                    out var footDepthSource);
+
+            if (!EquationGeometry.TryCalculate4516FootProfile(
+                    flMm,
+                    fMm,
+                    footDepthMm,
+                    frMm,
+                    brMm,
+                    ftaDeg,
+                    out var calculatedFrxMm,
+                    out var calculatedBrxMm,
+                    out _,
+                    out var splitMm,
+                    out var brLimitMm,
+                    out var error))
+            {
+                throw RejectFootProfile(error);
+            }
+
+            frxMm = hasDbFrx ? dbFrxMm : calculatedFrxMm;
+            brxMm = hasDbBrx ? dbBrxMm : calculatedBrxMm;
+
+            frxSource = hasDbFrx
+                ? "positive nominal DB value"
+                : "4516 formula (effective equation values)";
+
+            brxSource = hasDbBrx
+                ? "positive nominal DB value"
+                : "4516 formula (effective equation values)";
+
+            Logger.Info(
+                "[_4516EquationPlanner] Foot profile fallback details -> " +
+                $"FL={flMm} mm ({flSource}), " +
+                $"F(DB/reference only)={fMm} mm, " +
+                $"foot_depth={footDepthMm} mm ({footDepthSource}), " +
+                $"FR={frMm} mm ({frSource}), " +
+                $"BR={brMm} mm ({brSource}), " +
+                $"FTA={ftaDeg} deg ({ftaSource}), " +
+                $"Split={splitMm} mm, " +
+                $"BR limit={brLimitMm} mm, " +
+                $"calculated FRX={calculatedFrxMm} mm, " +
+                $"calculated BRX={calculatedBrxMm} mm. " +
+                "Any available positive DB value takes priority. " +
+                "F was not sent to SolidWorks.");
         }
 
-        var frMm =
-            RequireEffectiveFootProfileLength(
-                effectiveValues,
-                "FR",
-                out var frSource);
-
-        var brMm =
-            RequireEffectiveFootProfileLength(
-                effectiveValues,
-                "BR",
-                out var brSource);
-
-        /*
-         * Preserve the existing 4516 convention:
-         * missing FTA -> 0 degrees.
-         *
-         * If a future equation rule overrides FTA before this point,
-         * the effective angle is used automatically.
-         */
-        decimal ftaDeg;
-        string ftaSource;
-
-        if (!effectiveValues.TryGetAngleDeg(
-                "FTA",
-                out ftaDeg,
-                out ftaSource))
-        {
-            ftaDeg = 0m;
-            ftaSource = "missing -> 0 deg";
-        }
-
-        var footOption =
-            ResolveNormalizedFootOption(
-                facts);
-
-        var footKind =
-            ResolveFootKind(
-                facts,
-                footOption);
-
-        var footDepthMm =
-            ResolveEffectiveFootDepthMm(
-                facts,
-                effectiveValues,
-                footKind,
-                footOption,
-                out var footDepthSource);
-
-        if (!EquationGeometry.TryCalculate4516FootProfile(
-                flMm,
-                fMm,
-                footDepthMm,
-                frMm,
-                brMm,
-                ftaDeg,
-                out var frxMm,
-                out var brxMm,
-                out var flatMm,
-                out var splitMm,
-                out var brLimitMm,
-                out var error))
+        // Always validate the final, selected pair (including mixed
+        // database/formula cases), not only the calculated pair.
+        if (frxMm <= 0m || brxMm <= 0m)
         {
             throw RejectFootProfile(
-                error);
+                $"Final FRX and BRX must be positive, " +
+                $"but FRX={frxMm} mm and BRX={brxMm} mm.");
+        }
+
+        var flatMm = flMm - frxMm - brxMm;
+
+        if (flatMm <= 0m)
+        {
+            throw RejectFootProfile(
+                "The final foot flat must be positive: " +
+                $"FL={flMm} mm - FRX={frxMm} mm - " +
+                $"BRX={brxMm} mm = {flatMm} mm.");
         }
 
         builder.AddManaged(
@@ -1045,19 +1123,37 @@ public sealed class _4516EquationPlanner : StandardEquationPlanner
                 brxMm));
 
         Logger.Info(
-            "[_4516EquationPlanner] Foot profile calculated from EFFECTIVE equation values -> " +
+            "[_4516EquationPlanner] Foot profile resolved -> " +
             $"FL={flMm} mm ({flSource}), " +
-            $"F(DB/reference only)={fMm} mm, " +
-            $"foot_depth={footDepthMm} mm ({footDepthSource}), " +
-            $"FR={frMm} mm ({frSource}), " +
-            $"BR={brMm} mm ({brSource}), " +
-            $"FTA={ftaDeg} deg ({ftaSource}), " +
-            $"Split={splitMm} mm, " +
-            $"BR limit={brLimitMm} mm, " +
-            $"FRX={frxMm} mm, " +
-            $"BRX={brxMm} mm, " +
-            $"Flat={flatMm} mm. " +
-            "F was not sent to SolidWorks.");
+            $"FRX={frxMm} mm ({frxSource}), " +
+            $"BRX={brxMm} mm ({brxSource}), " +
+            $"Flat={flatMm} mm.");
+    }
+
+    private static bool TryGetPositiveDatabaseFootProfileLength(
+        WedgeFacts facts,
+        string dimensionKey,
+        out decimal valueMm)
+    {
+        if (!facts.TryGetLengthMm(
+                dimensionKey,
+                out valueMm))
+        {
+            valueMm = 0m;
+            return false;
+        }
+
+        if (valueMm <= 0m)
+        {
+            Logger.Warn(
+                "[_4516EquationPlanner] Non-positive database " +
+                $"'{dimensionKey}'={valueMm} mm; using formula fallback.");
+
+            valueMm = 0m;
+            return false;
+        }
+
+        return true;
     }
 
     private static decimal RequireEffectiveFootProfileLength(

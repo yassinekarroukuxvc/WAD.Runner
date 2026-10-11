@@ -146,7 +146,7 @@ internal static class _4516DimensionRules
         PlaceDim(ctx, diag, outList, "VRA", Detail, DimAxis.Horizontal, D[0], bandMidY + 5.0);
         PlaceDim(ctx, diag, outList, "GA", Detail, DimAxis.Horizontal, D[0], bandMidY - 15.0);
         PlaceDim(ctx, diag, outList, "B", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
-        PlaceDim(ctx, diag, outList, "GO", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
+        PlaceDim(ctx, diag, outList, "GO", Detail, DimAxis.Horizontal, D[0] - 5, bandMidY - 3.0);
         PlaceDim(ctx, diag, outList, "CL", Detail, DimAxis.Horizontal, D[0], bandMidY - 3.0);
         PlaceDim(ctx, diag, outList, "W", Detail, DimAxis.Horizontal, D[0], bandMidY - 6.0);
         PlaceDim(ctx, diag, outList, "VW", Detail, DimAxis.Horizontal, D[0], bandMidY - 9.0);
@@ -161,11 +161,11 @@ internal static class _4516DimensionRules
 
         PlaceDim(ctx, diag, outList, "GR_G", Detail, DimAxis.Vertical,
             D[0] + W / 2.0 * dsv + 10.0,
-            D[1]);
+            bandMidY + dsv * GD + 10);
 
         PlaceDim(ctx, diag, outList, "GR_VG", Detail, DimAxis.Vertical,
             D[0] + W / 2.0 * dsv + 10.0,
-            D[1]);
+            bandMidY + dsv * GD + 10);
 
         PlaceDim(ctx, diag, outList, "CD", Detail, DimAxis.Horizontal,
             D[0] + W / 2.0 * dsv + 5.0,
@@ -254,9 +254,12 @@ internal static class _4516DimensionRules
             Sec[0] - TDF / 2.0 * scv + FL * scv + 10.0,
             bandMidY - 6.0);
         */
-
+        /*
         PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal,
             Sec[0] - (TDF / 2) * scv + T * scv + 15, bandMidY + (C * scv) + 10);
+        */
+        PlaceDim(ctx, diag, outList, "Y", Section, DimAxis.Horizontal,
+           Sec[0] - (TDF / 2) * scv + T * scv - 10, bandMidY + ((T - FL) * scv - 10) * (Math.Tan(HA * (Math.PI / 180.0))));
 
         /*They said to remove it
         PlaceDim(ctx, diag, outList, "CGD", Section, DimAxis.Horizontal,
@@ -270,17 +273,17 @@ internal static class _4516DimensionRules
 
         PlaceDim(ctx, diag, outList, "NR", Section, DimAxis.Horizontal,
             Sec[0] - TDF / 2.0 * scv + FL * scv + 15,
-            bandMidY + C * scv / 2.0 + 2);
+            bandMidY + 5);
+        
+        PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
+           Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + ((T - FL) * scv) * (Math.Tan(HA * (Math.PI / 180.0))));
+        
         /*
         PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
-           Sec[0] - (TDF / 2) * scv + T * scv, bandMidY + ((T - FD) * scv) * (Math.Tan(HA * (Math.PI / 180.0))));
-        */
-
-        PlaceDim(ctx, diag, outList, "H", Section, DimAxis.Horizontal,
            Sec[0] - (TDF / 2) * scv + T * scv + 10, bandMidY + (C * scv) + 5);
-
+        */
         PlaceDim(ctx, diag, outList, "FNA", Section, DimAxis.Horizontal,
-            Sec[0] - (TDF / 2) * scv + T * scv + 25, bandMidY + ((T - FD) * scv) * (Math.Tan(HA * (Math.PI / 180.0))) + 10);
+            Sec[0] - (TDF / 2) * scv + T * scv + 25, bandMidY + ((T - FL) * scv) * (Math.Tan(HA * (Math.PI / 180.0))) + 10);
 
         PlaceDim(ctx, diag, outList, "D5", Section, DimAxis.Horizontal,
             Sec[0] - TDF / 2.0 * scv + T * scv + 20.0,
