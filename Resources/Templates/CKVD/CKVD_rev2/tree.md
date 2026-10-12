@@ -1,0 +1,84 @@
+# Feature Tree: CKVD_part_rev2.sldprt
+
+- **Path:** `C:\Users\mounir\Desktop\Yassine's Playground\WAD.Runner\Resources\Templates\CKVD\CKVD_rev2\CKVD_part_rev2.sldprt`
+- **Document type:** swDocPART
+- **Active configuration:** Overlay
+- **Exported:** 2026-10-12 06:09:01
+
+## Features
+
+- **Comments** (`CommentsFolder`) - Comments
+- **Favorites** (`FavoriteFolder`) - Favorites
+- **History** (`HistoryFolder`) - History
+- **Selection Sets** (`SelectionSetFolder`) - Selection Sets
+- **Sensors** (`SensorFolder`) - Sensors
+- **Design Binder** (`DocsFolder`) - Design Binder
+- **Annotations** (`DetailCabinet`) - Annotations
+  - **Notes** (`NotesAreaFtrFolder`) - Notes
+  - **Notes1___EndTag___** (`NotesAreaFtrFolder`) - Notes1___EndTag___
+- **Surface Bodies** (`SurfaceBodyFolder`) - Surface Bodies
+- **Solid Bodies** (`SolidBodyFolder`) - Solid Bodies
+- **Lights, Cameras and Scene** (`EnvFolder`) - Lights, Cameras and Scene
+  - **Ambient** (`AmbientLight`) - Ambient
+  - **Directional3** (`DirectionLight`) - Directional3
+  - **Directional4** (`DirectionLight`) - Directional4
+- **Markups** (`InkMarkupFolder`) - Markups
+- **Equations** (`EqnFolder`) - Equations
+- **Material <not specified>** (`MaterialFolder`) - Material <not specified>
+- **Front Plane** (`RefPlane`) - Front Plane
+- **Top Plane** (`RefPlane`) - Top Plane
+- **Right Plane** (`RefPlane`) - Right Plane
+- **Origin** (`OriginProfileFeature`) - Origin
+- **annotation_top_plan** (`ProfileFeature`) - annotation_top_plan
+- **annotation_right_plan** (`ProfileFeature`) - annotation_right_plan
+- **style_a_annotation_front_plan** (`ProfileFeature`) - style_a_annotation_front_plan
+- **style_b_annotation_front_plan** (`ProfileFeature`) - style_b_annotation_front_plan
+- **part_axis** (`ProfileFeature`) - part_axis
+- **td_sketch** (`ProfileFeature`) - td_sketch
+- **td_feature** (`Extrusion`) - td_feature
+  - **td_sketch** (`ProfileFeature`) - td_sketch
+- **isa_sketch** (`ProfileFeature`) - isa_sketch
+- **isa_feature** (`ICE`) - isa_feature
+  - **isa_sketch** (`ProfileFeature`) - isa_sketch
+- **vr_sketch** (`ProfileFeature`) - vr_sketch
+- **vr_feature** (`ICE`) - vr_feature
+  - **vr_sketch** (`ProfileFeature`) - vr_sketch
+- **style_a_sketch** (`ProfileFeature`) - style_a_sketch
+- **style_a_feature** (`ICE`) - style_a_feature
+  - **style_a_sketch** (`ProfileFeature`) - style_a_sketch
+- **style_b_sketch** (`ProfileFeature`) - style_b_sketch
+- **style_b_feature** (`ICE`) [suppressed] - style_b_feature
+  - **style_b_sketch** (`ProfileFeature`) - style_b_sketch
+- **style_a_fr_br_sketch** (`ProfileFeature`) - style_a_fr_br_sketch
+- **style_a_vg_sketch** (`ProfileFeature`) - style_a_vg_sketch
+- **style_a_fr_br_feature** (`SweepRefSurface`) - style_a_fr_br_feature
+  - **style_a_fr_br_sketch** (`ProfileFeature`) - style_a_fr_br_sketch
+  - **style_a_vg_sketch** (`ProfileFeature`) - style_a_vg_sketch
+- **style_a_fr_br_cut_feature** (`SurfCut`) - style_a_fr_br_cut_feature
+- **style_b_fr_br_sketch** (`ProfileFeature`) - style_b_fr_br_sketch
+- **style_b_vg_sketch** (`ProfileFeature`) - style_b_vg_sketch
+- **style_b_fr_br_feature** (`SweepRefSurface`) [suppressed] - style_b_fr_br_feature
+  - **style_b_fr_br_sketch** (`ProfileFeature`) - style_b_fr_br_sketch
+  - **style_b_vg_sketch** (`ProfileFeature`) - style_b_vg_sketch
+- **style_b_fr_br_cut_feature** (`SurfCut`) [suppressed] - style_b_fr_br_cut_feature
+- **ref_point** (`ProfileFeature`) - ref_point
+- **ref_point_non_std_cut** (`ProfileFeature`) - ref_point_non_std_cut
+- **ref_point_a** (`ProfileFeature`) - ref_point_a
+- **ref_point_b** (`ProfileFeature`) - ref_point_b
+- **cut_plan_feature** (`RefPlane`) - cut_plan_feature
+- **cut_feature** (`SurfCut`) - cut_feature
+- **non_std_cut_plan_feature** (`RefPlane`) [suppressed] - non_std_cut_plan_feature
+- **non_std_cut_feature** (`SurfCut`) [suppressed] - non_std_cut_feature
+- **w_pgb_overlay_sketch** (`ProfileFeature`) - w_pgb_overlay_sketch
+- **style_a_fl_pgb_overlay_sketch** (`ProfileFeature`) - style_a_fl_pgb_overlay_sketch
+- **style_b_fl_pgb_overlay_sketch** (`ProfileFeature`) - style_b_fl_pgb_overlay_sketch
+- **vw_case1_pgb_overlay_sketch** (`ProfileFeature`) - vw_case1_pgb_overlay_sketch
+- **vw_case2_pgb_overlay_sketch** (`ProfileFeature`) - vw_case2_pgb_overlay_sketch
+- **style_a_fr_br_overlay_sketch** (`ProfileFeature`) - style_a_fr_br_overlay_sketch
+- **style_b_fr_br_overlay_sketch** (`ProfileFeature`) - style_b_fr_br_overlay_sketch
+- **vg_fg_overaly_sketch** (`ProfileFeature`) - vg_fg_overaly_sketch
+- **w_fg_overlay_sketch** (`ProfileFeature`) - w_fg_overlay_sketch
+- **style_a_fl_fg_overlay_sketch** (`ProfileFeature`) - style_a_fl_fg_overlay_sketch
+- **style_b_fl_fg_overlay_sketch** (`ProfileFeature`) - style_b_fl_fg_overlay_sketch
+- **vw_case1_fg_overlay_sketch** (`ProfileFeature`) - vw_case1_fg_overlay_sketch
+- **vw_case2_fg_overlay_sketch** (`ProfileFeature`) - vw_case2_fg_overlay_sketch

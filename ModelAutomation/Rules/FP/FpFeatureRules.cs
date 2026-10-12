@@ -213,7 +213,7 @@ public sealed class FpFeatureRules : IFeatureRuleSet
         ReferencePoints: new[]
         {
             "rev_ref_point_left",
-            "rev_ref_point_right"
+            "rev_ref_point_right "
         },
         RightCut: new[]
         {
@@ -270,7 +270,7 @@ public sealed class FpFeatureRules : IFeatureRuleSet
                 facts);
 
         var family =
-            shank == UtusShankType.Std
+            shank == FPShankType.Std
                 ? Std
                 : Rev;
 
@@ -343,7 +343,7 @@ public sealed class FpFeatureRules : IFeatureRuleSet
                     SwNames.EngravingFeature,
                     SwNames.EngravingSketch)
                 .ForceSuppress(
-                    shank == UtusShankType.Std
+                    shank == FPShankType.Std
                         ? RevManaged
                         : StdManaged);
 
@@ -818,7 +818,7 @@ public sealed class FpFeatureRules : IFeatureRuleSet
         }
     }
 
-    private static UtusShankType ResolveShankType(
+    private static FPShankType ResolveShankType(
         WedgeFacts facts)
     {
         var token =
@@ -836,13 +836,13 @@ public sealed class FpFeatureRules : IFeatureRuleSet
         {
             "SW_STD" or
             "STD" =>
-                UtusShankType.Std,
+                FPShankType.Std,
 
             "SW_180REV" or
             "SW_180_REV" or
             "180REV" or
             "180_REV" =>
-                UtusShankType.Rev,
+                FPShankType.Rev,
 
             _ =>
                 throw new InvalidOperationException(
@@ -1158,7 +1158,7 @@ public sealed class FpFeatureRules : IFeatureRuleSet
         string[] TCases,
         string[] FootOverlays);
 
-    private enum UtusShankType
+    private enum FPShankType
     {
         Std,
         Rev

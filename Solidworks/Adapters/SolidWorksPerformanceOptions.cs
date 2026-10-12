@@ -13,19 +13,20 @@ public sealed class SolidWorksPerformanceOptions
     public bool ShareSessionPerJob { get; init; } = true;
 
     /// <summary>
-    /// API worker only: keep that session open between jobs (documents are closed after each job).
-    /// Needs ShareSessionPerJob. The CLI is one process per run and always closes SolidWorks.
+    /// Legacy configuration switch; the API executor now ALWAYS closes its
+    /// owned session after a complete HTTP job, even if this is set to true.
+    /// Between drawing types of the same HTTP job, the session is reused.
     /// </summary>
-    public bool KeepSessionBetweenJobs { get; init; } = true;
+    public bool KeepSessionBetweenJobs { get; init; } = false;
 
     /// <summary>Start a fresh session after this many jobs on one session (0 = never).</summary>
-    public int RestartSessionAfterJobs { get; init; } = 20;
+    public int RestartSessionAfterJobs { get; init; } = 0;
 
     /// <summary>No log output for this long during a job means SolidWorks hung (0 = no watchdog).</summary>
     public int StallTimeoutSeconds { get; init; } = 180;
 
     /// <summary>How often a job is retried after the watchdog stopped a hung SolidWorks.</summary>
-    public int StallRetries { get; init; } = 1;
+    public int StallRetries { get; init; } = 0;
 
     public static SolidWorksPerformanceOptions From(IConfiguration? configuration)
         => configuration?.GetSection("Runner:SolidWorks:Performance").Get<SolidWorksPerformanceOptions>()

@@ -40,22 +40,30 @@ internal static class CliArgs
     }
 
     /// <summary>
-    /// SolidWorks window visibility: <c>--hidden</c> forces it off, otherwise
-    /// <c>Runner:SolidWorks:Visible</c> from appsettings (default true).
+    /// SolidWorks is hidden by default.
+    /// --visible explicitly enables the window.
+    /// --hidden explicitly disables the window.
     /// </summary>
-    public static bool SolidWorksVisible(IServiceProvider services, string[] a)
+    public static bool SolidWorksVisible(
+        IServiceProvider services,
+        string[] args)
     {
-        if (a.Any(x => string.Equals(x, "--hidden", StringComparison.OrdinalIgnoreCase)))
+        if (args.Any(x =>
+            string.Equals(x, "--hidden", StringComparison.OrdinalIgnoreCase)))
             return false;
 
-        if (a.Any(x => string.Equals(x, "--visible", StringComparison.OrdinalIgnoreCase)))
+        if (args.Any(x =>
+            string.Equals(x, "--visible", StringComparison.OrdinalIgnoreCase)))
             return true;
 
-        var cfg = services.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration))
+        var cfg = services.GetService(
+            typeof(Microsoft.Extensions.Configuration.IConfiguration))
             as Microsoft.Extensions.Configuration.IConfiguration;
-        return cfg?["Runner:SolidWorks:Visible"] is not { } raw || !bool.TryParse(raw, out var v) || v;
-    }
 
+        return cfg?["Runner:SolidWorks:Visible"] is { } raw
+            && bool.TryParse(raw, out var visible)
+            && visible;
+    }
     public static string? GetArgValue(string[] a, string key)
         => a.SkipWhile(x => !string.Equals(x, key, StringComparison.OrdinalIgnoreCase)).Skip(1).FirstOrDefault();
 

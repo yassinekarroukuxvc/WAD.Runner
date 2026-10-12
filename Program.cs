@@ -54,16 +54,18 @@ switch (cmd)
         await ApiHost.RunAsync(args);
         break;
 
-    case "get-wedge":     await DataCommands.GetWedgeAsync(services, args); break;
-    case "get-drawing":   await DataCommands.GetDrawingAsync(services, args); break;
-    case "plan-lite":     await DataCommands.PlanLiteAsync(services, args); break;
+    case "get-wedge": await DataCommands.GetWedgeAsync(services, args); break;
+    case "get-drawing": await DataCommands.GetDrawingAsync(services, args); break;
+    case "plan-lite": await DataCommands.PlanLiteAsync(services, args); break;
 
     case "list-articles": await SqliteDiagnosticsCommands.ListArticlesAsync(services, args); break;
-    case "show-article":  await SqliteDiagnosticsCommands.ShowArticleAsync(services, args); break;
-    case "db-info":       SqliteDiagnosticsCommands.DbInfo(services, args); break;
+    case "show-article": await SqliteDiagnosticsCommands.ShowArticleAsync(services, args); break;
+    case "db-info": SqliteDiagnosticsCommands.DbInfo(services, args); break;
 
-    case "run-drawing":   await AutomationCommands.RunDrawingAsync(services, args); break;
-    case "run-model":     await AutomationCommands.RunModelAsync(services, args); break;
+    case "run-drawing": await AutomationCommands.RunDrawingAsync(services, args); break;
+    case "run-model": await AutomationCommands.RunModelAsync(services, args); break;
+
+    case "export-feature-tree": await FeatureTreeCommands.ExportFeatureTreeAsync(services, args); break;
 
     default:
         PrintHelp();

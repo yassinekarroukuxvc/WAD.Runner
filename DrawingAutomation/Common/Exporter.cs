@@ -26,18 +26,21 @@ public static class Exporter
         var drawing = ds.Drawing;
         var ext = model.Extension;
 
+        Logger.Info("[PDF] START resolving drawing sheet list...");
         var wrappers = GetAllSheetWrappers(drawing);
+        Logger.Info($"[PDF] RETURN sheet enumeration: {wrappers.Length} sheet(s).");
         if (wrappers.Length == 0)
-        {
-            Logger.Warn("[PDF] No sheets found to export.");
-            return;
-        }
+            throw new InvalidOperationException("[PDF] No sheets found to export.");
 
+        Logger.Info("[PDF] START requesting SolidWorks PDF export settings...");
         var pdfData = app.GetExportFileData((int)swExportDataFileType_e.swExportPdfData) as ExportPdfData
             ?? throw new InvalidOperationException("SolidWorks did not provide PDF export settings.");
+        Logger.Info("[PDF] RETURN PDF export settings.");
 
+        Logger.Info("[PDF] START setting sheets for PDF export...");
         pdfData.SetSheets((int)swExportDataSheetsToExport_e.swExportData_ExportSpecifiedSheets, wrappers);
         pdfData.ViewPdfAfterSaving = false;
+        Logger.Info("[PDF] RETURN PDF sheet selection.");
 
         bool prevColor = app.GetUserPreferenceToggle((int)swUserPreferenceToggle_e.swPDFExportInColor);
         bool prevHiQ = app.GetUserPreferenceToggle((int)swUserPreferenceToggle_e.swPDFExportShadedEdgesHighQuality);
@@ -50,6 +53,7 @@ public static class Exporter
         try
         {
             int errs = 0, warns = 0;
+            Logger.Info($"[PDF] START SolidWorks SaveAs3 -> '{outputPath}'...");
             bool ok = ext.SaveAs3(
                 outputPath,
                 (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
@@ -59,14 +63,18 @@ public static class Exporter
                 ref errs,
                 ref warns);
 
+            Logger.Info($"[PDF] RETURN SolidWorks SaveAs3: ok={ok}, error={errs}, warning={warns}.");
             if (!ok)
-            {
-                Logger.Warn($"[PDF] Export failed. SW error={errs}, warn={warns}");
-            }
-            else
-            {
-                Logger.Success($"[PDF] Saved → '{outputPath}'");
-            }
+                throw new IOException($"[PDF] SolidWorks export failed. SW error={errs}, warning={warns}.");
+
+            if (!File.Exists(outputPath))
+                throw new IOException("[PDF] SolidWorks reported success but the PDF file was not created.");
+
+            var bytes = new FileInfo(outputPath).Length;
+            if (bytes == 0)
+                throw new IOException("[PDF] SolidWorks created an empty PDF file.");
+
+            Logger.Success($"[PDF] Saved → '{outputPath}' ({bytes} bytes)");
         }
         finally
         {
@@ -104,7 +112,7 @@ public static class Exporter
                     if (drawing.GetCurrentSheet() is Sheet sheet)
                         list.Add(new DispatchWrapper(sheet));
                 }
-                catch {  }
+                catch { }
             }
             return list.ToArray();
         }

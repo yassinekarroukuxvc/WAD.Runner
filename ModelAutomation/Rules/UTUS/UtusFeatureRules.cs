@@ -223,7 +223,7 @@ public sealed class UtusFeatureRules : IFeatureRuleSet
         },
         ReferencePoints: new[]
         {
-            "rev_ref_point_right",
+            "rev_ref_point_right ",
             "rev_ref_point_left"
         },
         RightCut: new[]

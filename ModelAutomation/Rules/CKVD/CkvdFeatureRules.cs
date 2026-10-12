@@ -108,7 +108,7 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
 
     private static readonly string[] StyleBFrBrNames =
     {
-        "style_b_fr_feature",
+        "style_b_fr_br_feature",
         "style_b_fr_br_sketch",
         "style_b_vg_sketch",
         "style_b_fr_br_cut_feature"
@@ -121,7 +121,7 @@ public sealed class CkvdFeatureRules : IFeatureRuleSet
         "style_a_vg_sketch",
         "style_a_fr_br_cut_feature",
 
-        "style_b_fr_feature",
+        "style_b_fr_br_feature",
         "style_b_fr_br_sketch",
         "style_b_vg_sketch",
         "style_b_fr_br_cut_feature"

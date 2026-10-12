@@ -1,0 +1,258 @@
+# Feature Tree: FP_part_rev1.sldprt
+
+- **Path:** `C:\Users\mounir\Desktop\Yassine's Playground\WAD.Runner\Resources\Templates\FP\FP_rev2\FP_part_rev1.sldprt`
+- **Document type:** swDocPART
+- **Active configuration:** left_view
+- **Exported:** 2026-10-12 06:26:49
+
+## Features
+
+- **Comments** (`CommentsFolder`) - Comments
+- **Favorites** (`FavoriteFolder`) - Favorites
+- **History** (`HistoryFolder`) - History
+- **Selection Sets** (`SelectionSetFolder`) - Selection Sets
+- **Sensors** (`SensorFolder`) - Sensors
+- **Design Binder** (`DocsFolder`) - Design Binder
+- **Annotations** (`DetailCabinet`) - Annotations
+  - **Notes** (`NotesAreaFtrFolder`) - Notes
+  - **Notes1___EndTag___** (`NotesAreaFtrFolder`) - Notes1___EndTag___
+- **Surface Bodies** (`SurfaceBodyFolder`) - Surface Bodies
+- **Solid Bodies** (`SolidBodyFolder`) - Solid Bodies
+- **Lights, Cameras and Scene** (`EnvFolder`) - Lights, Cameras and Scene
+  - **Ambient** (`AmbientLight`) - Ambient
+  - **Directional5** (`DirectionLight`) - Directional5
+  - **Directional6** (`DirectionLight`) - Directional6
+- **Markups** (`InkMarkupFolder`) - Markups
+- **Equations** (`EqnFolder`) - Equations
+- **Tungsten** (`MaterialFolder`) - Tungsten
+- **Front Plane** (`RefPlane`) - Front Plane
+- **Top Plane** (`RefPlane`) - Top Plane
+- **Right Plane** (`RefPlane`) - Right Plane
+- **Origin** (`OriginProfileFeature`) - Origin
+- **annoation_top_plan** (`ProfileFeature`) - annoation_top_plan
+- **annotation_right_plan** (`ProfileFeature`) - annotation_right_plan
+- **annotation_std_front_plan** (`ProfileFeature`) - annotation_std_front_plan
+- **annotation_rev_front_plan** (`ProfileFeature`) - annotation_rev_front_plan
+- **part_axis** (`ProfileFeature`) - part_axis
+- **std_shank** (`FtrFolder`) - std_shank
+- **std_pgb** (`FtrFolder`) - std_pgb
+- **td_std_sketch** (`ProfileFeature`) - td_std_sketch
+- **td_std_feature** (`Extrusion`) - td_std_feature
+  - **td_std_sketch** (`ProfileFeature`) - td_std_sketch
+- **isa_std_sketch** (`ProfileFeature`) - isa_std_sketch
+- **isa_std_feature** (`ICE`) - isa_std_feature
+  - **isa_std_sketch** (`ProfileFeature`) - isa_std_sketch
+- **ba_std_sketch** (`ProfileFeature`) - ba_std_sketch
+- **ba_std_feature** (`ICE`) - ba_std_feature
+  - **ba_std_sketch** (`ProfileFeature`) - ba_std_sketch
+- **vr_std_sketch** (`ProfileFeature`) - vr_std_sketch
+- **vr_std_feature** (`ICE`) - vr_std_feature
+  - **vr_std_sketch** (`ProfileFeature`) - vr_std_sketch
+- **slb_std_sketch** (`ProfileFeature`) - slb_std_sketch
+- **slb_std_feature** (`ICE`) - slb_std_feature
+  - **slb_std_sketch** (`ProfileFeature`) - slb_std_sketch
+- **Folder1___EndTag___0** (`FtrFolder`) - Folder1___EndTag___0
+- **w2_std_sketch** (`ProfileFeature`) [suppressed] - w2_std_sketch
+- **w2_std_feature** (`ICE`) [suppressed] - w2_std_feature
+  - **w2_std_sketch** (`ProfileFeature`) [suppressed] - w2_std_sketch
+- **ra2_std_sketch** (`ProfileFeature`) [suppressed] - ra2_std_sketch
+- **ra2_std_feature** (`ICE`) [suppressed] - ra2_std_feature
+  - **ra2_std_sketch** (`ProfileFeature`) [suppressed] - ra2_std_sketch
+- **fro_std_sketch** (`ProfileFeature`) - fro_std_sketch
+- **fro_std_feature** (`ICE`) - fro_std_feature
+  - **fro_std_sketch** (`ProfileFeature`) - fro_std_sketch
+- **erw_std_sketch** (`ProfileFeature`) - erw_std_sketch
+- **erw_std_feature** (`ICE`) - erw_std_feature
+  - **erw_std_sketch** (`ProfileFeature`) - erw_std_sketch
+- **core_fillet_std_feature** (`Fillet`) - core_fillet_std_feature
+- **std_hole_type** (`FtrFolder`) - std_hole_type
+- **std_hole** (`FtrFolder`) - std_hole
+- **std_hole_sketch** (`ProfileFeature`) - std_hole_sketch
+- **std_hole_feature** (`Revolution`) - std_hole_feature
+  - **std_hole_sketch** (`ProfileFeature`) - std_hole_sketch
+- **std_hole_cut_sketch** (`ProfileFeature`) - std_hole_cut_sketch
+- **std_hole_cut_feature** (`ICE`) - std_hole_cut_feature
+  - **std_hole_cut_sketch** (`ProfileFeature`) - std_hole_cut_sketch
+- **std_hole_combine** (`CombineBodies`) - std_hole_combine
+- **Folder4___EndTag___** (`FtrFolder`) - Folder4___EndTag___
+- **std_oval** (`FtrFolder`) [suppressed] - std_oval
+- **std_oval_plan** (`RefPlane`) [suppressed] - std_oval_plan
+- **std_oval_sketch** (`ProfileFeature`) [suppressed] - std_oval_sketch
+- **std_oval_feature** (`ICE`) [suppressed] - std_oval_feature
+  - **std_oval_sketch** (`ProfileFeature`) [suppressed] - std_oval_sketch
+- **std_oval_cut_sketch** (`ProfileFeature`) [suppressed] - std_oval_cut_sketch
+- **std_oval_cut_feature** (`ICE`) [suppressed] - std_oval_cut_feature
+  - **std_oval_cut_sketch** (`ProfileFeature`) [suppressed] - std_oval_cut_sketch
+- **std_oval_combine** (`CombineBodies`) [suppressed] - std_oval_combine
+- **Folder5___EndTag___** (`FtrFolder`) [suppressed] - Folder5___EndTag___
+- **std_slot** (`FtrFolder`) [suppressed] - std_slot
+- **std_slot_plan** (`RefPlane`) [suppressed] - std_slot_plan
+- **std_slot_sketch** (`ProfileFeature`) [suppressed] - std_slot_sketch
+- **std_slot_feature** (`ICE`) [suppressed] - std_slot_feature
+  - **std_slot_sketch** (`ProfileFeature`) [suppressed] - std_slot_sketch
+- **std_slot_cut_sketch** (`ProfileFeature`) [suppressed] - std_slot_cut_sketch
+- **std_slot_cut_feature** (`ICE`) [suppressed] - std_slot_cut_feature
+  - **std_slot_cut_sketch** (`ProfileFeature`) [suppressed] - std_slot_cut_sketch
+- **std_slot_combine** (`CombineBodies`) [suppressed] - std_slot_combine
+- **Folder7___EndTag___** (`FtrFolder`) [suppressed] - Folder7___EndTag___
+- **Folder2___EndTag___** (`FtrFolder`) [suppressed] - Folder2___EndTag___
+- **std_foot_type** (`FtrFolder`) - std_foot_type
+- **std_c** (`FtrFolder`) [suppressed] - std_c
+- **std_c_sketch** (`ProfileFeature`) [suppressed] - std_c_sketch
+- **std_c_feature** (`ICE`) [suppressed] - std_c_feature
+  - **std_c_sketch** (`ProfileFeature`) [suppressed] - std_c_sketch
+- **std_fr_c_feature** (`Fillet`) [suppressed] - std_fr_c_feature
+- **std_cbr_c_feature** (`Chamfer`) [suppressed] - std_cbr_c_feature
+- **std_cbr_c_core_feature** (`Fillet`) [suppressed] - std_cbr_c_core_feature
+- **std_br_c_feature** (`Fillet`) [suppressed] - std_br_c_feature
+- **std_c_round_br_feature** (`Fillet`) [suppressed] - std_c_round_br_feature
+- **Folder8___EndTag___** (`FtrFolder`) [suppressed] - Folder8___EndTag___
+- **std_vg** (`FtrFolder`) - std_vg
+- **std_vg_sketch** (`ProfileFeature`) - std_vg_sketch
+- **std_vg_feature** (`ICE`) - std_vg_feature
+  - **std_vg_sketch** (`ProfileFeature`) - std_vg_sketch
+- **std_fr_vg_feature** (`Fillet`) - std_fr_vg_feature
+- **std_br_vg_feature** (`Fillet`) - std_br_vg_feature
+- **std_vg_round_br_feature** (`Fillet`) - std_vg_round_br_feature
+- **Folder9___EndTag___** (`FtrFolder`) - Folder9___EndTag___
+- **std_g** (`FtrFolder`) [suppressed] - std_g
+- **std_g_sketch** (`ProfileFeature`) [suppressed] - std_g_sketch
+- **std_g_feature** (`ICE`) [suppressed] - std_g_feature
+  - **std_g_sketch** (`ProfileFeature`) [suppressed] - std_g_sketch
+- **std_g_fr_feature** (`Fillet`) [suppressed] - std_g_fr_feature
+- **std_g_br_feature** (`Fillet`) [suppressed] - std_g_br_feature
+- **std_g_round_br_feature** (`Fillet`) [suppressed] - std_g_round_br_feature
+- **Folder10___EndTag___** (`FtrFolder`) [suppressed] - Folder10___EndTag___
+- **Folder3___EndTag___0** (`FtrFolder`) [suppressed] - Folder3___EndTag___0
+- **std_cut_feature** (`FtrFolder`) - std_cut_feature
+- **std_ref_point_right** (`ProfileFeature`) - std_ref_point_right
+- **std_right_cut_plan** (`RefPlane`) [suppressed] - std_right_cut_plan
+- **std_right_cut** (`SurfCut`) [suppressed] - std_right_cut
+- **std_ref_point_left** (`ProfileFeature`) - std_ref_point_left
+- **std_left_cut_plan** (`RefPlane`) - std_left_cut_plan
+- **std_left_cut** (`SurfCut`) - std_left_cut
+- **Folder2___EndTag___0** (`FtrFolder`) [suppressed] - Folder2___EndTag___0
+- **std_overlay_sketchs** (`FtrFolder`) - std_overlay_sketchs
+- **std_w_pgb_overlay_sketch** (`ProfileFeature`) - std_w_pgb_overlay_sketch
+- **std_w_fg_overlay_sketch** (`ProfileFeature`) - std_w_fg_overlay_sketch
+- **std_vw_case1_overlay_sketch** (`ProfileFeature`) - std_vw_case1_overlay_sketch
+- **std_vw_case2_overlay_sketch** (`ProfileFeature`) - std_vw_case2_overlay_sketch
+- **std_t_case1_overlay_sketch** (`ProfileFeature`) - std_t_case1_overlay_sketch
+- **std_t_case2_overlay_sketch** (`ProfileFeature`) - std_t_case2_overlay_sketch
+- **std_t_case3_overlay_sketch** (`ProfileFeature`) - std_t_case3_overlay_sketch
+- **std_t_case4_overlay_sketch** (`ProfileFeature`) - std_t_case4_overlay_sketch
+- **std_c_overlay_sketch** (`ProfileFeature`) - std_c_overlay_sketch
+- **std_vg_overlay_sketch** (`ProfileFeature`) - std_vg_overlay_sketch
+- **std_g_overlay_sketch** (`ProfileFeature`) - std_g_overlay_sketch
+- **Folder1___EndTag___1** (`FtrFolder`) - Folder1___EndTag___1
+- **Folder1___EndTag___** (`FtrFolder`) [suppressed] - Folder1___EndTag___
+- **rev_shank** (`FtrFolder`) - rev_shank
+- **rev_pgb** (`FtrFolder`) [suppressed] - rev_pgb
+- **td_rev_sketch** (`ProfileFeature`) [suppressed] - td_rev_sketch
+- **td_rev_feature** (`ICE`) [suppressed] - td_rev_feature
+  - **td_rev_sketch** (`ProfileFeature`) [suppressed] - td_rev_sketch
+- **isa_rev_sketch** (`ProfileFeature`) [suppressed] - isa_rev_sketch
+- **isa_rev_feature** (`ICE`) [suppressed] - isa_rev_feature
+  - **isa_rev_sketch** (`ProfileFeature`) [suppressed] - isa_rev_sketch
+- **ba_rev_sketch** (`ProfileFeature`) [suppressed] - ba_rev_sketch
+- **ba_rev_feature** (`ICE`) [suppressed] - ba_rev_feature
+  - **ba_rev_sketch** (`ProfileFeature`) [suppressed] - ba_rev_sketch
+- **slb_rev_sketch** (`ProfileFeature`) [suppressed] - slb_rev_sketch
+- **slb_rev_feature** (`ICE`) [suppressed] - slb_rev_feature
+  - **slb_rev_sketch** (`ProfileFeature`) [suppressed] - slb_rev_sketch
+- **vr_rev_sketch** (`ProfileFeature`) [suppressed] - vr_rev_sketch
+- **vr_rev_feature** (`ICE`) [suppressed] - vr_rev_feature
+  - **vr_rev_sketch** (`ProfileFeature`) [suppressed] - vr_rev_sketch
+- **Folder4___EndTag___1** (`FtrFolder`) [suppressed] - Folder4___EndTag___1
+- **w2_rev_sketch** (`ProfileFeature`) [suppressed] - w2_rev_sketch
+- **w2_rev_feature** (`ICE`) [suppressed] - w2_rev_feature
+  - **w2_rev_sketch** (`ProfileFeature`) [suppressed] - w2_rev_sketch
+- **ra2_rev_sketch** (`ProfileFeature`) [suppressed] - ra2_rev_sketch
+- **ra2_rev_feature** (`ICE`) [suppressed] - ra2_rev_feature
+  - **ra2_rev_sketch** (`ProfileFeature`) [suppressed] - ra2_rev_sketch
+- **fro_rev_feature** (`Fillet`) [suppressed] - fro_rev_feature
+- **erw_rev_sketch** (`ProfileFeature`) [suppressed] - erw_rev_sketch
+- **erw_rev_feature** (`ICE`) [suppressed] - erw_rev_feature
+  - **erw_rev_sketch** (`ProfileFeature`) [suppressed] - erw_rev_sketch
+- **core_fillet_rev_feature** (`Fillet`) [suppressed] - core_fillet_rev_feature
+- **rev_hole_type** (`FtrFolder`) [suppressed] - rev_hole_type
+- **rev_hole** (`FtrFolder`) [suppressed] - rev_hole
+- **rev_hole_sketch** (`ProfileFeature`) [suppressed] - rev_hole_sketch
+- **rev_hole_feature** (`Revolution`) [suppressed] - rev_hole_feature
+  - **rev_hole_sketch** (`ProfileFeature`) [suppressed] - rev_hole_sketch
+- **rev_hole_cut_sketch** (`ProfileFeature`) [suppressed] - rev_hole_cut_sketch
+- **rev_hole_cut_feature** (`ICE`) [suppressed] - rev_hole_cut_feature
+  - **rev_hole_cut_sketch** (`ProfileFeature`) [suppressed] - rev_hole_cut_sketch
+- **rev_hole_combine** (`CombineBodies`) [suppressed] - rev_hole_combine
+- **Folder3___EndTag___** (`FtrFolder`) [suppressed] - Folder3___EndTag___
+- **rev_oval** (`FtrFolder`) [suppressed] - rev_oval
+- **rev_oval_plan** (`RefPlane`) [suppressed] - rev_oval_plan
+- **rev_oval_sketch** (`ProfileFeature`) [suppressed] - rev_oval_sketch
+- **rev_oval_feature** (`ICE`) [suppressed] - rev_oval_feature
+  - **rev_oval_sketch** (`ProfileFeature`) [suppressed] - rev_oval_sketch
+- **rev_oval_cut_sketch** (`ProfileFeature`) [suppressed] - rev_oval_cut_sketch
+- **rev_oval_cut_feature** (`ICE`) [suppressed] - rev_oval_cut_feature
+  - **rev_oval_cut_sketch** (`ProfileFeature`) [suppressed] - rev_oval_cut_sketch
+- **rev_oval_combine_feature** (`CombineBodies`) [suppressed] - rev_oval_combine_feature
+- **Folder4___EndTag___0** (`FtrFolder`) [suppressed] - Folder4___EndTag___0
+- **rev_slot** (`FtrFolder`) [suppressed] - rev_slot
+- **rev_slot_plan** (`RefPlane`) [suppressed] - rev_slot_plan
+- **rev_slot_sketch** (`ProfileFeature`) [suppressed] - rev_slot_sketch
+- **rev_slot_feature** (`ICE`) [suppressed] - rev_slot_feature
+  - **rev_slot_sketch** (`ProfileFeature`) [suppressed] - rev_slot_sketch
+- **rev_slot_cut_sketch** (`ProfileFeature`) [suppressed] - rev_slot_cut_sketch
+- **rev_slot_cut_feature** (`ICE`) [suppressed] - rev_slot_cut_feature
+  - **rev_slot_cut_sketch** (`ProfileFeature`) [suppressed] - rev_slot_cut_sketch
+- **rev_slot_combine_feature** (`CombineBodies`) [suppressed] - rev_slot_combine_feature
+- **Folder5___EndTag___0** (`FtrFolder`) [suppressed] - Folder5___EndTag___0
+- **Folder5___EndTag___1** (`FtrFolder`) [suppressed] - Folder5___EndTag___1
+- **rev_foot_type** (`FtrFolder`) [suppressed] - rev_foot_type
+- **rev_c** (`FtrFolder`) [suppressed] - rev_c
+- **rev_c_sketch** (`ProfileFeature`) [suppressed] - rev_c_sketch
+- **rev_c_feature** (`ICE`) [suppressed] - rev_c_feature
+  - **rev_c_sketch** (`ProfileFeature`) [suppressed] - rev_c_sketch
+- **rev_c_fr_feature** (`Fillet`) [suppressed] - rev_c_fr_feature
+- **rev_c_br_feature** (`Fillet`) [suppressed] - rev_c_br_feature
+- **rev_c_cbr_feature** (`Chamfer`) [suppressed] - rev_c_cbr_feature
+- **rev_cbr_c_core_feature** (`Fillet`) [suppressed] - rev_cbr_c_core_feature
+- **rev_c_round_br_feature** (`Fillet`) [suppressed] - rev_c_round_br_feature
+- **Folder6___EndTag___** (`FtrFolder`) [suppressed] - Folder6___EndTag___
+- **rev_vg** (`FtrFolder`) [suppressed] - rev_vg
+- **rev_vg_sketch** (`ProfileFeature`) [suppressed] - rev_vg_sketch
+- **rev_vg_feature** (`ICE`) [suppressed] - rev_vg_feature
+  - **rev_vg_sketch** (`ProfileFeature`) [suppressed] - rev_vg_sketch
+- **rev_vg_fr_feature** (`Fillet`) [suppressed] - rev_vg_fr_feature
+- **rev_vg_br_feature** (`Fillet`) [suppressed] - rev_vg_br_feature
+- **rev_vg_round_br_feature** (`Fillet`) [suppressed] - rev_vg_round_br_feature
+- **Folder7___EndTag___0** (`FtrFolder`) [suppressed] - Folder7___EndTag___0
+- **rev_g** (`FtrFolder`) [suppressed] - rev_g
+- **rev_g_sketch** (`ProfileFeature`) [suppressed] - rev_g_sketch
+- **rev_g_feature** (`ICE`) [suppressed] - rev_g_feature
+  - **rev_g_sketch** (`ProfileFeature`) [suppressed] - rev_g_sketch
+- **rev_g_fr_feature** (`Fillet`) [suppressed] - rev_g_fr_feature
+- **rev_g_br_feature** (`Fillet`) [suppressed] - rev_g_br_feature
+- **rev_g_round_br_feature** (`Fillet`) [suppressed] - rev_g_round_br_feature
+- **Folder8___EndTag___0** (`FtrFolder`) [suppressed] - Folder8___EndTag___0
+- **Folder6___EndTag___0** (`FtrFolder`) [suppressed] - Folder6___EndTag___0
+- **rev_cut_feature** (`FtrFolder`) - rev_cut_feature
+- **rev_ref_point_right ** (`ProfileFeature`) - rev_ref_point_right 
+- **rev_right_cut_plan** (`RefPlane`) [suppressed] - rev_right_cut_plan
+- **rev_right_cut** (`SurfCut`) [suppressed] - rev_right_cut
+- **rev_ref_point_left** (`ProfileFeature`) - rev_ref_point_left
+- **rev_left_cut_plan** (`RefPlane`) [suppressed] - rev_left_cut_plan
+- **rev_left_cut** (`SurfCut`) [suppressed] - rev_left_cut
+- **Folder1___EndTag___2** (`FtrFolder`) [suppressed] - Folder1___EndTag___2
+- **rev_overlay_sketchs** (`FtrFolder`) - rev_overlay_sketchs
+- **rev_w_pgb_overlay_sketch** (`ProfileFeature`) - rev_w_pgb_overlay_sketch
+- **rev_w_fg_overlay_sketch** (`ProfileFeature`) - rev_w_fg_overlay_sketch
+- **rev_vw_case1_overlay_sketch** (`ProfileFeature`) - rev_vw_case1_overlay_sketch
+- **rev_vw_case2_overlay_sketch** (`ProfileFeature`) - rev_vw_case2_overlay_sketch
+- **rev_t_case1_overlay_sketch** (`ProfileFeature`) - rev_t_case1_overlay_sketch
+- **rev_t_case2_overlay_sketch** (`ProfileFeature`) - rev_t_case2_overlay_sketch
+- **rev_t_case3_overlay_sketch** (`ProfileFeature`) - rev_t_case3_overlay_sketch
+- **rev_t_case4_overlay_sketch** (`ProfileFeature`) - rev_t_case4_overlay_sketch
+- **rev_c_overlay_sketch** (`ProfileFeature`) - rev_c_overlay_sketch
+- **rev_vg_overlay_sketch** (`ProfileFeature`) - rev_vg_overlay_sketch
+- **rev_g_overlay_sketch** (`ProfileFeature`) - rev_g_overlay_sketch
+- **Folder1___EndTag___3** (`FtrFolder`) - Folder1___EndTag___3
+- **Folder9___EndTag___0** (`FtrFolder`) [suppressed] - Folder9___EndTag___0

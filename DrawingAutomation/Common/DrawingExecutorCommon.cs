@@ -74,34 +74,57 @@ namespace WAD.Runner.DrawingAutomation.Common
 
         public static void FinalizeProduction(SldWorks swApp, DrawingService ds, string? pdfOutputPath = null)
         {
-            if (ds is null) return;
+            if (ds is null)
+                throw new ArgumentNullException(nameof(ds));
 
+            Logger.Info("[Finalize] START production drawing finalization.");
             try
             {
+                Logger.Info("[Finalize] Applying print line weights...");
                 DrawingLineWeights.ApplyPrintStandard(ds.Model as ModelDoc2);
+
+                Logger.Info("[Finalize] Applying annotation text style...");
                 DrawingTextStyle.ApplyToAnnotations(ds.Model as ModelDoc2);
 
+                // If the next START line appears without the corresponding RETURN,
+                // SolidWorks is blocking in DrawingService.Save / ModelDoc2.Save3.
+                Logger.Info("[Finalize] START SolidWorks drawing Save3 (silent)...");
                 ds.Save();
+                Logger.Info("[Finalize] RETURN SolidWorks drawing Save3.");
 
                 if (!string.IsNullOrWhiteSpace(pdfOutputPath))
                 {
-                    try
-                    {
-                        Exporter.SavePdfAllSheets(swApp, ds, Path.GetFullPath(pdfOutputPath));
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Warn($"[Finalize] PDF export failed: {ex.Message}");
-                    }
+                    var fullPdfPath = Path.GetFullPath(pdfOutputPath);
+                    Logger.Info($"[Finalize] START PDF export -> '{fullPdfPath}'...");
+                    Exporter.SavePdfAllSheets(swApp, ds, fullPdfPath);
+                    Logger.Info($"[Finalize] RETURN PDF export -> '{fullPdfPath}'.");
                 }
+                else
+                {
+                    Logger.Warn("[Finalize] No PDF output path supplied.");
+                }
+
+                Logger.Success("[Finalize] DONE production drawing finalization.");
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[Finalize] Save issue: {ex.Message}");
+                // Do not claim success if the save/export fails. The API worker must
+                // set the job status to Failed, so the client stops polling forever.
+                Logger.Error($"[Finalize] FAILED: {ex}");
+                throw;
             }
             finally
             {
-                try { ds.Close(); } catch { }
+                Logger.Info("[Finalize] Closing drawing...");
+                try
+                {
+                    ds.Close();
+                    Logger.Info("[Finalize] Drawing close returned.");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"[Finalize] Drawing close failed: {ex.Message}");
+                }
             }
         }
 

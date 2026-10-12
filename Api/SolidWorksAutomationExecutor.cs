@@ -51,12 +51,14 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
     private bool SolidWorksVisible()
     {
         var cfg = _services.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
-        return cfg?["Runner:SolidWorks:Visible"] is not { } raw || !bool.TryParse(raw, out var v) || v;
+        return cfg?["Runner:SolidWorks:Visible"] is { } raw &&
+               bool.TryParse(raw, out var visible) && visible;
     }
 
     public string Execute(JobInfo job, Action<ProgressUpdate> report)
     {
-        var solidWorksTouched = false;
+        // One owned SolidWorks process per API request, including Production+Overlay.
+        SolidWorksSessionManager? sessions = null;
 
         try
         {
@@ -92,7 +94,7 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
             var getWedge = sp.GetRequiredService<GetWedgeData>();
             var getDrawing = sp.GetRequiredService<GetDrawingData>();
             var modelOrchestrator = sp.GetRequiredService<ModelAutomationOrchestrator>();
-            var sessions = _services.GetRequiredService<SolidWorksSessionManager>();
+            sessions = _services.GetRequiredService<SolidWorksSessionManager>();
 
             var validatedWedges = LoadAndValidateWedges(
                 job,
@@ -101,20 +103,15 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                 getWedge,
                 report);
 
-            // A kept-alive session is managed by SolidWorksSessionManager; killing SolidWorks around
-            // the job would throw it away. Previous behaviour (KeepSessionBetweenJobs=false): kill.
-            if (!sessions.KeepsSessionAlive)
-            {
-                CleanupSolidWorksBeforeJob(job, report);
-                solidWorksTouched = true;
-            }
+            // No global process killer here. The session factory refuses to
+            // attach to an existing user SolidWorks process.
 
             const int StepsPerRun = 3;
             var totalRuns = payload.ArticleNumbers.Count * drawingTypeNames.Count;
             var totalSteps = totalRuns * StepsPerRun;
             var doneSteps = 0;
 
-            string? lastResultPdf = null;
+            string? lastResultArtifact = null;
 
             foreach (var articleRaw in payload.ArticleNumbers)
             {
@@ -174,7 +171,9 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                         Wedge = wedgeData,
 
                         OutputPdfPath = plan.PdfPath,
-                        OutputTiffPath = null
+                        OutputTiffPath = dtype == DrawingType.Overlay
+                            ? Path.ChangeExtension(plan.PdfPath, ".tif")
+                            : null
                     };
 
                     report(Progress(++doneSteps, totalSteps, $"Running model phase for {article} ({dtype})…"));
@@ -238,24 +237,45 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                             }
                         });
 
-                    lastResultPdf = run.OutputPdfPath;
+                    var expectedOutput = dtype == DrawingType.Overlay
+                        ? run.OutputTiffPath
+                        : run.OutputPdfPath;
 
+                    // Do not mark a run as successful when export silently
+                    // produced no file (especially important for Overlay/TIFF).
+                    if (string.IsNullOrWhiteSpace(expectedOutput) ||
+                        !File.Exists(expectedOutput) ||
+                        new FileInfo(expectedOutput).Length == 0)
+                    {
+                        throw new IOException(
+                            $"{dtype} export did not produce a usable output file: '{expectedOutput}'.");
+                    }
+
+                    lastResultArtifact = expectedOutput;
                     _logger.LogInformation(
                         "Job {JobId}: completed article={Article}, type={Type}, output='{Out}'",
-                        job.Id,
-                        article,
-                        dtype,
-                        lastResultPdf);
+                        job.Id, article, dtype, expectedOutput);
                 }
             }
 
             report(new ProgressUpdate(100, "All automation completed."));
-            return lastResultPdf ?? outputRootBase;
+            return lastResultArtifact ?? outputRootBase;
         }
         finally
         {
-            if (solidWorksTouched)
-                CleanupSolidWorksAfterJob(job);
+            // ALWAYS shut down the automation-owned process after the whole
+            // HTTP job, whether successful, failed, or cancelled. This runs on
+            // the same STA as the drawing operations. It does not kill users'
+            // unrelated SolidWorks processes.
+            try
+            {
+                sessions?.DropSession();
+                _logger.LogInformation("Job {JobId}: SolidWorks session closed after API job.", job.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Job {JobId}: SolidWorks shutdown had an issue.", job.Id);
+            }
         }
     }
 
@@ -363,46 +383,6 @@ public sealed class SolidWorksAutomationExecutor : IAutomationExecutor
                 "Wedge data validation passed. Starting SolidWorks automation…"));
 
         return validated;
-    }
-
-    private void CleanupSolidWorksBeforeJob(JobInfo job, Action<ProgressUpdate> report)
-    {
-        _logger.LogInformation(
-            "Job {JobId}: cleaning existing SolidWorks processes before automation.",
-            job.Id);
-
-        report(new ProgressUpdate(0, "Cleaning existing SolidWorks instances…"));
-
-        try
-        {
-            SolidWorksProcessKiller.KillAll(killVbaServer: true);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Job {JobId}: SolidWorks cleanup failed before automation. Continuing job execution.",
-                job.Id);
-        }
-    }
-
-    private void CleanupSolidWorksAfterJob(JobInfo job)
-    {
-        _logger.LogInformation(
-            "Job {JobId}: cleaning SolidWorks processes after automation.",
-            job.Id);
-
-        try
-        {
-            SolidWorksProcessKiller.KillAll(killVbaServer: true);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Job {JobId}: SolidWorks cleanup failed after automation.",
-                job.Id);
-        }
     }
 
     private static List<string> ResolveDrawingTypes(JobInfo job, RunRequest payload)

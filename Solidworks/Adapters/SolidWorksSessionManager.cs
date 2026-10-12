@@ -1,22 +1,14 @@
 using System;
 
-
 using SolidWorks.Interop.sldworks;
-
 using WAD.Runner.Application;
 
 namespace WAD.Runner.Solidworks.Adapters;
 
 /// <summary>
-/// Runs one job (model phase, then drawing phase) against SolidWorks, following
-/// <see cref="SolidWorksPerformanceOptions"/>:
-///
-///     shared session : one SolidWorks for both phases (documents closed in between)
-///     keep alive     : the session stays open for the next job (API worker)
-///     watchdog       : a hung SolidWorks is stopped and the job retried with a fresh session
-///
-/// With every option off it behaves as before: kill SolidWorks, a fresh session per phase.
-/// All calls must come from the one STA thread that drives SolidWorks.
+/// Serial SolidWorks lifecycle manager. Calls must run on the same STA worker.
+/// API callers may reuse an owned process across drawing types within ONE job,
+/// but MUST call DropSession in their outer Execute finally block.
 /// </summary>
 public sealed class SolidWorksSessionManager : IDisposable
 {
@@ -24,9 +16,11 @@ public sealed class SolidWorksSessionManager : IDisposable
     private SwSession? _session;
     private int _jobsOnSession;
 
-    public SolidWorksSessionManager(ISwSessionFactory factory, Microsoft.Extensions.Configuration.IConfiguration? configuration)
+    public SolidWorksSessionManager(
+        ISwSessionFactory factory,
+        Microsoft.Extensions.Configuration.IConfiguration? configuration)
     {
-        _factory = factory;
+        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
         Options = SolidWorksPerformanceOptions.From(configuration);
         Logger.Info(
             $"[SW-Session] ShareSessionPerJob={Options.ShareSessionPerJob}, " +
@@ -37,8 +31,9 @@ public sealed class SolidWorksSessionManager : IDisposable
 
     public SolidWorksPerformanceOptions Options { get; }
 
-    /// <summary>True when sessions outlive a job, so callers must not kill SolidWorks around it.</summary>
-    public bool KeepsSessionAlive => Options.ShareSessionPerJob && Options.KeepSessionBetweenJobs;
+    // Kept for compatibility with existing consumers; API execution now
+    // unconditionally closes its session at its job boundary.
+    public bool KeepsSessionAlive => false;
 
     public string? RunJob(
         string label,
@@ -52,13 +47,13 @@ public sealed class SolidWorksSessionManager : IDisposable
         for (var attempt = 1; ; attempt++)
         {
             using var watchdog = SolidWorksStallWatchdog.Start(Options.StallTimeoutSeconds, label);
+
             try
             {
                 var result = Options.ShareSessionPerJob
-                    ? RunShared(visible, keepAliveAllowed, modelPhase, drawingPhase)
-                    : RunSeparate(visible, modelPhase, drawingPhase);
+                    ? RunShared(visible, keepAliveAllowed, modelPhase, drawingPhase, watchdog)
+                    : RunSeparate(visible, modelPhase, drawingPhase, watchdog);
 
-                // Some steps catch COM errors and carry on; a stopped SolidWorks must not pass as success.
                 if (watchdog.Fired)
                     throw new SolidWorksStallException($"{label}: SolidWorks hung and was stopped.");
 
@@ -69,9 +64,9 @@ public sealed class SolidWorksSessionManager : IDisposable
                 DropSession();
                 if (attempt >= attempts)
                     throw ex as SolidWorksStallException
-                          ?? new SolidWorksStallException($"{label}: SolidWorks hung and was stopped.", ex);
+                        ?? new SolidWorksStallException($"{label}: SolidWorks hung and was stopped.", ex);
 
-                Logger.Warn($"[SW-Session] {label}: retrying after a SolidWorks hang (attempt {attempt + 1}/{attempts}).");
+                Logger.Warn($"[SW-Session] {label}: retrying after SolidWorks stall ({attempt + 1}/{attempts}).");
             }
             catch
             {
@@ -85,18 +80,22 @@ public sealed class SolidWorksSessionManager : IDisposable
         bool visible,
         bool keepAliveAllowed,
         Func<SldWorks, string?> modelPhase,
-        Action<SldWorks, string?> drawingPhase)
+        Action<SldWorks, string?> drawingPhase,
+        SolidWorksStallWatchdog watchdog)
     {
-        var app = Acquire(visible);
-
+        var app = Acquire(visible, watchdog);
         var modelResult = modelPhase(app);
+
         CloseAllDocuments(app);
         drawingPhase(app, modelResult);
 
         _jobsOnSession++;
-        var keep = keepAliveAllowed && Options.KeepSessionBetweenJobs &&
-                   (Options.RestartSessionAfterJobs <= 0 || _jobsOnSession < Options.RestartSessionAfterJobs);
-        if (keep)
+        // 'keepAliveAllowed' means the outer API request has another drawing
+        // type to run, not that SolidWorks should survive the API request.
+        // The API executor's finally block closes the process after the last type.
+        var keepForCurrentRequest = keepAliveAllowed &&
+            (Options.RestartSessionAfterJobs <= 0 || _jobsOnSession < Options.RestartSessionAfterJobs);
+        if (keepForCurrentRequest)
             CloseAllDocuments(app);
         else
             DropSession();
@@ -104,52 +103,53 @@ public sealed class SolidWorksSessionManager : IDisposable
         return modelResult;
     }
 
-    // Previous behaviour: a fresh SolidWorks for each phase.
-    private string? RunSeparate(bool visible, Func<SldWorks, string?> modelPhase, Action<SldWorks, string?> drawingPhase)
+    private string? RunSeparate(
+        bool visible,
+        Func<SldWorks, string?> modelPhase,
+        Action<SldWorks, string?> drawingPhase,
+        SolidWorksStallWatchdog watchdog)
     {
         DropSession();
-        SolidWorksProcessKiller.KillAll(killVbaServer: true);
 
         string? modelResult;
         using (var model = _factory.Create(visible))
+        {
+            watchdog.WatchProcess(model.ProcessId);
             modelResult = modelPhase(model.App);
+        }
 
         using (var drawing = _factory.Create(visible))
+        {
+            watchdog.WatchProcess(drawing.ProcessId);
             drawingPhase(drawing.App, modelResult);
+        }
 
         return modelResult;
     }
 
-    private SldWorks Acquire(bool visible)
+    private SldWorks Acquire(bool visible, SolidWorksStallWatchdog watchdog)
     {
         if (_session is not null && IsAlive(_session.App))
         {
             CloseAllDocuments(_session.App);
-            if (_session.App.Visible != visible)
-                _session.App.Visible = visible;
-
-            Logger.Info($"[SW-Session] Reusing SolidWorks session (job {_jobsOnSession + 1} on it).");
+            _session.ApplyVisibility(visible);
+            watchdog.WatchProcess(_session.ProcessId);
+            Logger.Info($"[SW-Session] Reusing WAD-owned PID={_session.ProcessId} within current API job.");
             return _session.App;
         }
 
         DropSession();
-        SolidWorksProcessKiller.KillAll(killVbaServer: true);
+        // No KillAll: SwSession refuses to attach to any existing user process.
         _session = _factory.Create(visible);
         _jobsOnSession = 0;
+        watchdog.WatchProcess(_session.ProcessId);
         return _session.App;
     }
 
     private static bool IsAlive(SldWorks app)
     {
-        try
-        {
-            _ = app.RevisionNumber();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        try { _ = app.RevisionNumber(); return true; }
+        catch { return false; }
     }
 
     private static void CloseAllDocuments(SldWorks app)
@@ -158,20 +158,18 @@ public sealed class SolidWorksSessionManager : IDisposable
         catch (Exception ex) { Logger.Warn($"[SW-Session] CloseAllDocuments failed: {ex.Message}"); }
     }
 
-    /// <summary>Closes the current session, if any (ExitApp, then makes sure no process is left).</summary>
+    /// <summary>Close only the process created by this manager.</summary>
     public void DropSession()
     {
-        if (_session is null)
+        var session = _session;
+        _session = null;
+        _jobsOnSession = 0;
+
+        if (session is null)
             return;
 
-        try { _session.Dispose(); }
-        catch (Exception ex) { Logger.Warn($"[SW-Session] Closing SolidWorks failed: {ex.Message}"); }
-        finally
-        {
-            _session = null;
-            _jobsOnSession = 0;
-            SolidWorksProcessKiller.KillAll(killVbaServer: true);
-        }
+        try { session.Dispose(); }
+        catch (Exception ex) { Logger.Warn($"[SW-Session] Owned-session shutdown failed: {ex}"); }
     }
 
     public void Dispose() => DropSession();

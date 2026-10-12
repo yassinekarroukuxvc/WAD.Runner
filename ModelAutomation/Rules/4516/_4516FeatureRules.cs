@@ -122,7 +122,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         "slot_hole_sketch";
 
     private const string SlotHoleCutFeature =
-        "slot_hole_cut_feature";
+        "stol_hole_cut_feature";
 
     private const string SlotHoleCutSketch =
         "slot_hole_cut_sketch";
@@ -187,9 +187,9 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     private const string CgFeature =
         "cg_feature";
 
-    // NOTE: the sketch under cg_feature is intentionally called cc_sketch.
-    private const string CcSketch =
-        "cc_sketch";
+    // NOTE: the sketch under cg_feature is named cg_sketch in the SolidWorks template.
+    private const string CgSketch =
+        "cg_sketch";
 
     // F / flat geometry
     private const string FlatFrBrFeature =
@@ -386,7 +386,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
     private static readonly string[] CgFootNames =
     {
         CgFeature,
-        CcSketch
+        CgSketch
     };
 
     private static readonly string[] FlatFootNames =
@@ -417,7 +417,7 @@ public sealed class _4516FeatureRules : IFeatureRuleSet
         GFrBrCutFeature,
 
         CgFeature,
-        CcSketch,
+        CgSketch,
 
         FlatFrBrFeature,
         FlatFrBrSketch

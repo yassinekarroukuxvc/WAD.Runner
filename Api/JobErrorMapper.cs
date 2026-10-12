@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 using WAD.Runner.DataManagement.Domain.Validation;
+using WAD.Runner.Solidworks.Adapters;
 
 namespace WAD.Runner.Api;
 
@@ -71,6 +72,14 @@ public static class JobErrorMapper
                 Message:
                     "The automation could not complete because an external operation timed out. " +
                     "Please try again. " +
+                    $"Reference: {reference}"),
+
+            SolidWorksStallException => new PublicJobError(
+                Code: "SOLIDWORKS_STALL",
+                StatusMessage: "SolidWorks stopped responding",
+                Message:
+                    "SolidWorks stopped responding during drawing automation and the " +
+                    "automation session was closed. The job did not complete. " +
                     $"Reference: {reference}"),
 
             COMException => new PublicJobError(
